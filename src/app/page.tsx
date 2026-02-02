@@ -27,11 +27,11 @@ export default function Home() {
           online business and transactions
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-4">
-          <Button asChild size="lg" variant="default">
-            <Link href="/generate">Sign In</Link>
+          <Button asChild size="lg">
+            <Link href="/auth/signin">Sign In</Link>
           </Button>
           <Button asChild size="lg" variant="secondary">
-            <Link href="/generate">Sign Up</Link>
+            <Link href="/auth/signup">Sign Up</Link>
           </Button>
         </div>
       </div>
