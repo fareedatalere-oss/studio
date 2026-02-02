@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Bot, Bell, Home, MessageCircle, PlaySquare, Store } from 'lucide-react';
+import { Bot, Bell, Home, MessageCircle, PlaySquare, Store, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -36,26 +36,30 @@ export default function DashboardLayout({
       </header>
       
       {/* Main Content */}
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 pb-20 md:pb-0">{children}</main>
 
       {/* Bottom Navigation */}
-      <footer className="sticky bottom-0 z-40 border-t bg-background md:hidden">
-        <div className="container flex h-16 items-center justify-around">
+      <footer className="fixed bottom-0 z-40 w-full border-t bg-background md:hidden">
+        <div className="container grid h-16 grid-cols-5 items-center justify-around text-center">
           <Link href="/dashboard" className="flex flex-col items-center gap-1 text-primary">
             <Home className="h-6 w-6" />
             <span className="text-xs">Home</span>
           </Link>
-          <Link href="#" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary">
+          <Link href="/dashboard/chat" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary">
             <MessageCircle className="h-6 w-6" />
             <span className="text-xs">Chat</span>
           </Link>
-          <Link href="#" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary">
+          <Link href="/dashboard/media" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary">
             <PlaySquare className="h-6 w-6" />
             <span className="text-xs">Media</span>
           </Link>
-          <Link href="#" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary">
+          <Link href="/dashboard/market" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary">
             <Store className="h-6 w-6" />
             <span className="text-xs">Market</span>
+          </Link>
+          <Link href="/dashboard/profile" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary">
+            <User className="h-6 w-6" />
+            <span className="text-xs">Profile</span>
           </Link>
         </div>
       </footer>
