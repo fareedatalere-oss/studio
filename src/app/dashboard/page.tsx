@@ -42,7 +42,7 @@ function DashboardContent() {
     { label: 'History', icon: History, href: '/dashboard/history' },
     { label: 'Get Reward', icon: Gift, href: '/dashboard/rewards' },
     { label: 'Get Loans', icon: Landmark, href: '/dashboard/get-loan' },
-    { label: 'School Payment', icon: School, href: '#' },
+    { label: 'School Payment', icon: School, href: '/dashboard/school-payment' },
     { label: 'Traveling', icon: Plane, href: '/dashboard/travelling' },
     { label: 'AI', icon: Bot, href: '/dashboard/ai-chat' },
     { label: 'News', icon: Newspaper, href: '/dashboard/news' },

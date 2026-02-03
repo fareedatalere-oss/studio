@@ -20,9 +20,9 @@ export default function TravellingPage() {
       </header>
       <main className="flex-1">
         <iframe
-          src="https://www.google.com/travel/"
+          src="https://www.bing.com/travel"
           className="w-full h-full border-0"
-          title="Traveling and Booking"
+          title="Traveling and Booking from Bing"
         />
       </main>
     </div>

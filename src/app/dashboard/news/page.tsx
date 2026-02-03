@@ -20,9 +20,9 @@ export default function NewsPage() {
       </header>
       <main className="flex-1">
         <iframe
-          src="https://news.google.com/topstories?hl=en-US&gl=US&ceid=US:en"
+          src="https://www.bing.com/news"
           className="w-full h-full border-0"
-          title="News"
+          title="News from Bing"
         />
       </main>
     </div>
