@@ -73,21 +73,22 @@ function DashboardContent() {
               <p className="text-2xl font-bold">₦{account.nairaBalance}</p>
             </div>
             
-            <div>
-                <p className="text-sm text-muted-foreground">Reward Balance</p>
-                <p className="font-semibold">{account.rewardBalance}</p>
-            </div>
-
-            <div className="flex justify-between items-center">
+            <div className="grid grid-cols-2 gap-4 pt-2">
+              <div>
+                  <p className="text-sm text-muted-foreground">Reward Balance</p>
+                  <p className="font-semibold">{account.rewardBalance}</p>
+              </div>
               <div>
                 <p className="text-sm text-muted-foreground">Click Count</p>
-                <p className="font-semibold">{account.clickCount}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold">{account.clickCount}</p>
+                  {account.number && (
+                    <Button asChild size="sm" className="h-auto px-2 py-1 text-xs">
+                      <Link href="/dashboard/rewards">Get Reward</Link>
+                    </Button>
+                  )}
+                </div>
               </div>
-              {account.number && (
-                <Button asChild>
-                  <Link href="/dashboard/rewards">Get Reward</Link>
-                </Button>
-              )}
             </div>
           </CardContent>
         </Card>
