@@ -1,23 +1,29 @@
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowLeft } from "lucide-react";
+'use client';
+
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
 import Link from "next/link";
 
 export default function SchoolPaymentPage() {
-    return (
-        <div className="container py-8">
-            <Link href="/dashboard" className="flex items-center gap-2 mb-4 text-sm">
-                <ArrowLeft className="h-4 w-4" />
-                Back to Dashboard
-            </Link>
-            <Card className="w-full max-w-md mx-auto">
-                <CardHeader>
-                    <CardTitle>School Payment</CardTitle>
-                    <CardDescription>Pay school fees and other educational bills.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-muted-foreground">School payment form will be here.</p>
-                </CardContent>
-            </Card>
-        </div>
-    )
+  return (
+    <div className="flex flex-col h-screen">
+      <header className="sticky top-0 bg-background/80 backdrop-blur-sm flex items-center justify-between gap-4 p-4 border-b z-10">
+        <h1 className="font-semibold">School Payment</h1>
+        <Button asChild variant="ghost" size="icon">
+          <Link href="/dashboard">
+            <X />
+            <span className="sr-only">Close</span>
+          </Link>
+        </Button>
+      </header>
+      <main className="flex-1">
+        <iframe
+          src="https://remita.net/"
+          className="w-full h-full border-0"
+          title="School Payments with Remita"
+          sandbox="allow-scripts allow-same-origin allow-forms"
+        />
+      </main>
+    </div>
+  );
 }
