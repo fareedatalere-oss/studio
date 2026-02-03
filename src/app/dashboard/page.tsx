@@ -57,30 +57,35 @@ function DashboardContent() {
           <CardContent className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground">Account Number</p>
-              <p className="font-mono text-lg font-semibold">
-                {account.number || 'N/A'}
-              </p>
+              {account.number ? (
+                <p className="font-mono text-lg font-semibold">
+                  {account.number}
+                </p>
+              ) : (
+                <Button asChild className="mt-1">
+                  <Link href="/dashboard/get-account-number">Get Account Number</Link>
+                </Button>
+              )}
             </div>
+
             <div>
               <p className="text-sm text-muted-foreground">Naira Balance</p>
               <p className="text-2xl font-bold">₦{account.nairaBalance}</p>
             </div>
-            <div className="flex justify-between items-end">
-              <div>
+            
+            <div>
                 <p className="text-sm text-muted-foreground">Reward Balance</p>
                 <p className="font-semibold">{account.rewardBalance}</p>
-              </div>
+            </div>
+
+            <div className="flex justify-between items-end">
               <div>
                 <p className="text-sm text-muted-foreground">Click Count</p>
                 <p className="font-semibold">{account.clickCount}</p>
               </div>
-              {account.number ? (
+              {account.number && (
                 <Button asChild>
                   <Link href="/dashboard/rewards">Get Reward</Link>
-                </Button>
-              ) : (
-                <Button asChild>
-                  <Link href="/dashboard/get-account-number">Get Account Number</Link>
                 </Button>
               )}
             </div>
