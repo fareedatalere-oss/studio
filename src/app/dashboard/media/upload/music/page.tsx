@@ -2,12 +2,14 @@
 
 import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Library, UploadCloud } from 'lucide-react';
+import { ArrowLeft, Library, Music, Settings, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 
 export default function UploadMusicPage() {
   const { toast } = useToast();
@@ -15,6 +17,9 @@ export default function UploadMusicPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [description, setDescription] = useState('');
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [allowComments, setAllowComments] = useState(true);
+  const [allowDownload, setAllowDownload] = useState(true);
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -33,6 +38,11 @@ export default function UploadMusicPage() {
   };
 
   const handlePost = () => {
+    console.log('Posting music with settings:', {
+        description,
+        allowComments,
+        allowDownload
+    });
     toast({
       title: 'Music Posted!',
       description: 'Your track is now live.',
@@ -65,8 +75,13 @@ export default function UploadMusicPage() {
           {audioFile ? (
             <div className='space-y-4 border-t pt-4'>
                  <div className="border p-4 rounded-md">
-                    <p className="font-semibold">{audioFile.name}</p>
-                    <p className="text-sm text-muted-foreground">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                    <div className='flex items-center gap-3'>
+                        <Music className="h-8 w-8 text-muted-foreground" />
+                        <div>
+                            <p className="font-semibold">{audioFile.name}</p>
+                            <p className="text-sm text-muted-foreground">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                    </div>
                     <audio controls src={URL.createObjectURL(audioFile)} className="w-full mt-2" />
                 </div>
                 <Textarea
@@ -74,6 +89,17 @@ export default function UploadMusicPage() {
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                 />
+                 <div className="space-y-2 pt-4">
+                    <Label className="flex items-center"><Settings className="mr-2 h-4 w-4" /> Settings</Label>
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="allow-comments">Allow Comments</Label>
+                        <Switch id="allow-comments" checked={allowComments} onCheckedChange={setAllowComments} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="allow-download">Enable Downloads</Label>
+                        <Switch id="allow-download" checked={allowDownload} onCheckedChange={setAllowDownload} />
+                    </div>
+                 </div>
             </div>
           ) : (
             <div
