@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowRight, Search, ChevronUp, Upload, ShoppingCart, Trash2, Phone, Book, Library, MoreVertical } from 'lucide-react';
+import { ArrowRight, Search, ChevronUp, Upload, ShoppingCart, Trash2, Phone, Book, Library, MoreVertical, Video, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useState, Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 const mockApps = [
   { id: '1', name: 'I-Pay Connect', icon: 'https://picsum.photos/seed/app1/200/200', platform: 'android', price: 'Free' },
@@ -33,14 +34,20 @@ const mockBooks = [
     { id: 'b3', name: 'Marketplace Success', icon: 'https://picsum.photos/seed/book3/200/300', price: 5000, description: 'Strategies for selling your digital products online.' },
 ];
 
+const mockUpworkProfiles = [
+    { id: 'u1', name: 'John Doe', title: 'Senior Developer', avatar: 'https://picsum.photos/seed/upwork1/200/200', description: 'Experienced full-stack developer with 10+ years of experience building scalable web applications. Proficient in React, Node.js, and cloud infrastructure.', videoUrl: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_5MB.mp4', phoneNumber: '08011223344' },
+];
+
 
 function MarketContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const [currentTab, setCurrentTab] = useState('apps');
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [apps, setApps] = useState(mockApps);
   const [products, setProducts] = useState(mockProducts);
   const [books, setBooks] = useState(mockBooks);
+  const [upworkProfiles, setUpworkProfiles] = useState(mockUpworkProfiles);
   const [cart, setCart] = useState<typeof mockProducts[0][]>([]);
   const [library, setLibrary] = useState<string[]>([]); // Store book IDs
   const [pin, setPin] = useState('');
@@ -48,6 +55,10 @@ function MarketContent() {
 
 
   useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) {
+        setCurrentTab(tab);
+    }
     if (searchParams.get('subscribed') === 'true') {
       setIsSubscribed(true);
     }
@@ -69,7 +80,13 @@ function MarketContent() {
           setBooks(prev => [newBook, ...prev]);
       }
     }
-  }, [searchParams, apps, products, books]);
+    if (searchParams.get('new_upwork') === 'true') {
+      const newProfile = { id: 'u2', name: 'New Freelancer', title: 'Graphic Designer', avatar: 'https://picsum.photos/seed/newupwork/200/200', description: 'Creative graphic designer ready for new challenges.', videoUrl: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_5MB.mp4', phoneNumber: '08099887766' };
+      if (!upworkProfiles.find(p => p.id === newProfile.id)) {
+        setUpworkProfiles(prev => [newProfile, ...prev]);
+      }
+    }
+  }, [searchParams, apps, products, books, upworkProfiles]);
   
   const AppItem = ({ app }: { app: typeof mockApps[0]}) => (
     <Link href={`/dashboard/market/apps/${app.id}`}>
@@ -286,6 +303,54 @@ function MarketContent() {
     </Card>
   )
 
+  const UpworkProfileItem = ({ profile }: { profile: typeof mockUpworkProfiles[0]}) => (
+      <Card>
+        <CardHeader>
+            <div className="flex items-center gap-4">
+                <Image src={profile.avatar} alt={profile.name} width={60} height={60} className="rounded-full" />
+                <div>
+                    <CardTitle>{profile.name}</CardTitle>
+                    <CardDescription>{profile.title}</CardDescription>
+                </div>
+            </div>
+        </CardHeader>
+        <CardContent className="flex gap-2">
+            <Button asChild className="flex-1">
+                <a href={`tel:${profile.phoneNumber}`}><Phone className="mr-2 h-4 w-4" /> Call</a>
+            </Button>
+             <Button asChild variant="secondary" className="flex-1">
+                <Link href={`/dashboard/chat/upwork-${profile.id}`}>Chat</Link>
+            </Button>
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon"><MoreVertical/></Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem asChild>
+                        <Link href="/dashboard/market/upwork/view-video">
+                            <Video className="mr-2 h-4 w-4" /> View Video
+                        </Link>
+                    </DropdownMenuItem>
+                     <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>View Description</DropdownMenuItem>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                             <AlertDialogHeader>
+                                <AlertDialogTitle>{profile.name}</AlertDialogTitle>
+                                <AlertDialogDescription>{profile.description}</AlertDialogDescription>
+                            </AlertDialogHeader>
+                             <AlertDialogFooter>
+                                <AlertDialogCancel>Close</AlertDialogCancel>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </CardContent>
+      </Card>
+  )
+
   return (
     <div className="container py-4">
       <div className="flex justify-between items-center mb-4">
@@ -329,7 +394,7 @@ function MarketContent() {
             </SheetContent>
         </Sheet>
       </div>
-      <Tabs defaultValue="apps" className="w-full">
+      <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="apps">Apps</TabsTrigger>
           <TabsTrigger value="products">Products</TabsTrigger>
@@ -417,12 +482,21 @@ function MarketContent() {
             </div>
         </TabsContent>
 
-        <TabsContent value="upwork" className="mt-4">
-            <Button asChild>
-                <a href="https://www.upwork.com" target="_blank" rel="noopener noreferrer">
-                    <ArrowRight className="mr-2 h-4 w-4" /> Go to Upwork
-                </a>
-            </Button>
+        <TabsContent value="upwork" className="mt-4 space-y-4">
+            <div className="flex justify-end">
+                 <Button asChild>
+                    <Link href="/dashboard/market/upwork/warning">
+                        <UserPlus className="mr-2 h-4 w-4" /> Create Your Profile
+                    </Link>
+                </Button>
+            </div>
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Input placeholder="Search for freelancers..." className="pl-10" />
+            </div>
+             <div className="space-y-4">
+                {upworkProfiles.map(profile => <UpworkProfileItem key={profile.id} profile={profile} />)}
+            </div>
         </TabsContent>
       </Tabs>
     </div>
