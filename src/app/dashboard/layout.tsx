@@ -26,9 +26,11 @@ export default function DashboardLayout({
             </Button>
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon">
-              <Bell className="h-5 w-5" />
-              <span className="sr-only">Notifications</span>
+            <Button asChild variant="ghost" size="icon">
+              <Link href="/dashboard/notifications">
+                <Bell className="h-5 w-5" />
+                <span className="sr-only">Notifications</span>
+              </Link>
             </Button>
             <Avatar>
               <AvatarFallback>U</AvatarFallback>

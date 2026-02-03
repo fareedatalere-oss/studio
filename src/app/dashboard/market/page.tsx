@@ -1,13 +1,38 @@
+'use client';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowRight, Search } from 'lucide-react';
+import { ArrowRight, Search, ChevronUp } from 'lucide-react';
+import Link from 'next/link';
+import { useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useEffect } from 'react';
 
-export default function MarketPage() {
+function MarketContent() {
+  const searchParams = useSearchParams();
+  const [isSubscribed, setIsSubscribed] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('subscribed') === 'true') {
+      setIsSubscribed(true);
+    }
+  }, [searchParams]);
+
+
   return (
     <div className="container py-4">
       <div className="flex justify-end mb-4">
-        <Button>Subscribe</Button>
+        {isSubscribed ? (
+           <Button variant="outline" disabled>
+             <ChevronUp className="mr-2 h-4 w-4" />
+             Subscribed
+           </Button>
+        ) : (
+            <Button asChild>
+              <Link href="/dashboard/market/subscribe">Subscribe</Link>
+            </Button>
+        )}
       </div>
       <Tabs defaultValue="apps" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
@@ -52,4 +77,12 @@ export default function MarketPage() {
       </Tabs>
     </div>
   );
+}
+
+export default function MarketPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <MarketContent />
+    </Suspense>
+  )
 }
