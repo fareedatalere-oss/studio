@@ -13,6 +13,7 @@ import {
   Send,
   Wrench,
   History,
+  Gift,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -20,7 +21,7 @@ function DashboardContent() {
   const searchParams = useSearchParams();
   const [account, setAccount] = useState({
     number: '',
-    nairaBalance: '0.00',
+    nairaBalance: '5000.00',
     rewardBalance: '0',
     clickCount: 0,
   });
@@ -31,7 +32,6 @@ function DashboardContent() {
       setAccount((prev) => ({
         ...prev,
         number: accountNumber,
-        nairaBalance: '500.00',
       }));
     }
   }, [searchParams]);
@@ -40,11 +40,12 @@ function DashboardContent() {
     { label: 'Send', icon: Send, href: '/dashboard/transfer' },
     { label: 'Utilities', icon: Wrench, href: '/dashboard/utilities' },
     { label: 'History', icon: History, href: '/dashboard/history' },
-    { label: 'Get Loans', icon: Landmark, href: '#' },
+    { label: 'Get Reward', icon: Gift, href: '/dashboard/rewards' },
+    { label: 'Get Loans', icon: Landmark, href: '/dashboard/get-loan' },
     { label: 'School Payment', icon: School, href: '#' },
-    { label: 'Traveling', icon: Plane, href: '#' },
-    { label: 'AI', icon: Bot, href: '#' },
-    { label: 'News', icon: Newspaper, href: '#' },
+    { label: 'Traveling', icon: Plane, href: '/dashboard/travelling' },
+    { label: 'AI', icon: Bot, href: '/dashboard/ai-chat' },
+    { label: 'News', icon: Newspaper, href: '/dashboard/news' },
   ];
 
   return (
@@ -93,7 +94,7 @@ function DashboardContent() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-4 gap-4 text-center">
+        <div className="grid grid-cols-3 md:grid-cols-4 gap-4 text-center">
           {actions.map((action) => (
              <Link key={action.label} href={action.href} className="flex flex-col items-center gap-1">
               <Button

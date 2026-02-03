@@ -18,9 +18,11 @@ export default function DashboardLayout({
             <Link href="/dashboard">
                 <IPayLogo className="h-8 w-8" />
             </Link>
-            <Button variant="ghost" size="icon">
-              <Bot className="h-5 w-5" />
-              <span className="sr-only">AI Assistant</span>
+            <Button asChild variant="ghost" size="icon">
+              <Link href="/dashboard/ai-chat">
+                <Bot className="h-5 w-5" />
+                <span className="sr-only">AI Assistant</span>
+              </Link>
             </Button>
           </div>
           <div className="flex items-center gap-4">
