@@ -39,7 +39,7 @@ function DashboardContent() {
   const actions = [
     { label: 'Send', icon: Send, href: '/dashboard/transfer' },
     { label: 'Utilities', icon: Wrench, href: '/dashboard/utilities' },
-    { label: 'Rewards', icon: History, href: '/dashboard/rewards' },
+    { label: 'History', icon: History, href: '/dashboard/history' },
     { label: 'Get Loans', icon: Landmark, href: '#' },
     { label: 'School Payment', icon: School, href: '#' },
     { label: 'Traveling', icon: Plane, href: '#' },
@@ -74,9 +74,11 @@ function DashboardContent() {
                 <p className="text-sm text-muted-foreground">Click Count</p>
                 <p className="font-semibold">{account.clickCount}</p>
               </div>
-              <Button asChild>
-                <Link href="/dashboard/get-account-number">Get Account Number</Link>
-              </Button>
+              {!account.number && (
+                <Button asChild>
+                  <Link href="/dashboard/get-account-number">Get Account Number</Link>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
