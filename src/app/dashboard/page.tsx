@@ -74,7 +74,11 @@ function DashboardContent() {
                 <p className="text-sm text-muted-foreground">Click Count</p>
                 <p className="font-semibold">{account.clickCount}</p>
               </div>
-              {!account.number && (
+              {account.number ? (
+                <Button asChild>
+                  <Link href="/dashboard/rewards">Get Reward</Link>
+                </Button>
+              ) : (
                 <Button asChild>
                   <Link href="/dashboard/get-account-number">Get Account Number</Link>
                 </Button>
