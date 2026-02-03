@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, UploadCloud, ShieldAlert, FileText, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, UploadCloud, ShieldAlert, FileText, Image as ImageIcon, X, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,9 +11,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { useToast, ToastAction } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Progress } from '@/components/ui/progress';
 
 function AppUploadWarning({ onAccept }: { onAccept: () => void }) {
   return (
@@ -57,8 +59,15 @@ function AppUploadForm() {
     const [appIcon, setAppIcon] = useState<File | null>(null);
     const [appIconPreview, setAppIconPreview] = useState<string | null>(null);
     const [appFile, setAppFile] = useState<File | null>(null);
+    const [screenshots, setScreenshots] = useState<File[]>([]);
+    const [screenshotPreviews, setScreenshotPreviews] = useState<string[]>([]);
+    const [priceType, setPriceType] = useState('free');
+    const [price, setPrice] = useState('');
+    const [uploadProgress, setUploadProgress] = useState(0);
+
     const appIconInputRef = useRef<HTMLInputElement>(null);
     const appFileInputRef = useRef<HTMLInputElement>(null);
+    const screenshotInputRef = useRef<HTMLInputElement>(null);
 
     const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -78,17 +87,55 @@ function AppUploadForm() {
         }
     }
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleScreenshotsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            const files = Array.from(e.target.files);
+            if (screenshots.length + files.length > 8) {
+                toast({ variant: 'destructive', title: 'Maximum 8 screenshots allowed.' });
+                return;
+            }
+            setScreenshots(prev => [...prev, ...files]);
+            
+            const newPreviews = files.map(file => URL.createObjectURL(file));
+            setScreenshotPreviews(prev => [...prev, ...newPreviews]);
+        }
+    };
+    
+    const removeScreenshot = (index: number) => {
+        setScreenshots(s => s.filter((_, i) => i !== index));
+        setScreenshotPreviews(p => p.filter((_, i) => i !== index));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (screenshots.length < 3) {
+            toast({ variant: 'destructive', title: 'Upload at least 3 screenshots.' });
+            return;
+        }
+
         setIsLoading(true);
-        // Simulate upload
-        setTimeout(() => {
-            toast({
-                title: "App Submitted",
-                description: "Your app is now under review."
+        setUploadProgress(100);
+
+        const interval = setInterval(() => {
+            setUploadProgress(prev => {
+                if (prev <= 10) {
+                    clearInterval(interval);
+                    toast({
+                        title: "App Submitted Successfully!",
+                        description: "Your app is now live on the marketplace. You can view it now.",
+                        duration: 999999, // Permanent for prototype
+                        action: (
+                            <ToastAction altText="View App" asChild>
+                                <Link href="/dashboard/market/apps/1">View App</Link>
+                            </ToastAction>
+                        )
+                    });
+                    router.push('/dashboard/market?new_app=true');
+                    return 0;
+                }
+                return prev - 10;
             });
-            router.push('/dashboard/market');
-        }, 1500);
+        }, 150);
     }
 
   return (
@@ -98,8 +145,8 @@ function AppUploadForm() {
             <CardDescription>Fill in the details below to list your application on the marketplace.</CardDescription>
         </CardHeader>
         <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
+            <form onSubmit={handleSubmit} className="space-y-6">
+                 <div className="space-y-2">
                     <Label htmlFor="appName">App Name</Label>
                     <Input id="appName" placeholder="e.g., I-Pay Connect" required/>
                 </div>
@@ -123,6 +170,29 @@ function AppUploadForm() {
                     </div>
                     <Input id="appIcon" type="file" className="hidden" ref={appIconInputRef} onChange={handleIconChange} accept="image/png, image/jpeg, image/webp" required/>
                 </div>
+                <div className="space-y-2">
+                    <Label>Screenshots (3-8 images)</Label>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                        {screenshotPreviews.map((src, index) => (
+                            <div key={index} className="relative aspect-square">
+                                <Image src={src} alt={`Screenshot ${index + 1}`} fill className="object-cover rounded-md"/>
+                                <Button type="button" size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeScreenshot(index)}><X className="h-4 w-4"/></Button>
+                            </div>
+                        ))}
+                        {screenshots.length < 8 && (
+                            <div
+                                className="aspect-square bg-muted rounded-md flex items-center justify-center cursor-pointer border-2 border-dashed"
+                                onClick={() => screenshotInputRef.current?.click()}
+                            >
+                                <div className="text-center text-muted-foreground">
+                                    <UploadCloud className="mx-auto h-8 w-8" />
+                                    <p className='text-xs'>Upload</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <Input id="screenshots" type="file" multiple className="hidden" ref={screenshotInputRef} onChange={handleScreenshotsChange} accept="image/png, image/jpeg, image/webp" />
+                </div>
                  <div className="space-y-2">
                     <Label htmlFor="platform">Platform</Label>
                     <Select required onValueChange={setPlatform} value={platform}>
@@ -130,14 +200,14 @@ function AppUploadForm() {
                             <SelectValue placeholder="Select platform" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="android">Android (.apk, .aab)</SelectItem>
-                            <SelectItem value="ios">iOS (.ipa)</SelectItem>
+                            <SelectItem value="android">Android</SelectItem>
+                            <SelectItem value="ios">iOS</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
                  <div className="space-y-2">
                     <Label htmlFor="description">App Description</Label>
-                    <Textarea id="description" placeholder="Describe what your app does..." required/>
+                    <Textarea id="description" placeholder="Describe what your app does..." required rows={4}/>
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="appFile">Application File</Label>
@@ -158,7 +228,7 @@ function AppUploadForm() {
                           <div className="text-center text-muted-foreground">
                             <UploadCloud className="mx-auto h-10 w-10" />
                             <p>Click or drag file to upload</p>
-                            {platform === 'android' && <p className="text-xs">.apk or .aab</p>}
+                            {platform === 'android' && <p className="text-xs">.apk, .aab</p>}
                             {platform === 'ios' && <p className="text-xs">.ipa file</p>}
                             {!platform && <p className="text-xs">Select a platform first</p>}
                           </div>
@@ -173,13 +243,45 @@ function AppUploadForm() {
                         required 
                         disabled={!platform}
                         accept={
-                            platform === 'android' ? '.apk,.aab' : 
-                            platform === 'ios' ? '.ipa' : ''
+                            platform === 'ios' ? '.ipa' : 
+                            platform === 'android' ? '.apk,.aab' : '*'
                         }
                     />
                 </div>
+                <div className="space-y-2">
+                    <Label htmlFor="email">Your Email Address</Label>
+                    <Input id="email" type="email" placeholder="you@example.com" required/>
+                </div>
+                <div className="space-y-3">
+                    <Label>Pricing</Label>
+                     <RadioGroup defaultValue="free" value={priceType} onValueChange={setPriceType} className="flex gap-4">
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="free" id="free" />
+                            <Label htmlFor="free">Free</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="paid" id="paid" />
+                            <Label htmlFor="paid">Paid</Label>
+                        </div>
+                    </RadioGroup>
+                    {priceType === 'paid' && (
+                        <div className='space-y-2'>
+                            <Label htmlFor="price">Price (₦)</Label>
+                            <Input id="price" type="number" placeholder='e.g., 500' value={price} onChange={(e) => setPrice(e.target.value)} required/>
+                            <p className="text-xs text-muted-foreground">A fee of ₦80 will be deducted from each sale.</p>
+                        </div>
+                    )}
+                </div>
+                
+                 {isLoading && (
+                    <div className='space-y-2'>
+                        <Label>Checking for malicious software...</Label>
+                        <Progress value={100 - uploadProgress} />
+                    </div>
+                )}
+
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Submitting..." : "Submit App for Review"}
+                    {isLoading ? "Posting App..." : "Post App"}
                 </Button>
             </form>
         </CardContent>
