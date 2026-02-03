@@ -78,7 +78,7 @@ function DashboardContent() {
                 <p className="font-semibold">{account.rewardBalance}</p>
             </div>
 
-            <div className="flex justify-between items-end">
+            <div className="flex justify-between items-center">
               <div>
                 <p className="text-sm text-muted-foreground">Click Count</p>
                 <p className="font-semibold">{account.clickCount}</p>
