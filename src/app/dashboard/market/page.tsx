@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowRight, Search, ChevronUp, Upload, ShoppingCart, Trash2, Phone } from 'lucide-react';
+import { ArrowRight, Search, ChevronUp, Upload, ShoppingCart, Trash2, Phone, Book, Library, MoreVertical } from 'lucide-react';
 import Link from 'next/link';
 import { useState, Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -14,7 +14,6 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
-import { MoreVertical } from 'lucide-react';
 
 const mockApps = [
   { id: '1', name: 'I-Pay Connect', icon: 'https://picsum.photos/seed/app1/200/200', platform: 'android', price: 'Free' },
@@ -28,13 +27,22 @@ const mockProducts = [
     { id: 'p2', name: 'Leather Wallet', icon: 'https://picsum.photos/seed/prod2/200/200', price: 4500, contactType: 'call', contactInfo: '08012345678', description: 'Handcrafted genuine leather wallet.' },
 ];
 
+const mockBooks = [
+    { id: 'b1', name: 'The Art of I-Pay', icon: 'https://picsum.photos/seed/book1/200/300', price: 2500, description: 'A deep dive into the philosophy and technology behind I-Pay.' },
+    { id: 'b2', name: 'Digital Currency Explained', icon: 'https://picsum.photos/seed/book2/200/300', price: 0, description: 'A beginner\'s guide to understanding the world of digital finance.' },
+    { id: 'b3', name: 'Marketplace Success', icon: 'https://picsum.photos/seed/book3/200/300', price: 5000, description: 'Strategies for selling your digital products online.' },
+];
+
+
 function MarketContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [apps, setApps] = useState(mockApps);
   const [products, setProducts] = useState(mockProducts);
+  const [books, setBooks] = useState(mockBooks);
   const [cart, setCart] = useState<typeof mockProducts[0][]>([]);
+  const [library, setLibrary] = useState<string[]>([]); // Store book IDs
   const [pin, setPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -55,7 +63,13 @@ function MarketContent() {
         setProducts(prev => [newProduct, ...prev]);
       }
     }
-  }, [searchParams, apps, products]);
+    if (searchParams.get('new_book') === 'true') {
+      const newBook = { id: 'b4', name: 'My New Book', icon: 'https://picsum.photos/seed/newbook/200/300', price: 1000, description: 'A freshly published book.' };
+      if (!books.find(b => b.id === newBook.id)) {
+          setBooks(prev => [newBook, ...prev]);
+      }
+    }
+  }, [searchParams, apps, products, books]);
   
   const AppItem = ({ app }: { app: typeof mockApps[0]}) => (
     <Link href={`/dashboard/market/apps/${app.id}`}>
@@ -90,6 +104,37 @@ function MarketContent() {
                 description: 'The transaction PIN is incorrect.',
                 variant: 'destructive',
             });
+        }
+        setIsLoading(false);
+        setPin('');
+    }, 1500);
+  };
+  
+  const handleGetBook = (book: typeof mockBooks[0]) => {
+    setIsLoading(true);
+    setTimeout(() => {
+        if (book.price > 0 && pin !== '12345') {
+            toast({
+                title: 'Invalid PIN',
+                description: 'The transaction PIN is incorrect.',
+                variant: 'destructive',
+            });
+        } else {
+            if (book.price > 0) {
+                 toast({
+                    title: 'Payment Successful',
+                    description: `You have purchased ${book.name}.`
+                });
+                toast({
+                    title: 'Sale Notification Sent',
+                    description: `Seller has been notified of your purchase.`
+                });
+            }
+            toast({
+                title: 'Book Saved!',
+                description: `${book.name} has been added to your library.`,
+            });
+            setLibrary(prev => [...prev, book.id]);
         }
         setIsLoading(false);
         setPin('');
@@ -167,6 +212,74 @@ function MarketContent() {
                              toast({title: 'Already in Cart', description: `${product.name} is already in your cart.`});
                         }
                     }}>Add to Cart</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
+    </Card>
+  );
+
+  const BookItem = ({ book }: { book: typeof mockBooks[0]}) => (
+    <Card className="flex flex-col">
+        <CardContent className="p-4 flex flex-col items-center text-center gap-2 flex-1">
+            <Image src={book.icon} alt={book.name} width={80} height={120} className="rounded-md object-cover shadow-md" />
+            <p className="font-semibold text-sm truncate w-full mt-2">{book.name}</p>
+            <p className="text-xs font-bold text-muted-foreground">{book.price > 0 ? `₦${(book.price + 50).toLocaleString()}` : 'Free'}</p>
+        </CardContent>
+         <div className="border-t p-2 flex items-center justify-end">
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical /></Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                     <AlertDialog>
+                        <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()}>Review Book</DropdownMenuItem></AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>{book.name}</AlertDialogTitle>
+                                <AlertDialogDescription>{book.description}</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter><AlertDialogCancel>Close</AlertDialogCancel></AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                    {library.includes(book.id) ? (
+                        <DropdownMenuItem asChild>
+                            <Link href="/dashboard/market/library">Go to Library</Link>
+                        </DropdownMenuItem>
+                    ) : book.price > 0 ? (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()}>Get Book</DropdownMenuItem></AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Enter your 5-digit PIN to purchase {book.name} for ₦{(book.price + 50).toLocaleString()}.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <div className="space-y-2">
+                                    <Label htmlFor={`pin-book-${book.id}`}>5-Digit Transaction PIN</Label>
+                                    <Input
+                                        id={`pin-book-${book.id}`}
+                                        type="password"
+                                        inputMode="numeric"
+                                        value={pin}
+                                        onChange={(e) => setPin(e.target.value)}
+                                        maxLength={5}
+                                        placeholder="e.g. 12345"
+                                    />
+                                </div>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleGetBook(book)} disabled={isLoading || pin.length !== 5}>
+                                        {isLoading ? 'Processing...' : 'Confirm & Pay'}
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    ) : (
+                        <DropdownMenuItem onClick={() => handleGetBook(book)}>
+                            Get Book (Free)
+                        </DropdownMenuItem>
+                    )}
                 </DropdownMenuContent>
             </DropdownMenu>
         </div>
@@ -282,11 +395,26 @@ function MarketContent() {
         </TabsContent>
 
         <TabsContent value="bookstore" className="mt-4 space-y-4">
+          {isSubscribed && (
+                <div className="flex justify-between">
+                    <Button asChild variant="outline">
+                        <Link href="/dashboard/market/library"><Library className="mr-2 h-4 w-4" /> My Library</Link>
+                    </Button>
+                    <Button asChild>
+                        <Link href="/dashboard/market/upload/book">
+                            <Upload className="mr-2 h-4 w-4" />
+                            Upload Book
+                        </Link>
+                    </Button>
+                </div>
+            )}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input placeholder="Search for books..." className="pl-10" />
           </div>
-          <Button>Library</Button>
+           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {books.map(book => <BookItem key={book.id} book={book} />)}
+            </div>
         </TabsContent>
 
         <TabsContent value="upwork" className="mt-4">
