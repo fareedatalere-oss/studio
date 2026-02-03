@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, UploadCloud, ShieldAlert } from 'lucide-react';
+import Image from 'next/image';
+import { ArrowLeft, UploadCloud, ShieldAlert, FileText, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { cn } from '@/lib/utils';
 
 function AppUploadWarning({ onAccept }: { onAccept: () => void }) {
   return (
@@ -51,6 +53,30 @@ function AppUploadForm() {
     const { toast } = useToast();
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
+    const [platform, setPlatform] = useState('');
+    const [appIcon, setAppIcon] = useState<File | null>(null);
+    const [appIconPreview, setAppIconPreview] = useState<string | null>(null);
+    const [appFile, setAppFile] = useState<File | null>(null);
+    const appIconInputRef = useRef<HTMLInputElement>(null);
+    const appFileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setAppIcon(file);
+            const reader = new FileReader();
+            reader.onload = (loadEvent) => {
+                setAppIconPreview(loadEvent.target?.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            setAppFile(e.target.files[0]);
+        }
+    }
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -78,8 +104,28 @@ function AppUploadForm() {
                     <Input id="appName" placeholder="e.g., I-Pay Connect" required/>
                 </div>
                  <div className="space-y-2">
+                    <Label htmlFor="appIcon">App Icon</Label>
+                    <div className="flex items-center gap-4">
+                        <div 
+                            className="w-24 h-24 bg-muted rounded-md flex items-center justify-center cursor-pointer border border-dashed"
+                             onClick={() => appIconInputRef.current?.click()}
+                        >
+                            {appIconPreview ? (
+                                <Image src={appIconPreview} alt="App Icon Preview" width={96} height={96} className="object-cover rounded-md"/>
+                            ) : (
+                                <div className="text-center text-muted-foreground p-2">
+                                    <ImageIcon className="mx-auto h-8 w-8" />
+                                    <p className='text-xs'>Upload Icon</p>
+                                </div>
+                            )}
+                        </div>
+                        <Button type="button" variant="outline" onClick={() => appIconInputRef.current?.click()}>Choose Image</Button>
+                    </div>
+                    <Input id="appIcon" type="file" className="hidden" ref={appIconInputRef} onChange={handleIconChange} accept="image/png, image/jpeg, image/webp" required/>
+                </div>
+                 <div className="space-y-2">
                     <Label htmlFor="platform">Platform</Label>
-                    <Select required>
+                    <Select required onValueChange={setPlatform} value={platform}>
                         <SelectTrigger id="platform">
                             <SelectValue placeholder="Select platform" />
                         </SelectTrigger>
@@ -95,13 +141,42 @@ function AppUploadForm() {
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="appFile">Application File</Label>
-                     <div className="h-32 bg-muted rounded-md flex items-center justify-center cursor-pointer border-2 border-dashed">
-                      <div className="text-center text-muted-foreground">
-                        <UploadCloud className="mx-auto h-10 w-10" />
-                        <p>Click or drag file to upload</p>
-                      </div>
+                     <div
+                        className={cn(
+                            "h-32 bg-muted rounded-md flex items-center justify-center border-2 border-dashed",
+                            platform ? "cursor-pointer" : "cursor-not-allowed opacity-50"
+                        )}
+                        onClick={() => platform && appFileInputRef.current?.click()}
+                    >
+                      {appFile ? (
+                          <div className="text-center text-foreground">
+                            <FileText className="mx-auto h-10 w-10" />
+                            <p className="font-semibold mt-2">{appFile.name}</p>
+                            <p className="text-xs text-muted-foreground">{(appFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                          </div>
+                      ) : (
+                          <div className="text-center text-muted-foreground">
+                            <UploadCloud className="mx-auto h-10 w-10" />
+                            <p>Click or drag file to upload</p>
+                            {platform === 'android' && <p className="text-xs">.apk or .aab</p>}
+                            {platform === 'ios' && <p className="text-xs">.ipa file</p>}
+                            {!platform && <p className="text-xs">Select a platform first</p>}
+                          </div>
+                      )}
                     </div>
-                    <Input id="appFile" type="file" className="hidden"/>
+                    <Input 
+                        id="appFile" 
+                        type="file" 
+                        className="hidden"
+                        ref={appFileInputRef}
+                        onChange={handleFileChange}
+                        required 
+                        disabled={!platform}
+                        accept={
+                            platform === 'android' ? '.apk,.aab' : 
+                            platform === 'ios' ? '.ipa' : ''
+                        }
+                    />
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? "Submitting..." : "Submit App for Review"}
