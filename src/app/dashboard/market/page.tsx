@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowRight, Search, ChevronUp } from 'lucide-react';
+import { ArrowRight, Search, ChevronUp, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -43,6 +43,16 @@ function MarketContent() {
         </TabsList>
         
         <TabsContent value="apps" className="mt-4 space-y-4">
+           {isSubscribed && (
+            <div className="flex justify-end">
+                <Button asChild>
+                    <Link href="/dashboard/market/apps/upload">
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload App
+                    </Link>
+                </Button>
+            </div>
+           )}
           <div className="flex items-center gap-2">
             <Button variant="secondary">Android</Button>
             <Button variant="secondary">iOS</Button>
