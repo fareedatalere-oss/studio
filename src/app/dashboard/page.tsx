@@ -17,13 +17,14 @@ import {
 import Link from 'next/link';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { Skeleton } from '@/components/ui/skeleton';
 
 function DashboardContent() {
   const { user, loading: userLoading } = useUser();
   const firestore = useFirestore();
   const userDocRef = user ? doc(firestore, 'users', user.uid) : null;
   const { data: userProfile, loading: profileLoading } = useDoc(userDocRef);
+
+  const isLoading = userLoading || profileLoading;
 
   const actions = [
     { label: 'Send', icon: Send, href: '/dashboard/transfer' },
@@ -37,6 +38,30 @@ function DashboardContent() {
     { label: 'News', icon: Newspaper, href: '/dashboard/news' },
   ];
 
+  const renderAccountNumber = () => {
+    // While loading, render an empty space to avoid layout shift, as requested.
+    if (isLoading) {
+      return <div className="h-[40px]" />;
+    }
+
+    // If the profile is loaded and has an account number, display it.
+    if (userProfile?.accountNumber) {
+      return (
+        <div>
+          <p className="font-mono text-lg font-semibold">{userProfile.accountNumber}</p>
+          <p className="text-xs text-muted-foreground font-semibold">{userProfile.bankName}</p>
+        </div>
+      );
+    }
+
+    // If not loading and there's no account number, the button must be shown.
+    return (
+      <Button asChild className="mt-1">
+        <Link href="/dashboard/get-account-number">Get Account Number</Link>
+      </Button>
+    );
+  };
+
   return (
     <div className="container py-8">
       <div className="space-y-6">
@@ -47,35 +72,24 @@ function DashboardContent() {
           <CardContent className="space-y-4">
             <div className="space-y-1 min-h-[40px]">
               <p className="text-sm text-muted-foreground">Account Number</p>
-              {userProfile && userProfile.accountNumber ? (
-                <div>
-                  <p className="font-mono text-lg font-semibold">{userProfile.accountNumber}</p>
-                  <p className="text-xs text-muted-foreground font-semibold">{userProfile.bankName}</p>
-                </div>
-              ) : (
-                !profileLoading && !userLoading && (
-                    <Button asChild className="mt-1">
-                      <Link href="/dashboard/get-account-number">Get Account Number</Link>
-                    </Button>
-                )
-              )}
+              {renderAccountNumber()}
             </div>
 
             <div>
               <p className="text-sm text-muted-foreground">Naira Balance</p>
-              <p className="text-2xl font-bold">₦{userProfile?.nairaBalance || '0.00'}</p>
+              <p className="text-2xl font-bold">₦{isLoading ? '...' : userProfile?.nairaBalance || '0.00'}</p>
             </div>
             
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div>
                   <p className="text-sm text-muted-foreground">Reward Balance</p>
-                  <p className="font-semibold">{userProfile?.rewardBalance || '0'}</p>
+                  <p className="font-semibold">{isLoading ? '...' : userProfile?.rewardBalance || '0'}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Click Count</p>
                 <div className="flex items-center gap-2">
-                  <p className="font-semibold">{userProfile?.clickCount || 0}</p>
-                  {!profileLoading && !userLoading && userProfile?.accountNumber && (
+                  <p className="font-semibold">{isLoading ? '...' : userProfile?.clickCount || 0}</p>
+                  {!isLoading && userProfile?.accountNumber && (
                     <Button asChild size="sm" className="h-auto px-2 py-1 text-xs">
                       <Link href="/dashboard/rewards">Get Reward</Link>
                     </Button>
