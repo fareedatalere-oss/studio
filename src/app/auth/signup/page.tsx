@@ -9,12 +9,17 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
+import { useAuth, useFirestore } from '@/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const MANAGER_EMAIL = 'i-paymanagerscare402@gmail.com';
 
 export default function SignUpPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const auth = useAuth();
+  const firestore = useFirestore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -23,7 +28,6 @@ export default function SignUpPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    // Basic validation
     if (!email || !password) {
       toast({
         title: 'Error',
@@ -33,8 +37,18 @@ export default function SignUpPage() {
       setIsLoading(false);
       return;
     }
+    
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({
+        title: 'Invalid Email',
+        description: 'Please enter a valid email address.',
+        variant: 'destructive',
+      });
+      setIsLoading(false);
+      return;
+    }
 
-    // Prevent manager email from signing up
+
     if (email.toLowerCase() === MANAGER_EMAIL) {
       toast({
         title: 'Email Already Exists',
@@ -45,17 +59,41 @@ export default function SignUpPage() {
       return;
     }
 
-    // Mock sign up logic
-    setTimeout(() => {
-      // In a real app, you would check if the email exists.
-      // For this prototype, we'll assume it's a new user.
-      console.log('Creating user with', { email, password });
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Create a user document in Firestore
+      await setDoc(doc(firestore, 'users', user.uid), {
+        uid: user.uid,
+        email: user.email,
+        createdAt: serverTimestamp(),
+      });
+      
       toast({
         title: 'Success',
-        description: 'Account created successfully!',
+        description: 'Account created successfully! Please complete your profile.',
       });
       router.push('/auth/complete-profile');
-    }, 1000);
+
+    } catch (error: any) {
+      console.error("Sign up error:", error);
+      let description = 'An unexpected error occurred. Please try again.';
+      if (error.code === 'auth/email-already-in-use') {
+        description = 'This email address is already in use by another account.';
+      } else if (error.code === 'auth/weak-password') {
+        description = 'The password is too weak. Please use at least 6 characters.';
+      } else if (error.code === 'auth/invalid-email') {
+        description = 'The email address is not valid.';
+      }
+      toast({
+        title: 'Sign Up Failed',
+        description,
+        variant: 'destructive',
+      });
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   return (

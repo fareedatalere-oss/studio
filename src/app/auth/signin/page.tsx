@@ -9,6 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
+import { useAuth, useFirestore } from '@/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+
 
 const MANAGER_EMAIL = 'i-paymanagerscare402@gmail.com';
 const MANAGER_PASSWORD = 'Halimatussadiyya01/08162810155?admin';
@@ -16,6 +20,9 @@ const MANAGER_PASSWORD = 'Halimatussadiyya01/08162810155?admin';
 export default function SignInPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const auth = useAuth();
+  const firestore = useFirestore();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -34,27 +41,63 @@ export default function SignInPage() {
       return;
     }
 
-    // Manager sign-in check
     if (email.toLowerCase() === MANAGER_EMAIL && password === MANAGER_PASSWORD) {
       toast({
         title: 'Manager Login Successful',
         description: 'Redirecting to security verification.',
       });
+      // Since this is a special bypass, we don't need to do a real Firebase sign-in for the manager
       router.push('/auth/manager-bypass');
-      return; // Stop further execution
+      return;
     }
     
-    // Mock user sign in logic
-    setTimeout(() => {
-      // In a real app, you would verify credentials.
-      // For this prototype, we'll assume they are correct.
-      console.log('Signing in user with', { email, password });
-      toast({
-        title: 'Success',
-        description: 'Signed in successfully!',
-      });
-      router.push('/dashboard');
-    }, 1000);
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      const userDocRef = doc(firestore, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists() && userDoc.data().username) {
+        // User has completed their profile
+        toast({
+          title: 'Success',
+          description: 'Signed in successfully!',
+        });
+        router.push('/dashboard');
+      } else {
+        // User has not completed their profile
+        toast({
+          title: 'Welcome Back!',
+          description: 'Please complete your profile to continue.',
+        });
+        router.push('/auth/complete-profile');
+      }
+
+    } catch (error: any) {
+        console.error("Sign in error:", error);
+        let description = "An unexpected error occurred. Please try again.";
+        switch (error.code) {
+            case 'auth/user-not-found':
+            case 'auth/wrong-password':
+            case 'auth/invalid-credential':
+                description = 'Invalid email or password.';
+                break;
+            case 'auth/invalid-email':
+                description = 'The email address is not valid.';
+                break;
+            case 'auth/user-disabled':
+                description = 'This user account has been disabled.';
+                break;
+        }
+        toast({
+            title: 'Sign In Failed',
+            description,
+            variant: 'destructive',
+        });
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   return (

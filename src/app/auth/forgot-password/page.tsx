@@ -9,10 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/firebase';
+import { sendPasswordResetEmail } from 'firebase/auth';
 
 export default function ForgotPasswordPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const auth = useAuth();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -29,17 +32,27 @@ export default function ForgotPasswordPage() {
       setIsLoading(false);
       return;
     }
-
-    // Mock sending reset link
-    setTimeout(() => {
-      console.log('Sending reset link to', email);
-      toast({
-        title: 'Check your email',
-        description: 'A password reset link has been sent to your email address.',
-      });
-      setIsLoading(false);
-      router.push('/auth/signin');
-    }, 1000);
+    
+    try {
+        await sendPasswordResetEmail(auth, email);
+        toast({
+            title: 'Check your email',
+            description: 'A password reset link has been sent to your email address if it is associated with an account.',
+        });
+        // We don't wait for the user to click the link, just inform them.
+        setIsLoading(false);
+        // Optionally redirect after a delay
+        // setTimeout(() => router.push('/auth/signin'), 3000);
+    } catch (error: any) {
+        console.error("Forgot password error:", error);
+        // We don't want to reveal if a user exists or not, so we show a generic success message regardless of error.
+         toast({
+            title: 'Check your email',
+            description: 'If your email is in our system, you will receive a password reset link.',
+        });
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   return (
