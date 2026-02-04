@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -16,26 +15,22 @@ import {
   Gift,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useUser, useDoc, useFirestore } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function DashboardContent() {
-  const searchParams = useSearchParams();
-  const [account, setAccount] = useState({
-    number: '',
-    nairaBalance: '5000.00',
-    rewardBalance: '0',
-    clickCount: 0,
-  });
+  const { user, loading: userLoading } = useUser();
+  const firestore = useFirestore();
+  const userDocRef = user ? doc(firestore, 'users', user.uid) : null;
+  const { data: userProfile, loading: profileLoading } = useDoc(userDocRef);
 
-  useEffect(() => {
-    const accountNumber = searchParams.get('accountNumber');
-    if (accountNumber) {
-      setAccount((prev) => ({
-        ...prev,
-        number: accountNumber,
-      }));
-    }
-  }, [searchParams]);
-
+  const account = {
+    nairaBalance: userProfile?.nairaBalance || '5000.00',
+    rewardBalance: userProfile?.rewardBalance || '0',
+    clickCount: userProfile?.clickCount || 0,
+  };
+  
   const actions = [
     { label: 'Send', icon: Send, href: '/dashboard/transfer' },
     { label: 'Utilities', icon: Wrench, href: '/dashboard/utilities' },
@@ -48,6 +43,8 @@ function DashboardContent() {
     { label: 'News', icon: Newspaper, href: '/dashboard/news' },
   ];
 
+  const isLoading = userLoading || profileLoading;
+
   return (
     <div className="container py-8">
       <div className="space-y-6">
@@ -58,10 +55,15 @@ function DashboardContent() {
           <CardContent className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground">Account Number</p>
-              {account.number ? (
-                <p className="font-mono text-lg font-semibold">
-                  {account.number}
-                </p>
+              {isLoading ? (
+                <Skeleton className="h-8 w-48 mt-1" />
+              ) : userProfile?.accountNumber ? (
+                <div>
+                    <p className="font-mono text-lg font-semibold">
+                    {userProfile.accountNumber}
+                    </p>
+                    <p className="text-xs text-muted-foreground font-semibold">{userProfile.bankName}</p>
+                </div>
               ) : (
                 <Button asChild className="mt-1">
                   <Link href="/dashboard/get-account-number">Get Account Number</Link>
@@ -71,19 +73,19 @@ function DashboardContent() {
 
             <div>
               <p className="text-sm text-muted-foreground">Naira Balance</p>
-              <p className="text-2xl font-bold">₦{account.nairaBalance}</p>
+              {isLoading ? <Skeleton className="h-8 w-32 mt-1" /> : <p className="text-2xl font-bold">₦{account.nairaBalance}</p>}
             </div>
             
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div>
                   <p className="text-sm text-muted-foreground">Reward Balance</p>
-                  <p className="font-semibold">{account.rewardBalance}</p>
+                  {isLoading ? <Skeleton className="h-6 w-16 mt-1" /> : <p className="font-semibold">{account.rewardBalance}</p>}
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Click Count</p>
                 <div className="flex items-center gap-2">
-                  <p className="font-semibold">{account.clickCount}</p>
-                  {account.number && (
+                  {isLoading ? <Skeleton className="h-6 w-8 mt-1" /> : <p className="font-semibold">{account.clickCount}</p>}
+                  {!isLoading && userProfile?.accountNumber && (
                     <Button asChild size="sm" className="h-auto px-2 py-1 text-xs">
                       <Link href="/dashboard/rewards">Get Reward</Link>
                     </Button>

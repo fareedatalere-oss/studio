@@ -5,34 +5,34 @@
       "description": "Represents a user's profile information.",
       "type": "object",
       "properties": {
-        "uid": {
-          "type": "string",
-          "description": "The user's unique ID."
-        },
-        "email": {
-          "type": "string",
-          "format": "email",
-          "description": "The user's email address."
-        },
-        "username": {
-          "type": "string",
-          "description": "The user's chosen username."
-        },
-        "country": {
-          "type": "string",
-          "description": "The user's country."
-        },
-        "pin": {
-            "type": "string",
-            "description": "The user's 5-digit transaction PIN (should be stored securely, e.g., hashed)."
-        },
-        "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "The timestamp when the profile was created."
-        }
+        "uid": { "type": "string", "description": "The user's unique ID." },
+        "email": { "type": "string", "format": "email", "description": "The user's email address." },
+        "username": { "type": "string", "description": "The user's chosen username." },
+        "country": { "type": "string", "description": "The user's country." },
+        "pin": { "type": "string", "description": "The user's 5-digit transaction PIN (should be stored securely, e.g., hashed)." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "The timestamp when the profile was created." },
+        "firstName": { "type": "string", "description": "The user's first name." },
+        "lastName": { "type": "string", "description": "The user's last name." },
+        "phone": { "type": "string", "description": "The user's phone number." },
+        "bvn": { "type": "string", "description": "The user's Bank Verification Number." },
+        "accountNumber": { "type": "string", "description": "The user's generated virtual account number." },
+        "bankName": { "type": "string", "description": "The bank name for the virtual account." }
       },
-      "required": ["uid", "email", "username", "country", "pin", "createdAt"]
+      "required": ["uid", "email", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Represents a notification for a user.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["system", "social", "like", "comment", "message", "follow"] },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "link": { "type": "string", "description": "An optional link for the notification to navigate to."}
+      },
+      "required": ["title", "description", "type", "isRead", "createdAt"]
     }
   },
   "auth": {
@@ -44,6 +44,12 @@
         "$ref": "#/entities/UserProfile"
       },
       "description": "Stores public user profile information, keyed by user ID."
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": {
+        "$ref": "#/entities/Notification"
+      },
+      "description": "Stores notifications for a specific user."
     }
   }
 }

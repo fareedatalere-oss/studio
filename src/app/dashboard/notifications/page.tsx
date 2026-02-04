@@ -1,41 +1,56 @@
+'use client';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Heart, MessageCircle } from "lucide-react";
-import Link from "next/link";
+import { Bell, Gift, Heart, MessageCircle } from "lucide-react";
+import { useUser, useCollection, useFirestore } from '@/firebase';
+import { collection, query, orderBy, doc, writeBatch } from 'firebase/firestore';
+import { useEffect, useMemo } from "react";
+import { formatDistanceToNow } from 'date-fns';
 
-
-const notifications = [
+const socialNotifications = [
     {
         id: 1,
         type: 'like',
         user: { name: 'John Smith', avatar: 'https://picsum.photos/seed/102/100/100' },
-        content: 'liked your photo.',
-        time: '5 minutes ago',
+        description: 'liked your photo.',
+        createdAt: { toDate: () => new Date(Date.now() - 5 * 60 * 1000) },
     },
     {
         id: 2,
         type: 'comment',
         user: { name: 'Alice Johnson', avatar: 'https://picsum.photos/seed/103/100/100' },
-        content: 'commented: "Great post! 🔥"',
-        time: '30 minutes ago',
+        description: 'commented: "Great post! 🔥"',
+        createdAt: { toDate: () => new Date(Date.now() - 30 * 60 * 1000) },
     },
-    {
-        id: 3,
-        type: 'message',
-        user: { name: 'Jane Doe', avatar: 'https://picsum.photos/seed/101/100/100' },
-        content: 'sent you a message.',
-        time: '1 hour ago',
-    },
-     {
-        id: 4,
-        type: 'follow',
-        user: { name: 'Bob Williams', avatar: 'https://picsum.photos/seed/104/100/100' },
-        content: 'started following you.',
-        time: '3 hours ago',
-    }
 ];
 
 export default function NotificationsPage() {
+    const { user } = useUser();
+    const firestore = useFirestore();
+
+    const notificationsQuery = useMemo(() => {
+        if (!user) return null;
+        return query(collection(firestore, 'users', user.uid, 'notifications'), orderBy('createdAt', 'desc'));
+    }, [user, firestore]);
+
+    const { data: systemNotifications, loading } = useCollection(notificationsQuery);
+
+    useEffect(() => {
+        if (systemNotifications && systemNotifications.length > 0 && firestore && user) {
+            const batch = writeBatch(firestore);
+            const unreadNotifs = systemNotifications.filter(n => !n.isRead);
+            
+            if (unreadNotifs.length > 0) {
+                unreadNotifs.forEach(notif => {
+                    const notifRef = doc(firestore, 'users', user.uid, 'notifications', notif.id);
+                    batch.update(notifRef, { isRead: true });
+                });
+                batch.commit().catch(console.error);
+            }
+        }
+    }, [systemNotifications, firestore, user]);
+
+    const allNotifications = [...(systemNotifications || []), ...socialNotifications].sort((a, b) => b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime());
     
     const NotificationIcon = ({ type }: { type: string }) => {
         switch(type) {
@@ -46,7 +61,9 @@ export default function NotificationsPage() {
             case 'message':
                 return <MessageCircle className="h-5 w-5 text-primary" />;
             case 'follow':
-                 return <Avatar className="h-5 w-5 border-2 border-green-500"><AvatarImage src="https://picsum.photos/seed/104/100/100" /></Avatar>
+                 return <Avatar className="h-5 w-5 border-2 border-green-500" />;
+            case 'system':
+                return <Gift className="h-5 w-5 text-green-500" />;
             default:
                 return <Bell className="h-5 w-5" />;
         }
@@ -60,28 +77,41 @@ export default function NotificationsPage() {
                     <CardDescription>Your recent account activity.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {notifications.length > 0 ? (
+                    {loading && <p className="text-center text-muted-foreground p-6">Loading...</p>}
+                    {!loading && allNotifications.length > 0 ? (
                         <div className="space-y-4">
-                            {notifications.map(notif => (
+                            {allNotifications.map(notif => (
                                 <div key={notif.id} className="flex items-start gap-4 p-3 bg-muted/50 rounded-lg">
                                     <NotificationIcon type={notif.type} />
                                     <div className="flex-1">
                                         <p className="text-sm">
-                                            <span className="font-semibold">{notif.user.name}</span>
-                                            {' '}
-                                            {notif.content}
+                                            {notif.user ? (
+                                                <>
+                                                    <span className="font-semibold">{notif.user.name}</span>
+                                                    {' '}
+                                                    {notif.description}
+                                                </>
+                                            ) : (
+                                                <>
+                                                 <span className="font-semibold">{notif.title}</span>
+                                                 {' '}
+                                                 {notif.description}
+                                                </>
+                                            )}
                                         </p>
-                                        <p className="text-xs text-muted-foreground">{notif.time}</p>
+                                        <p className="text-xs text-muted-foreground">{formatDistanceToNow(notif.createdAt.toDate(), { addSuffix: true })}</p>
                                     </div>
-                                    <Avatar className="h-10 w-10">
-                                        <AvatarImage src={notif.user.avatar} alt={notif.user.name} />
-                                        <AvatarFallback>{notif.user.name.charAt(0)}</AvatarFallback>
-                                    </Avatar>
+                                    {notif.user && (
+                                        <Avatar className="h-10 w-10">
+                                            <AvatarImage src={notif.user.avatar} alt={notif.user.name} />
+                                            <AvatarFallback>{notif.user.name.charAt(0)}</AvatarFallback>
+                                        </Avatar>
+                                    )}
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <p className="text-center text-muted-foreground p-6">No new notifications.</p>
+                       !loading && <p className="text-center text-muted-foreground p-6">No new notifications.</p>
                     )}
                 </CardContent>
             </Card>

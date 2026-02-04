@@ -9,13 +9,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { generateVirtualAccount } from '@/app/actions/flutterwave';
+import { doc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 export default function GetAccountNumberPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useUser();
+  const firestore = useFirestore();
+
   const [formData, setFormData] = useState({
     firstName: '',
     middleName: '',
@@ -27,7 +30,14 @@ export default function GetAccountNumberPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
-    setFormData((prev) => ({ ...prev, [id]: value }));
+    // Allow only numbers for phone and bvn
+    if (id === 'phone' || id === 'ninBvn') {
+        if (/^\d*$/.test(value)) {
+             setFormData((prev) => ({ ...prev, [id]: value }));
+        }
+    } else {
+        setFormData((prev) => ({ ...prev, [id]: value }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -53,11 +63,43 @@ export default function GetAccountNumberPage() {
     });
     
     if (result.success && result.data.account_number) {
-        toast({
-            title: 'Success!',
-            description: 'A valid account number has been generated.',
-        });
-        router.push(`/dashboard?accountNumber=${result.data.account_number}`);
+        try {
+            const userDocRef = doc(firestore, 'users', user.uid);
+            const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
+
+            // Save account details to user profile
+            await setDoc(userDocRef, {
+                accountNumber: result.data.account_number,
+                bankName: result.data.bank_name,
+                firstName: formData.firstName,
+                lastName: formData.lastName,
+                phone: formData.phone,
+                bvn: formData.ninBvn,
+            }, { merge: true });
+            
+            // Create notification
+            await addDoc(notificationCollectionRef, {
+                title: 'Account Generated!',
+                description: `Your new ${result.data.bank_name} account number is ${result.data.account_number}.`,
+                type: 'system',
+                isRead: false,
+                createdAt: serverTimestamp(),
+            });
+
+            toast({
+                title: 'Success!',
+                description: 'A valid account number has been generated.',
+            });
+            router.push(`/dashboard`);
+
+        } catch (error) {
+            console.error("Error saving account details:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Database Error',
+                description: 'Could not save your new account details. Please try again.',
+            });
+        }
     } else {
         toast({
             variant: 'destructive',
@@ -79,7 +121,7 @@ export default function GetAccountNumberPage() {
         <CardHeader>
           <CardTitle>Generate Account Number</CardTitle>
           <CardDescription>
-            Provide your details to generate a new account number. Your email is {user?.email || 'loading...'}.
+            Provide your details to generate a new permanent account number. Your email is {user?.email || 'loading...'}.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -99,8 +141,8 @@ export default function GetAccountNumberPage() {
               <Input id="lastName" value={formData.lastName} onChange={handleChange} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ninBvn">NIN/BVN</Label>
-              <Input id="ninBvn" value={formData.ninBvn} onChange={handleChange} required />
+              <Label htmlFor="ninBvn">NIN/BVN (11 digits)</Label>
+              <Input id="ninBvn" value={formData.ninBvn} onChange={handleChange} required pattern="\\d{11}" maxLength={11} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>

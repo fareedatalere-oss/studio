@@ -1,14 +1,29 @@
+'use client';
 import Link from 'next/link';
 import { Bot, Bell, Home, MessageCircle, PlaySquare, Store, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useUser, useCollection, useFirestore } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
+import { Badge } from '@/components/ui/badge';
+import { useMemo } from 'react';
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { user } = useUser();
+  const firestore = useFirestore();
+
+  const notificationsQuery = useMemo(() => {
+    if (!user) return null;
+    return query(collection(firestore, 'users', user.uid, 'notifications'), where('isRead', '==', false));
+  }, [user, firestore]);
+  
+  const { data: unreadNotifications } = useCollection(notificationsQuery);
+
   return (
     <div className="flex min-h-screen flex-col">
       {/* Header */}
@@ -26,9 +41,12 @@ export default function DashboardLayout({
             </Button>
           </div>
           <div className="flex items-center gap-4">
-            <Button asChild variant="ghost" size="icon">
+            <Button asChild variant="ghost" size="icon" className="relative">
               <Link href="/dashboard/notifications">
                 <Bell className="h-5 w-5" />
+                 {unreadNotifications && unreadNotifications.length > 0 && (
+                  <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full">{unreadNotifications.length}</Badge>
+                )}
                 <span className="sr-only">Notifications</span>
               </Link>
             </Button>
