@@ -14,10 +14,12 @@ service cloud.firestore {
 
     // Rules for the 'users' collection
     match /users/{userId} {
-      // Allow users to read and create their own profile
-      allow read, create: if isSignedIn(); // Allow any signed in user to read profiles, but only owners to create
+      // Allow users to read (get) their own profile and create one.
+      // Any signed-in user can get any other user's profile.
+      allow get, create: if isSignedIn();
+      // Only the owner of a profile can update it.
       allow update: if isSignedIn() && isOwner(userId);
-      // Disallow deleting user profiles for now
+      // Disallow deleting user profiles for now.
       allow delete: if false;
 
       // Rules for the 'notifications' subcollection
@@ -33,6 +35,11 @@ service cloud.firestore {
         allow create, read: if isSignedIn() && isOwner(userId);
         allow update, delete: if false;
       }
+    }
+
+    // Allow any signed-in user to list all users (for chat functionality).
+    match /users {
+      allow list: if isSignedIn();
     }
     
     // Rules for the 'chats' collection

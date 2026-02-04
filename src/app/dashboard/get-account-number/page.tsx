@@ -138,7 +138,7 @@ export default function GetAccountNumberPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="ninBvn">NIN/BVN (11 digits)</Label>
-              <Input id="ninBvn" value={formData.ninBvn} onChange={handleChange} required pattern="\\d{11}" maxLength={11} />
+              <Input id="ninBvn" value={formData.ninBvn} onChange={handleChange} required maxLength={11} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
