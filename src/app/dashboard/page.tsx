@@ -37,8 +37,6 @@ function DashboardContent() {
     { label: 'News', icon: Newspaper, href: '/dashboard/news' },
   ];
 
-  const isLoading = userLoading || profileLoading;
-
   return (
     <div className="container py-8">
       <div className="space-y-6">
@@ -47,37 +45,37 @@ function DashboardContent() {
             <CardTitle>Account Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1">
+            <div className="space-y-1 min-h-[40px]">
               <p className="text-sm text-muted-foreground">Account Number</p>
-              {isLoading ? (
-                <Skeleton className="h-8 w-48" />
-              ) : userProfile && userProfile.accountNumber ? (
+              {userProfile && userProfile.accountNumber ? (
                 <div>
                   <p className="font-mono text-lg font-semibold">{userProfile.accountNumber}</p>
                   <p className="text-xs text-muted-foreground font-semibold">{userProfile.bankName}</p>
                 </div>
               ) : (
-                <Button asChild className="mt-1">
-                  <Link href="/dashboard/get-account-number">Get Account Number</Link>
-                </Button>
+                !profileLoading && !userLoading && (
+                    <Button asChild className="mt-1">
+                      <Link href="/dashboard/get-account-number">Get Account Number</Link>
+                    </Button>
+                )
               )}
             </div>
 
             <div>
               <p className="text-sm text-muted-foreground">Naira Balance</p>
-              {isLoading ? <Skeleton className="h-8 w-32 mt-1" /> : <p className="text-2xl font-bold">₦{userProfile?.nairaBalance || '0.00'}</p>}
+              <p className="text-2xl font-bold">₦{userProfile?.nairaBalance || '0.00'}</p>
             </div>
             
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div>
                   <p className="text-sm text-muted-foreground">Reward Balance</p>
-                  {isLoading ? <Skeleton className="h-6 w-16 mt-1" /> : <p className="font-semibold">{userProfile?.rewardBalance || '0'}</p>}
+                  <p className="font-semibold">{userProfile?.rewardBalance || '0'}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Click Count</p>
                 <div className="flex items-center gap-2">
-                  {isLoading ? <Skeleton className="h-6 w-8 mt-1" /> : <p className="font-semibold">{userProfile?.clickCount || 0}</p>}
-                  {!isLoading && userProfile?.accountNumber && (
+                  <p className="font-semibold">{userProfile?.clickCount || 0}</p>
+                  {!profileLoading && !userLoading && userProfile?.accountNumber && (
                     <Button asChild size="sm" className="h-auto px-2 py-1 text-xs">
                       <Link href="/dashboard/rewards">Get Reward</Link>
                     </Button>

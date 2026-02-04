@@ -2,6 +2,7 @@
 
 const FLUTTERWAVE_API_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
 const API_KEY_ERROR_MESSAGE = 'Your API key is not configured. Please contact an administrator.';
+const REQUEST_TIMEOUT = 15000; // 15 seconds
 
 interface VirtualAccountPayload {
     email: string;
@@ -12,9 +13,12 @@ interface VirtualAccountPayload {
 }
 
 export async function generateVirtualAccount(payload: VirtualAccountPayload) {
-    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY === 'YOUR_FLUTTERWAVE_SECRET_KEY_HERE') {
+    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
         return { success: false, message: API_KEY_ERROR_MESSAGE };
     }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
     try {
         const response = await fetch('https://api.flutterwave.com/v3/virtual-account-numbers', {
@@ -28,7 +32,10 @@ export async function generateVirtualAccount(payload: VirtualAccountPayload) {
                 is_permanent: true,
                 tx_ref: `ipay-tx-${Date.now()}`
             }),
+            signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
 
         const data = await response.json();
 
@@ -39,6 +46,10 @@ export async function generateVirtualAccount(payload: VirtualAccountPayload) {
             return { success: false, message: data.message || 'Failed to generate account number.' };
         }
     } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            return { success: false, message: 'The request to the payment service timed out. Please try again.' };
+        }
         console.error("Flutterwave Connection Error:", error);
         return { success: false, message: error.message || 'An unexpected error occurred connecting to the payment service.' };
     }
@@ -46,9 +57,12 @@ export async function generateVirtualAccount(payload: VirtualAccountPayload) {
 
 
 export async function resolveAccountNumber(payload: { accountNumber: string; bankCode: string }) {
-     if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY === 'YOUR_FLUTTERWAVE_SECRET_KEY_HERE') {
+     if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
         return { success: false, message: API_KEY_ERROR_MESSAGE };
     }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
     try {
         const response = await fetch('https://api.flutterwave.com/v3/accounts/resolve', {
@@ -61,7 +75,11 @@ export async function resolveAccountNumber(payload: { accountNumber: string; ban
                 account_number: payload.accountNumber,
                 account_bank: payload.bankCode,
             }),
+            signal: controller.signal,
         });
+        
+        clearTimeout(timeoutId);
+
         const data = await response.json();
 
         if (data.status === 'success' && data.data && data.data.account_name) {
@@ -71,6 +89,10 @@ export async function resolveAccountNumber(payload: { accountNumber: string; ban
             return { success: false, message: data.message || 'Failed to resolve account name.' };
         }
     } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            return { success: false, message: 'The request to the payment service timed out. Please try again.' };
+        }
         console.error("Flutterwave Connection Error:", error);
         return { success: false, message: error.message || 'An unexpected error occurred while resolving account.' };
     }
