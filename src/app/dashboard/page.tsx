@@ -19,12 +19,12 @@ import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 
 function DashboardContent() {
-  const { user, loading: userLoading } = useUser();
+  const { user } = useUser();
   const firestore = useFirestore();
   const userDocRef = user ? doc(firestore, 'users', user.uid) : null;
+  // The useDoc hook provides data and a loading state.
+  // We will use the data directly to provide an "instant" feel.
   const { data: userProfile, loading: profileLoading } = useDoc(userDocRef);
-
-  const isLoading = userLoading || profileLoading;
 
   const actions = [
     { label: 'Send', icon: Send, href: '/dashboard/transfer' },
@@ -38,30 +38,6 @@ function DashboardContent() {
     { label: 'News', icon: Newspaper, href: '/dashboard/news' },
   ];
 
-  const renderAccountNumber = () => {
-    // While loading, render an empty space to avoid layout shift, as requested.
-    if (isLoading) {
-      return <div className="h-[40px]" />;
-    }
-
-    // If the profile is loaded and has an account number, display it.
-    if (userProfile?.accountNumber) {
-      return (
-        <div>
-          <p className="font-mono text-lg font-semibold">{userProfile.accountNumber}</p>
-          <p className="text-xs text-muted-foreground font-semibold">{userProfile.bankName}</p>
-        </div>
-      );
-    }
-
-    // If not loading and there's no account number, the button must be shown.
-    return (
-      <Button asChild className="mt-1">
-        <Link href="/dashboard/get-account-number">Get Account Number</Link>
-      </Button>
-    );
-  };
-
   return (
     <div className="container py-8">
       <div className="space-y-6">
@@ -72,24 +48,42 @@ function DashboardContent() {
           <CardContent className="space-y-4">
             <div className="space-y-1 min-h-[40px]">
               <p className="text-sm text-muted-foreground">Account Number</p>
-              {renderAccountNumber()}
+              {
+                // This logic ensures the "Get Account Number" button shows up immediately
+                // if there's no account number loaded yet, preventing the user from feeling stuck.
+                userProfile?.accountNumber ? (
+                  <div>
+                    <p className="font-mono text-lg font-semibold">{userProfile.accountNumber}</p>
+                    <p className="text-xs text-muted-foreground font-semibold">{userProfile.bankName}</p>
+                  </div>
+                ) : (
+                  // Show the button if the profile is still loading or if it has loaded and there's no number.
+                  // It's disabled briefly while loading to prevent accidental clicks.
+                  <Button asChild className="mt-1" disabled={profileLoading}>
+                    <Link href="/dashboard/get-account-number">Get Account Number</Link>
+                  </Button>
+                )
+              }
             </div>
 
             <div>
               <p className="text-sm text-muted-foreground">Naira Balance</p>
-              <p className="text-2xl font-bold">₦{isLoading ? '...' : userProfile?.nairaBalance || '0.00'}</p>
+              {/* Show 0.00 by default instead of a loading indicator to feel instant */}
+              <p className="text-2xl font-bold">₦{userProfile?.nairaBalance?.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</p>
             </div>
             
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div>
                   <p className="text-sm text-muted-foreground">Reward Balance</p>
-                  <p className="font-semibold">{isLoading ? '...' : userProfile?.rewardBalance || '0'}</p>
+                   {/* Show 0 by default */}
+                  <p className="font-semibold">{userProfile?.rewardBalance?.toLocaleString() || '0'}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Click Count</p>
                 <div className="flex items-center gap-2">
-                  <p className="font-semibold">{isLoading ? '...' : userProfile?.clickCount || 0}</p>
-                  {!isLoading && userProfile?.accountNumber && (
+                   {/* Show 0 by default */}
+                  <p className="font-semibold">{userProfile?.clickCount?.toLocaleString() || 0}</p>
+                  {userProfile?.accountNumber && (
                     <Button asChild size="sm" className="h-auto px-2 py-1 text-xs">
                       <Link href="/dashboard/rewards">Get Reward</Link>
                     </Button>
