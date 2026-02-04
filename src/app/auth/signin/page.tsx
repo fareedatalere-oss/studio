@@ -77,19 +77,34 @@ export default function SignInPage() {
     } catch (error: any) {
         console.error("Sign in error:", error);
         let description = "An unexpected error occurred. Please try again.";
-        switch (error.code) {
-            case 'auth/user-not-found':
-            case 'auth/wrong-password':
-            case 'auth/invalid-credential':
-                description = 'Invalid email or password.';
-                break;
-            case 'auth/invalid-email':
-                description = 'The email address is not valid.';
-                break;
-            case 'auth/user-disabled':
-                description = 'This user account has been disabled.';
-                break;
+        
+        if (error.code) {
+            switch (error.code) {
+                case 'auth/user-not-found':
+                case 'auth/wrong-password':
+                case 'auth/invalid-credential':
+                    description = 'Invalid email or password.';
+                    break;
+                case 'auth/invalid-email':
+                    description = 'The email address is not valid.';
+                    break;
+                case 'auth/user-disabled':
+                    description = 'This user account has been disabled.';
+                    break;
+                case 'failed-precondition':
+                    description = 'Database error. Please ensure Firestore is enabled in your Firebase project.';
+                    break;
+                default:
+                    // Use the error message from Firebase if available and it's not too generic
+                    if (error.message && !error.message.includes('INTERNAL ASSERTION FAILED')) {
+                         description = error.message;
+                    }
+                    break;
+            }
+        } else if (error.message) {
+            description = error.message;
         }
+
         toast({
             title: 'Sign In Failed',
             description,
