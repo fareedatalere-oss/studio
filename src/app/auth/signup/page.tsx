@@ -12,6 +12,8 @@ import { IPayLogo } from '@/components/icons';
 import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const MANAGER_EMAIL = 'i-paymanagerscare402@gmail.com';
 
@@ -63,18 +65,38 @@ export default function SignUpPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Create a user document in Firestore
-      await setDoc(doc(firestore, 'users', user.uid), {
+      const userProfileData = {
         uid: user.uid,
         email: user.email,
         createdAt: serverTimestamp(),
-      });
-      
-      toast({
-        title: 'Success',
-        description: 'Account created successfully! Please complete your profile.',
-      });
-      router.push('/auth/complete-profile');
+      };
+      const userDocRef = doc(firestore, 'users', user.uid);
+
+      // Create a user document in Firestore, using the non-blocking pattern
+      setDoc(userDocRef, userProfileData)
+        .then(() => {
+          toast({
+            title: 'Success',
+            description: 'Account created successfully! Please complete your profile.',
+          });
+          router.push('/auth/complete-profile');
+        })
+        .catch((serverError) => {
+          console.error("Firestore error creating profile:", serverError);
+          const permissionError = new FirestorePermissionError({
+            path: userDocRef.path,
+            operation: 'create',
+            requestResourceData: userProfileData,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+
+          toast({
+            title: 'Account Created, But...',
+            description: "We couldn't save your profile. Please try signing in to complete it.",
+            variant: 'destructive',
+          });
+          setIsLoading(false);
+        });
 
     } catch (error: any) {
       console.error("Sign up error:", error);
@@ -91,8 +113,7 @@ export default function SignUpPage() {
         description,
         variant: 'destructive',
       });
-    } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
