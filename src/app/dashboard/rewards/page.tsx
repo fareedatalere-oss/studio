@@ -17,7 +17,9 @@ export default function RewardsPage() {
     const [rewardBalance, setRewardBalance] = useState(0);
     const [hasReferral, setHasReferral] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [showLink, setShowLink] = useState(false);
+    const [monetizationLink, setMonetizationLink] = useState('');
+
+    const OUO_API_KEY = 'YC3xdMJB';
 
     const handleAccept = () => {
         setStep('referral');
@@ -50,14 +52,16 @@ export default function RewardsPage() {
     
     const handleSearch = () => {
         if(searchQuery) {
-            setShowLink(true);
+            const destinationUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
+            const generatedLink = `https://ouo.io/qs/${OUO_API_KEY}?s=${encodeURIComponent(destinationUrl)}`;
+            setMonetizationLink(generatedLink);
         }
     }
 
     const handleMonetizationClick = () => {
         const newClickCount = clickCount + 1;
         setClickCount(newClickCount);
-        setShowLink(false);
+        setMonetizationLink('');
         setSearchQuery('');
 
         let requiredClicks = hasReferral ? 1200 : 1000;
@@ -162,7 +166,7 @@ export default function RewardsPage() {
                         <CardDescription>Use the search to get a monetization link.</CardDescription>
                     </CardHeader>
                     <CardContent className="text-center space-y-4">
-                        {!showLink ? (
+                        {!monetizationLink ? (
                             <div className="flex w-full items-center space-x-2">
                                 <Input 
                                     type="text" 
@@ -178,7 +182,7 @@ export default function RewardsPage() {
                                 className="w-full h-12"
                                 asChild
                             >
-                               <a href="https://ouo.io" target="_blank" rel="noopener noreferrer">Click Monetization Link</a>
+                               <a href={monetizationLink} target="_blank" rel="noopener noreferrer">Click Monetization Link</a>
                             </Button>
                         )}
 
