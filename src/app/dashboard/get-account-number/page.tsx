@@ -39,40 +39,34 @@ export default function GetAccountNumberPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+ const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
 
-    if (!user || !user.email) {
+    if (!user || !user.email || !firestore) {
       toast({
         variant: 'destructive',
         title: 'Authentication Error',
-        description: 'Could not find user email. Please sign in again.',
+        description: 'Could not find user details. Please sign in again.',
       });
-      setIsLoading(false);
       return;
     }
+    
+    setIsLoading(true);
 
-    toast({
-        title: 'Processing Request...',
-        description: 'Your account is being generated and will appear on the dashboard shortly.',
-    });
-    router.push(`/dashboard`);
+    try {
+        const result = await generateVirtualAccount({
+          email: user.email,
+          firstname: formData.firstName,
+          lastname: formData.lastName,
+          phonenumber: formData.phone,
+          bvn: formData.ninBvn,
+        });
 
-    // Perform generation and database updates in the background
-    generateVirtualAccount({
-      email: user.email,
-      firstname: formData.firstName,
-      lastname: formData.lastName,
-      phonenumber: formData.phone,
-      bvn: formData.ninBvn,
-    }).then(result => {
         if (result.success && result.data.account_number) {
-            if (!firestore || !user) return;
             const userDocRef = doc(firestore, 'users', user.uid);
             const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
 
-            setDoc(userDocRef, {
+            await setDoc(userDocRef, {
                 accountNumber: result.data.account_number,
                 bankName: result.data.bank_name,
                 firstName: formData.firstName,
@@ -81,15 +75,28 @@ export default function GetAccountNumberPage() {
                 bvn: formData.ninBvn,
             }, { merge: true });
             
-            addDoc(notificationCollectionRef, {
+            await addDoc(notificationCollectionRef, {
                 title: 'Account Generated!',
-                description: `Your new ${result.data.bank_name} account number is ${result.data.account_number}.`,
+                description: `Your new ${result.data.bank_name} account number is ${result.data.account_number}. You can now fund this account to see your balance reflect.`,
                 type: 'system',
                 isRead: false,
                 createdAt: serverTimestamp(),
             });
+
+            toast({
+                title: 'Success!',
+                description: 'Your virtual account has been generated.',
+            });
+            
+            router.push('/dashboard');
+
         } else {
-            if (firestore && user) {
+            toast({
+                variant: 'destructive',
+                title: 'Account Generation Failed',
+                description: result.message || 'We could not generate your account number at this time.',
+            });
+             if (firestore && user) {
                  const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
                  addDoc(notificationCollectionRef, {
                     title: 'Account Generation Failed',
@@ -100,7 +107,12 @@ export default function GetAccountNumberPage() {
                 });
             }
         }
-    }).catch(error => {
+    } catch (error: any) {
+         toast({
+            variant: 'destructive',
+            title: 'An Error Occurred',
+            description: error.message || 'An unexpected error occurred. Please try again later.',
+        });
         if (firestore && user) {
             const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
             addDoc(notificationCollectionRef, {
@@ -111,7 +123,9 @@ export default function GetAccountNumberPage() {
                 createdAt: serverTimestamp(),
             });
         }
-    });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
