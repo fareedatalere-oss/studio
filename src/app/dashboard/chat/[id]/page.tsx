@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -16,14 +16,12 @@ import {
   CornerUpRight,
   X,
   Play,
-  Pause,
   File,
-  Image,
+  Image as ImageIcon,
   Headphones,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   DropdownMenu,
@@ -34,116 +32,115 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-
-// Mock data, in a real app this would come from an API
-const mockUser = {
-  id: 'user1',
-  name: 'Jane Doe',
-  avatar: 'https://picsum.photos/seed/101/100/100',
-  status: 'online',
-};
+import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
+import { doc, collection, addDoc, serverTimestamp, query, orderBy, setDoc } from 'firebase/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type Message = {
-  id: number;
+  id: string;
   text: string;
-  sender: 'me' | 'other';
+  senderId: string;
   status: 'sent' | 'delivered' | 'read';
-  type: 'text' | 'voice';
-  audioSrc?: string;
+  type: 'text' | 'voice' | 'image' | 'video' | 'file';
+  mediaUrl?: string;
+  createdAt: any;
 };
-
-const initialMessages: Message[] = [
-  { id: 1, text: 'Hey, how are you?', sender: 'other', status: 'read', type: 'text' },
-  { id: 2, text: 'I am good, thanks! How about you?', sender: 'me', status: 'read', type: 'text' },
-  { id: 3, text: 'Doing great. Just working on the I-Pay app.', sender: 'other', status: 'delivered', type: 'text' },
-  { id: 4, text: 'Awesome!', sender: 'me', status: 'sent', type: 'text' },
-];
-
 
 export default function ChatThreadPage({ params }: { params: { id: string } }) {
   const { toast } = useToast();
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const { user: currentUser, loading: userLoading } = useUser();
+  const firestore = useFirestore();
+
   const [inputText, setInputText] = useState('');
   const [isBlocked, setIsBlocked] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleSendMessage = () => {
-    if (inputText.trim()) {
-      const newMessage: Message = {
-        id: messages.length + 1,
+  // Fetch the other user's profile
+  const otherUserDocRef = useMemo(() => {
+    if (!firestore || !params.id) return null;
+    return doc(firestore, 'users', params.id);
+  }, [firestore, params.id]);
+  const { data: otherUser, loading: otherUserLoading } = useDoc(otherUserDocRef);
+
+  // Determine the chat ID
+  const chatId = useMemo(() => {
+    if (!currentUser || !params.id) return null;
+    return [currentUser.uid, params.id].sort().join('_');
+  }, [currentUser, params.id]);
+
+  // Fetch chat messages
+  const messagesQuery = useMemo(() => {
+    if (!firestore || !chatId) return null;
+    return query(collection(firestore, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
+  }, [firestore, chatId]);
+
+  const { data: messages, loading: messagesLoading } = useCollection(messagesQuery);
+
+  const handleSendMessage = async () => {
+    if (inputText.trim() && currentUser && chatId) {
+      const newMessage: Partial<Message> = {
         text: inputText,
-        sender: 'me',
-        status: mockUser.status === 'online' ? 'delivered' : 'sent',
+        senderId: currentUser.uid,
+        status: 'sent',
         type: 'text',
+        createdAt: serverTimestamp(),
       };
-      setMessages([...messages, newMessage]);
       setInputText('');
+
+      const chatDocRef = doc(firestore, 'chats', chatId);
+      const messagesCollectionRef = collection(firestore, 'chats', chatId, 'messages');
+
+      // Create chat document if it doesn't exist and add message
+      await setDoc(chatDocRef, { 
+        participants: [currentUser.uid, params.id],
+        lastMessage: inputText,
+        lastMessageAt: serverTimestamp()
+      }, { merge: true });
+      
+      await addDoc(messagesCollectionRef, newMessage);
     }
   };
-
-  const handleBlockUser = () => {
-    setIsBlocked(!isBlocked);
+  
+  const handleMediaUpload = () => {
     toast({
-      title: isBlocked ? 'User Unblocked' : 'User Blocked',
-      description: isBlocked
-        ? `You can now send messages to ${mockUser.name}.`
-        : `You have blocked ${mockUser.name}.`,
-    });
-  };
+      title: 'Feature Coming Soon',
+      description: 'Please ensure your Cloudinary API Secret is set in the .env file to enable this.',
+    })
+  }
 
-  const handleDeleteMessage = (messageId: number, forEveryone: boolean) => {
-    if (forEveryone) {
-      setMessages(messages.filter((msg) => msg.id !== messageId));
-    } else {
-      // In a real app, this would only hide it for the current user.
-      // For this prototype, we'll just remove it.
-      setMessages(messages.filter((msg) => msg.id !== messageId));
-    }
-    toast({ title: 'Message Deleted' });
+  const handleDeleteMessage = (messageId: string) => {
+     toast({ title: 'Message deletion not implemented yet.' });
   };
   
-  const startRecording = () => {
-    setIsRecording(true);
-    recordingIntervalRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
-    }, 1000);
-  }
-
-  const stopRecording = () => {
-    setIsRecording(false);
-    if(recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current);
-    }
-    // For prototype, we add a mock voice message
-    if (recordingTime > 0) {
-        const newMessage: Message = {
-            id: messages.length + 1,
-            text: `Voice message (${formatTime(recordingTime)})`,
-            sender: 'me',
-            status: 'delivered',
-            type: 'voice',
-            audioSrc: '/mock-audio.mp3' // This would be a real URL
-        };
-        setMessages([...messages, newMessage]);
-    }
-    setRecordingTime(0);
-  }
-  
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const secs = (seconds % 60).toString().padStart(2, '0');
-    return `${mins}:${secs}`;
-  }
-
-
   const MessageStatus = ({ status }: { status: Message['status'] }) => {
     if (status === 'read') return <CheckCheck className="h-4 w-4 text-blue-500" />;
     if (status === 'delivered') return <CheckCheck className="h-4 w-4" />;
     if (status === 'sent') return <Check className="h-4 w-4" />;
     return null;
   };
+  
+  const isLoading = userLoading || otherUserLoading;
+
+  if (isLoading) {
+      return (
+          <div className="flex flex-col h-full">
+               <header className="sticky top-16 md:top-0 bg-background border-b flex items-center justify-between gap-3 p-3">
+                    <div className="flex items-center gap-3">
+                        <Skeleton className="h-10 w-10 rounded-full" />
+                        <div className='space-y-2'>
+                           <Skeleton className="h-4 w-24" />
+                           <Skeleton className="h-3 w-16" />
+                        </div>
+                    </div>
+                     <div className="flex items-center gap-2">
+                         <Skeleton className="h-8 w-8 rounded-full" />
+                         <Skeleton className="h-8 w-8 rounded-full" />
+                         <Skeleton className="h-8 w-8 rounded-full" />
+                    </div>
+                </header>
+                <div className="flex-1 p-4"></div>
+          </div>
+      )
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -156,14 +153,14 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
             </Button>
             </Link>
             <Avatar>
-            <AvatarImage src={mockUser.avatar} alt={mockUser.name} />
-            <AvatarFallback>{mockUser.name.charAt(0)}</AvatarFallback>
+              <AvatarImage src={otherUser?.avatar || `https://picsum.photos/seed/${otherUser?.uid}/100/100`} alt={otherUser?.username} />
+              <AvatarFallback>{otherUser?.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
             </Avatar>
             <div>
-            <h2 className="font-semibold">{mockUser.name}</h2>
+            <h2 className="font-semibold">{otherUser?.username}</h2>
             <div className="flex items-center gap-1.5">
-                <span className={`h-2 w-2 rounded-full ${mockUser.status === 'online' ? 'bg-green-500' : 'bg-gray-400'}`}></span>
-                <p className="text-xs text-muted-foreground">{mockUser.status}</p>
+                <span className={'h-2 w-2 rounded-full bg-gray-400'}></span>
+                <p className="text-xs text-muted-foreground">Offline</p>
             </div>
             </div>
         </div>
@@ -175,7 +172,7 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
                     <Button variant="ghost" size="icon"><MoreVertical /></Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                    <DropdownMenuItem onClick={handleBlockUser}>
+                    <DropdownMenuItem onClick={() => setIsBlocked(!isBlocked)}>
                        {isBlocked ? 'Unblock' : 'Block'} User
                     </DropdownMenuItem>
                     <DropdownMenuItem className="text-destructive">Delete Chat</DropdownMenuItem>
@@ -186,35 +183,29 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
 
       {/* Chat Body */}
       <div className="flex-1 p-4 space-y-4">
-        {messages.map((msg) => (
+        {messagesLoading && <p className='text-center text-muted-foreground'>Loading messages...</p>}
+        {messages && messages.map((msg: any) => (
           <DropdownMenu key={msg.id}>
             <DropdownMenuTrigger asChild>
               <div
                 className={cn(
                   'flex max-w-[75%] flex-col gap-1',
-                  msg.sender === 'me' ? 'ml-auto items-end' : 'mr-auto items-start'
+                  msg.senderId === currentUser?.uid ? 'ml-auto items-end' : 'mr-auto items-start'
                 )}
               >
                 <div
                   className={cn(
                     'rounded-lg px-3 py-2',
-                    msg.sender === 'me'
+                    msg.senderId === currentUser?.uid
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted'
                   )}
                 >
-                    {msg.type === 'voice' ? (
-                        <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="icon" className="h-8 w-8"><Play/></Button>
-                            <div className="w-32 h-1 bg-muted-foreground/30 rounded-full"></div>
-                            <span className="text-xs">{msg.text.match(/\((.*)\)/)?.[1]}</span>
-                        </div>
-                    ) : (
-                         <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-                    )}
+                  <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
                 </div>
-                {msg.sender === 'me' && (
-                  <div className="flex items-center gap-1">
+                {msg.senderId === currentUser?.uid && (
+                  <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                    <span>{msg.createdAt?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     <MessageStatus status={msg.status} />
                   </div>
                 )}
@@ -225,23 +216,10 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
                     <CornerUpRight className="mr-2 h-4 w-4" />
                     <span>Forward</span>
                 </DropdownMenuItem>
-                {msg.sender === 'me' ? (
-                    <>
-                        <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id, true)} className="text-destructive">
-                           <Trash2 className="mr-2 h-4 w-4" />
-                           <span>Delete for Everyone</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id, false)}>
-                           <Trash2 className="mr-2 h-4 w-4" />
-                           <span>Delete for Me</span>
-                        </DropdownMenuItem>
-                    </>
-                ) : (
-                    <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id, false)}>
-                       <Trash2 className="mr-2 h-4 w-4" />
-                       <span>Delete for Me</span>
-                    </DropdownMenuItem>
-                )}
+                <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id)} className="text-destructive">
+                   <Trash2 className="mr-2 h-4 w-4" />
+                   <span>Delete for Me</span>
+                </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ))}
@@ -253,19 +231,10 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
             <Card className="bg-muted">
                 <CardContent className="p-3 text-center text-sm text-muted-foreground">
                     You blocked this user. 
-                    <Button variant="link" className="p-1" onClick={handleBlockUser}>Unblock</Button> 
+                    <Button variant="link" className="p-1" onClick={() => setIsBlocked(false)}>Unblock</Button> 
                     to continue chatting.
                 </CardContent>
             </Card>
-        ) : isRecording ? (
-             <div className="flex items-center gap-2">
-                <Button variant="destructive" size="icon" onClick={stopRecording}><X /></Button>
-                <div className="flex-1 bg-muted rounded-full h-10 flex items-center px-4">
-                    <div className="h-2 w-2 bg-red-500 rounded-full animate-pulse mr-2"></div>
-                    <p className="text-sm font-mono">{formatTime(recordingTime)}</p>
-                </div>
-                <Button size="icon" onClick={stopRecording}><Send /></Button>
-            </div>
         ) : (
             <div className="flex items-center gap-2">
             <Textarea
@@ -286,13 +255,13 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
                     <Button variant="ghost" size="icon"><Paperclip /></Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                    <DropdownMenuItem><Image className="mr-2 h-4 w-4" /><span>Image</span></DropdownMenuItem>
-                    <DropdownMenuItem><Video className="mr-2 h-4 w-4" /><span>Video</span></DropdownMenuItem>
-                    <DropdownMenuItem><File className="mr-2 h-4 w-4" /><span>PDF Document</span></DropdownMenuItem>
-                    <DropdownMenuItem><Headphones className="mr-2 h-4 w-4" /><span>Audio</span></DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleMediaUpload}><ImageIcon className="mr-2 h-4 w-4" /><span>Image</span></DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleMediaUpload}><Video className="mr-2 h-4 w-4" /><span>Video</span></DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleMediaUpload}><File className="mr-2 h-4 w-4" /><span>Document</span></DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleMediaUpload}><Headphones className="mr-2 h-4 w-4" /><span>Audio</span></DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-            <Button variant="ghost" size="icon" onMouseDown={startRecording} onMouseUp={stopRecording} onTouchStart={startRecording} onTouchEnd={stopRecording}>
+            <Button variant="ghost" size="icon" onClick={handleMediaUpload}>
                 <Mic />
             </Button>
             <Button size="icon" onClick={handleSendMessage} disabled={!inputText.trim()}>

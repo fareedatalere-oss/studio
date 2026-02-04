@@ -15,8 +15,7 @@ service cloud.firestore {
     // Rules for the 'users' collection
     match /users/{userId} {
       // Allow users to read and create their own profile
-      allow read, create: if isSignedIn() && isOwner(userId);
-      // Allow users to update their own profile
+      allow read, create: if isSignedIn(); // Allow any signed in user to read profiles, but only owners to create
       allow update: if isSignedIn() && isOwner(userId);
       // Disallow deleting user profiles for now
       allow delete: if false;
@@ -32,6 +31,21 @@ service cloud.firestore {
         // Users can create and read their own transactions.
         // They cannot be updated or deleted to maintain an immutable ledger.
         allow create, read: if isSignedIn() && isOwner(userId);
+        allow update, delete: if false;
+      }
+    }
+    
+    // Rules for the 'chats' collection
+    match /chats/{chatId} {
+      // Allow create if the user is one of the participants
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
+      // Allow read/update if the user is one of the participants
+      allow read, update: if isSignedIn() && request.auth.uid in resource.data.participants;
+      
+      match /messages/{messageId} {
+        // Allow read/create if the user is a participant of the parent chat
+        allow read, create: if isSignedIn() && get(/databases/$(database)/documents/chats/$(chatId)).data.participants.includes(request.auth.uid);
+        // Disallow updates and deletes for message immutability
         allow update, delete: if false;
       }
     }

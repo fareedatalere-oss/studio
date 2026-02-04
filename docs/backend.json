@@ -16,7 +16,8 @@
         "phone": { "type": "string", "description": "The user's phone number." },
         "bvn": { "type": "string", "description": "The user's Bank Verification Number." },
         "accountNumber": { "type": "string", "description": "The user's generated virtual account number." },
-        "bankName": { "type": "string", "description": "The bank name for the virtual account." }
+        "bankName": { "type": "string", "description": "The bank name for the virtual account." },
+        "avatar": { "type": "string", "format": "uri", "description": "URL to the user's profile picture." }
       },
       "required": ["uid", "email", "createdAt"]
     },
@@ -56,6 +57,31 @@
         "sessionId": { "type": "string", "description": "A unique ID for the transaction." }
       },
       "required": ["type", "amount", "status", "createdAt", "sessionId"]
+    },
+    "Chat": {
+        "title": "Chat Session",
+        "description": "Represents a chat session between two or more users.",
+        "type": "object",
+        "properties": {
+            "participants": { "type": "array", "items": { "type": "string" }, "description": "Array of user UIDs participating in the chat." },
+            "lastMessage": { "type": "string", "description": "The text of the last message sent." },
+            "lastMessageAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["participants", "lastMessageAt"]
+    },
+    "ChatMessage": {
+        "title": "Chat Message",
+        "description": "Represents a single message within a chat session.",
+        "type": "object",
+        "properties": {
+            "senderId": { "type": "string", "description": "The UID of the message sender." },
+            "text": { "type": "string", "description": "The text content of the message." },
+            "mediaUrl": { "type": "string", "format": "uri", "description": "URL of any attached media." },
+            "mediaType": { "type": "string", "enum": ["image", "video", "audio", "file"] },
+            "createdAt": { "type": "string", "format": "date-time" },
+            "status": { "type": "string", "enum": ["sent", "delivered", "read"] }
+        },
+        "required": ["senderId", "createdAt"]
     }
   },
   "auth": {
@@ -79,6 +105,14 @@
         "$ref": "#/entities/Transaction"
       },
       "description": "Stores a user's transaction history."
+    },
+    "/chats/{chatId}": {
+      "schema": { "$ref": "#/entities/Chat" },
+      "description": "Stores metadata for a single chat session between users."
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Stores all messages for a specific chat session."
     }
   }
 }

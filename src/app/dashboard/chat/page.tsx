@@ -13,56 +13,48 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { MoreVertical, Search } from 'lucide-react';
-import { useState } from 'react';
-
-const allUsers = [
-  {
-    id: 'user1',
-    name: 'Jane Doe',
-    avatar: 'https://picsum.photos/seed/101/100/100',
-    lastMessage: 'Doing great. Just working on the I-Pay app.',
-    isRecent: true,
-  },
-  {
-    id: 'user2',
-    name: 'John Smith',
-    avatar: 'https://picsum.photos/seed/102/100/100',
-    lastMessage: 'See you tomorrow!',
-    isRecent: true,
-  },
-  {
-    id: 'user3',
-    name: 'Alice Johnson',
-    avatar: 'https://picsum.photos/seed/103/100/100',
-    lastMessage: 'Okay, sounds good.',
-    isRecent: false,
-  },
-    {
-    id: 'user4',
-    name: 'Bob Williams',
-    avatar: 'https://picsum.photos/seed/104/100/100',
-    lastMessage: 'Can you send me the file?',
-    isRecent: false,
-  },
-];
-
+import { useState, useMemo } from 'react';
+import { useCollection, useFirestore, useUser } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ChatPage() {
+  const { user: currentUser, loading: userLoading } = useUser();
+  const firestore = useFirestore();
   const [search, setSearch] = useState('');
 
-  const filteredUsers = allUsers.filter(user => user.name.toLowerCase().includes(search.toLowerCase()));
-  const recentUsers = filteredUsers.filter(user => user.isRecent);
+  // Fetch all users
+  const usersQuery = useMemo(() => {
+    if (!firestore) return null;
+    // A more scalable query would be to fetch users you've already chatted with.
+    // For now, fetching all users as requested.
+    return query(collection(firestore, 'users'));
+  }, [firestore]);
 
-  const UserItem = ({ user }: { user: typeof allUsers[0] }) => (
+  const { data: allUsers, loading: usersLoading } = useCollection(usersQuery);
+
+  const filteredUsers = useMemo(() => {
+    if (!allUsers || !currentUser) return [];
+    return allUsers
+      .filter(user => user.uid !== currentUser.uid) // Exclude current user
+      .filter(user => user.username?.toLowerCase().includes(search.toLowerCase()));
+  }, [allUsers, currentUser, search]);
+  
+  // This is a placeholder for recent chats logic
+  const recentUsers = filteredUsers;
+
+  const isLoading = userLoading || usersLoading;
+
+  const UserItem = ({ user }: { user: any }) => (
      <div className="flex items-center justify-between">
-        <Link href={`/dashboard/chat/${user.id}`} className="flex items-center gap-3 flex-1">
+        <Link href={`/dashboard/chat/${user.uid}`} className="flex items-center gap-3 flex-1">
             <Avatar>
-            <AvatarImage src={user.avatar} alt={user.name} />
-            <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+              <AvatarImage src={user.avatar || `https://picsum.photos/seed/${user.uid}/100/100`} alt={user.username} />
+              <AvatarFallback>{user.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
             </Avatar>
             <div className="flex-1 truncate">
-                <span className="font-semibold">{user.name}</span>
-                <p className="text-sm text-muted-foreground truncate">{user.lastMessage}</p>
+                <span className="font-semibold">{user.username}</span>
+                <p className="text-sm text-muted-foreground truncate">{user.email}</p>
             </div>
         </Link>
         <DropdownMenu>
@@ -79,6 +71,20 @@ export default function ChatPage() {
             <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
+    </div>
+  )
+
+  const renderSkeleton = () => (
+    <div className="p-4 space-y-4">
+      {Array.from({length: 3}).map((_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <Skeleton className="h-12 w-12 rounded-full" />
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+        </div>
+      ))}
     </div>
   )
 
@@ -100,9 +106,11 @@ export default function ChatPage() {
         </TabsList>
         <TabsContent value="all">
           <Card>
-            <CardContent className="p-4 space-y-4">
-              {filteredUsers.length > 0 ? (
-                  filteredUsers.map(user => <UserItem key={user.id} user={user} />)
+            <CardContent className="p-0">
+              {isLoading ? renderSkeleton() : filteredUsers.length > 0 ? (
+                  <div className="p-4 space-y-4">
+                    {filteredUsers.map(user => <UserItem key={user.id} user={user} />)}
+                  </div>
               ) : (
                 <p className="text-center text-muted-foreground p-6">No users found.</p>
               )}
@@ -111,9 +119,11 @@ export default function ChatPage() {
         </TabsContent>
         <TabsContent value="recent">
           <Card>
-            <CardContent className="p-4 space-y-4">
-               {recentUsers.length > 0 ? (
-                  recentUsers.map(user => <UserItem key={user.id} user={user} />)
+             <CardContent className="p-0">
+               {isLoading ? renderSkeleton() : recentUsers.length > 0 ? (
+                  <div className="p-4 space-y-4">
+                    {recentUsers.map(user => <UserItem key={user.id} user={user} />)}
+                  </div>
               ) : (
                 <p className="text-center text-muted-foreground p-6">No recent chats.</p>
               )}
