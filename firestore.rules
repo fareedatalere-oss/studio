@@ -1,0 +1,25 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Rules for the 'users' collection
+    match /users/{userId} {
+      // Allow users to read and create their own profile
+      allow read, create: if isSignedIn() && isOwner(userId);
+      // Allow users to update their own profile
+      allow update: if isSignedIn() && isOwner(userId);
+      // Disallow deleting user profiles for now
+      allow delete: if false;
+    }
+  }
+}
