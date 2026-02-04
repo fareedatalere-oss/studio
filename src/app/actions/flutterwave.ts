@@ -1,5 +1,8 @@
 'use server';
 
+const FLUTTERWAVE_API_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
+const API_KEY_ERROR_MESSAGE = 'API key is not configured. Please contact an administrator.';
+
 interface VirtualAccountPayload {
     email: string;
     firstname: string;
@@ -9,11 +12,15 @@ interface VirtualAccountPayload {
 }
 
 export async function generateVirtualAccount(payload: VirtualAccountPayload) {
+    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY === 'YOUR_FLUTTERWAVE_SECRET_KEY_HERE') {
+        return { success: false, message: API_KEY_ERROR_MESSAGE };
+    }
+
     try {
         const response = await fetch('https://api.flutterwave.com/v3/virtual-account-numbers', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -31,18 +38,21 @@ export async function generateVirtualAccount(payload: VirtualAccountPayload) {
             return { success: false, message: data.message || 'Failed to generate account number.' };
         }
     } catch (error) {
-        console.error('Flutterwave API Error:', error);
-        return { success: false, message: 'An unexpected error occurred.' };
+        return { success: false, message: 'An unexpected error occurred connecting to the payment service.' };
     }
 }
 
 
 export async function resolveAccountNumber(payload: { accountNumber: string; bankCode: string }) {
+     if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY === 'YOUR_FLUTTERWAVE_SECRET_KEY_HERE') {
+        return { success: false, message: API_KEY_ERROR_MESSAGE };
+    }
+
     try {
         const response = await fetch('https://api.flutterwave.com/v3/accounts/resolve', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -58,7 +68,6 @@ export async function resolveAccountNumber(payload: { accountNumber: string; ban
             return { success: false, message: data.message || 'Failed to resolve account name.' };
         }
     } catch (error) {
-        console.error('Flutterwave Resolve API Error:', error);
         return { success: false, message: 'An unexpected error occurred while resolving account.' };
     }
 }

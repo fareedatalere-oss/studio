@@ -54,8 +54,8 @@ export default function GetAccountNumberPage() {
     }
 
     toast({
-        title: 'Success!',
-        description: 'Your account is being generated and will appear on the dashboard.',
+        title: 'Processing Request...',
+        description: 'Your account is being generated and will appear on the dashboard shortly.',
     });
     router.push(`/dashboard`);
 
@@ -89,8 +89,6 @@ export default function GetAccountNumberPage() {
                 createdAt: serverTimestamp(),
             });
         } else {
-            console.error("Failed to generate account in background:", result.message);
-            // Optionally, create a failure notification for the user
             if (firestore && user) {
                  const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
                  addDoc(notificationCollectionRef, {
@@ -103,7 +101,16 @@ export default function GetAccountNumberPage() {
             }
         }
     }).catch(error => {
-        console.error("Error generating virtual account:", error);
+        if (firestore && user) {
+            const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
+            addDoc(notificationCollectionRef, {
+                title: 'Account Generation Failed',
+                description: 'An unexpected error occurred. Please try again later.',
+                type: 'system',
+                isRead: false,
+                createdAt: serverTimestamp(),
+            });
+        }
     });
   };
 
