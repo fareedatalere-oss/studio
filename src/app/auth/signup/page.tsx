@@ -67,14 +67,15 @@ export default function SignUpPage() {
       };
       const userDocRef = doc(firestore, 'users', user.uid);
 
-      try {
-        await setDoc(userDocRef, userProfileData);
-        toast({
-          title: 'Success',
-          description: 'Account created successfully! Please complete your profile.',
-        });
-        router.push('/auth/complete-profile');
-      } catch (serverError) {
+      // Show success and navigate immediately
+      toast({
+        title: 'Success',
+        description: 'Account created successfully! Please complete your profile.',
+      });
+      router.push('/auth/complete-profile');
+
+      // Save the document in the background, handling errors without blocking the user
+      setDoc(userDocRef, userProfileData).catch(serverError => {
           console.error("Firestore error creating profile:", serverError);
           const permissionError = new FirestorePermissionError({
             path: userDocRef.path,
@@ -82,13 +83,8 @@ export default function SignUpPage() {
             requestResourceData: userProfileData,
           });
           errorEmitter.emit('permission-error', permissionError);
-
-          toast({
-            title: 'Account Created, But...',
-            description: "We couldn't save your profile. Please try signing in to complete it.",
-            variant: 'destructive',
-          });
-      }
+          // No user-facing toast here to avoid blocking or confusion
+      });
 
     } catch (error: any) {
       console.error("Sign up error:", error);

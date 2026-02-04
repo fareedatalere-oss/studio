@@ -52,7 +52,7 @@ export default function CompleteProfilePage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!country || !username || pin.length !== 5) {
       toast({
@@ -73,40 +73,31 @@ export default function CompleteProfilePage() {
         pin, // In a real app, this should be handled more securely (e.g., hashing).
     };
 
-    try {
-        const userDocRef = doc(firestore, 'users', user.uid);
-        
-        await setDoc(userDocRef, userProfileData, { merge: true });
+    const userDocRef = doc(firestore, 'users', user.uid);
 
-        toast({
-            title: 'Profile Complete!',
-            description: 'Welcome to your dashboard.',
-        });
-        router.push('/dashboard');
+    // Show toast and navigate immediately
+    toast({
+        title: 'Profile Complete!',
+        description: 'Welcome to your dashboard.',
+    });
+    router.push('/dashboard');
 
-    } catch (serverError: any) {
-        const userDocRef = doc(firestore, 'users', user.uid);
-        const permissionError = new FirestorePermissionError({
-            path: userDocRef.path,
-            operation: 'update',
-            requestResourceData: userProfileData,
+    // Save the profile data in the background
+    setDoc(userDocRef, userProfileData, { merge: true })
+        .catch((serverError: any) => {
+            const permissionError = new FirestorePermissionError({
+                path: userDocRef.path,
+                operation: 'update',
+                requestResourceData: userProfileData,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            // No user-facing error toast to prevent blocking the UI
+            console.error("Error saving profile:", serverError);
         });
-        errorEmitter.emit('permission-error', permissionError);
-
-        toast({
-            variant: "destructive",
-            title: "Uh oh! Something went wrong.",
-            description: "Could not save your profile. A permission error might have occurred.",
-        });
-    }
   };
 
   if (userLoading || !user) {
-      return (
-          <div className="flex min-h-screen items-center justify-center">
-              <p>Loading...</p>
-          </div>
-      );
+      return null; // Don't show anything while loading to avoid flashes of content
   }
 
   return (
