@@ -79,37 +79,30 @@ export default function CompleteProfilePage() {
     try {
         const userDocRef = doc(firestore, 'users', user.uid);
         
-        // Using setDoc with merge:true to update the existing document created during signup
-        setDoc(userDocRef, userProfileData, { merge: true })
-          .then(() => {
-            toast({
-                title: 'Profile Complete!',
-                description: 'Welcome to your dashboard.',
-            });
-            router.push('/dashboard');
-          })
-          .catch(async (serverError) => {
-              const permissionError = new FirestorePermissionError({
-                path: userDocRef.path,
-                operation: 'update',
-                requestResourceData: userProfileData,
-              });
-              errorEmitter.emit('permission-error', permissionError);
-              toast({
-                  variant: "destructive",
-                  title: "Uh oh! Something went wrong.",
-                  description: "Could not save your profile due to a permissions issue.",
-              });
-              setIsLoading(false);
-          });
+        await setDoc(userDocRef, userProfileData, { merge: true });
 
-    } catch (error) {
-        console.error("Error updating profile:", error);
         toast({
-            title: 'Error',
-            description: 'Could not save your profile. Please try again.',
-            variant: 'destructive',
+            title: 'Profile Complete!',
+            description: 'Welcome to your dashboard.',
         });
+        router.push('/dashboard');
+        // No need to set isLoading to false here as we navigate away.
+
+    } catch (serverError: any) {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const permissionError = new FirestorePermissionError({
+            path: userDocRef.path,
+            operation: 'update',
+            requestResourceData: userProfileData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description: "Could not save your profile. A permission error might have occurred.",
+        });
+    } finally {
         setIsLoading(false);
     }
   };
