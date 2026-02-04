@@ -25,12 +25,6 @@ function DashboardContent() {
   const userDocRef = user ? doc(firestore, 'users', user.uid) : null;
   const { data: userProfile, loading: profileLoading } = useDoc(userDocRef);
 
-  const account = {
-    nairaBalance: userProfile?.nairaBalance || '5000.00',
-    rewardBalance: userProfile?.rewardBalance || '0',
-    clickCount: userProfile?.clickCount || 0,
-  };
-  
   const actions = [
     { label: 'Send', icon: Send, href: '/dashboard/transfer' },
     { label: 'Utilities', icon: Wrench, href: '/dashboard/utilities' },
@@ -73,18 +67,18 @@ function DashboardContent() {
 
             <div>
               <p className="text-sm text-muted-foreground">Naira Balance</p>
-              {isLoading ? <Skeleton className="h-8 w-32 mt-1" /> : <p className="text-2xl font-bold">₦{account.nairaBalance}</p>}
+              {isLoading ? <Skeleton className="h-8 w-32 mt-1" /> : <p className="text-2xl font-bold">₦{userProfile?.nairaBalance || '0.00'}</p>}
             </div>
             
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div>
                   <p className="text-sm text-muted-foreground">Reward Balance</p>
-                  {isLoading ? <Skeleton className="h-6 w-16 mt-1" /> : <p className="font-semibold">{account.rewardBalance}</p>}
+                  {isLoading ? <Skeleton className="h-6 w-16 mt-1" /> : <p className="font-semibold">{userProfile?.rewardBalance || '0'}</p>}
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Click Count</p>
                 <div className="flex items-center gap-2">
-                  {isLoading ? <Skeleton className="h-6 w-8 mt-1" /> : <p className="font-semibold">{account.clickCount}</p>}
+                  {isLoading ? <Skeleton className="h-6 w-8 mt-1" /> : <p className="font-semibold">{userProfile?.clickCount || 0}</p>}
                   {!isLoading && userProfile?.accountNumber && (
                     <Button asChild size="sm" className="h-auto px-2 py-1 text-xs">
                       <Link href="/dashboard/rewards">Get Reward</Link>
