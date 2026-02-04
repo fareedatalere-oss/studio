@@ -24,11 +24,9 @@ export default function SignUpPage() {
   const firestore = useFirestore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
 
     if (!email || !password) {
       toast({
@@ -36,7 +34,6 @@ export default function SignUpPage() {
         description: 'Email and password are required.',
         variant: 'destructive',
       });
-      setIsLoading(false);
       return;
     }
     
@@ -46,7 +43,6 @@ export default function SignUpPage() {
         description: 'Please enter a valid email address.',
         variant: 'destructive',
       });
-      setIsLoading(false);
       return;
     }
 
@@ -57,7 +53,6 @@ export default function SignUpPage() {
         description: 'This email address is not available for sign up.',
         variant: 'destructive',
       });
-      setIsLoading(false);
       return;
     }
 
@@ -72,16 +67,14 @@ export default function SignUpPage() {
       };
       const userDocRef = doc(firestore, 'users', user.uid);
 
-      // Create a user document in Firestore, using the non-blocking pattern
-      setDoc(userDocRef, userProfileData)
-        .then(() => {
-          toast({
-            title: 'Success',
-            description: 'Account created successfully! Please complete your profile.',
-          });
-          router.push('/auth/complete-profile');
-        })
-        .catch((serverError) => {
+      try {
+        await setDoc(userDocRef, userProfileData);
+        toast({
+          title: 'Success',
+          description: 'Account created successfully! Please complete your profile.',
+        });
+        router.push('/auth/complete-profile');
+      } catch (serverError) {
           console.error("Firestore error creating profile:", serverError);
           const permissionError = new FirestorePermissionError({
             path: userDocRef.path,
@@ -95,8 +88,7 @@ export default function SignUpPage() {
             description: "We couldn't save your profile. Please try signing in to complete it.",
             variant: 'destructive',
           });
-          setIsLoading(false);
-        });
+      }
 
     } catch (error: any) {
       console.error("Sign up error:", error);
@@ -113,7 +105,6 @@ export default function SignUpPage() {
         description,
         variant: 'destructive',
       });
-      setIsLoading(false);
     }
   };
 
@@ -148,8 +139,8 @@ export default function SignUpPage() {
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Creating Account...' : 'Sign Up'}
+            <Button type="submit" className="w-full">
+              Sign Up
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">

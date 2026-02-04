@@ -23,7 +23,6 @@ export default function CompleteProfilePage() {
   const [country, setCountry] = useState('');
   const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   
   useEffect(() => {
     // If not loading and no user is found, they shouldn't be here.
@@ -68,8 +67,6 @@ export default function CompleteProfilePage() {
         return;
     }
 
-    setIsLoading(true);
-
     const userProfileData = {
         username,
         country,
@@ -86,7 +83,6 @@ export default function CompleteProfilePage() {
             description: 'Welcome to your dashboard.',
         });
         router.push('/dashboard');
-        // No need to set isLoading to false here as we navigate away.
 
     } catch (serverError: any) {
         const userDocRef = doc(firestore, 'users', user.uid);
@@ -102,8 +98,6 @@ export default function CompleteProfilePage() {
             title: "Uh oh! Something went wrong.",
             description: "Could not save your profile. A permission error might have occurred.",
         });
-    } finally {
-        setIsLoading(false);
     }
   };
 
@@ -163,8 +157,8 @@ export default function CompleteProfilePage() {
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Saving...' : 'Done'}
+            <Button type="submit" className="w-full">
+              Done
             </Button>
           </form>
         </CardContent>
