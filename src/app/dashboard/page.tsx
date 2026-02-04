@@ -47,16 +47,14 @@ function DashboardContent() {
             <CardTitle>Account Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
+            <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Account Number</p>
               {isLoading ? (
-                <Skeleton className="h-8 w-48 mt-1" />
-              ) : userProfile?.accountNumber ? (
+                <Skeleton className="h-8 w-48" />
+              ) : userProfile && userProfile.accountNumber ? (
                 <div>
-                    <p className="font-mono text-lg font-semibold">
-                    {userProfile.accountNumber}
-                    </p>
-                    <p className="text-xs text-muted-foreground font-semibold">{userProfile.bankName}</p>
+                  <p className="font-mono text-lg font-semibold">{userProfile.accountNumber}</p>
+                  <p className="text-xs text-muted-foreground font-semibold">{userProfile.bankName}</p>
                 </div>
               ) : (
                 <Button asChild className="mt-1">

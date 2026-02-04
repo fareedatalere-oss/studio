@@ -20,6 +20,20 @@ service cloud.firestore {
       allow update: if isSignedIn() && isOwner(userId);
       // Disallow deleting user profiles for now
       allow delete: if false;
+
+      // Rules for the 'notifications' subcollection
+      match /notifications/{notificationId} {
+        allow read, create, update: if isSignedIn() && isOwner(userId);
+        allow delete: if false;
+      }
+
+      // Rules for the 'transactions' subcollection
+      match /transactions/{transactionId} {
+        // Users can create and read their own transactions.
+        // They cannot be updated or deleted to maintain an immutable ledger.
+        allow create, read: if isSignedIn() && isOwner(userId);
+        allow update, delete: if false;
+      }
     }
   }
 }

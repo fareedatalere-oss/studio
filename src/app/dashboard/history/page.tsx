@@ -5,45 +5,42 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-
-// Mock data for prototype
-const transactions = [
-    {
-        sessionId: 'TRN-20240731-1A3B4C',
-        time: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        amount: '- ₦2,500.00',
-        recipient: 'MTN Airtime',
-        type: 'Utilities',
-        status: 'Completed'
-    },
-    {
-        sessionId: 'TRN-20240730-D5E6F7',
-        time: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        amount: '- ₦15,000.00',
-        recipient: 'UBA - 0123456789',
-        type: 'Transfer',
-        status: 'Completed'
-    },
-    {
-        sessionId: 'TRN-20240729-G8H9I0',
-        time: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        amount: '+ ₦500.00',
-        recipient: 'Welcome Bonus',
-        type: 'Deposit',
-        status: 'Completed'
-    },
-    {
-        sessionId: 'TRN-20240728-J1K2L3',
-        time: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-        amount: '- ₦1,200.00',
-        recipient: 'DSTV Subscription',
-        type: 'Utilities',
-        status: 'Failed'
-    }
-];
-
+import { useUser, useFirestore, useCollection } from "@/firebase";
+import { collection, query, orderBy } from 'firebase/firestore';
+import { useMemo } from 'react';
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function HistoryPage() {
+    const { user } = useUser();
+    const firestore = useFirestore();
+
+    const transactionsQuery = useMemo(() => {
+        if (!user) return null;
+        return query(collection(firestore, 'users', user.uid, 'transactions'), orderBy('createdAt', 'desc'));
+    }, [user, firestore]);
+
+    const { data: transactions, loading } = useCollection(transactionsQuery);
+
+    const getStatusVariant = (status: string) => {
+        switch (status?.toLowerCase()) {
+            case 'completed': return 'secondary';
+            case 'pending': return 'default';
+            case 'failed': return 'destructive';
+            default: return 'outline';
+        }
+    };
+
+    const getAmountClass = (amount: number) => {
+        return amount > 0 ? 'text-green-500' : 'text-red-500';
+    };
+    
+    const formatAmount = (amount: number) => {
+        if (typeof amount !== 'number') return '₦0.00';
+        const sign = amount > 0 ? '+' : '-';
+        const absoluteAmount = Math.abs(amount);
+        return `${sign} ₦${absoluteAmount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
     return (
         <div className="container py-8">
             <Link href="/dashboard" className="flex items-center gap-2 mb-4 text-sm">
@@ -66,21 +63,31 @@ export default function HistoryPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {transactions.length > 0 ? transactions.map((tx) => (
-                                <TableRow key={tx.sessionId}>
+                            {loading && (
+                                Array.from({ length: 3 }).map((_, i) => (
+                                     <TableRow key={i}>
+                                        <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                                        <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
+                                        <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-24" /></TableCell>
+                                        <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                            {!loading && transactions && transactions.length > 0 ? transactions.map((tx: any) => (
+                                <TableRow key={tx.id}>
                                     <TableCell>
-                                        <div className="font-medium">{tx.recipient}</div>
+                                        <div className="font-medium">{tx.recipientName}</div>
                                         <div className="text-xs text-muted-foreground hidden md:block">{tx.sessionId}</div>
                                     </TableCell>
                                      <TableCell className="hidden md:table-cell">
-                                        <Badge variant={tx.status === 'Failed' ? 'destructive' : 'secondary'} className="capitalize">{tx.type}</Badge>
+                                        <Badge variant={getStatusVariant(tx.status)} className="capitalize">{tx.type?.replace('_', ' ')}</Badge>
                                     </TableCell>
-                                    <TableCell className="hidden md:table-cell">{new Date(tx.time).toLocaleDateString()}</TableCell>
-                                    <TableCell className={`text-right font-medium ${tx.amount.startsWith('+') ? 'text-green-500' : ''}`}>{tx.amount}</TableCell>
+                                    <TableCell className="hidden md:table-cell">{tx.createdAt?.toDate().toLocaleDateString()}</TableCell>
+                                    <TableCell className={`text-right font-medium ${getAmountClass(tx.amount)}`}>{formatAmount(tx.amount)}</TableCell>
                                 </TableRow>
-                            )) : (
+                            )) : !loading && (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="text-center">No transactions yet.</TableCell>
+                                    <TableCell colSpan={4} className="text-center h-24">No transactions yet.</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>

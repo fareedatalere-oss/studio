@@ -33,6 +33,29 @@
         "link": { "type": "string", "description": "An optional link for the notification to navigate to."}
       },
       "required": ["title", "description", "type", "isRead", "createdAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Represents a financial transaction made by a user.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "The type of transaction.",
+          "enum": ["transfer", "airtime", "data", "electricity", "tv_subscription", "deposit", "reward_withdrawal"]
+        },
+        "amount": { "type": "number" },
+        "status": {
+          "type": "string",
+          "enum": ["completed", "pending", "failed"]
+        },
+        "recipientName": { "type": "string", "description": "Name of the recipient or service." },
+        "recipientDetails": { "type": "string", "description": "Account number, phone number, or meter number." },
+        "narration": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "sessionId": { "type": "string", "description": "A unique ID for the transaction." }
+      },
+      "required": ["type", "amount", "status", "createdAt", "sessionId"]
     }
   },
   "auth": {
@@ -50,6 +73,12 @@
         "$ref": "#/entities/Notification"
       },
       "description": "Stores notifications for a specific user."
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": {
+        "$ref": "#/entities/Transaction"
+      },
+      "description": "Stores a user's transaction history."
     }
   }
 }
