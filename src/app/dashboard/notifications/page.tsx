@@ -50,7 +50,11 @@ export default function NotificationsPage() {
         }
     }, [systemNotifications, firestore, user]);
 
-    const allNotifications = [...(systemNotifications || []), ...socialNotifications].sort((a, b) => b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime());
+    const allNotifications = [...(systemNotifications || []), ...socialNotifications].sort((a, b) => {
+        const timeA = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0;
+        const timeB = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0;
+        return timeB - timeA;
+    });
     
     const NotificationIcon = ({ type }: { type: string }) => {
         switch(type) {
@@ -99,7 +103,9 @@ export default function NotificationsPage() {
                                                 </>
                                             )}
                                         </p>
-                                        <p className="text-xs text-muted-foreground">{formatDistanceToNow(notif.createdAt.toDate(), { addSuffix: true })}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {notif.createdAt?.toDate ? formatDistanceToNow(notif.createdAt.toDate(), { addSuffix: true }) : 'sending...'}
+                                        </p>
                                     </div>
                                     {notif.user && (
                                         <Avatar className="h-10 w-10">
