@@ -10,43 +10,74 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { useUser, useFirestore } from '@/firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+
 
 export default function SettingsPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
+  const { user } = useUser();
+  const firestore = useFirestore();
 
+  const [isLoading, setIsLoading] = useState(false);
   const [pinData, setPinData] = useState({ current: '', new: '' });
   const [emailData, setEmailData] = useState({ current: '', new: '' });
   const [passwordData, setPasswordData] = useState({ current: '', new: '' });
   const [usernameData, setUsernameData] = useState({ current: '', new: '' });
 
-  const mockUpdate = (field: string, current: string, newValue: string) => {
+  const handleUpdatePin = async () => {
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      // In a real app, you'd validate the 'current' value on the backend.
-      // We'll mock a correct value for demonstration.
-      const mockCurrentValues: { [key: string]: string } = {
-        pin: '12345',
-        email: 'johndoe@example.com',
-        password: 'password123',
-        username: 'johndoe',
-      };
+    if (!user) {
+      toast({ variant: 'destructive', title: 'Not Authenticated' });
+      setIsLoading(false);
+      return;
+    }
+    if (pinData.new.length !== 5 || !/^\d+$/.test(pinData.new)) {
+      toast({ variant: 'destructive', title: 'Invalid PIN', description: 'New PIN must be 5 digits.' });
+      setIsLoading(false);
+      return;
+    }
+    if (pinData.current === pinData.new) {
+        toast({ variant: 'destructive', title: 'No Change', description: 'New PIN cannot be the same as the current one.' });
+        setIsLoading(false);
+        return;
+    }
 
-      if (current !== mockCurrentValues[field]) {
+    const userDocRef = doc(firestore, 'users', user.uid);
+    try {
+      const userDoc = await getDoc(userDocRef);
+      if (!userDoc.exists() || userDoc.data().pin !== pinData.current) {
         toast({
           variant: 'destructive',
-          title: `Incorrect Current ${field.charAt(0).toUpperCase() + field.slice(1)}`,
-          description: 'The current value you entered is incorrect.',
+          title: 'Incorrect Current PIN',
+          description: 'The current PIN you entered is incorrect.',
         });
       } else {
-        console.log(`Updating ${field} to:`, newValue);
+        await updateDoc(userDocRef, { pin: pinData.new });
         toast({
-          title: `${field.charAt(0).toUpperCase() + field.slice(1)} Updated`,
+          title: 'PIN Updated',
+          description: 'Your transaction PIN has been successfully updated.',
+        });
+        setPinData({ current: '', new: '' });
+      }
+    } catch (error) {
+      console.error("PIN Update Error:", error);
+      toast({ variant: 'destructive', title: 'Error Updating PIN', description: 'An unexpected error occurred.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+  const mockUpdate = (field: string, current: string, newValue: string) => {
+    setIsLoading(true);
+    // Simulate API call for other fields
+    setTimeout(() => {
+        toast({
+          title: `${field.charAt(0).toUpperCase() + field.slice(1)} Updated (Simulated)`,
           description: `Your ${field} has been successfully updated.`,
         });
-      }
       setIsLoading(false);
     }, 1000);
   };
@@ -74,7 +105,7 @@ export default function SettingsPage() {
                     type="password"
                     maxLength={5}
                     value={pinData.current}
-                    onChange={(e) => setPinData({ ...pinData, current: e.target.value })}
+                    onChange={(e) => setPinData({ ...pinData, current: e.target.value.replace(/\D/g, '') })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -86,10 +117,10 @@ export default function SettingsPage() {
                     pattern="[0-9]*"
                     maxLength={5}
                     value={pinData.new}
-                    onChange={(e) => setPinData({ ...pinData, new: e.target.value })}
+                    onChange={(e) => setPinData({ ...pinData, new: e.target.value.replace(/\D/g, '') })}
                   />
                 </div>
-                <Button onClick={() => mockUpdate('pin', pinData.current, pinData.new)} disabled={isLoading}>
+                <Button onClick={handleUpdatePin} disabled={isLoading || pinData.current.length !== 5 || pinData.new.length !== 5}>
                   {isLoading ? 'Updating...' : 'Update PIN'}
                 </Button>
               </AccordionContent>

@@ -35,6 +35,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
 import { doc, collection, addDoc, serverTimestamp, query, orderBy, setDoc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
+import { uploadToCloudinary } from '@/app/actions/upload';
 
 type Message = {
   id: string;
@@ -53,6 +54,8 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
 
   const [inputText, setInputText] = useState('');
   const [isBlocked, setIsBlocked] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   // Fetch the other user's profile
   const otherUserDocRef = useMemo(() => {
@@ -74,39 +77,72 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
   }, [firestore, chatId]);
 
   const { data: messages, loading: messagesLoading } = useCollection(messagesQuery);
+  
+  const handleSendMessage = async (mediaUrl?: string, type: Message['type'] = 'text') => {
+    if ((!inputText.trim() && !mediaUrl) || !currentUser || !chatId) return;
 
-  const handleSendMessage = async () => {
-    if (inputText.trim() && currentUser && chatId) {
-      const newMessage: Partial<Message> = {
-        text: inputText,
+    const messageText = mediaUrl ? (inputText || type) : inputText;
+
+    const newMessage: Partial<Message> = {
+        text: messageText,
         senderId: currentUser.uid,
         status: 'sent',
-        type: 'text',
+        type: type,
         createdAt: serverTimestamp(),
-      };
-      setInputText('');
+        ...(mediaUrl && { mediaUrl }),
+    };
 
-      const chatDocRef = doc(firestore, 'chats', chatId);
-      const messagesCollectionRef = collection(firestore, 'chats', chatId, 'messages');
+    setInputText('');
 
-      // Create chat document if it doesn't exist and add message
-      await setDoc(chatDocRef, { 
-        participants: [currentUser.uid, params.id],
-        lastMessage: inputText,
-        lastMessageAt: serverTimestamp()
-      }, { merge: true });
-      
-      await addDoc(messagesCollectionRef, newMessage);
+    const chatDocRef = doc(firestore, 'chats', chatId);
+    const messagesCollectionRef = collection(firestore, 'chats', chatId, 'messages');
+
+    try {
+        await setDoc(chatDocRef, {
+            participants: [currentUser.uid, params.id],
+            lastMessage: messageText,
+            lastMessageAt: serverTimestamp()
+        }, { merge: true });
+
+        await addDoc(messagesCollectionRef, newMessage);
+    } catch (error) {
+        console.error("Error sending message:", error);
+        toast({ title: 'Error', description: 'Could not send message.', variant: 'destructive' });
     }
+};
+
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: Message['type']) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!process.env.NEXT_PUBLIC_CLOUDINARY_API_SECRET) {
+      toast({
+        title: 'Feature not configured',
+        description: 'Please provide Cloudinary credentials in the .env file to enable media uploads.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (loadEvent) => {
+      const fileDataUri = loadEvent.target?.result as string;
+      if (!fileDataUri) return;
+
+      toast({ title: 'Uploading...', description: 'Your file is being uploaded.' });
+      const result = await uploadToCloudinary(fileDataUri);
+
+      if (result.success && result.url) {
+        toast({ title: 'Upload successful!', description: 'File sent.' });
+        handleSendMessage(result.url, type);
+      } else {
+        toast({ title: 'Upload Failed', description: result.message, variant: 'destructive' });
+      }
+    };
+    reader.readAsDataURL(file);
   };
   
-  const handleMediaUpload = () => {
-    toast({
-      title: 'Feature Coming Soon',
-      description: 'Please ensure your Cloudinary API Secret is set in the .env file to enable this.',
-    })
-  }
-
   const handleDeleteMessage = (messageId: string) => {
      toast({ title: 'Message deletion not implemented yet.' });
   };
@@ -237,6 +273,7 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
             </Card>
         ) : (
             <div className="flex items-center gap-2">
+            <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => handleFileSelect(e, 'file')} />
             <Textarea
                 placeholder="Type a message..."
                 value={inputText}
@@ -255,16 +292,16 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
                     <Button variant="ghost" size="icon"><Paperclip /></Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                    <DropdownMenuItem onClick={handleMediaUpload}><ImageIcon className="mr-2 h-4 w-4" /><span>Image</span></DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleMediaUpload}><Video className="mr-2 h-4 w-4" /><span>Video</span></DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleMediaUpload}><File className="mr-2 h-4 w-4" /><span>Document</span></DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleMediaUpload}><Headphones className="mr-2 h-4 w-4" /><span>Audio</span></DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()}><ImageIcon className="mr-2 h-4 w-4" /><span>Image</span></DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()}><Video className="mr-2 h-4 w-4" /><span>Video</span></DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()}><File className="mr-2 h-4 w-4" /><span>Document</span></DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()}><Headphones className="mr-2 h-4 w-4" /><span>Audio</span></DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-            <Button variant="ghost" size="icon" onClick={handleMediaUpload}>
+            <Button variant="ghost" size="icon" onClick={() => toast({ title: 'Voice messages coming soon!'})}>
                 <Mic />
             </Button>
-            <Button size="icon" onClick={handleSendMessage} disabled={!inputText.trim()}>
+            <Button size="icon" onClick={() => handleSendMessage()} disabled={!inputText.trim()}>
                 <Send />
             </Button>
             </div>
