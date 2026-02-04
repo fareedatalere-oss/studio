@@ -10,6 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
 
+const MANAGER_EMAIL = 'i-paymanagerscare402@gmail.com';
+const MANAGER_PASSWORD = 'Halimatussadiyya01/08162810155?admin';
+
 export default function SignInPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -30,8 +33,18 @@ export default function SignInPage() {
       setIsLoading(false);
       return;
     }
+
+    // Manager sign-in check
+    if (email.toLowerCase() === MANAGER_EMAIL && password === MANAGER_PASSWORD) {
+      toast({
+        title: 'Manager Login Successful',
+        description: 'Redirecting to security verification.',
+      });
+      router.push('/auth/manager-bypass');
+      return; // Stop further execution
+    }
     
-    // Mock sign in logic
+    // Mock user sign in logic
     setTimeout(() => {
       // In a real app, you would verify credentials.
       // For this prototype, we'll assume they are correct.

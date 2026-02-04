@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
 
+const MANAGER_EMAIL = 'i-paymanagerscare402@gmail.com';
+
 export default function SignUpPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -26,6 +28,17 @@ export default function SignUpPage() {
       toast({
         title: 'Error',
         description: 'Email and password are required.',
+        variant: 'destructive',
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    // Prevent manager email from signing up
+    if (email.toLowerCase() === MANAGER_EMAIL) {
+      toast({
+        title: 'Email Already Exists',
+        description: 'This email address is not available for sign up.',
         variant: 'destructive',
       });
       setIsLoading(false);
