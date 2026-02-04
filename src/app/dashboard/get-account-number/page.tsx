@@ -9,10 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { useUser } from '@/firebase';
+import { generateVirtualAccount } from '@/app/actions/flutterwave';
 
 export default function GetAccountNumberPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useUser();
   const [formData, setFormData] = useState({
     firstName: '',
     middleName: '',
@@ -31,22 +34,39 @@ export default function GetAccountNumberPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate API call to Flutterwave
-    console.log('Generating account number with data:', formData);
-    
-    // Simulate a delay for the API call
-    setTimeout(() => {
-      const generatedAccountNumber = Math.floor(1000000000 + Math.random() * 9000000000).toString();
-      
+    if (!user || !user.email) {
       toast({
-        title: 'Success!',
-        description: 'A valid account number has been generated.',
+        variant: 'destructive',
+        title: 'Authentication Error',
+        description: 'Could not find user email. Please sign in again.',
       });
-
-      // Redirect to dashboard with the new account number
-      router.push(`/dashboard?accountNumber=${generatedAccountNumber}`);
       setIsLoading(false);
-    }, 2000);
+      return;
+    }
+
+    const result = await generateVirtualAccount({
+      email: user.email,
+      firstname: formData.firstName,
+      lastname: formData.lastName,
+      phonenumber: formData.phone,
+      bvn: formData.ninBvn,
+    });
+    
+    if (result.success && result.data.account_number) {
+        toast({
+            title: 'Success!',
+            description: 'A valid account number has been generated.',
+        });
+        router.push(`/dashboard?accountNumber=${result.data.account_number}`);
+    } else {
+        toast({
+            variant: 'destructive',
+            title: 'Failed to Generate Account',
+            description: result.message || 'An error occurred while generating the account number.',
+        });
+    }
+
+    setIsLoading(false);
   };
 
   return (
@@ -59,7 +79,7 @@ export default function GetAccountNumberPage() {
         <CardHeader>
           <CardTitle>Generate Account Number</CardTitle>
           <CardDescription>
-            Provide your details to generate a new account number. Your email is johndoe@example.com.
+            Provide your details to generate a new account number. Your email is {user?.email || 'loading...'}.
           </CardDescription>
         </CardHeader>
         <CardContent>
