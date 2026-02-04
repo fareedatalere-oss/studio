@@ -4,20 +4,16 @@ import { useState } from 'react';
 import { ArrowLeft, Check, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { useUser, useFirestore, useDoc } from '@/firebase';
+import { addDoc, collection, doc, serverTimestamp } from 'firebase/firestore';
+
 
 const colors = [
   { name: 'Red', value: 'bg-red-700' },
@@ -36,15 +32,48 @@ export default function UploadTextPage() {
   const [step, setStep] = useState(1);
   const [text, setText] = useState('');
   const [selectedColor, setSelectedColor] = useState(colors[3]);
-  const [allowLikes, setAllowLikes] = useState(true);
   const [allowComments, setAllowComments] = useState(true);
+  const [isPosting, setIsPosting] = useState(false);
 
-  const handlePublish = () => {
-    toast({
-      title: 'Published!',
-      description: 'Your text post is now live.',
-    });
-    router.push('/dashboard/media');
+  const { user: authUser } = useUser();
+  const firestore = useFirestore();
+  const userDocRef = authUser ? doc(firestore, 'users', authUser.uid) : null;
+  const { data: userProfile } = useDoc(userDocRef);
+
+  const handlePublish = async () => {
+    if (!text.trim() || !authUser || !userProfile) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Missing text or user data.' });
+      return;
+    }
+    setIsPosting(true);
+    toast({ title: 'Publishing...' });
+
+    try {
+      const newPost = {
+        userId: authUser.uid,
+        username: userProfile.username,
+        userAvatar: userProfile.avatar,
+        type: 'text',
+        text: text,
+        backgroundColor: selectedColor.value,
+        description: text, // For text posts, description can be the text itself
+        allowComments: allowComments,
+        allowDownload: false, // Text posts aren't downloadable
+        createdAt: serverTimestamp(),
+        likes: [],
+        commentCount: 0,
+      };
+      await addDoc(collection(firestore, 'posts'), newPost);
+      toast({
+        title: 'Published!',
+        description: 'Your text post is now live.',
+      });
+      router.push('/dashboard/media');
+    } catch (error) {
+      console.error("Post creation failed:", error);
+      toast({ title: 'Publish Failed', description: 'Could not publish your post.', variant: 'destructive' });
+      setIsPosting(false);
+    }
   };
 
   if (step === 2) {
@@ -63,10 +92,6 @@ export default function UploadTextPage() {
               <p className="text-xl font-medium whitespace-pre-wrap">{text}</p>
             </div>
             <div className="space-y-4">
-               <div className="flex items-center justify-between">
-                <Label htmlFor="allow-likes">Allow Likes</Label>
-                <Switch id="allow-likes" checked={allowLikes} onCheckedChange={setAllowLikes} />
-              </div>
               <div className="flex items-center justify-between">
                 <Label htmlFor="allow-comments">Allow Comments</Label>
                 <Switch id="allow-comments" checked={allowComments} onCheckedChange={setAllowComments} />
@@ -74,8 +99,8 @@ export default function UploadTextPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button onClick={handlePublish} className="w-full">
-              Publish
+            <Button onClick={handlePublish} className="w-full" disabled={isPosting}>
+              {isPosting ? 'Publishing...' : 'Publish'}
             </Button>
           </CardFooter>
         </Card>

@@ -49,5 +49,20 @@ service cloud.firestore {
         allow update, delete: if false;
       }
     }
+
+    // Rules for media posts
+    match /posts/{postId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      // Allow updates for things like likes
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+        allow delete: if false;
+      }
+    }
   }
 }

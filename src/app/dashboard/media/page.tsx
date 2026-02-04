@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -17,7 +17,6 @@ import {
 } from '@/components/ui/tabs';
 import {
   Plus,
-  Upload,
   Clapperboard,
   Music,
   Film,
@@ -25,77 +24,139 @@ import {
   Image as ImageIcon,
   Heart,
   MessageCircle,
-  Eye,
-  Copy,
-  Download,
   Share,
-  RotateCw,
   MoreVertical,
+  Download,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Image from 'next/image';
+import { useUser, useFirestore, useCollection } from '@/firebase';
+import {
+  collection,
+  query,
+  orderBy,
+  doc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+} from 'firebase/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import { formatDistanceToNow } from 'date-fns';
 
-const PostHeader = () => (
-  <div className="flex items-center justify-between p-4">
-    <div className="flex items-center gap-3">
-      <Avatar>
-        <AvatarImage src="https://picsum.photos/seed/102/100/100" />
-        <AvatarFallback>U</AvatarFallback>
-      </Avatar>
-      <div>
-        <p className="font-semibold">johndoe</p>
-        <p className="text-xs text-muted-foreground">Lagos, Nigeria</p>
+const PostCard = ({ post }: { post: any }) => {
+  const { user: currentUser } = useUser();
+  const firestore = useFirestore();
+
+  const handleLike = async () => {
+    if (!currentUser) return;
+    const postRef = doc(firestore, 'posts', post.id);
+    if (post.likes?.includes(currentUser.uid)) {
+      await updateDoc(postRef, {
+        likes: arrayRemove(currentUser.uid),
+      });
+    } else {
+      await updateDoc(postRef, {
+        likes: arrayUnion(currentUser.uid),
+      });
+    }
+  };
+  
+  const isLiked = post.likes?.includes(currentUser?.uid);
+
+  return (
+    <div className="relative h-[calc(100vh-170px)] bg-black flex flex-col justify-between text-white snap-start">
+      {/* Header */}
+       <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/50 to-transparent z-10">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <Avatar>
+                        <AvatarImage src={post.userAvatar || `https://picsum.photos/seed/${post.userId}/100/100`} />
+                        <AvatarFallback>{post.username?.charAt(0) || 'U'}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                        <p className="font-semibold">{post.username}</p>
+                        <p className="text-xs text-neutral-300">{formatDistanceToNow(post.createdAt.toDate(), { addSuffix: true })}</p>
+                    </div>
+                </div>
+                <Button variant="outline" size="sm" className="bg-transparent text-white border-white">Follow</Button>
+            </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 flex items-center justify-center overflow-hidden">
+        {post.type === 'text' && (
+          <div className={cn("h-full w-full flex items-center justify-center p-8 text-center", post.backgroundColor)}>
+            <h2 className="text-3xl font-bold whitespace-pre-wrap">{post.text}</h2>
+          </div>
+        )}
+        {post.type === 'image' && (
+          <Image src={post.mediaUrl} alt={post.description || 'Post image'} layout="fill" objectFit="contain" />
+        )}
+        {(post.type === 'reels' || post.type === 'film') && (
+           <video src={post.mediaUrl} controls autoPlay muted loop className="w-full h-full object-contain" />
+        )}
+        {post.type === 'music' && (
+            <div className="flex flex-col items-center justify-center p-8 text-center">
+                <Music className="h-32 w-32 mb-4"/>
+                <h2 className="text-2xl font-bold">{post.description || 'Untitled Track'}</h2>
+                <audio controls src={post.mediaUrl} className="mt-8 w-full max-w-sm"></audio>
+            </div>
+        )}
+      </div>
+      
+      {/* Actions */}
+       <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-4 p-4 z-10">
+            <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1" onClick={handleLike}>
+                <Heart className={cn("h-7 w-7", isLiked && "fill-red-500 text-red-500")} />
+                <span className="text-xs">{post.likes?.length || 0}</span>
+            </Button>
+            <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1">
+                <MessageCircle className="h-7 w-7" />
+                <span className="text-xs">{post.commentCount || 0}</span>
+            </Button>
+            <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1">
+                <Share className="h-7 w-7" />
+            </Button>
+            {post.allowDownload && (
+                <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1">
+                    <Download className="h-7 w-7" />
+                </Button>
+            )}
+      </div>
+
+      {/* Footer */}
+      <div className="p-4 bg-gradient-to-t from-black/50 to-transparent z-10">
+        <p className="text-sm">{post.description}</p>
       </div>
     </div>
-    <Button variant="outline" size="sm">
-      Follow
-    </Button>
-  </div>
-);
+  );
+};
 
-const PostActions = ({
-  showDownload,
-  showRotate,
-}: {
-  showDownload?: boolean;
-  showRotate?: boolean;
-}) => (
-  <div className="flex flex-col items-center justify-center gap-4 p-4">
-    <Button variant="ghost" size="icon" className="h-10 w-10">
-      <Heart className="h-6 w-6" />
-      <span className="text-xs">10.5k</span>
-    </Button>
-    <Button variant="ghost" size="icon" className="h-10 w-10">
-      <MessageCircle className="h-6 w-6" />
-      <span className="text-xs">1.2k</span>
-    </Button>
-    <Button variant="ghost" size="icon" className="h-10 w-10">
-      <Eye className="h-6 w-6" />
-      <span className="text-xs">1.1M</span>
-    </Button>
-    <Button variant="ghost" size="icon" className="h-10 w-10">
-      <Copy className="h-6 w-6" />
-      <span className="text-xs">Copy</span>
-    </Button>
-    {showDownload && (
-      <Button variant="ghost" size="icon" className="h-10 w-10">
-        <Download className="h-6 w-6" />
-        <span className="text-xs">Download</span>
-      </Button>
-    )}
-     <Button variant="ghost" size="icon" className="h-10 w-10">
-      <Share className="h-6 w-6" />
-      <span className="text-xs">Share</span>
-    </Button>
-    {showRotate && (
-      <Button variant="ghost" size="icon" className="h-10 w-10">
-        <RotateCw className="h-6 w-6" />
-        <span className="text-xs">Rotate</span>
-      </Button>
-    )}
-  </div>
-);
+
+const PostFeed = ({ type }: { type: string }) => {
+  const firestore = useFirestore();
+  const postsQuery = useMemo(() => {
+    return query(collection(firestore, 'posts'), where('type', '==', type), orderBy('createdAt', 'desc'));
+  }, [firestore, type]);
+
+  const { data: posts, loading } = useCollection(postsQuery);
+
+  if (loading) {
+    return <div className="p-4"><Skeleton className="h-[calc(100vh-200px)] w-full" /></div>;
+  }
+  
+  if (!posts || posts.length === 0) {
+    return <div className="flex items-center justify-center h-[calc(100vh-200px)] text-muted-foreground">No {type} posts yet.</div>
+  }
+
+  return (
+    <div className="h-full overflow-y-auto snap-y snap-mandatory">
+      {posts.map(post => <PostCard key={post.id} post={post} />)}
+    </div>
+  )
+}
 
 export default function MediaPage() {
   const [open, setOpen] = useState(false);
@@ -103,83 +164,23 @@ export default function MediaPage() {
   return (
     <div className="relative h-full">
       <Tabs defaultValue="text" className="h-full flex flex-col">
-        <header className="sticky top-16 md:top-0 bg-background border-b z-10">
+        <header className="sticky top-16 md:top-0 bg-background border-b z-20">
           <div className="container">
             <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="text">Text</TabsTrigger>
               <TabsTrigger value="image">Image</TabsTrigger>
               <TabsTrigger value="reels">Reels</TabsTrigger>
-              <TabsTrigger value="films">Films</TabsTrigger>
+              <TabsTrigger value="film">Film</TabsTrigger>
               <TabsTrigger value="music">Music</TabsTrigger>
             </TabsList>
           </div>
         </header>
         <div className="flex-1 overflow-y-auto">
-          <TabsContent value="text">
-            <div className="relative h-[calc(100vh-170px)] bg-blue-900 text-white flex flex-col justify-between">
-                <PostHeader />
-                <div className="flex-1 flex items-center justify-center p-8 text-center">
-                    <h2 className="text-3xl font-bold">This is a sample text post. It supports multiple lines and will be displayed in the color chosen by the user.</h2>
-                </div>
-                 <div className="absolute right-0 top-1/2 -translate-y-1/2">
-                    <PostActions showDownload={false} />
-                </div>
-                <div className="p-4 text-sm">
-                    <p>#sample #textpost #design</p>
-                </div>
-            </div>
-          </TabsContent>
-          <TabsContent value="image">
-             <div className="relative h-[calc(100vh-170px)] bg-black flex flex-col justify-between">
-                <PostHeader />
-                <div className="flex-1 flex items-center justify-center">
-                    <Image src="https://picsum.photos/seed/media-img/600/800" alt="Post" width={600} height={800} className="max-h-full w-auto object-contain" />
-                </div>
-                 <div className="absolute right-0 top-1/2 -translate-y-1/2">
-                    <PostActions showDownload={true} />
-                </div>
-                <p className="p-4 text-sm text-white bg-black/50">This is a beautiful landscape. #nature #photography</p>
-            </div>
-          </TabsContent>
-          <TabsContent value="reels">
-             <div className="relative h-[calc(100vh-170px)] bg-black flex flex-col justify-between">
-                <PostHeader />
-                <div className="flex-1 flex items-center justify-center">
-                    <video src="https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4" controls className="max-h-full w-auto object-contain" />
-                </div>
-                 <div className="absolute right-0 top-1/2 -translate-y-1/2">
-                    <PostActions showDownload={true} />
-                </div>
-                 <p className="p-4 text-sm text-white bg-black/50">Check out this cool reel! #funny #reel</p>
-            </div>
-          </TabsContent>
-          <TabsContent value="films">
-            <div className="relative h-[calc(100vh-170px)] bg-black flex flex-col justify-between">
-                <PostHeader />
-                <div className="flex-1 flex items-center justify-center">
-                    <video src="https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_5MB.mp4" controls className="max-h-full w-auto object-contain" />
-                </div>
-                 <div className="absolute right-0 top-1/2 -translate-y-1/2">
-                    <PostActions showDownload={true} showRotate={true} />
-                </div>
-                 <p className="p-4 text-sm text-white bg-black/50">Movie night! 🍿 #film #cinema</p>
-            </div>
-          </TabsContent>
-          <TabsContent value="music">
-             <div className="relative h-[calc(100vh-170px)] bg-gray-800 text-white flex flex-col justify-between items-center text-center">
-                <PostHeader />
-                <div className="flex-1 flex flex-col items-center justify-center p-8">
-                    <Music className="h-32 w-32 mb-4"/>
-                    <h2 className="text-2xl font-bold">Awesome Song Title</h2>
-                    <p className="text-lg text-muted-foreground">Artist Name</p>
-                    <audio controls src="/mock-audio.mp3" className="mt-8 w-full max-w-sm"></audio>
-                </div>
-                 <div className="absolute right-0 top-1/2 -translate-y-1/2">
-                    <PostActions showDownload={true} />
-                </div>
-                 <p className="p-4 text-sm">Vibes ✨ #music #newrelease</p>
-            </div>
-          </TabsContent>
+          <TabsContent value="text" className="m-0"><PostFeed type="text" /></TabsContent>
+          <TabsContent value="image" className="m-0"><PostFeed type="image" /></TabsContent>
+          <TabsContent value="reels" className="m-0"><PostFeed type="reels" /></TabsContent>
+          <TabsContent value="film" className="m-0"><PostFeed type="film" /></TabsContent>
+          <TabsContent value="music" className="m-0"><PostFeed type="music" /></TabsContent>
         </div>
       </Tabs>
 
@@ -188,7 +189,7 @@ export default function MediaPage() {
           <Button
             variant="default"
             size="icon"
-            className="absolute bottom-24 right-6 md:bottom-6 h-16 w-16 rounded-full bg-accent hover:bg-accent/90"
+            className="absolute bottom-24 right-6 md:bottom-6 h-16 w-16 rounded-full bg-accent hover:bg-accent/90 z-20"
           >
             <Plus className="h-8 w-8" />
             <span className="sr-only">Add Media</span>

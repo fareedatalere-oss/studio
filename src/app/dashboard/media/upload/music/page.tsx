@@ -10,6 +10,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { useUser, useFirestore, useDoc } from '@/firebase';
+import { addDoc, collection, doc, serverTimestamp } from 'firebase/firestore';
+import { uploadToCloudinary } from '@/app/actions/upload';
 
 export default function UploadMusicPage() {
   const { toast } = useToast();
@@ -19,13 +22,17 @@ export default function UploadMusicPage() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [allowComments, setAllowComments] = useState(true);
   const [allowDownload, setAllowDownload] = useState(true);
+  const [isPosting, setIsPosting] = useState(false);
 
+  const { user: authUser } = useUser();
+  const firestore = useFirestore();
+  const userDocRef = authUser ? doc(firestore, 'users', authUser.uid) : null;
+  const { data: userProfile } = useDoc(userDocRef);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-       // 16 minutes audio at 128kbps is about 15MB
-      if (file.size > 50 * 1024 * 1024) { // Generous 50MB limit
+      if (file.size > 50 * 1024 * 1024) { // 50MB limit
           toast({
               variant: 'destructive',
               title: 'File too large',
@@ -37,17 +44,47 @@ export default function UploadMusicPage() {
     }
   };
 
-  const handlePost = () => {
-    console.log('Posting music with settings:', {
-        description,
-        allowComments,
-        allowDownload
-    });
-    toast({
-      title: 'Music Posted!',
-      description: 'Your track is now live.',
-    });
-    router.push('/dashboard/media');
+  const handlePost = async () => {
+    if (!audioFile || !authUser || !userProfile) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Missing file or user data.' });
+        return;
+    }
+    setIsPosting(true);
+    toast({ title: 'Uploading track...' });
+    
+    try {
+        const reader = new FileReader();
+        reader.readAsDataURL(audioFile);
+        reader.onload = async () => {
+            const fileDataUri = reader.result as string;
+            const uploadResult = await uploadToCloudinary(fileDataUri, 'video'); // Cloudinary treats audio as video type for storage
+
+            if (uploadResult.success && uploadResult.url) {
+                const newPost = {
+                    userId: authUser.uid,
+                    username: userProfile.username,
+                    userAvatar: userProfile.avatar,
+                    type: 'music',
+                    mediaUrl: uploadResult.url,
+                    description: description,
+                    allowComments: allowComments,
+                    allowDownload: allowDownload,
+                    createdAt: serverTimestamp(),
+                    likes: [],
+                    commentCount: 0,
+                };
+                await addDoc(collection(firestore, 'posts'), newPost);
+                toast({ title: 'Music Posted!', description: 'Your track is now live.' });
+                router.push('/dashboard/media');
+            } else {
+                throw new Error(uploadResult.message || 'Upload failed');
+            }
+        };
+    } catch (error) {
+        console.error("Post creation failed:", error);
+        toast({ title: 'Post Failed', description: 'Could not upload your music.', variant: 'destructive' });
+        setIsPosting(false);
+    }
   };
 
   return (
@@ -119,8 +156,8 @@ export default function UploadMusicPage() {
           />
         </CardContent>
         <CardFooter>
-          <Button onClick={handlePost} className="w-full" disabled={!audioFile}>
-            Post Music
+          <Button onClick={handlePost} className="w-full" disabled={!audioFile || isPosting}>
+             {isPosting ? 'Posting...' : 'Post Music'}
           </Button>
         </CardFooter>
       </Card>

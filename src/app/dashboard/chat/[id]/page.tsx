@@ -116,15 +116,6 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!process.env.NEXT_PUBLIC_CLOUDINARY_API_SECRET) {
-      toast({
-        title: 'Feature not configured',
-        description: 'Please provide Cloudinary credentials in the .env file to enable media uploads.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     const reader = new FileReader();
     reader.onload = async (loadEvent) => {
       const fileDataUri = loadEvent.target?.result as string;

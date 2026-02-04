@@ -82,6 +82,40 @@
             "status": { "type": "string", "enum": ["sent", "delivered", "read"] }
         },
         "required": ["senderId", "createdAt"]
+    },
+    "Post": {
+      "title": "Media Post",
+      "description": "Represents a media post created by a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The UID of the user who created the post." },
+        "username": { "type": "string" },
+        "userAvatar": { "type": "string", "format": "uri" },
+        "type": { "type": "string", "enum": ["text", "image", "reels", "film", "music"] },
+        "text": { "type": "string", "description": "The text content for text posts." },
+        "backgroundColor": { "type": "string", "description": "Background color for text posts." },
+        "mediaUrl": { "type": "string", "format": "uri", "description": "URL of the uploaded media file from Cloudinary." },
+        "description": { "type": "string", "description": "Caption or description for the post." },
+        "allowComments": { "type": "boolean" },
+        "allowDownload": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "likes": { "type": "array", "items": { "type": "string" }, "description": "Array of user UIDs who liked the post." },
+        "commentCount": { "type": "number" }
+      },
+      "required": ["userId", "type", "createdAt"]
+    },
+    "PostComment": {
+        "title": "Post Comment",
+        "description": "Represents a single comment on a media post.",
+        "type": "object",
+        "properties": {
+            "userId": { "type": "string" },
+            "username": { "type": "string" },
+            "userAvatar": { "type": "string", "format": "uri" },
+            "text": { "type": "string" },
+            "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["userId", "text", "createdAt"]
     }
   },
   "auth": {
@@ -113,6 +147,14 @@
     "/chats/{chatId}/messages/{messageId}": {
       "schema": { "$ref": "#/entities/ChatMessage" },
       "description": "Stores all messages for a specific chat session."
+    },
+    "/posts/{postId}": {
+      "schema": { "$ref": "#/entities/Post" },
+      "description": "Stores all media posts from users."
+    },
+    "/posts/{postId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/PostComment" },
+      "description": "Stores comments for a specific post."
     }
   }
 }

@@ -1,14 +1,17 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Camera, UploadCloud } from 'lucide-react';
+import { ArrowLeft, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useUser, useFirestore, useDoc } from '@/firebase';
+import { addDoc, collection, doc, serverTimestamp } from 'firebase/firestore';
+import { uploadToCloudinary } from '@/app/actions/upload';
+
 
 export default function UploadReelsPage() {
   const { toast } = useToast();
@@ -16,12 +19,17 @@ export default function UploadReelsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [description, setDescription] = useState('');
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
+  const [isPosting, setIsPosting] = useState(false);
+
+  const { user: authUser } = useUser();
+  const firestore = useFirestore();
+  const userDocRef = authUser ? doc(firestore, 'users', authUser.uid) : null;
+  const { data: userProfile } = useDoc(userDocRef);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      // 3 minutes = 180 seconds. Approx 200MB for a 720p video.
-      if (file.size > 200 * 1024 * 1024) {
+      if (file.size > 200 * 1024 * 1024) { // 200MB limit
           toast({
               variant: 'destructive',
               title: 'File too large',
@@ -37,12 +45,42 @@ export default function UploadReelsPage() {
     }
   };
 
-  const handlePost = () => {
-    toast({
-      title: 'Reel Posted!',
-      description: 'Your reel is being processed and will be live shortly.',
-    });
-    router.push('/dashboard/media');
+  const handlePost = async () => {
+     if (!videoSrc || !authUser || !userProfile) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Missing video or user data.' });
+      return;
+    }
+    setIsPosting(true);
+    toast({ title: 'Posting reel...' });
+
+    try {
+        const uploadResult = await uploadToCloudinary(videoSrc, 'video');
+
+        if (uploadResult.success && uploadResult.url) {
+            const newPost = {
+                userId: authUser.uid,
+                username: userProfile.username,
+                userAvatar: userProfile.avatar,
+                type: 'reels',
+                mediaUrl: uploadResult.url,
+                description: description,
+                allowComments: true, // Default settings for reels
+                allowDownload: true,
+                createdAt: serverTimestamp(),
+                likes: [],
+                commentCount: 0,
+            };
+            await addDoc(collection(firestore, 'posts'), newPost);
+            toast({ title: 'Reel Posted!', description: 'Your reel is now live.' });
+            router.push('/dashboard/media');
+        } else {
+            throw new Error(uploadResult.message || 'Upload failed');
+        }
+    } catch(error) {
+        console.error("Post creation failed:", error);
+        toast({ title: 'Post Failed', description: 'Could not post your reel.', variant: 'destructive' });
+        setIsPosting(false);
+    }
   };
 
   return (
@@ -87,8 +125,8 @@ export default function UploadReelsPage() {
           />
         </CardContent>
         <CardFooter>
-          <Button onClick={handlePost} className="w-full" disabled={!videoSrc}>
-            Post Reel
+          <Button onClick={handlePost} className="w-full" disabled={!videoSrc || isPosting}>
+            {isPosting ? 'Posting...' : 'Post Reel'}
           </Button>
         </CardFooter>
       </Card>

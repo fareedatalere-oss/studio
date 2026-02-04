@@ -2,23 +2,20 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Camera, Download, Settings, UploadCloud, Video } from 'lucide-react';
+import { ArrowLeft, Camera, Settings, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useUser, useFirestore, useDoc } from '@/firebase';
+import { addDoc, collection, doc, serverTimestamp } from 'firebase/firestore';
+import { uploadToCloudinary } from '@/app/actions/upload';
+
 
 export default function UploadImagePage() {
   const { toast } = useToast();
@@ -29,9 +26,15 @@ export default function UploadImagePage() {
   const [allowComments, setAllowComments] = useState(true);
   const [allowDownload, setAllowDownload] = useState(true);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean>();
+  const [isPosting, setIsPosting] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { user: authUser } = useUser();
+  const firestore = useFirestore();
+  const userDocRef = authUser ? doc(firestore, 'users', authUser.uid) : null;
+  const { data: userProfile } = useDoc(userDocRef);
 
   useEffect(() => {
     if (step === 1) {
@@ -54,7 +57,6 @@ export default function UploadImagePage() {
         };
         getCameraPermission();
     } else {
-        // Stop camera stream when leaving the upload step
         if (videoRef.current && videoRef.current.srcObject) {
             const stream = videoRef.current.srcObject as MediaStream;
             stream.getTracks().forEach(track => track.stop());
@@ -88,12 +90,43 @@ export default function UploadImagePage() {
     }
   };
 
-  const handlePublish = () => {
-    toast({
-      title: 'Posted!',
-      description: 'Your image is now live.',
-    });
-    router.push('/dashboard/media');
+  const handlePublish = async () => {
+    if (!imageSrc || !authUser || !userProfile) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Missing image or user data.' });
+      return;
+    }
+
+    setIsPosting(true);
+    toast({ title: 'Posting...' });
+
+    try {
+      const uploadResult = await uploadToCloudinary(imageSrc, 'image');
+
+      if (uploadResult.success && uploadResult.url) {
+        const newPost = {
+          userId: authUser.uid,
+          username: userProfile.username,
+          userAvatar: userProfile.avatar,
+          type: 'image',
+          mediaUrl: uploadResult.url,
+          description: description,
+          allowComments: allowComments,
+          allowDownload: allowDownload,
+          createdAt: serverTimestamp(),
+          likes: [],
+          commentCount: 0,
+        };
+        await addDoc(collection(firestore, 'posts'), newPost);
+        toast({ title: 'Posted!', description: 'Your image is now live.' });
+        router.push('/dashboard/media');
+      } else {
+        throw new Error(uploadResult.message || 'Upload failed');
+      }
+    } catch (error) {
+      console.error("Post creation failed:", error);
+      toast({ title: 'Post Failed', description: 'Could not post your image.', variant: 'destructive' });
+      setIsPosting(false);
+    }
   };
 
   if (step === 2) {
@@ -129,8 +162,8 @@ export default function UploadImagePage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button onClick={handlePublish} className="w-full">
-              Post
+            <Button onClick={handlePublish} className="w-full" disabled={isPosting}>
+              {isPosting ? 'Posting...' : 'Post'}
             </Button>
           </CardFooter>
         </Card>

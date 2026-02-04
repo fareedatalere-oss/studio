@@ -11,6 +11,9 @@ import { useRouter } from 'next/navigation';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
+import { useUser, useFirestore, useDoc } from '@/firebase';
+import { addDoc, collection, doc, serverTimestamp } from 'firebase/firestore';
+import { uploadToCloudinary } from '@/app/actions/upload';
 
 
 export default function UploadFilmPage() {
@@ -21,12 +24,17 @@ export default function UploadFilmPage() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [allowComments, setAllowComments] = useState(true);
   const [allowDownload, setAllowDownload] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isPosting, setIsPosting] = useState(false);
+
+  const { user: authUser } = useUser();
+  const firestore = useFirestore();
+  const userDocRef = authUser ? doc(firestore, 'users', authUser.uid) : null;
+  const { data: userProfile } = useDoc(userDocRef);
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      // 5 hours of 1080p video could be very large, let's set a prototype limit of 2GB.
       if (file.size > 2 * 1024 * 1024 * 1024) {
           toast({
               variant: 'destructive',
@@ -39,25 +47,50 @@ export default function UploadFilmPage() {
     }
   };
 
-  const handlePost = () => {
-    // Simulate upload progress
-    const interval = setInterval(() => {
-        setUploadProgress(prev => {
-            if (prev >= 95) {
-                clearInterval(interval);
-                return 100;
-            }
-            return prev + 5;
-        })
-    }, 500);
+  const handlePost = async () => {
+    if (!videoFile || !authUser || !userProfile) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Missing file or user data.' });
+        return;
+    }
+    setIsPosting(true);
+    toast({ title: 'Uploading film...', description: 'This may take a while.' });
+    
+    try {
+        const reader = new FileReader();
+        reader.readAsDataURL(videoFile);
+        reader.onload = async () => {
+            const fileDataUri = reader.result as string;
+            const uploadResult = await uploadToCloudinary(fileDataUri, 'video');
 
-    setTimeout(() => {
-         toast({
-            title: 'Film Uploaded!',
-            description: 'Your film is processing and will be live shortly.',
-        });
-        router.push('/dashboard/media');
-    }, 11000);
+            if (uploadResult.success && uploadResult.url) {
+                 const newPost = {
+                    userId: authUser.uid,
+                    username: userProfile.username,
+                    userAvatar: userProfile.avatar,
+                    type: 'film',
+                    mediaUrl: uploadResult.url,
+                    description: description,
+                    allowComments: allowComments,
+                    allowDownload: allowDownload,
+                    createdAt: serverTimestamp(),
+                    likes: [],
+                    commentCount: 0,
+                };
+                await addDoc(collection(firestore, 'posts'), newPost);
+                toast({
+                    title: 'Film Uploaded!',
+                    description: 'Your film is now live.',
+                });
+                router.push('/dashboard/media');
+            } else {
+                throw new Error(uploadResult.message || 'Upload failed');
+            }
+        }
+    } catch (error) {
+        console.error("Post creation failed:", error);
+        toast({ title: 'Post Failed', description: 'Could not upload your film.', variant: 'destructive' });
+        setIsPosting(false);
+    }
   };
 
   return (
@@ -77,8 +110,8 @@ export default function UploadFilmPage() {
                 <div className="border p-4 rounded-md">
                     <p className="font-semibold">{videoFile.name}</p>
                     <p className="text-sm text-muted-foreground">{(videoFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                    {isPosting && <Progress value={undefined} className="mt-2" />}
                 </div>
-                {uploadProgress > 0 && <Progress value={uploadProgress} />}
                 <Textarea
                     placeholder="Add a film synopsis or description..."
                     rows={6}
@@ -118,8 +151,8 @@ export default function UploadFilmPage() {
           />
         </CardContent>
         <CardFooter>
-          <Button onClick={handlePost} className="w-full" disabled={!videoFile || uploadProgress > 0}>
-            {uploadProgress > 0 ? `Uploading... ${uploadProgress}%` : 'Post Film'}
+          <Button onClick={handlePost} className="w-full" disabled={!videoFile || isPosting}>
+            {isPosting ? `Uploading...` : 'Post Film'}
           </Button>
         </CardFooter>
       </Card>
