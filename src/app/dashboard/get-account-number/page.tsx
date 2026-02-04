@@ -30,7 +30,6 @@ export default function GetAccountNumberPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
-    // Allow only numbers for phone and bvn
     if (id === 'phone' || id === 'ninBvn') {
         if (/^\d*$/.test(value)) {
              setFormData((prev) => ({ ...prev, [id]: value }));
@@ -40,7 +39,7 @@ export default function GetAccountNumberPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
@@ -54,21 +53,26 @@ export default function GetAccountNumberPage() {
       return;
     }
 
-    const result = await generateVirtualAccount({
+    toast({
+        title: 'Success!',
+        description: 'Your account is being generated and will appear on the dashboard.',
+    });
+    router.push(`/dashboard`);
+
+    // Perform generation and database updates in the background
+    generateVirtualAccount({
       email: user.email,
       firstname: formData.firstName,
       lastname: formData.lastName,
       phonenumber: formData.phone,
       bvn: formData.ninBvn,
-    });
-    
-    if (result.success && result.data.account_number) {
-        try {
+    }).then(result => {
+        if (result.success && result.data.account_number) {
+            if (!firestore || !user) return;
             const userDocRef = doc(firestore, 'users', user.uid);
             const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
 
-            // Save account details to user profile
-            await setDoc(userDocRef, {
+            setDoc(userDocRef, {
                 accountNumber: result.data.account_number,
                 bankName: result.data.bank_name,
                 firstName: formData.firstName,
@@ -77,38 +81,30 @@ export default function GetAccountNumberPage() {
                 bvn: formData.ninBvn,
             }, { merge: true });
             
-            // Create notification
-            await addDoc(notificationCollectionRef, {
+            addDoc(notificationCollectionRef, {
                 title: 'Account Generated!',
                 description: `Your new ${result.data.bank_name} account number is ${result.data.account_number}.`,
                 type: 'system',
                 isRead: false,
                 createdAt: serverTimestamp(),
             });
-
-            toast({
-                title: 'Success!',
-                description: 'A valid account number has been generated.',
-            });
-            router.push(`/dashboard`);
-
-        } catch (error) {
-            console.error("Error saving account details:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Database Error',
-                description: 'Could not save your new account details. Please try again.',
-            });
+        } else {
+            console.error("Failed to generate account in background:", result.message);
+            // Optionally, create a failure notification for the user
+            if (firestore && user) {
+                 const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
+                 addDoc(notificationCollectionRef, {
+                    title: 'Account Generation Failed',
+                    description: result.message || 'We could not generate your account number at this time.',
+                    type: 'system',
+                    isRead: false,
+                    createdAt: serverTimestamp(),
+                });
+            }
         }
-    } else {
-        toast({
-            variant: 'destructive',
-            title: 'Failed to Generate Account',
-            description: result.message || 'An error occurred while generating the account number.',
-        });
-    }
-
-    setIsLoading(false);
+    }).catch(error => {
+        console.error("Error generating virtual account:", error);
+    });
   };
 
   return (
@@ -149,7 +145,7 @@ export default function GetAccountNumberPage() {
               <Input id="phone" type="tel" value={formData.phone} onChange={handleChange} required />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Generating...' : 'Get Account Number'}
+              {isLoading ? 'Processing...' : 'Get Account Number'}
             </Button>
           </form>
         </CardContent>

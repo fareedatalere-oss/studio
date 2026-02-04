@@ -46,33 +46,19 @@ export default function SignInPage() {
         title: 'Manager Login Successful',
         description: 'Redirecting to security verification.',
       });
-      // Since this is a special bypass, we don't need to do a real Firebase sign-in for the manager
       router.push('/auth/manager-bypass');
       return;
     }
     
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      await signInWithEmailAndPassword(auth, email, password);
 
-      const userDocRef = doc(firestore, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
-
-      if (userDoc.exists() && userDoc.data().username) {
-        // User has completed their profile
-        toast({
-          title: 'Success',
-          description: 'Signed in successfully!',
-        });
-        router.push('/dashboard');
-      } else {
-        // User has not completed their profile
-        toast({
-          title: 'Welcome Back!',
-          description: 'Please complete your profile to continue.',
-        });
-        router.push('/auth/complete-profile');
-      }
+      // Successful sign-in, redirect immediately.
+      toast({
+        title: 'Success',
+        description: 'Signed in successfully!',
+      });
+      router.push('/dashboard');
 
     } catch (error: any) {
         console.error("Sign in error:", error);
@@ -92,11 +78,10 @@ export default function SignInPage() {
                     description = 'This user account has been disabled.';
                     break;
                 case 'failed-precondition':
-                    description = 'Database error. Please ensure Firestore is enabled in your Firebase project.';
+                     description = 'Failed to get document because the client is offline. Please check your internet connection.';
                     break;
                 default:
-                    // Use the error message from Firebase if available and it's not too generic
-                    if (error.message && !error.message.includes('INTERNAL ASSERTION FAILED')) {
+                    if (error.message) {
                          description = error.message;
                     }
                     break;
