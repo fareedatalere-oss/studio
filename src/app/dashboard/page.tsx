@@ -22,8 +22,6 @@ function DashboardContent() {
   const { user } = useUser();
   const firestore = useFirestore();
   const userDocRef = user ? doc(firestore, 'users', user.uid) : null;
-  // The useDoc hook provides data and a loading state.
-  // We will use the data directly to provide an "instant" feel.
   const { data: userProfile, loading: profileLoading } = useDoc(userDocRef);
 
   const actions = [
@@ -49,39 +47,34 @@ function DashboardContent() {
             <div className="space-y-1 min-h-[40px]">
               <p className="text-sm text-muted-foreground">Account Number</p>
               {
-                // This logic ensures the "Get Account Number" button shows up immediately
-                // if there's no account number loaded yet, preventing the user from feeling stuck.
-                userProfile?.accountNumber ? (
-                  <div>
-                    <p className="font-mono text-lg font-semibold">{userProfile.accountNumber}</p>
-                    <p className="text-xs text-muted-foreground font-semibold">{userProfile.bankName}</p>
-                  </div>
-                ) : (
-                  // Show the button if the profile is still loading or if it has loaded and there's no number.
-                  // It's disabled briefly while loading to prevent accidental clicks.
-                  <Button asChild className="mt-1" disabled={profileLoading}>
-                    <Link href="/dashboard/get-account-number">Get Account Number</Link>
-                  </Button>
+                !profileLoading && (
+                    userProfile?.accountNumber ? (
+                      <div>
+                        <p className="font-mono text-lg font-semibold">{userProfile.accountNumber}</p>
+                        <p className="text-xs text-muted-foreground font-semibold">{userProfile.bankName}</p>
+                      </div>
+                    ) : (
+                      <Button asChild className="mt-1">
+                        <Link href="/dashboard/get-account-number">Get Account Number</Link>
+                      </Button>
+                    )
                 )
               }
             </div>
 
             <div>
               <p className="text-sm text-muted-foreground">Naira Balance</p>
-              {/* Show 0.00 by default instead of a loading indicator to feel instant */}
               <p className="text-2xl font-bold">₦{userProfile?.nairaBalance?.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</p>
             </div>
             
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div>
                   <p className="text-sm text-muted-foreground">Reward Balance</p>
-                   {/* Show 0 by default */}
                   <p className="font-semibold">{userProfile?.rewardBalance?.toLocaleString() || '0'}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Click Count</p>
                 <div className="flex items-center gap-2">
-                   {/* Show 0 by default */}
                   <p className="font-semibold">{userProfile?.clickCount?.toLocaleString() || 0}</p>
                   {userProfile?.accountNumber && (
                     <Button asChild size="sm" className="h-auto px-2 py-1 text-xs">
