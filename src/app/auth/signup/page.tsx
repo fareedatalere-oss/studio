@@ -57,8 +57,8 @@ export default function SignUpPage() {
     }
 
     try {
+      // The `account.create` method also logs the user in, so we don't need to create a session again.
       await account.create(ID.unique(), email, password);
-      await account.createEmailPasswordSession(email, password);
 
       // Show success and navigate immediately
       toast({
