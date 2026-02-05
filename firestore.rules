@@ -14,13 +14,11 @@ service cloud.firestore {
 
     // Rules for the 'users' collection
     match /users/{userId} {
-      // Allow users to read (get) their own profile and create one.
-      // Any signed-in user can get any other user's profile.
-      allow get, create: if isSignedIn();
-      // Only the owner of a profile can update it.
-      allow update: if isSignedIn() && isOwner(userId);
-      // Disallow deleting user profiles for now.
-      allow delete: if false;
+      // Allow any signed-in user to get a user's profile.
+      allow get: if isSignedIn();
+      // Allow users to create, update, and delete their own document.
+      // This rule is forced to ensure users can always save their own data.
+      allow write: if isSignedIn() && isOwner(userId);
 
       // Rules for the 'notifications' subcollection
       match /notifications/{notificationId} {
