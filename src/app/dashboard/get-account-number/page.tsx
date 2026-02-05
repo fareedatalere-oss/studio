@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,44 +28,14 @@ export default function GetAccountNumberPage() {
     phone: '',
   });
 
-  const [step, setStep] = useState<'form' | 'countdown' | 'congrats' | 'displayAccount' | 'saving'>('form');
-  const [countdown, setCountdown] = useState(15);
-  const [saveCountdown, setSaveCountdown] = useState<number | null>(null);
+  const [step, setStep] = useState<'form' | 'displayAccount'>('form');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [generatedAccount, setGeneratedAccount] = useState<{ number: string; bank: string } | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (step === 'countdown' && countdown > 0) {
-      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-    } else if (step === 'countdown' && countdown === 0) {
-      if (generatedAccount) {
-        setStep('congrats');
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Account Generation Failed',
-          description: apiError || 'We could not generate your account number. Please try again.',
-        });
-        setStep('form');
-      }
-    }
-    return () => clearTimeout(timer);
-  }, [step, countdown, generatedAccount, toast, apiError]);
-
-   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (saveCountdown !== null && saveCountdown > 0) {
-        timer = setTimeout(() => setSaveCountdown(saveCountdown - 1), 1000);
-    } else if (saveCountdown === 0) {
-        router.push('/dashboard');
-    }
-    return () => clearTimeout(timer);
-  }, [saveCountdown, router]);
-
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
+    // Allow only numbers for phone and BVN fields
     if (id === 'phone' || id === 'bvn') {
       if (/^\d*$/.test(value)) {
         setFormData((prev) => ({ ...prev, [id]: value }));
@@ -75,7 +45,7 @@ export default function GetAccountNumberPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !user.email) {
       toast({
@@ -86,45 +56,53 @@ export default function GetAccountNumberPage() {
       return;
     }
 
-    setStep('countdown');
-    setCountdown(15);
-    setApiError(null);
-    setGeneratedAccount(null);
+    setIsGenerating(true);
 
-    // Call API in the background
-    generateVirtualAccount({
-      email: user.email,
-      firstname: formData.firstName,
-      lastname: formData.lastName,
-      phonenumber: formData.phone,
-      bvn: formData.bvn,
-    }).then(result => {
+    try {
+        const result = await generateVirtualAccount({
+            email: user.email,
+            firstname: formData.firstName,
+            lastname: formData.lastName,
+            phonenumber: formData.phone,
+            bvn: formData.bvn,
+        });
+
         if (result.success && result.data.account_number) {
             setGeneratedAccount({
-            number: result.data.account_number,
-            bank: result.data.bank_name,
+                number: result.data.account_number,
+                bank: result.data.bank_name,
+            });
+            setStep('displayAccount');
+            toast({
+                title: 'Account Generated!',
+                description: 'Please review and save your new account details.',
             });
         } else {
-            setApiError(result.message || 'An unknown error occurred.');
+            throw new Error(result.message || 'An unknown error occurred while generating the account.');
         }
-    }).catch(error => {
-        setApiError(error.message || 'An unexpected network error occurred.');
-    });
+    } catch (error: any) {
+         toast({
+          variant: 'destructive',
+          title: 'Account Generation Failed',
+          description: error.message || 'We could not generate your account number. Please try again.',
+        });
+    } finally {
+        setIsGenerating(false);
+    }
   };
   
-  const handleSaveAndFinish = () => {
+  const handleSaveAndFinish = async () => {
     if (!user || !firestore || !generatedAccount) {
       toast({
         title: 'Error',
-        description: 'Missing required data to save. Please sign in again.',
+        description: 'Missing required data to save. Please try generating the account again.',
         variant: 'destructive',
       });
       return;
     }
     
-    setStep('saving');
-    setSaveCountdown(15); // Start the UI countdown immediately
-
+    setIsSaving(true);
+    
     const userDocRef = doc(firestore, 'users', user.uid);
     const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
 
@@ -145,22 +123,21 @@ export default function GetAccountNumberPage() {
       createdAt: serverTimestamp(),
     };
 
-    const savePromises = Promise.all([
-      setDoc(userDocRef, accountData, { merge: true }),
-      addDoc(notificationCollectionRef, notificationData)
-    ]);
+    try {
+        // This is now a real save operation. The app will wait here.
+        await setDoc(userDocRef, accountData, { merge: true });
+        await addDoc(notificationCollectionRef, notificationData);
 
-    savePromises.catch(serverError => {
-        // Halt the countdown and show a real error
-        setSaveCountdown(null);
-        setStep('displayAccount');
-
-        console.error('Error saving account details:', serverError);
         toast({
-          variant: 'destructive',
-          title: 'Save Failed',
-          description: 'Could not save your account number to the database. Please try again.',
+          title: 'Account Saved!',
+          description: 'Your new account number is permanently saved to your profile.',
         });
+        
+        // Redirect only after successful save
+        router.push('/dashboard');
+
+    } catch (serverError: any) {
+        console.error('Firestore Save Error:', serverError);
         
         const permissionError = new FirestorePermissionError({
             path: userDocRef.path,
@@ -168,63 +145,17 @@ export default function GetAccountNumberPage() {
             requestResourceData: accountData,
         });
         errorEmitter.emit('permission-error', permissionError);
-    });
+
+        toast({
+          variant: 'destructive',
+          title: 'Save Failed',
+          description: serverError.message || 'Could not save your account number to the database. Please try again.',
+        });
+    } finally {
+        setIsSaving(false);
+    }
   };
 
-
-  if (step === 'countdown') {
-    return (
-        <div className="container py-8">
-            <Card className="w-full max-w-lg mx-auto text-center">
-                <CardHeader>
-                    <Loader2 className="mx-auto h-16 w-16 text-primary animate-spin" />
-                    <CardTitle className="mt-4">Generating Your Account</CardTitle>
-                    <CardDescription>Please wait...</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-6xl font-mono font-bold">{countdown}</p>
-                </CardContent>
-            </Card>
-        </div>
-    );
-  }
-  
-  if (step === 'saving') {
-    return (
-        <div className="container py-8">
-            <Card className="w-full max-w-lg mx-auto text-center">
-                <CardHeader>
-                    <Loader2 className="mx-auto h-16 w-16 text-primary animate-spin" />
-                    <CardTitle className="mt-4">Saving Your Account</CardTitle>
-                    <CardDescription>Your account is being permanently saved. Redirecting in...</CardDescription>
-                </CardHeader>
-                <CardContent>
-                     <p className="text-6xl font-mono font-bold">{saveCountdown}</p>
-                </CardContent>
-            </Card>
-        </div>
-    );
-  }
-
-  if (step === 'congrats') {
-    return (
-        <div className="container py-8">
-            <Card className="w-full max-w-lg mx-auto text-center">
-                <CardHeader>
-                    <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
-                    <CardTitle className="mt-4">Congratulations!</CardTitle>
-                    <CardDescription>You have an account number.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Button onClick={() => setStep('displayAccount')} className="w-full">
-                        Continue
-                    </Button>
-                </CardContent>
-            </Card>
-        </div>
-    );
-  }
-  
   if (step === 'displayAccount') {
     return (
         <div className="container py-8">
@@ -240,15 +171,19 @@ export default function GetAccountNumberPage() {
                         <Label className="mt-2">Account Number</Label>
                         <p className="text-2xl font-bold font-mono tracking-wider">{generatedAccount?.number}</p>
                     </div>
-                    <Button onClick={handleSaveAndFinish} className="w-full">
-                        Done
+                    <Button onClick={handleSaveAndFinish} className="w-full" disabled={isSaving}>
+                        {isSaving ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Saving...
+                            </>
+                        ) : 'Done'}
                     </Button>
                 </CardContent>
             </Card>
         </div>
     );
   }
-
 
   return (
     <div className="container py-8">
@@ -283,8 +218,13 @@ export default function GetAccountNumberPage() {
               <Label htmlFor="phone">Phone Number</Label>
               <Input id="phone" type="tel" value={formData.phone} onChange={handleChange} required />
             </div>
-            <Button type="submit" className="w-full">
-              Get Account Number
+            <Button type="submit" className="w-full" disabled={isGenerating}>
+              {isGenerating ? (
+                <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                </>
+              ) : 'Get Account Number'}
             </Button>
           </form>
         </CardContent>
