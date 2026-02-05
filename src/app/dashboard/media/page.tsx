@@ -35,6 +35,7 @@ import { useUser, useFirestore, useCollection } from '@/firebase';
 import {
   collection,
   query,
+  where,
   orderBy,
   doc,
   updateDoc,
