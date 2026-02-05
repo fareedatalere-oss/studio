@@ -19,7 +19,7 @@ import { collection, query } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ChatPage() {
-  const { user: currentUser, loading: userLoading } = useUser();
+  const { user: currentUser } = useUser();
   const firestore = useFirestore();
   const [search, setSearch] = useState('');
 
@@ -29,13 +29,12 @@ export default function ChatPage() {
     return query(collection(firestore, 'users'));
   }, [firestore]);
 
-  const { data: allUsers, loading: usersLoading } = useCollection(usersQuery);
+  const { data: allUsers, loading: usersLoading, error: usersError } = useCollection(usersQuery);
 
   const filteredUsers = useMemo(() => {
     if (!allUsers || !currentUser) return [];
     const searchTerm = search.toLowerCase().trim();
     
-    // Exclude the current user from the list
     const otherUsers = allUsers.filter(user => user.id !== currentUser.uid);
 
     if (!searchTerm) {
@@ -48,10 +47,7 @@ export default function ChatPage() {
     );
   }, [allUsers, currentUser, search]);
   
-  // For now, "Recent" tab will show the same list as "All"
   const recentUsers = filteredUsers;
-
-  const isLoading = userLoading || usersLoading;
 
   const UserItem = ({ user }: { user: any }) => {
     const displayName = user.username || user.email || 'I-Pay User';
@@ -87,11 +83,12 @@ export default function ChatPage() {
   )};
 
   const renderContent = (users: any[]) => {
-      if (isLoading && users.length === 0) {
+      if (usersError) {
+          return <p className="text-center text-destructive p-8">Could not load users. Please check your connection.</p>;
+      }
+      if (usersLoading && users.length === 0) {
         return (
-             <div className="p-4 space-y-4">
-                <p className="text-center text-muted-foreground p-6">Loading users...</p>
-            </div>
+             <p className="text-center text-muted-foreground p-8">Loading users...</p>
         )
       }
       if (users.length > 0) {
@@ -101,7 +98,7 @@ export default function ChatPage() {
             </div>
         );
       }
-      return <p className="text-center text-muted-foreground p-6">No users found.</p>
+      return <p className="text-center text-muted-foreground p-8">No users found.</p>
   }
 
   return (

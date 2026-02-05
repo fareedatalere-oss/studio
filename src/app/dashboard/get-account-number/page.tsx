@@ -112,7 +112,7 @@ export default function GetAccountNumberPage() {
     });
   };
   
-  const handleSaveAndFinish = async () => {
+  const handleSaveAndFinish = () => {
     if (!user || !firestore || !generatedAccount) {
       toast({
         title: 'Error',
@@ -122,7 +122,8 @@ export default function GetAccountNumberPage() {
       return;
     }
     
-    setStep('saving'); // Show the "Saving..." screen with the countdown
+    setStep('saving');
+    setSaveCountdown(15); // Start the UI countdown immediately
 
     const userDocRef = doc(firestore, 'users', user.uid);
     const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
@@ -144,33 +145,30 @@ export default function GetAccountNumberPage() {
       createdAt: serverTimestamp(),
     };
 
-    try {
-        // Forcefully save the data to the database and wait for it to complete.
-        await setDoc(userDocRef, accountData, { merge: true });
-        await addDoc(notificationCollectionRef, notificationData);
-        
-        // Only if the save is successful, start the final countdown to redirect.
-        setSaveCountdown(15);
+    const savePromises = Promise.all([
+      setDoc(userDocRef, accountData, { merge: true }),
+      addDoc(notificationCollectionRef, notificationData)
+    ]);
 
-    } catch (serverError: any) {
+    savePromises.catch(serverError => {
+        // Halt the countdown and show a real error
+        setSaveCountdown(null);
+        setStep('displayAccount');
+
         console.error('Error saving account details:', serverError);
-
-        // CRITICAL: If the save fails, stop everything, show an error, and return the user.
-        setStep('displayAccount'); // Go back to the previous screen
         toast({
           variant: 'destructive',
           title: 'Save Failed',
           description: 'Could not save your account number to the database. Please try again.',
         });
         
-        // Emit the detailed error for debugging, but do not proceed.
         const permissionError = new FirestorePermissionError({
             path: userDocRef.path,
             operation: 'update',
             requestResourceData: accountData,
         });
         errorEmitter.emit('permission-error', permissionError);
-    }
+    });
   };
 
 
@@ -198,7 +196,7 @@ export default function GetAccountNumberPage() {
                 <CardHeader>
                     <Loader2 className="mx-auto h-16 w-16 text-primary animate-spin" />
                     <CardTitle className="mt-4">Saving Your Account</CardTitle>
-                    <CardDescription>Redirecting to dashboard in...</CardDescription>
+                    <CardDescription>Your account is being permanently saved. Redirecting in...</CardDescription>
                 </CardHeader>
                 <CardContent>
                      <p className="text-6xl font-mono font-bold">{saveCountdown}</p>
