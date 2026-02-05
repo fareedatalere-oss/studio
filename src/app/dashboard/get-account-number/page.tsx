@@ -60,11 +60,9 @@ export default function GetAccountNumberPage() {
       };
 
       try {
-        // Force save to database and wait for it to complete
         await setDoc(userDocRef, accountData, { merge: true });
         await addDoc(notificationCollectionRef, notificationData);
       } catch (serverError: any) {
-        // If save fails, stop everything and show an error.
         clearInterval(timer);
         toast({
           variant: 'destructive',
@@ -80,23 +78,25 @@ export default function GetAccountNumberPage() {
 
     performSave();
 
-    // Start the countdown timer. This runs in parallel to the save.
-    // If the save fails, the effect in performSave will clear this timer.
     timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          // Redirect once countdown is finished
-          router.push('/dashboard');
-          return 0;
+          return 0; // Just update the state to 0, navigation is handled in another effect
         }
         return prev - 1;
       });
     }, 1000);
 
-    // Cleanup function to clear interval if component unmounts
     return () => clearInterval(timer);
-  }, [step, user, firestore, generatedAccount, formData, router, toast]);
+  }, [step, user, firestore, generatedAccount, formData, toast]);
+
+  // This new useEffect handles the navigation safely after the state update
+  useEffect(() => {
+    if (countdown === 0 && step === 'saving') {
+      router.push('/dashboard');
+    }
+  }, [countdown, step, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
