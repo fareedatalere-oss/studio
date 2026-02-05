@@ -11,7 +11,6 @@ import { useToast } from '@/hooks/use-toast';
 import { countries } from '@/lib/countries';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { generateVirtualAccount } from '@/app/actions/flutterwave';
 
 export default function CompleteProfilePage() {
   const router = useRouter();
@@ -23,11 +22,6 @@ export default function CompleteProfilePage() {
     country: '',
     username: '',
     pin: '',
-    firstName: '',
-    lastName: '',
-    middleName: '',
-    phone: '',
-    bvn: '',
   });
 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -68,14 +62,6 @@ export default function CompleteProfilePage() {
       if (/^\d{0,5}$/.test(value)) {
         setFormData((prev) => ({ ...prev, [id]: value }));
       }
-    } else if (id === 'bvn') {
-        if (/^\d{0,11}$/.test(value)) {
-            setFormData((prev) => ({ ...prev, [id]: value }));
-        }
-    } else if (id === 'phone') {
-        if (/^\d*$/.test(value)) {
-            setFormData((prev) => ({ ...prev, [id]: value }));
-        }
     } else {
         setFormData((prev) => ({ ...prev, [id]: value }));
     }
@@ -87,7 +73,7 @@ export default function CompleteProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !user.email) {
+    if (!user) {
       toast({ title: 'Not authenticated', description: 'No user is signed in.', variant: 'destructive' });
       return;
     }
@@ -95,42 +81,16 @@ export default function CompleteProfilePage() {
     setIsProcessing(true); // Start the countdown UI
 
     try {
-      // 1. Save the initial profile data (excluding account number)
+      // Save the profile data
       const userDocRef = doc(firestore, 'users', user.uid);
-      const initialProfileData = {
+      const profileData = {
         username: formData.username,
         country: formData.country,
-        pin: formData.pin, // In a real app, this should be handled more securely (e.g., hashing).
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        middleName: formData.middleName,
-        phone: formData.phone,
-        bvn: formData.bvn,
+        pin: formData.pin, // In a real app, this should be hashed.
       };
-      await setDoc(userDocRef, initialProfileData, { merge: true });
-      
-      // 2. Call Flutterwave to generate the virtual account
-      const accountResult = await generateVirtualAccount({
-        email: user.email,
-        firstname: formData.firstName,
-        lastname: formData.lastName,
-        phonenumber: formData.phone,
-        bvn: formData.bvn,
-      });
+      await setDoc(userDocRef, profileData, { merge: true });
 
-      if (!accountResult.success || !accountResult.data) {
-        throw new Error(accountResult.message || 'Failed to generate account number from payment provider.');
-      }
-
-      // 3. Save the new account number back to Firestore
-      const finalProfileData = {
-        accountNumber: accountResult.data.account_number,
-        bankName: accountResult.data.bank_name,
-      };
-      await setDoc(userDocRef, finalProfileData, { merge: true });
-
-      // If we reach here, everything succeeded. The countdown is already running.
-      // The redirect will happen automatically when the countdown finishes.
+      // The redirect will happen automatically via the countdown effect.
 
     } catch (error: any) {
         console.error("Profile completion error:", error);
@@ -176,21 +136,7 @@ export default function CompleteProfilePage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name</Label>
-                    <Input id="firstName" value={formData.firstName} onChange={handleChange} required />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input id="lastName" value={formData.lastName} onChange={handleChange} required />
-                </div>
-            </div>
-             <div className="space-y-2">
-                <Label htmlFor="middleName">Middle Name (Optional)</Label>
-                <Input id="middleName" value={formData.middleName} onChange={handleChange} />
-            </div>
-             <div className="space-y-2">
+            <div className="space-y-2">
               <Label htmlFor="country">Country</Label>
               <Select onValueChange={handleSelectChange} value={formData.country} required>
                 <SelectTrigger id="country">
@@ -214,14 +160,6 @@ export default function CompleteProfilePage() {
                 placeholder="e.g. johndoe"
                 required
               />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" type="tel" value={formData.phone} onChange={handleChange} required />
-            </div>
-             <div className="space-y-2">
-                <Label htmlFor="bvn">NIN/BVN (11 digits)</Label>
-                <Input id="bvn" value={formData.bvn} onChange={handleChange} required maxLength={11} minLength={11} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="pin">5-Digit Transaction PIN</Label>
