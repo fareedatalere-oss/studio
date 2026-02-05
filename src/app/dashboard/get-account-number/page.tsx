@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -12,8 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
 import { generateVirtualAccount } from '@/app/actions/flutterwave';
 import { doc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function GetAccountNumberPage() {
   const router = useRouter();
@@ -28,14 +26,80 @@ export default function GetAccountNumberPage() {
     phone: '',
   });
 
-  const [step, setStep] = useState<'form' | 'displayAccount'>('form');
+  const [step, setStep] = useState<'form' | 'displayAccount' | 'saving'>('form');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [generatedAccount, setGeneratedAccount] = useState<{ number: string; bank: string } | null>(null);
+  const [countdown, setCountdown] = useState(15);
+
+  useEffect(() => {
+    if (step !== 'saving') return;
+
+    let timer: NodeJS.Timeout;
+
+    const performSave = async () => {
+      if (!user || !firestore || !generatedAccount) return;
+
+      const userDocRef = doc(firestore, 'users', user.uid);
+      const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
+
+      const accountData = {
+        accountNumber: generatedAccount.number,
+        bankName: generatedAccount.bank,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phone: formData.phone,
+        bvn: formData.bvn,
+      };
+
+      const notificationData = {
+        title: 'Account Generated!',
+        description: `Your new ${generatedAccount.bank} account number is ${generatedAccount.number}. You can now fund this account.`,
+        type: 'system',
+        isRead: false,
+        createdAt: serverTimestamp(),
+      };
+
+      try {
+        // Force save to database and wait for it to complete
+        await setDoc(userDocRef, accountData, { merge: true });
+        await addDoc(notificationCollectionRef, notificationData);
+      } catch (serverError: any) {
+        // If save fails, stop everything and show an error.
+        clearInterval(timer);
+        toast({
+          variant: 'destructive',
+          title: 'Save Failed',
+          description: serverError.message || 'Could not save your account number to the database. Please try again.',
+          duration: 9000,
+        });
+        setCountdown(15); // Reset countdown
+        setStep('displayAccount'); // Go back to the previous screen
+        return;
+      }
+    };
+
+    performSave();
+
+    // Start the countdown timer. This runs in parallel to the save.
+    // If the save fails, the effect in performSave will clear this timer.
+    timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          // Redirect once countdown is finished
+          router.push('/dashboard');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // Cleanup function to clear interval if component unmounts
+    return () => clearInterval(timer);
+  }, [step, user, firestore, generatedAccount, formData, router, toast]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
-    // Allow only numbers for phone and BVN fields
     if (id === 'phone' || id === 'bvn') {
       if (/^\d*$/.test(value)) {
         setFormData((prev) => ({ ...prev, [id]: value }));
@@ -91,7 +155,7 @@ export default function GetAccountNumberPage() {
     }
   };
   
-  const handleSaveAndFinish = async () => {
+  const handleSaveAndFinish = () => {
     if (!user || !firestore || !generatedAccount) {
       toast({
         title: 'Error',
@@ -100,61 +164,25 @@ export default function GetAccountNumberPage() {
       });
       return;
     }
-    
-    setIsSaving(true);
-    
-    const userDocRef = doc(firestore, 'users', user.uid);
-    const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
-
-    const accountData = {
-      accountNumber: generatedAccount.number,
-      bankName: generatedAccount.bank,
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      phone: formData.phone,
-      bvn: formData.bvn,
-    };
-    
-    const notificationData = {
-      title: 'Account Generated!',
-      description: `Your new ${generatedAccount.bank} account number is ${generatedAccount.number}. You can now fund this account.`,
-      type: 'system',
-      isRead: false,
-      createdAt: serverTimestamp(),
-    };
-
-    try {
-        // This is now a real save operation. The app will wait here.
-        await setDoc(userDocRef, accountData, { merge: true });
-        await addDoc(notificationCollectionRef, notificationData);
-
-        toast({
-          title: 'Account Saved!',
-          description: 'Your new account number is permanently saved to your profile.',
-        });
-        
-        // Redirect only after successful save
-        router.push('/dashboard');
-
-    } catch (serverError: any) {
-        console.error('Firestore Save Error:', serverError);
-        
-        const permissionError = new FirestorePermissionError({
-            path: userDocRef.path,
-            operation: 'update',
-            requestResourceData: accountData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-
-        toast({
-          variant: 'destructive',
-          title: 'Save Failed',
-          description: serverError.message || 'Could not save your account number to the database. Please try again.',
-        });
-    } finally {
-        setIsSaving(false);
-    }
+    setStep('saving');
   };
+
+  if (step === 'saving') {
+    return (
+      <div className="container py-8">
+        <Card className="w-full max-w-lg mx-auto">
+          <CardHeader>
+            <CardTitle>Saving Your Account</CardTitle>
+            <CardDescription>Please wait. Your account details are being permanently saved.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center space-y-4 h-48">
+            <p className="text-6xl font-bold font-mono">{countdown}</p>
+            <p className="text-muted-foreground">Redirecting to dashboard shortly...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (step === 'displayAccount') {
     return (
@@ -171,13 +199,8 @@ export default function GetAccountNumberPage() {
                         <Label className="mt-2">Account Number</Label>
                         <p className="text-2xl font-bold font-mono tracking-wider">{generatedAccount?.number}</p>
                     </div>
-                    <Button onClick={handleSaveAndFinish} className="w-full" disabled={isSaving}>
-                        {isSaving ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Saving...
-                            </>
-                        ) : 'Done'}
+                    <Button onClick={handleSaveAndFinish} className="w-full">
+                        Done
                     </Button>
                 </CardContent>
             </Card>
