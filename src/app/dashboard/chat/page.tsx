@@ -26,8 +26,6 @@ export default function ChatPage() {
   // Fetch all users
   const usersQuery = useMemo(() => {
     if (!firestore) return null;
-    // A more scalable query would be to fetch users you've already chatted with.
-    // For now, fetching all users as requested.
     return query(collection(firestore, 'users'));
   }, [firestore]);
 
@@ -35,9 +33,13 @@ export default function ChatPage() {
 
   const filteredUsers = useMemo(() => {
     if (!allUsers || !currentUser) return [];
+    const searchTerm = search.toLowerCase();
     return allUsers
       .filter(user => user.uid !== currentUser.uid) // Exclude current user
-      .filter(user => user.username?.toLowerCase().includes(search.toLowerCase()));
+      .filter(user => 
+        user.username?.toLowerCase().includes(searchTerm) ||
+        user.email?.toLowerCase().includes(searchTerm)
+      );
   }, [allUsers, currentUser, search]);
   
   // This is a placeholder for recent chats logic
@@ -49,12 +51,12 @@ export default function ChatPage() {
      <div className="flex items-center justify-between">
         <Link href={`/dashboard/chat/${user.uid}`} className="flex items-center gap-3 flex-1">
             <Avatar>
-              <AvatarImage src={user.avatar || `https://picsum.photos/seed/${user.uid}/100/100`} alt={user.username} />
-              <AvatarFallback>{user.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+              <AvatarImage src={user.avatar || `https://picsum.photos/seed/${user.uid}/100/100`} alt={user.username || user.email} />
+              <AvatarFallback>{(user.username || user.email)?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
             </Avatar>
             <div className="flex-1 truncate">
-                <span className="font-semibold">{user.username}</span>
-                <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                <span className="font-semibold">{user.username || user.email}</span>
+                 {user.username && <p className="text-sm text-muted-foreground truncate">{user.email}</p>}
             </div>
         </Link>
         <DropdownMenu>
@@ -65,7 +67,7 @@ export default function ChatPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent>
             <DropdownMenuItem asChild>
-                <Link href={`/dashboard/chat/${user.id}`}>Chat</Link>
+                <Link href={`/dashboard/chat/${user.uid}`}>Chat</Link>
             </DropdownMenuItem>
             <DropdownMenuItem>Block</DropdownMenuItem>
             <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
@@ -74,19 +76,19 @@ export default function ChatPage() {
     </div>
   )
 
-  const renderSkeleton = () => (
-    <div className="p-4 space-y-4">
-      {Array.from({length: 3}).map((_, i) => (
-        <div key={i} className="flex items-center gap-3">
-          <Skeleton className="h-12 w-12 rounded-full" />
-          <div className="space-y-2 flex-1">
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-4 w-3/4" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
+  const renderContent = (users: any[]) => {
+      if (users.length > 0) {
+        return (
+            <div className="p-4 space-y-4">
+                {users.map(user => <UserItem key={user.id} user={user} />)}
+            </div>
+        );
+      }
+      if (!isLoading) {
+          return <p className="text-center text-muted-foreground p-6">No users found.</p>
+      }
+      return null;
+  }
 
   return (
     <div className="container py-4">
@@ -107,26 +109,14 @@ export default function ChatPage() {
         <TabsContent value="all">
           <Card>
             <CardContent className="p-0">
-              {isLoading ? renderSkeleton() : filteredUsers.length > 0 ? (
-                  <div className="p-4 space-y-4">
-                    {filteredUsers.map(user => <UserItem key={user.id} user={user} />)}
-                  </div>
-              ) : (
-                <p className="text-center text-muted-foreground p-6">No users found.</p>
-              )}
+              {renderContent(filteredUsers)}
             </CardContent>
           </Card>
         </TabsContent>
         <TabsContent value="recent">
           <Card>
              <CardContent className="p-0">
-               {isLoading ? renderSkeleton() : recentUsers.length > 0 ? (
-                  <div className="p-4 space-y-4">
-                    {recentUsers.map(user => <UserItem key={user.id} user={user} />)}
-                  </div>
-              ) : (
-                <p className="text-center text-muted-foreground p-6">No recent chats.</p>
-              )}
+               {renderContent(recentUsers)}
             </CardContent>
           </Card>
         </TabsContent>

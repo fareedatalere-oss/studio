@@ -180,11 +180,11 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
             </Button>
             </Link>
             <Avatar>
-              <AvatarImage src={otherUser?.avatar || `https://picsum.photos/seed/${otherUser?.uid}/100/100`} alt={otherUser?.username} />
-              <AvatarFallback>{otherUser?.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+              <AvatarImage src={otherUser?.avatar || `https://picsum.photos/seed/${otherUser?.uid}/100/100`} alt={otherUser?.username || otherUser?.email} />
+              <AvatarFallback>{(otherUser?.username || otherUser?.email)?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
             </Avatar>
             <div>
-            <h2 className="font-semibold">{otherUser?.username}</h2>
+            <h2 className="font-semibold">{otherUser?.username || otherUser?.email}</h2>
             <div className="flex items-center gap-1.5">
                 <span className={'h-2 w-2 rounded-full bg-gray-400'}></span>
                 <p className="text-xs text-muted-foreground">Offline</p>
