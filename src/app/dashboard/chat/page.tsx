@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { MoreVertical, Search } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { useCollection, useFirestore, useUser } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ChatPage() {
@@ -33,30 +33,40 @@ export default function ChatPage() {
 
   const filteredUsers = useMemo(() => {
     if (!allUsers || !currentUser) return [];
-    const searchTerm = search.toLowerCase();
-    return allUsers
-      .filter(user => user.uid !== currentUser.uid) // Exclude current user
-      .filter(user => 
-        user.username?.toLowerCase().includes(searchTerm) ||
-        user.email?.toLowerCase().includes(searchTerm)
-      );
+    const searchTerm = search.toLowerCase().trim();
+    
+    // Exclude the current user from the list
+    const otherUsers = allUsers.filter(user => user.id !== currentUser.uid);
+
+    if (!searchTerm) {
+      return otherUsers;
+    }
+
+    return otherUsers.filter(user => 
+        (user.username && user.username.toLowerCase().includes(searchTerm)) ||
+        (user.email && user.email.toLowerCase().includes(searchTerm))
+    );
   }, [allUsers, currentUser, search]);
   
-  // This is a placeholder for recent chats logic
+  // For now, "Recent" tab will show the same list as "All"
   const recentUsers = filteredUsers;
 
   const isLoading = userLoading || usersLoading;
 
-  const UserItem = ({ user }: { user: any }) => (
+  const UserItem = ({ user }: { user: any }) => {
+    const displayName = user.username || user.email || 'I-Pay User';
+    const fallback = displayName.charAt(0).toUpperCase();
+
+    return (
      <div className="flex items-center justify-between">
-        <Link href={`/dashboard/chat/${user.uid}`} className="flex items-center gap-3 flex-1">
+        <Link href={`/dashboard/chat/${user.id}`} className="flex items-center gap-3 flex-1">
             <Avatar>
-              <AvatarImage src={user.avatar || `https://picsum.photos/seed/${user.uid}/100/100`} alt={user.username || user.email} />
-              <AvatarFallback>{(user.username || user.email)?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+              <AvatarImage src={user.avatar || `https://picsum.photos/seed/${user.id}/100/100`} alt={displayName} />
+              <AvatarFallback>{fallback}</AvatarFallback>
             </Avatar>
             <div className="flex-1 truncate">
-                <span className="font-semibold">{user.username || user.email}</span>
-                 {user.username && <p className="text-sm text-muted-foreground truncate">{user.email}</p>}
+                <span className="font-semibold">{displayName}</span>
+                 {user.username && user.email && <p className="text-sm text-muted-foreground truncate">{user.email}</p>}
             </div>
         </Link>
         <DropdownMenu>
@@ -67,30 +77,20 @@ export default function ChatPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent>
             <DropdownMenuItem asChild>
-                <Link href={`/dashboard/chat/${user.uid}`}>Chat</Link>
+                <Link href={`/dashboard/chat/${user.id}`}>Chat</Link>
             </DropdownMenuItem>
             <DropdownMenuItem>Block</DropdownMenuItem>
             <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
     </div>
-  );
-
-  const UserSkeleton = () => (
-    <div className="flex items-center gap-3">
-        <Skeleton className="h-12 w-12 rounded-full" />
-        <div className="flex-1 space-y-2">
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-3 w-1/2" />
-        </div>
-    </div>
-  );
+  )};
 
   const renderContent = (users: any[]) => {
-      if (isLoading) {
+      if (isLoading && users.length === 0) {
         return (
              <div className="p-4 space-y-4">
-                {Array.from({ length: 5 }).map((_, i) => <UserSkeleton key={i} />)}
+                <p className="text-center text-muted-foreground p-6">Loading users...</p>
             </div>
         )
       }

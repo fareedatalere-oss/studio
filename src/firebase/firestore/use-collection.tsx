@@ -1,15 +1,12 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  collection,
   onSnapshot,
   Query,
   DocumentData,
-  queryEqual,
   QuerySnapshot,
 } from 'firebase/firestore';
-import { useFirestore } from '../provider';
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
 
@@ -25,17 +22,11 @@ export function useCollection<T extends DocumentData>(
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
-  const [query, setQuery] = useState(q);
 
   useEffect(() => {
-    if (q === null) return;
-    if (query && q && queryEqual(query, q)) return;
-    setQuery(q);
-  }, [q, query]);
-
-
-  useEffect(() => {
-    if (!query) {
+    // The parent component must memoize the query `q`.
+    // This effect will re-run if a new query object is passed.
+    if (!q) {
         setData([]);
         setLoading(false);
         return;
@@ -44,7 +35,7 @@ export function useCollection<T extends DocumentData>(
     setLoading(true);
 
     const unsubscribe = onSnapshot(
-      query,
+      q,
       (querySnapshot: QuerySnapshot) => {
         const result: T[] = [];
         querySnapshot.forEach((doc) => {
@@ -56,7 +47,7 @@ export function useCollection<T extends DocumentData>(
       },
       (err) => {
         const permissionError = new FirestorePermissionError({
-          path: (query as any)._path?.canonical,
+          path: (q as any)._path?.canonical,
           operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
@@ -66,7 +57,7 @@ export function useCollection<T extends DocumentData>(
     );
 
     return () => unsubscribe();
-  }, [query]);
+  }, [q]);
 
   return { data, loading, error };
 }
