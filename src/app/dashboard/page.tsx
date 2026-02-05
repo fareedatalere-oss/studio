@@ -22,7 +22,7 @@ function DashboardContent() {
   const { user } = useUser();
   const firestore = useFirestore();
   const userDocRef = user ? doc(firestore, 'users', user.uid) : null;
-  const { data: userProfile, loading: profileLoading } = useDoc(userDocRef);
+  const { data: userProfile } = useDoc(userDocRef);
 
   const actions = [
     { label: 'Send', icon: Send, href: '/dashboard/transfer' },
@@ -46,20 +46,16 @@ function DashboardContent() {
           <CardContent className="space-y-4">
             <div className="space-y-1 min-h-[40px]">
               <p className="text-sm text-muted-foreground">Account Number</p>
-              {
-                !profileLoading && (
-                    userProfile?.accountNumber ? (
-                      <div>
-                        <p className="font-mono text-lg font-semibold">{userProfile.accountNumber}</p>
-                        <p className="text-xs text-muted-foreground font-semibold">{userProfile.bankName}</p>
-                      </div>
-                    ) : (
-                      <Button asChild className="mt-1">
-                        <Link href="/dashboard/get-account-number">Get Account Number</Link>
-                      </Button>
-                    )
-                )
-              }
+              {userProfile && userProfile.accountNumber ? (
+                <div>
+                  <p className="font-mono text-lg font-semibold">{userProfile.accountNumber}</p>
+                  <p className="text-xs text-muted-foreground font-semibold">{userProfile.bankName}</p>
+                </div>
+              ) : (
+                <Button asChild className="mt-1">
+                  <Link href="/dashboard/get-account-number">Get Account Number</Link>
+                </Button>
+              )}
             </div>
 
             <div>
