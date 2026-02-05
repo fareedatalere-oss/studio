@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -12,6 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
 import { generateVirtualAccount } from '@/app/actions/flutterwave';
 import { doc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function GetAccountNumberPage() {
   const router = useRouter();
@@ -30,18 +32,36 @@ export default function GetAccountNumberPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedAccount, setGeneratedAccount] = useState<{ number: string; bank: string } | null>(null);
   const [countdown, setCountdown] = useState(15);
+  
+  // This effect handles the redirection safely when countdown ends.
+  useEffect(() => {
+    if (countdown === 0 && step === 'saving') {
+      router.push('/dashboard');
+    }
+  }, [countdown, step, router]);
 
+  // This effect handles the save and countdown logic when entering the 'saving' step.
   useEffect(() => {
     if (step !== 'saving') return;
 
-    let timer: NodeJS.Timeout;
-
-    const performSave = async () => {
-      if (!user || !firestore || !generatedAccount) return;
-
+    // This is the real save operation.
+    // It's not awaited, so it doesn't block the UI or the countdown.
+    const performSave = () => {
+      if (!user || !firestore || !generatedAccount) {
+         // This should not happen, but as a safeguard.
+        console.error("Save cannot be performed: missing user, firestore, or account data.");
+        toast({
+          variant: "destructive",
+          title: "Critical Error",
+          description: "Could not save account due to missing data. Please try again.",
+        });
+        setStep('displayAccount');
+        return;
+      }
+      
       const userDocRef = doc(firestore, 'users', user.uid);
       const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
-
+      
       const accountData = {
         accountNumber: generatedAccount.number,
         bankName: generatedAccount.bank,
@@ -58,45 +78,42 @@ export default function GetAccountNumberPage() {
         isRead: false,
         createdAt: serverTimestamp(),
       };
-
-      try {
-        await setDoc(userDocRef, accountData, { merge: true });
-        await addDoc(notificationCollectionRef, notificationData);
-      } catch (serverError: any) {
-        clearInterval(timer);
-        toast({
-          variant: 'destructive',
-          title: 'Save Failed',
-          description: serverError.message || 'Could not save your account number to the database. Please try again.',
-          duration: 9000,
+      
+      // Save user profile data
+      setDoc(userDocRef, accountData, { merge: true })
+        .then(() => {
+            // After profile is saved, save the notification
+            return addDoc(notificationCollectionRef, notificationData);
+        })
+        .then(() => {
+            // Both saves were successful. Log it.
+            console.log("Account and notification saved successfully in the background.");
+        })
+        .catch((serverError) => {
+            // If either save fails, this will be triggered.
+            // We throw a detailed error to make the failure obvious during development.
+            const permissionError = new FirestorePermissionError({
+              path: userDocRef.path,
+              operation: 'update',
+              requestResourceData: accountData,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            console.error("Background save failed:", serverError);
         });
-        setCountdown(15); // Reset countdown
-        setStep('displayAccount'); // Go back to the previous screen
-        return;
-      }
     };
 
     performSave();
 
-    timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0; // Just update the state to 0, navigation is handled in another effect
-        }
-        return prev - 1;
-      });
+    // Start the countdown timer.
+    const timer = setInterval(() => {
+      setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
 
+    // Cleanup the timer when the component unmounts or step changes.
     return () => clearInterval(timer);
+
   }, [step, user, firestore, generatedAccount, formData, toast]);
 
-  // This new useEffect handles the navigation safely after the state update
-  useEffect(() => {
-    if (countdown === 0 && step === 'saving') {
-      router.push('/dashboard');
-    }
-  }, [countdown, step, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -156,14 +173,6 @@ export default function GetAccountNumberPage() {
   };
   
   const handleSaveAndFinish = () => {
-    if (!user || !firestore || !generatedAccount) {
-      toast({
-        title: 'Error',
-        description: 'Missing required data to save. Please try generating the account again.',
-        variant: 'destructive',
-      });
-      return;
-    }
     setStep('saving');
   };
 
