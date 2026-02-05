@@ -116,14 +116,13 @@ export default function GetAccountNumberPage() {
     if (!user || !firestore || !generatedAccount) {
       toast({
         title: 'Error',
-        description: 'Missing required data to save.',
+        description: 'Missing required data to save. Please sign in again.',
         variant: 'destructive',
       });
       return;
     }
     
-    setStep('saving');
-    setSaveCountdown(15);
+    setStep('saving'); // Show the "Saving..." screen with the countdown
 
     const userDocRef = doc(firestore, 'users', user.uid);
     const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
@@ -146,19 +145,31 @@ export default function GetAccountNumberPage() {
     };
 
     try {
+        // Forcefully save the data to the database and wait for it to complete.
         await setDoc(userDocRef, accountData, { merge: true });
         await addDoc(notificationCollectionRef, notificationData);
+        
+        // Only if the save is successful, start the final countdown to redirect.
+        setSaveCountdown(15);
+
     } catch (serverError: any) {
         console.error('Error saving account details:', serverError);
+
+        // CRITICAL: If the save fails, stop everything, show an error, and return the user.
+        setStep('displayAccount'); // Go back to the previous screen
+        toast({
+          variant: 'destructive',
+          title: 'Save Failed',
+          description: 'Could not save your account number to the database. Please try again.',
+        });
+        
+        // Emit the detailed error for debugging, but do not proceed.
         const permissionError = new FirestorePermissionError({
             path: userDocRef.path,
             operation: 'update',
             requestResourceData: accountData,
         });
         errorEmitter.emit('permission-error', permissionError);
-
-        // Even if it fails, the countdown will complete and redirect.
-        // The error will be visible in the dev console.
     }
   };
 
@@ -185,7 +196,7 @@ export default function GetAccountNumberPage() {
         <div className="container py-8">
             <Card className="w-full max-w-lg mx-auto text-center">
                 <CardHeader>
-                    <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
+                    <Loader2 className="mx-auto h-16 w-16 text-primary animate-spin" />
                     <CardTitle className="mt-4">Saving Your Account</CardTitle>
                     <CardDescription>Redirecting to dashboard in...</CardDescription>
                 </CardHeader>
@@ -222,7 +233,7 @@ export default function GetAccountNumberPage() {
             <Card className="w-full max-w-lg mx-auto">
                 <CardHeader>
                     <CardTitle>Your New Account</CardTitle>
-                    <CardDescription>This information will be saved to your profile.</CardDescription>
+                    <CardDescription>Click Done to permanently save this information to your profile.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="p-4 bg-muted rounded-lg">
