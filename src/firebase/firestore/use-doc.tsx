@@ -23,8 +23,30 @@ export function useDoc<T extends DocumentData>(
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // We use state to keep a stable reference to the document object.
+  // This prevents re-subscribing on every render if the parent component
+  // doesn't memoize the `DocumentReference`.
+  const [stableRef, setStableRef] = useState(ref);
+
   useEffect(() => {
-    if (!ref) {
+    // This effect synchronizes the incoming `ref` prop with our stable internal state.
+    if (ref === null) {
+      // If the ref prop becomes null, we nullify our internal state.
+      if (stableRef !== null) setStableRef(null);
+      return;
+    }
+    // We only update our internal state if the new ref is for a different document.
+    // The `isEqual` method on DocumentReference checks this for us.
+    if (!stableRef || !stableRef.isEqual(ref)) {
+      setStableRef(ref);
+    }
+  }, [ref, stableRef]);
+
+
+  useEffect(() => {
+    // This effect manages the Firestore subscription.
+    // It only depends on our `stableRef`, so it won't run unnecessarily.
+    if (!stableRef) {
       setData(null);
       setLoading(false);
       return;
@@ -33,7 +55,7 @@ export function useDoc<T extends DocumentData>(
     setLoading(true);
 
     const unsubscribe = onSnapshot(
-      ref,
+      stableRef,
       (doc) => {
         if (doc.exists()) {
           setData({ id: doc.id, ...doc.data() } as T);
@@ -45,7 +67,7 @@ export function useDoc<T extends DocumentData>(
       },
       (err) => {
         const permissionError = new FirestorePermissionError({
-          path: ref.path,
+          path: stableRef.path,
           operation: 'get',
         });
         errorEmitter.emit('permission-error', permissionError);
@@ -54,8 +76,9 @@ export function useDoc<T extends DocumentData>(
       }
     );
 
+    // Cleanup subscription on unmount or when the ref changes.
     return () => unsubscribe();
-  }, [ref]);
+  }, [stableRef]);
 
   return { data, loading, error };
 }
