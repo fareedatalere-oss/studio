@@ -10,77 +10,69 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { useUser, useFirestore } from '@/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { useUser } from '@/hooks/use-appwrite';
+import { account } from '@/lib/appwrite';
 
 
 export default function SettingsPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useUser();
-  const firestore = useFirestore();
 
   const [isLoading, setIsLoading] = useState(false);
   const [pinData, setPinData] = useState({ current: '', new: '' });
-  const [emailData, setEmailData] = useState({ current: '', new: '' });
+  const [emailData, setEmailData] = useState({ new: '', password: '' });
   const [passwordData, setPasswordData] = useState({ current: '', new: '' });
-  const [usernameData, setUsernameData] = useState({ current: '', new: '' });
+  const [usernameData, setUsernameData] = useState({ new: '', password: '' });
 
   const handleUpdatePin = async () => {
     setIsLoading(true);
-    if (!user) {
-      toast({ variant: 'destructive', title: 'Not Authenticated' });
-      setIsLoading(false);
-      return;
-    }
-    if (pinData.new.length !== 5 || !/^\d+$/.test(pinData.new)) {
-      toast({ variant: 'destructive', title: 'Invalid PIN', description: 'New PIN must be 5 digits.' });
-      setIsLoading(false);
-      return;
-    }
-    if (pinData.current === pinData.new) {
-        toast({ variant: 'destructive', title: 'No Change', description: 'New PIN cannot be the same as the current one.' });
-        setIsLoading(false);
-        return;
-    }
-
-    const userDocRef = doc(firestore, 'users', user.uid);
-    try {
-      const userDoc = await getDoc(userDocRef);
-      if (!userDoc.exists() || userDoc.data().pin !== pinData.current) {
-        toast({
-          variant: 'destructive',
-          title: 'Incorrect Current PIN',
-          description: 'The current PIN you entered is incorrect.',
-        });
-      } else {
-        await updateDoc(userDocRef, { pin: pinData.new });
-        toast({
-          title: 'PIN Updated',
-          description: 'Your transaction PIN has been successfully updated.',
-        });
-        setPinData({ current: '', new: '' });
-      }
-    } catch (error) {
-      console.error("PIN Update Error:", error);
-      toast({ variant: 'destructive', title: 'Error Updating PIN', description: 'An unexpected error occurred.' });
-    } finally {
-      setIsLoading(false);
-    }
+    // TODO: Update PIN in Appwrite database
+    toast({ title: "PIN update not implemented for Appwrite yet."})
+    setIsLoading(false);
   };
-
-
-  const mockUpdate = (field: string, current: string, newValue: string) => {
+  
+  const handleUpdateEmail = async () => {
     setIsLoading(true);
-    // Simulate API call for other fields
-    setTimeout(() => {
-        toast({
-          title: `${field.charAt(0).toUpperCase() + field.slice(1)} Updated (Simulated)`,
-          description: `Your ${field} has been successfully updated.`,
-        });
-      setIsLoading(false);
-    }, 1000);
+    try {
+        await account.updateEmail(emailData.new, emailData.password);
+        toast({ title: 'Email Update Requested', description: 'Please check your new email address to verify the change.' });
+        setEmailData({ new: '', password: '' });
+    } catch (error: any) {
+        toast({ title: 'Error Updating Email', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsLoading(false);
+    }
   };
+
+  const handleUpdatePassword = async () => {
+    setIsLoading(true);
+    try {
+        await account.updatePassword(passwordData.new, passwordData.current);
+        toast({ title: 'Password Updated', description: 'Your password has been successfully updated.' });
+        setPasswordData({ new: '', current: '' });
+    } catch (error: any) {
+        toast({ title: 'Error Updating Password', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsLoading(false);
+    }
+  };
+  
+  const handleUpdateUsername = async () => {
+    setIsLoading(true);
+    try {
+        await account.updateName(usernameData.new);
+        // Also update in our profiles collection
+        // TODO: add call to databases.updateDocument
+        toast({ title: 'Username Updated', description: 'Your username has been successfully updated.' });
+        setUsernameData({ new: '', password: '' });
+    } catch (error: any) {
+        toast({ title: 'Error Updating Username', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
 
   return (
     <div className="container py-8">
@@ -130,15 +122,6 @@ export default function SettingsPage() {
               <AccordionTrigger>Change Email</AccordionTrigger>
               <AccordionContent className="space-y-4 pt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="current-email">Current Email</Label>
-                  <Input
-                    id="current-email"
-                    type="email"
-                    value={emailData.current}
-                    onChange={(e) => setEmailData({ ...emailData, current: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="new-email">New Email</Label>
                   <Input
                     id="new-email"
@@ -147,7 +130,16 @@ export default function SettingsPage() {
                     onChange={(e) => setEmailData({ ...emailData, new: e.target.value })}
                   />
                 </div>
-                <Button onClick={() => mockUpdate('email', emailData.current, emailData.new)} disabled={isLoading}>
+                <div className="space-y-2">
+                  <Label htmlFor="email-password">Current Password</Label>
+                  <Input
+                    id="email-password"
+                    type="password"
+                    value={emailData.password}
+                    onChange={(e) => setEmailData({ ...emailData, password: e.target.value })}
+                  />
+                </div>
+                <Button onClick={handleUpdateEmail} disabled={isLoading || !emailData.new || !emailData.password}>
                   {isLoading ? 'Updating...' : 'Update Email'}
                 </Button>
               </AccordionContent>
@@ -174,7 +166,7 @@ export default function SettingsPage() {
                     onChange={(e) => setPasswordData({ ...passwordData, new: e.target.value })}
                   />
                 </div>
-                <Button onClick={() => mockUpdate('password', passwordData.current, passwordData.new)} disabled={isLoading}>
+                <Button onClick={handleUpdatePassword} disabled={isLoading || !passwordData.current || !passwordData.new}>
                   {isLoading ? 'Updating...' : 'Update Password'}
                 </Button>
               </AccordionContent>
@@ -184,14 +176,6 @@ export default function SettingsPage() {
               <AccordionTrigger>Change Username</AccordionTrigger>
               <AccordionContent className="space-y-4 pt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="current-username">Current Username</Label>
-                  <Input
-                    id="current-username"
-                    value={usernameData.current}
-                    onChange={(e) => setUsernameData({ ...usernameData, current: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="new-username">New Username</Label>
                   <Input
                     id="new-username"
@@ -199,7 +183,7 @@ export default function SettingsPage() {
                     onChange={(e) => setUsernameData({ ...usernameData, new: e.target.value })}
                   />
                 </div>
-                <Button onClick={() => mockUpdate('username', usernameData.current, usernameData.new)} disabled={isLoading}>
+                <Button onClick={handleUpdateUsername} disabled={isLoading || !usernameData.new}>
                   {isLoading ? 'Updating...' : 'Update Username'}
                 </Button>
               </AccordionContent>

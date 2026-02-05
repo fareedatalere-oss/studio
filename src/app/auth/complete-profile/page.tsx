@@ -9,14 +9,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { countries } from '@/lib/countries';
-import { useUser, useFirestore } from '@/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { useUser } from '@/hooks/use-appwrite';
+import { databases } from '@/lib/appwrite';
+
+// TODO: Replace with your actual Database and Collection IDs from Appwrite
+const DATABASE_ID = 'i-pay-db'; // example: '60d5e2d6b3f7e'
+const COLLECTION_ID_PROFILES = 'profiles'; // example: '60d5e2f1d8c0f'
 
 export default function CompleteProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
   const { user, loading: userLoading } = useUser();
-  const firestore = useFirestore();
 
   const [formData, setFormData] = useState({
     country: '',
@@ -25,10 +28,8 @@ export default function CompleteProfilePage() {
   });
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [countdown, setCountdown] = useState(30);
 
   useEffect(() => {
-    // If not loading and no user is found, they shouldn't be here.
     if (!userLoading && !user) {
       toast({
         title: 'Authentication Required',
@@ -38,23 +39,6 @@ export default function CompleteProfilePage() {
       router.replace('/auth/signup');
     }
   }, [user, userLoading, router, toast]);
-
-  // Effect for the countdown timer
-  useEffect(() => {
-    if (isProcessing) {
-      const timer = setInterval(() => {
-        setCountdown((prev) => prev - 1);
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [isProcessing]);
-
-  // Effect for the redirect
-  useEffect(() => {
-    if (countdown === 0) {
-      router.push('/dashboard');
-    }
-  }, [countdown, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -77,20 +61,41 @@ export default function CompleteProfilePage() {
       toast({ title: 'Not authenticated', description: 'No user is signed in.', variant: 'destructive' });
       return;
     }
+
+    if (DATABASE_ID.includes('YOUR_') || COLLECTION_ID_PROFILES.includes('YOUR_')) {
+        toast({
+            title: "Configuration Needed",
+            description: "Please ask your AI assistant to configure the database and collection IDs in src/app/auth/complete-profile/page.tsx before saving your profile.",
+            variant: "destructive",
+            duration: 9000,
+        });
+        return;
+    }
     
-    setIsProcessing(true); // Start the countdown UI
+    setIsProcessing(true);
 
     try {
-      // Save the profile data
-      const userDocRef = doc(firestore, 'users', user.uid);
       const profileData = {
+        userId: user.$id,
+        email: user.email,
         username: formData.username,
         country: formData.country,
-        pin: formData.pin, // In a real app, this should be hashed.
+        pin: formData.pin,
       };
-      await setDoc(userDocRef, profileData, { merge: true });
 
-      // The redirect will happen automatically via the countdown effect.
+      await databases.createDocument(
+        DATABASE_ID,
+        COLLECTION_ID_PROFILES,
+        user.$id, // Use user's Appwrite ID as document ID
+        profileData
+      );
+
+      toast({
+        title: "Profile Complete!",
+        description: "Your account is all set up.",
+      });
+
+      router.push('/dashboard');
 
     } catch (error: any) {
         console.error("Profile completion error:", error);
@@ -99,32 +104,13 @@ export default function CompleteProfilePage() {
             description: error.message || 'Could not complete your profile. Please try again.',
             variant: 'destructive',
         });
-        setIsProcessing(false); // Stop countdown and show form again on error
-        setCountdown(30); // Reset countdown
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   if (userLoading) {
       return null;
-  }
-  
-  if (isProcessing) {
-    return (
-       <div className="flex min-h-screen items-center justify-center bg-background p-4">
-            <Card className="w-full max-w-md text-center">
-                <CardHeader>
-                    <CardTitle>Setting up your account...</CardTitle>
-                    <CardDescription>Please wait while we finalize your details.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="text-6xl font-bold font-mono text-primary">
-                        {countdown}
-                    </div>
-                    <p className="text-muted-foreground mt-2">Redirecting to your dashboard shortly.</p>
-                </CardContent>
-            </Card>
-       </div>
-    );
   }
 
   return (
@@ -132,7 +118,9 @@ export default function CompleteProfilePage() {
       <Card className="w-full max-w-lg">
         <CardHeader>
           <CardTitle className="text-2xl font-bold">Complete Your Profile</CardTitle>
-          <CardDescription>Just a few more details to get you started.</CardDescription>
+          <CardDescription>
+            Just a few more details to get you started. Before saving, ensure your developer has set up the 'profiles' collection in your Appwrite database with the necessary attributes (userId, username, country, pin) and permissions.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -159,6 +147,7 @@ export default function CompleteProfilePage() {
                 onChange={handleChange}
                 placeholder="e.g. johndoe"
                 required
+                disabled={isProcessing}
               />
             </div>
             <div className="space-y-2">
@@ -173,10 +162,11 @@ export default function CompleteProfilePage() {
                 maxLength={5}
                 placeholder="e.g. 12345"
                 required
+                disabled={isProcessing}
               />
             </div>
-            <Button type="submit" className="w-full">
-              Create Account
+            <Button type="submit" className="w-full" disabled={isProcessing}>
+              {isProcessing ? "Saving..." : "Create Account"}
             </Button>
           </form>
         </CardContent>

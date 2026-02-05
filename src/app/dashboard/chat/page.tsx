@@ -13,56 +13,43 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { MoreVertical, Search } from 'lucide-react';
-import { useState, useMemo } from 'react';
-import { useCollection, useFirestore, useUser } from '@/firebase';
-import { collection, query } from 'firebase/firestore';
+import { useState, useEffect } from 'react';
+import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ChatPage() {
-  const { user: currentUser } = useUser();
-  const firestore = useFirestore();
+  const { user: currentUser, loading: userLoading } = useUser();
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  // Fetch all users
-  const usersQuery = useMemo(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'users'));
-  }, [firestore]);
+  // TODO: Re-implement user listing with Appwrite
+  useEffect(() => {
+    // Placeholder for fetching all users
+    setUsersLoading(false);
+  }, []);
 
-  const { data: allUsers, loading: usersLoading, error: usersError } = useCollection(usersQuery);
-
-  const filteredUsers = useMemo(() => {
-    if (!allUsers || !currentUser) return [];
-    const searchTerm = search.toLowerCase().trim();
-    
-    const otherUsers = allUsers.filter(user => user.id !== currentUser.uid);
-
-    if (!searchTerm) {
-      return otherUsers;
-    }
-
-    return otherUsers.filter(user => 
-        (user.username && user.username.toLowerCase().includes(searchTerm)) ||
-        (user.email && user.email.toLowerCase().includes(searchTerm))
-    );
-  }, [allUsers, currentUser, search]);
+  const filteredUsers = allUsers.filter(user => 
+      (user.name && user.name.toLowerCase().includes(search.toLowerCase())) ||
+      (user.email && user.email.toLowerCase().includes(search.toLowerCase()))
+  );
   
   const recentUsers = filteredUsers;
 
   const UserItem = ({ user }: { user: any }) => {
-    const displayName = user.username || user.email || 'I-Pay User';
+    const displayName = user.name || user.email || 'I-Pay User';
     const fallback = displayName.charAt(0).toUpperCase();
 
     return (
      <div className="flex items-center justify-between">
-        <Link href={`/dashboard/chat/${user.id}`} className="flex items-center gap-3 flex-1">
+        <Link href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 flex-1">
             <Avatar>
-              <AvatarImage src={user.avatar || `https://picsum.photos/seed/${user.id}/100/100`} alt={displayName} />
+              <AvatarImage src={user.prefs?.avatar || `https://picsum.photos/seed/${user.$id}/100/100`} alt={displayName} />
               <AvatarFallback>{fallback}</AvatarFallback>
             </Avatar>
             <div className="flex-1 truncate">
                 <span className="font-semibold">{displayName}</span>
-                 {user.username && user.email && <p className="text-sm text-muted-foreground truncate">{user.email}</p>}
+                 {user.name && user.email && <p className="text-sm text-muted-foreground truncate">{user.email}</p>}
             </div>
         </Link>
         <DropdownMenu>
@@ -73,7 +60,7 @@ export default function ChatPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent>
             <DropdownMenuItem asChild>
-                <Link href={`/dashboard/chat/${user.id}`}>Chat</Link>
+                <Link href={`/dashboard/chat/${user.$id}`}>Chat</Link>
             </DropdownMenuItem>
             <DropdownMenuItem>Block</DropdownMenuItem>
             <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
@@ -83,22 +70,17 @@ export default function ChatPage() {
   )};
 
   const renderContent = (users: any[]) => {
-      if (usersError) {
-          return <p className="text-center text-destructive p-8">Could not load users. Please check your connection.</p>;
-      }
-      if (usersLoading && users.length === 0) {
-        return (
-             <p className="text-center text-muted-foreground p-8">Loading users...</p>
-        )
+      if (usersLoading) {
+        return <p className="text-center text-muted-foreground p-8">Loading users...</p>
       }
       if (users.length > 0) {
         return (
             <div className="p-4 space-y-4">
-                {users.map(user => <UserItem key={user.id} user={user} />)}
+                {users.map(user => <UserItem key={user.$id} user={user} />)}
             </div>
         );
       }
-      return <p className="text-center text-muted-foreground p-8">No users found.</p>
+      return <p className="text-center text-muted-foreground p-8">No users found. Chat backend not fully connected.</p>
   }
 
   return (

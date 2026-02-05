@@ -11,9 +11,14 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc } from '@/firebase';
-import { addDoc, collection, doc, serverTimestamp } from 'firebase/firestore';
+import { useUser } from '@/hooks/use-appwrite';
+import { databases } from '@/lib/appwrite';
+import { ID } from 'appwrite';
 
+
+// TODO: Replace with your actual Database and Collection IDs from Appwrite
+const DATABASE_ID = 'i-pay-db';
+const COLLECTION_ID_POSTS = 'posts';
 
 const colors = [
   { name: 'Red', value: 'bg-red-700' },
@@ -36,9 +41,8 @@ export default function UploadTextPage() {
   const [isPosting, setIsPosting] = useState(false);
 
   const { user: authUser } = useUser();
-  const firestore = useFirestore();
-  const userDocRef = authUser ? doc(firestore, 'users', authUser.uid) : null;
-  const { data: userProfile } = useDoc(userDocRef);
+  // TODO: Get user profile from Appwrite to fetch username/avatar
+  const userProfile = { username: authUser?.name || 'Anonymous', avatar: null };
 
   const handlePublish = async () => {
     if (!text.trim() || !authUser || !userProfile) {
@@ -50,7 +54,7 @@ export default function UploadTextPage() {
 
     try {
       const newPost = {
-        userId: authUser.uid,
+        userId: authUser.$id,
         username: userProfile.username,
         userAvatar: userProfile.avatar,
         type: 'text',
@@ -59,11 +63,10 @@ export default function UploadTextPage() {
         description: text, // For text posts, description can be the text itself
         allowComments: allowComments,
         allowDownload: false, // Text posts aren't downloadable
-        createdAt: serverTimestamp(),
         likes: [],
         commentCount: 0,
       };
-      await addDoc(collection(firestore, 'posts'), newPost);
+      await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
       toast({
         title: 'Published!',
         description: 'Your text post is now live.',

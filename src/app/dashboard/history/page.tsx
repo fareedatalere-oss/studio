@@ -5,21 +5,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { useUser, useFirestore, useCollection } from "@/firebase";
-import { collection, query, orderBy } from 'firebase/firestore';
-import { useMemo } from 'react';
+import { useUser } from "@/hooks/use-appwrite";
+import { useEffect, useState } from 'react';
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function HistoryPage() {
-    const { user } = useUser();
-    const firestore = useFirestore();
+    const { user, loading: userLoading } = useUser();
+    const [transactions, setTransactions] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const transactionsQuery = useMemo(() => {
-        if (!user) return null;
-        return query(collection(firestore, 'users', user.uid, 'transactions'), orderBy('createdAt', 'desc'));
-    }, [user, firestore]);
-
-    const { data: transactions, loading } = useCollection(transactionsQuery);
+    // TODO: Re-implement with Appwrite database query
+    useEffect(() => {
+        if (user) {
+            // Placeholder: fetch transactions for the user
+        }
+        setLoading(false);
+    }, [user]);
 
     const getStatusVariant = (status: string) => {
         switch (status?.toLowerCase()) {
@@ -50,7 +51,7 @@ export default function HistoryPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Transaction History</CardTitle>
-                    <CardDescription>A record of your recent transactions.</CardDescription>
+                    <CardDescription>A record of your recent transactions. (Appwrite backend not fully connected)</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -63,7 +64,7 @@ export default function HistoryPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {loading && (
+                            {(loading || userLoading) && (
                                 Array.from({ length: 3 }).map((_, i) => (
                                      <TableRow key={i}>
                                         <TableCell><Skeleton className="h-5 w-32" /></TableCell>
@@ -73,7 +74,7 @@ export default function HistoryPage() {
                                     </TableRow>
                                 ))
                             )}
-                            {!loading && transactions && transactions.length > 0 ? transactions.map((tx: any) => (
+                            {!(loading || userLoading) && transactions.length > 0 ? transactions.map((tx: any) => (
                                 <TableRow key={tx.id}>
                                     <TableCell>
                                         <div className="font-medium">{tx.recipientName}</div>
@@ -82,10 +83,10 @@ export default function HistoryPage() {
                                      <TableCell className="hidden md:table-cell">
                                         <Badge variant={getStatusVariant(tx.status)} className="capitalize">{tx.type?.replace('_', ' ')}</Badge>
                                     </TableCell>
-                                    <TableCell className="hidden md:table-cell">{tx.createdAt?.toDate().toLocaleDateString()}</TableCell>
+                                    <TableCell className="hidden md:table-cell">{new Date(tx.createdAt).toLocaleDateString()}</TableCell>
                                     <TableCell className={`text-right font-medium ${getAmountClass(tx.amount)}`}>{formatAmount(tx.amount)}</TableCell>
                                 </TableRow>
-                            )) : !loading && (
+                            )) : !(loading || userLoading) && (
                                 <TableRow>
                                     <TableCell colSpan={4} className="text-center h-24">No transactions yet.</TableCell>
                                 </TableRow>

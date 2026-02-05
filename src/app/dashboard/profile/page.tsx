@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -8,28 +8,48 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LogOut, PenSquare, Settings, Headset } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useDoc, useFirestore } from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { uploadToCloudinary } from '@/app/actions/upload';
+import { account, databases } from '@/lib/appwrite';
 
+// TODO: Replace with your actual Database and Collection IDs from Appwrite
+const DATABASE_ID = 'i-pay-db';
+const COLLECTION_ID_PROFILES = 'profiles';
 
 export default function ProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
   const { user: authUser, loading: userLoading } = useUser();
-  const firestore = useFirestore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
-  const userDocRef = authUser ? doc(firestore, 'users', authUser.uid) : null;
-  const { data: userProfile, loading: profileLoading } = useDoc(userDocRef);
+  useEffect(() => {
+    if (authUser) {
+      const fetchProfile = async () => {
+        try {
+          const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, authUser.$id);
+          setUserProfile(profile);
+        } catch (error) {
+          console.error("Failed to fetch user profile:", error);
+          setUserProfile(null);
+        } finally {
+          setProfileLoading(false);
+        }
+      };
+      fetchProfile();
+    } else if (!userLoading) {
+        setProfileLoading(false);
+    }
+  }, [authUser, userLoading]);
 
   const isLoading = userLoading || profileLoading;
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !userDocRef) return;
+    if (!file || !authUser) return;
     
     setIsUploading(true);
     toast({ title: 'Uploading new avatar...'});
@@ -41,15 +61,13 @@ export default function ProfilePage() {
             const fileDataUri = reader.result as string;
             const result = await uploadToCloudinary(fileDataUri);
             if (result.success && result.url) {
-                await updateDoc(userDocRef, { avatar: result.url });
+                // TODO: Save avatar URL to user profile in Appwrite
                 toast({ title: 'Avatar Updated!', description: 'Your new avatar is now live.' });
             } else {
                 throw new Error(result.message || 'Upload failed');
             }
         };
-        reader.onerror = (error) => {
-            throw error;
-        }
+        reader.onerror = (error) => { throw error; }
     } catch (error) {
         console.error("Avatar upload failed:", error);
         toast({ title: 'Upload Failed', description: 'Could not update your avatar.', variant: 'destructive' });
@@ -58,10 +76,14 @@ export default function ProfilePage() {
     }
   };
 
-  const handleLogout = () => {
-    // In a real app, you would also call signOut from firebase/auth
-    toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
-    router.push('/auth/signin');
+  const handleLogout = async () => {
+    try {
+        await account.deleteSession('current');
+        toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
+        router.push('/auth/signin');
+    } catch (error) {
+        toast({ title: 'Logout Failed', description: 'Could not log you out. Please try again.', variant: 'destructive' });
+    }
   };
 
   const mockStats = {

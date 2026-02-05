@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -15,15 +15,42 @@ import {
   Gift,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useUser, useDoc, useFirestore } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
+import { databases } from '@/lib/appwrite';
+
+// TODO: Replace with your actual Database and Collection IDs from Appwrite
+const DATABASE_ID = 'i-pay-db'; // example: '60d5e2d6b3f7e'
+const COLLECTION_ID_PROFILES = 'profiles'; // example: '60d5e2f1d8c0f'
 
 function DashboardContent() {
   const { user, loading: userLoading } = useUser();
-  const firestore = useFirestore();
-  const userDocRef = user ? doc(firestore, 'users', user.uid) : null;
-  const { data: userProfile, loading: profileLoading } = useDoc(userDocRef);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      const fetchProfile = async () => {
+        try {
+          if (DATABASE_ID.includes('YOUR_') || COLLECTION_ID_PROFILES.includes('YOUR_')) {
+            console.warn("Appwrite database/collection IDs not set.");
+            return;
+          }
+          const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
+          setUserProfile(profile);
+        } catch (error) {
+          console.error("Failed to fetch user profile:", error);
+          setUserProfile(null); // No profile found or error
+        } finally {
+          setProfileLoading(false);
+        }
+      };
+      fetchProfile();
+    } else if (!userLoading) {
+      setProfileLoading(false);
+    }
+  }, [user, userLoading]);
+
 
   const isLoading = userLoading || profileLoading;
 

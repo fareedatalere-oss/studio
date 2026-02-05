@@ -2,8 +2,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bell, Gift, Heart, MessageCircle } from "lucide-react";
-import { useUser, useCollection, useFirestore } from '@/firebase';
-import { collection, query, orderBy, doc, writeBatch } from 'firebase/firestore';
+import { useUser } from '@/hooks/use-appwrite';
 import { useEffect, useMemo } from "react";
 import { formatDistanceToNow } from 'date-fns';
 
@@ -13,46 +12,25 @@ const socialNotifications = [
         type: 'like',
         user: { name: 'John Smith', avatar: 'https://picsum.photos/seed/102/100/100' },
         description: 'liked your photo.',
-        createdAt: { toDate: () => new Date(Date.now() - 5 * 60 * 1000) },
+        createdAt: new Date(Date.now() - 5 * 60 * 1000),
     },
     {
         id: 2,
         type: 'comment',
         user: { name: 'Alice Johnson', avatar: 'https://picsum.photos/seed/103/100/100' },
         description: 'commented: "Great post! 🔥"',
-        createdAt: { toDate: () => new Date(Date.now() - 30 * 60 * 1000) },
+        createdAt: new Date(Date.now() - 30 * 60 * 1000),
     },
 ];
 
 export default function NotificationsPage() {
     const { user } = useUser();
-    const firestore = useFirestore();
-
-    const notificationsQuery = useMemo(() => {
-        if (!user) return null;
-        return query(collection(firestore, 'users', user.uid, 'notifications'), orderBy('createdAt', 'desc'));
-    }, [user, firestore]);
-
-    const { data: systemNotifications, loading } = useCollection(notificationsQuery);
-
-    useEffect(() => {
-        if (systemNotifications && systemNotifications.length > 0 && firestore && user) {
-            const batch = writeBatch(firestore);
-            const unreadNotifs = systemNotifications.filter(n => !n.isRead);
-            
-            if (unreadNotifs.length > 0) {
-                unreadNotifs.forEach(notif => {
-                    const notifRef = doc(firestore, 'users', user.uid, 'notifications', notif.id);
-                    batch.update(notifRef, { isRead: true });
-                });
-                batch.commit().catch(console.error);
-            }
-        }
-    }, [systemNotifications, firestore, user]);
+    const systemNotifications: any[] = []; // Placeholder
+    const loading = false; // Placeholder
 
     const allNotifications = [...(systemNotifications || []), ...socialNotifications].sort((a, b) => {
-        const timeA = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0;
-        const timeB = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0;
+        const timeA = new Date(a.createdAt).getTime();
+        const timeB = new Date(b.createdAt).getTime();
         return timeB - timeA;
     });
     
@@ -78,7 +56,7 @@ export default function NotificationsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Notifications</CardTitle>
-                    <CardDescription>Your recent account activity.</CardDescription>
+                    <CardDescription>Your recent account activity. (Backend not fully connected)</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {loading && <p className="text-center text-muted-foreground p-6">Loading...</p>}
@@ -104,7 +82,7 @@ export default function NotificationsPage() {
                                             )}
                                         </p>
                                         <p className="text-xs text-muted-foreground">
-                                            {notif.createdAt?.toDate ? formatDistanceToNow(notif.createdAt.toDate(), { addSuffix: true }) : 'sending...'}
+                                            {formatDistanceToNow(notif.createdAt, { addSuffix: true })}
                                         </p>
                                     </div>
                                     {notif.user && (

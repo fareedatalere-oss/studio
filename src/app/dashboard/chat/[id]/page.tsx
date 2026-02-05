@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -32,87 +32,49 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
-import { doc, collection, addDoc, serverTimestamp, query, orderBy, setDoc } from 'firebase/firestore';
+import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { uploadToCloudinary } from '@/app/actions/upload';
+import { account, databases } from '@/lib/appwrite';
 
 type Message = {
-  id: string;
+  $id: string;
   text: string;
   senderId: string;
   status: 'sent' | 'delivered' | 'read';
   type: 'text' | 'voice' | 'image' | 'video' | 'file';
   mediaUrl?: string;
-  createdAt: any;
+  $createdAt: string;
 };
 
 export default function ChatThreadPage({ params }: { params: { id: string } }) {
   const { toast } = useToast();
   const { user: currentUser, loading: userLoading } = useUser();
-  const firestore = useFirestore();
-
+  
+  const [otherUser, setOtherUser] = useState<any>(null);
+  const [otherUserLoading, setOtherUserLoading] = useState(true);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(true);
+  
   const [inputText, setInputText] = useState('');
   const [isBlocked, setIsBlocked] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-
-  // Fetch the other user's profile
-  const otherUserDocRef = useMemo(() => {
-    if (!firestore || !params.id) return null;
-    return doc(firestore, 'users', params.id);
-  }, [firestore, params.id]);
-  const { data: otherUser, loading: otherUserLoading } = useDoc(otherUserDocRef);
-
-  // Determine the chat ID
-  const chatId = useMemo(() => {
-    if (!currentUser || !params.id) return null;
-    return [currentUser.uid, params.id].sort().join('_');
-  }, [currentUser, params.id]);
-
-  // Fetch chat messages
-  const messagesQuery = useMemo(() => {
-    if (!firestore || !chatId) return null;
-    return query(collection(firestore, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
-  }, [firestore, chatId]);
-
-  const { data: messages, loading: messagesLoading } = useCollection(messagesQuery);
+  // TODO: Re-implement with Appwrite database and realtime
+  useEffect(() => {
+    // Placeholder for fetching user and message data
+    setOtherUserLoading(false);
+    setMessagesLoading(false);
+  }, [params.id, currentUser]);
   
   const handleSendMessage = async (mediaUrl?: string, type: Message['type'] = 'text') => {
-    if ((!inputText.trim() && !mediaUrl) || !currentUser || !chatId) return;
-
-    const messageText = mediaUrl ? (inputText || type) : inputText;
-
-    const newMessage: Partial<Message> = {
-        text: messageText,
-        senderId: currentUser.uid,
-        status: 'sent',
-        type: type,
-        createdAt: serverTimestamp(),
-        ...(mediaUrl && { mediaUrl }),
-    };
-
-    setInputText('');
-
-    const chatDocRef = doc(firestore, 'chats', chatId);
-    const messagesCollectionRef = collection(firestore, 'chats', chatId, 'messages');
-
-    try {
-        await setDoc(chatDocRef, {
-            participants: [currentUser.uid, params.id],
-            lastMessage: messageText,
-            lastMessageAt: serverTimestamp()
-        }, { merge: true });
-
-        await addDoc(messagesCollectionRef, newMessage);
-    } catch (error) {
-        console.error("Error sending message:", error);
-        toast({ title: 'Error', description: 'Could not send message.', variant: 'destructive' });
-    }
-};
+    if ((!inputText.trim() && !mediaUrl) || !currentUser) return;
+    toast({ title: 'Sending disabled', description: 'Chat backend is not fully connected.' });
+  };
 
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: Message['type']) => {
+    // This part can remain as it uses a server action
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -180,11 +142,11 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
             </Button>
             </Link>
             <Avatar>
-              <AvatarImage src={otherUser?.avatar || `https://picsum.photos/seed/${otherUser?.uid}/100/100`} alt={otherUser?.username || otherUser?.email} />
-              <AvatarFallback>{(otherUser?.username || otherUser?.email)?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+              <AvatarImage src={otherUser?.avatar || `https://picsum.photos/seed/${params.id}/100/100`} />
+              <AvatarFallback>{(otherUser?.name || 'U').charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
             <div>
-            <h2 className="font-semibold">{otherUser?.username || otherUser?.email}</h2>
+            <h2 className="font-semibold">{otherUser?.name || 'User'}</h2>
             <div className="flex items-center gap-1.5">
                 <span className={'h-2 w-2 rounded-full bg-gray-400'}></span>
                 <p className="text-xs text-muted-foreground">Offline</p>
@@ -211,28 +173,29 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
       {/* Chat Body */}
       <div className="flex-1 p-4 space-y-4">
         {messagesLoading && <p className='text-center text-muted-foreground'>Loading messages...</p>}
+        {messages.length === 0 && !messagesLoading && <p className='text-center text-muted-foreground'>No messages yet. Say hello!</p>}
         {messages && messages.map((msg: any) => (
-          <DropdownMenu key={msg.id}>
+          <DropdownMenu key={msg.$id}>
             <DropdownMenuTrigger asChild>
               <div
                 className={cn(
                   'flex max-w-[75%] flex-col gap-1',
-                  msg.senderId === currentUser?.uid ? 'ml-auto items-end' : 'mr-auto items-start'
+                  msg.senderId === currentUser?.$id ? 'ml-auto items-end' : 'mr-auto items-start'
                 )}
               >
                 <div
                   className={cn(
                     'rounded-lg px-3 py-2',
-                    msg.senderId === currentUser?.uid
+                    msg.senderId === currentUser?.$id
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted'
                   )}
                 >
                   <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
                 </div>
-                {msg.senderId === currentUser?.uid && (
+                {msg.senderId === currentUser?.$id && (
                   <div className="flex items-center gap-1 text-muted-foreground text-xs">
-                    <span>{msg.createdAt?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>{new Date(msg.$createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     <MessageStatus status={msg.status} />
                   </div>
                 )}
@@ -243,7 +206,7 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
                     <CornerUpRight className="mr-2 h-4 w-4" />
                     <span>Forward</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id)} className="text-destructive">
+                <DropdownMenuItem onClick={() => handleDeleteMessage(msg.$id)} className="text-destructive">
                    <Trash2 className="mr-2 h-4 w-4" />
                    <span>Delete for Me</span>
                 </DropdownMenuItem>

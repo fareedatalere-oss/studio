@@ -9,24 +9,21 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
-import { useAuth, useFirestore } from '@/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { account } from '@/lib/appwrite';
+import { ID } from 'appwrite';
 
 const MANAGER_EMAIL = 'i-paymanagerscare402@gmail.com';
 
 export default function SignUpPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const auth = useAuth();
-  const firestore = useFirestore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
 
     if (!email || !password) {
       toast({
@@ -34,6 +31,7 @@ export default function SignUpPage() {
         description: 'Email and password are required.',
         variant: 'destructive',
       });
+      setIsLoading(false);
       return;
     }
     
@@ -43,6 +41,7 @@ export default function SignUpPage() {
         description: 'Please enter a valid email address.',
         variant: 'destructive',
       });
+       setIsLoading(false);
       return;
     }
 
@@ -53,19 +52,13 @@ export default function SignUpPage() {
         description: 'This email address is not available for sign up.',
         variant: 'destructive',
       });
+       setIsLoading(false);
       return;
     }
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      const userProfileData = {
-        uid: user.uid,
-        email: user.email,
-        createdAt: serverTimestamp(),
-      };
-      const userDocRef = doc(firestore, 'users', user.uid);
+      await account.create(ID.unique(), email, password);
+      await account.createEmailPasswordSession(email, password);
 
       // Show success and navigate immediately
       toast({
@@ -74,33 +67,21 @@ export default function SignUpPage() {
       });
       router.push('/auth/complete-profile');
 
-      // Save the document in the background, handling errors without blocking the user
-      setDoc(userDocRef, userProfileData).catch(serverError => {
-          console.error("Firestore error creating profile:", serverError);
-          const permissionError = new FirestorePermissionError({
-            path: userDocRef.path,
-            operation: 'create',
-            requestResourceData: userProfileData,
-          });
-          errorEmitter.emit('permission-error', permissionError);
-          // No user-facing toast here to avoid blocking or confusion
-      });
-
     } catch (error: any) {
       console.error("Sign up error:", error);
       let description = 'An unexpected error occurred. Please try again.';
-      if (error.code === 'auth/email-already-in-use') {
+      if (error.type === 'user_already_exists') {
         description = 'This email address is already in use by another account.';
-      } else if (error.code === 'auth/weak-password') {
-        description = 'The password is too weak. Please use at least 6 characters.';
-      } else if (error.code === 'auth/invalid-email') {
-        description = 'The email address is not valid.';
+      } else if (error.type === 'user_password_invalid') {
+        description = 'The password must be at least 8 characters long.';
       }
       toast({
         title: 'Sign Up Failed',
-        description,
+        description: error.message || description,
         variant: 'destructive',
       });
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -123,6 +104,7 @@ export default function SignUpPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={isLoading}
               />
             </div>
             <div className="space-y-2">
@@ -133,10 +115,11 @@ export default function SignUpPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={isLoading}
               />
             </div>
-            <Button type="submit" className="w-full">
-              Sign Up
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Creating Account..." : "Sign Up"}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">

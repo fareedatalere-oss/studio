@@ -8,14 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/firebase';
-import { sendPasswordResetEmail } from 'firebase/auth';
+import { account } from '@/lib/appwrite';
 
 export default function ForgotPasswordPage() {
   const { toast } = useToast();
-  const router = useRouter();
-  const auth = useAuth();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -34,15 +30,13 @@ export default function ForgotPasswordPage() {
     }
     
     try {
-        await sendPasswordResetEmail(auth, email);
+        // Appwrite requires a URL to redirect to after password reset
+        const resetUrl = `${window.location.origin}/auth/reset-password`;
+        await account.createRecovery(email, resetUrl);
         toast({
             title: 'Check your email',
             description: 'A password reset link has been sent to your email address if it is associated with an account.',
         });
-        // We don't wait for the user to click the link, just inform them.
-        setIsLoading(false);
-        // Optionally redirect after a delay
-        // setTimeout(() => router.push('/auth/signin'), 3000);
     } catch (error: any) {
         console.error("Forgot password error:", error);
         // We don't want to reveal if a user exists or not, so we show a generic success message regardless of error.

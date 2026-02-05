@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -31,40 +31,39 @@ import {
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Image from 'next/image';
-import { useUser, useFirestore, useCollection } from '@/firebase';
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  doc,
-  updateDoc,
-  arrayUnion,
-  arrayRemove,
-} from 'firebase/firestore';
+import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
+import { databases } from '@/lib/appwrite';
+import { Query } from 'appwrite';
+
+// TODO: Replace with your actual Database and Collection IDs from Appwrite
+const DATABASE_ID = 'i-pay-db';
+const COLLECTION_ID_POSTS = 'posts';
+
 
 const PostCard = ({ post }: { post: any }) => {
   const { user: currentUser } = useUser();
-  const firestore = useFirestore();
 
   const handleLike = async () => {
     if (!currentUser) return;
-    const postRef = doc(firestore, 'posts', post.id);
-    if (post.likes?.includes(currentUser.uid)) {
-      await updateDoc(postRef, {
-        likes: arrayRemove(currentUser.uid),
-      });
-    } else {
-      await updateDoc(postRef, {
-        likes: arrayUnion(currentUser.uid),
-      });
+    const currentLikes = post.likes || [];
+    const isLiked = currentLikes.includes(currentUser.$id);
+    const newLikes = isLiked
+      ? currentLikes.filter((id: string) => id !== currentUser.$id)
+      : [...currentLikes, currentUser.$id];
+
+    try {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_POSTS, post.$id, {
+            likes: newLikes
+        });
+    } catch (error) {
+        console.error("Failed to update likes:", error);
     }
   };
   
-  const isLiked = post.likes?.includes(currentUser?.uid);
+  const isLiked = post.likes?.includes(currentUser?.$id);
 
   return (
     <div className="relative h-[calc(100vh-170px)] bg-black flex flex-col justify-between text-white snap-start">
@@ -78,7 +77,7 @@ const PostCard = ({ post }: { post: any }) => {
                     </Avatar>
                     <div>
                         <p className="font-semibold">{post.username}</p>
-                        <p className="text-xs text-neutral-300">{formatDistanceToNow(post.createdAt.toDate(), { addSuffix: true })}</p>
+                        <p className="text-xs text-neutral-300">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p>
                     </div>
                 </div>
                 <Button variant="outline" size="sm" className="bg-transparent text-white border-white">Follow</Button>
@@ -137,12 +136,42 @@ const PostCard = ({ post }: { post: any }) => {
 
 
 const PostFeed = ({ type }: { type: string }) => {
-  const firestore = useFirestore();
-  const postsQuery = useMemo(() => {
-    return query(collection(firestore, 'posts'), where('type', '==', type), orderBy('createdAt', 'desc'));
-  }, [firestore, type]);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const { data: posts, loading } = useCollection(postsQuery);
+  useEffect(() => {
+    const fetchPosts = async () => {
+        setLoading(true);
+        try {
+            if (DATABASE_ID.includes('YOUR_') || COLLECTION_ID_POSTS.includes('YOUR_')) {
+                console.warn("Appwrite post collection not configured.");
+                setPosts([]);
+                return;
+            }
+            const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [
+                Query.equal('type', type),
+                Query.orderDesc('$createdAt'),
+            ]);
+            setPosts(response.documents);
+        } catch (error) {
+            console.error("Failed to fetch posts:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+    fetchPosts();
+
+    // Appwrite real-time subscription
+    const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_POSTS}.documents`, response => {
+        // Refetch or update posts list
+        fetchPosts();
+    });
+
+    return () => {
+        unsubscribe();
+    };
+
+  }, [type]);
 
   if (loading) {
     return <div className="p-4"><Skeleton className="h-[calc(100vh-200px)] w-full" /></div>;
@@ -154,7 +183,7 @@ const PostFeed = ({ type }: { type: string }) => {
 
   return (
     <div className="h-full overflow-y-auto snap-y snap-mandatory">
-      {posts.map(post => <PostCard key={post.id} post={post} />)}
+      {posts.map(post => <PostCard key={post.$id} post={post} />)}
     </div>
   )
 }

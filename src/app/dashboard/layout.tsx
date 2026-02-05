@@ -4,8 +4,7 @@ import { Bot, Bell, Home, MessageCircle, PlaySquare, Store, User } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useUser, useCollection, useFirestore } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { useUser } from '@/hooks/use-appwrite';
 import { Badge } from '@/components/ui/badge';
 import { useMemo } from 'react';
 
@@ -15,14 +14,9 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user } = useUser();
-  const firestore = useFirestore();
-
-  const notificationsQuery = useMemo(() => {
-    if (!user) return null;
-    return query(collection(firestore, 'users', user.uid, 'notifications'), where('isRead', '==', false));
-  }, [user, firestore]);
   
-  const { data: unreadNotifications } = useCollection(notificationsQuery);
+  // TODO: Re-implement notifications with Appwrite
+  const unreadNotifications: any[] = [];
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -51,7 +45,7 @@ export default function DashboardLayout({
               </Link>
             </Button>
             <Avatar>
-              <AvatarFallback>U</AvatarFallback>
+              <AvatarFallback>{user?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
             </Avatar>
           </div>
         </div>

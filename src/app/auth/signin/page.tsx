@@ -9,9 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
-import { useAuth, useFirestore } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { account } from '@/lib/appwrite';
 
 
 const MANAGER_EMAIL = 'i-paymanagerscare402@gmail.com';
@@ -20,8 +18,6 @@ const MANAGER_PASSWORD = 'Halimatussadiyya01/08162810155?admin';
 export default function SignInPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const auth = useAuth();
-  const firestore = useFirestore();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -51,7 +47,7 @@ export default function SignInPage() {
     }
     
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await account.createEmailPasswordSession(email, password);
 
       // Successful sign-in, redirect immediately.
       toast({
@@ -62,37 +58,9 @@ export default function SignInPage() {
 
     } catch (error: any) {
         console.error("Sign in error:", error);
-        let description = "An unexpected error occurred. Please try again.";
-        
-        if (error.code) {
-            switch (error.code) {
-                case 'auth/user-not-found':
-                case 'auth/wrong-password':
-                case 'auth/invalid-credential':
-                    description = 'Invalid email or password.';
-                    break;
-                case 'auth/invalid-email':
-                    description = 'The email address is not valid.';
-                    break;
-                case 'auth/user-disabled':
-                    description = 'This user account has been disabled.';
-                    break;
-                case 'failed-precondition':
-                     description = 'Failed to get document because the client is offline. Please check your internet connection.';
-                    break;
-                default:
-                    if (error.message) {
-                         description = error.message;
-                    }
-                    break;
-            }
-        } else if (error.message) {
-            description = error.message;
-        }
-
         toast({
             title: 'Sign In Failed',
-            description,
+            description: error.message || "An unexpected error occurred. Please try again.",
             variant: 'destructive',
         });
     } finally {

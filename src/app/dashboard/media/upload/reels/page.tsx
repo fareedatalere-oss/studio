@@ -8,10 +8,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc } from '@/firebase';
-import { addDoc, collection, doc, serverTimestamp } from 'firebase/firestore';
+import { useUser } from '@/hooks/use-appwrite';
+import { databases } from '@/lib/appwrite';
+import { ID } from 'appwrite';
 import { uploadToCloudinary } from '@/app/actions/upload';
 
+// TODO: Replace with your actual Database and Collection IDs from Appwrite
+const DATABASE_ID = 'i-pay-db';
+const COLLECTION_ID_POSTS = 'posts';
 
 export default function UploadReelsPage() {
   const { toast } = useToast();
@@ -22,9 +26,8 @@ export default function UploadReelsPage() {
   const [isPosting, setIsPosting] = useState(false);
 
   const { user: authUser } = useUser();
-  const firestore = useFirestore();
-  const userDocRef = authUser ? doc(firestore, 'users', authUser.uid) : null;
-  const { data: userProfile } = useDoc(userDocRef);
+  // TODO: Get user profile from Appwrite to fetch username/avatar
+  const userProfile = { username: authUser?.name || 'Anonymous', avatar: null };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -58,7 +61,7 @@ export default function UploadReelsPage() {
 
         if (uploadResult.success && uploadResult.url) {
             const newPost = {
-                userId: authUser.uid,
+                userId: authUser.$id,
                 username: userProfile.username,
                 userAvatar: userProfile.avatar,
                 type: 'reels',
@@ -66,11 +69,11 @@ export default function UploadReelsPage() {
                 description: description,
                 allowComments: true, // Default settings for reels
                 allowDownload: true,
-                createdAt: serverTimestamp(),
+                createdAt: new Date().toISOString(),
                 likes: [],
                 commentCount: 0,
             };
-            await addDoc(collection(firestore, 'posts'), newPost);
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
             toast({ title: 'Reel Posted!', description: 'Your reel is now live.' });
             router.push('/dashboard/media');
         } else {

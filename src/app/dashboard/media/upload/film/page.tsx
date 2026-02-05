@@ -11,10 +11,15 @@ import { useRouter } from 'next/navigation';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
-import { useUser, useFirestore, useDoc } from '@/firebase';
-import { addDoc, collection, doc, serverTimestamp } from 'firebase/firestore';
+import { useUser } from '@/hooks/use-appwrite';
+import { databases } from '@/lib/appwrite';
+import { ID } from 'appwrite';
 import { uploadToCloudinary } from '@/app/actions/upload';
 
+
+// TODO: Replace with your actual Database and Collection IDs from Appwrite
+const DATABASE_ID = 'i-pay-db';
+const COLLECTION_ID_POSTS = 'posts';
 
 export default function UploadFilmPage() {
   const { toast } = useToast();
@@ -27,9 +32,8 @@ export default function UploadFilmPage() {
   const [isPosting, setIsPosting] = useState(false);
 
   const { user: authUser } = useUser();
-  const firestore = useFirestore();
-  const userDocRef = authUser ? doc(firestore, 'users', authUser.uid) : null;
-  const { data: userProfile } = useDoc(userDocRef);
+  // TODO: Get user profile from Appwrite to fetch username/avatar
+  const userProfile = { username: authUser?.name || 'Anonymous', avatar: null };
 
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -64,7 +68,7 @@ export default function UploadFilmPage() {
 
             if (uploadResult.success && uploadResult.url) {
                  const newPost = {
-                    userId: authUser.uid,
+                    userId: authUser.$id,
                     username: userProfile.username,
                     userAvatar: userProfile.avatar,
                     type: 'film',
@@ -72,11 +76,10 @@ export default function UploadFilmPage() {
                     description: description,
                     allowComments: allowComments,
                     allowDownload: allowDownload,
-                    createdAt: serverTimestamp(),
                     likes: [],
                     commentCount: 0,
                 };
-                await addDoc(collection(firestore, 'posts'), newPost);
+                await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
                 toast({
                     title: 'Film Uploaded!',
                     description: 'Your film is now live.',

@@ -9,15 +9,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser } from '@/hooks/use-appwrite';
 import { generateVirtualAccount } from '@/app/actions/flutterwave';
-import { doc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { databases } from '@/lib/appwrite';
+
+// TODO: Replace with your actual Database and Collection IDs from Appwrite
+const DATABASE_ID = 'i-pay-db'; // example: '60d5e2d6b3f7e'
+const COLLECTION_ID_PROFILES = 'profiles'; // example: '60d5e2f1d8c0f'
 
 export default function GetAccountNumberPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useUser();
-  const firestore = useFirestore();
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -31,34 +34,27 @@ export default function GetAccountNumberPage() {
   const [generatedAccount, setGeneratedAccount] = useState<{ number: string; bank: string } | null>(null);
   const [countdown, setCountdown] = useState(15);
   
-  // This effect handles the redirection when countdown ends.
   useEffect(() => {
     if (countdown === 0 && step === 'saving') {
       router.push('/dashboard');
     }
   }, [countdown, step, router]);
 
-  // This effect handles the save and countdown logic.
   useEffect(() => {
     if (step !== 'saving') return;
 
     let timer: NodeJS.Timeout | undefined;
 
-    // --- Real Background Save Operation ---
-    // This function runs without blocking the UI.
-    const performSave = () => {
-      if (!user || !firestore || !generatedAccount) {
+    const performSave = async () => {
+      if (!user || !generatedAccount) {
         toast({
           variant: "destructive",
           title: "Critical Error",
           description: "Could not save account due to missing data. Please try again.",
         });
-        setStep('displayAccount'); // Go back on critical error
+        setStep('displayAccount');
         return;
       }
-      
-      const userDocRef = doc(firestore, 'users', user.uid);
-      const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
       
       const accountData = {
         accountNumber: generatedAccount.number,
@@ -69,46 +65,32 @@ export default function GetAccountNumberPage() {
         bvn: formData.bvn,
       };
 
-      const notificationData = {
-        title: 'Account Generated!',
-        description: `Your new ${generatedAccount.bank} account number is ${generatedAccount.number}. You can now fund this account.`,
-        type: 'system',
-        isRead: false,
-        createdAt: serverTimestamp(),
-      };
-      
-      // Save user profile data, then notification. Non-blocking.
-      setDoc(userDocRef, accountData, { merge: true })
-        .then(() => addDoc(notificationCollectionRef, notificationData))
-        .then(() => {
-            console.log("Account and notification saved successfully in the background.");
-        })
-        .catch((serverError) => {
-            // --- This part is crucial. It no longer freezes the app. ---
-            console.error("Background save failed:", serverError);
-            toast({
-                variant: "destructive",
-                title: "Save Failed",
-                description: serverError.message || "Your account details could not be saved to the database. Please try again.",
-            });
-            // On failure, stop the countdown and go back.
-            setStep('displayAccount');
+      try {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, accountData);
+        console.log("Account and notification saved successfully in the background.");
+
+        timer = setInterval(() => {
+          setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+        }, 1000);
+
+      } catch (serverError: any) {
+        console.error("Background save failed:", serverError);
+        toast({
+            variant: "destructive",
+            title: "Save Failed",
+            description: serverError.message || "Your account details could not be saved to the database. Please try again.",
         });
+        setStep('displayAccount');
+      }
     };
 
-    // Start the save and the countdown timer.
     performSave();
     
-    timer = setInterval(() => {
-      setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-
-    // Cleanup: if the step changes (e.g. on error), stop the timer.
     return () => {
       if (timer) clearInterval(timer);
     };
 
-  }, [step, user, firestore, generatedAccount, formData, toast, router]);
+  }, [step, user, generatedAccount, formData, toast, router]);
 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
