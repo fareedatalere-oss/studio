@@ -31,15 +31,15 @@ export function useDoc<T extends DocumentData>(
   useEffect(() => {
     // This effect synchronizes the incoming `ref` prop with our stable internal state.
     if (ref === null) {
-      // If the ref prop becomes null, we nullify our internal state.
       if (stableRef !== null) setStableRef(null);
       return;
     }
     // We only update our internal state if the new ref is for a different document.
-    // The `isEqual` method on DocumentReference checks this for us.
-    if (!stableRef || !stableRef.isEqual(ref)) {
-      setStableRef(ref);
+    // We compare paths for safety, which is sufficient for this app's use cases.
+    if (stableRef && stableRef.path === ref.path) {
+      return;
     }
+    setStableRef(ref);
   }, [ref, stableRef]);
 
 
