@@ -28,11 +28,11 @@ export default function GetAccountNumberPage() {
     phone: '',
   });
 
-  const [step, setStep] = useState<'form' | 'countdown' | 'congrats' | 'displayAccount'>('form');
+  const [step, setStep] = useState<'form' | 'countdown' | 'congrats' | 'displayAccount' | 'saving'>('form');
   const [countdown, setCountdown] = useState(15);
+  const [saveCountdown, setSaveCountdown] = useState<number | null>(null);
   const [generatedAccount, setGeneratedAccount] = useState<{ number: string; bank: string } | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -52,6 +52,17 @@ export default function GetAccountNumberPage() {
     }
     return () => clearTimeout(timer);
   }, [step, countdown, generatedAccount, toast, apiError]);
+
+   useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (saveCountdown !== null && saveCountdown > 0) {
+        timer = setTimeout(() => setSaveCountdown(saveCountdown - 1), 1000);
+    } else if (saveCountdown === 0) {
+        router.push('/dashboard');
+    }
+    return () => clearTimeout(timer);
+  }, [saveCountdown, router]);
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -110,9 +121,10 @@ export default function GetAccountNumberPage() {
       });
       return;
     }
-
-    setIsSaving(true);
     
+    setStep('saving');
+    setSaveCountdown(15);
+
     const userDocRef = doc(firestore, 'users', user.uid);
     const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
 
@@ -136,14 +148,6 @@ export default function GetAccountNumberPage() {
     try {
         await setDoc(userDocRef, accountData, { merge: true });
         await addDoc(notificationCollectionRef, notificationData);
-
-        toast({
-            title: 'Account Saved!',
-            description: 'Your new account is permanently saved.',
-        });
-
-        router.push('/dashboard');
-
     } catch (serverError: any) {
         console.error('Error saving account details:', serverError);
         const permissionError = new FirestorePermissionError({
@@ -153,13 +157,8 @@ export default function GetAccountNumberPage() {
         });
         errorEmitter.emit('permission-error', permissionError);
 
-        toast({
-            variant: 'destructive',
-            title: 'Save Failed',
-            description: 'Could not save your new account. Please try again or contact support.'
-        });
-    } finally {
-        setIsSaving(false);
+        // Even if it fails, the countdown will complete and redirect.
+        // The error will be visible in the dev console.
     }
   };
 
@@ -175,6 +174,23 @@ export default function GetAccountNumberPage() {
                 </CardHeader>
                 <CardContent>
                     <p className="text-6xl font-mono font-bold">{countdown}</p>
+                </CardContent>
+            </Card>
+        </div>
+    );
+  }
+  
+  if (step === 'saving') {
+    return (
+        <div className="container py-8">
+            <Card className="w-full max-w-lg mx-auto text-center">
+                <CardHeader>
+                    <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
+                    <CardTitle className="mt-4">Saving Your Account</CardTitle>
+                    <CardDescription>Redirecting to dashboard in...</CardDescription>
+                </CardHeader>
+                <CardContent>
+                     <p className="text-6xl font-mono font-bold">{saveCountdown}</p>
                 </CardContent>
             </Card>
         </div>
@@ -215,8 +231,8 @@ export default function GetAccountNumberPage() {
                         <Label className="mt-2">Account Number</Label>
                         <p className="text-2xl font-bold font-mono tracking-wider">{generatedAccount?.number}</p>
                     </div>
-                    <Button onClick={handleSaveAndFinish} className="w-full" disabled={isSaving}>
-                        {isSaving ? 'Saving...' : 'Done'}
+                    <Button onClick={handleSaveAndFinish} className="w-full">
+                        Done
                     </Button>
                 </CardContent>
             </Card>

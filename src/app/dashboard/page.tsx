@@ -17,12 +17,15 @@ import {
 import Link from 'next/link';
 import { useUser, useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function DashboardContent() {
-  const { user } = useUser();
+  const { user, loading: userLoading } = useUser();
   const firestore = useFirestore();
   const userDocRef = user ? doc(firestore, 'users', user.uid) : null;
-  const { data: userProfile } = useDoc(userDocRef);
+  const { data: userProfile, loading: profileLoading } = useDoc(userDocRef);
+
+  const isLoading = userLoading || profileLoading;
 
   const actions = [
     { label: 'Send', icon: Send, href: '/dashboard/transfer' },
@@ -44,9 +47,14 @@ function DashboardContent() {
             <CardTitle>Account Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1 min-h-[40px]">
+            <div className="space-y-1 min-h-[60px]">
               <p className="text-sm text-muted-foreground">Account Number</p>
-              {userProfile && userProfile.accountNumber ? (
+              {isLoading ? (
+                <div className="space-y-2 pt-1">
+                  <Skeleton className="h-6 w-48" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+              ) : userProfile && userProfile.accountNumber ? (
                 <div>
                   <p className="font-mono text-lg font-semibold">{userProfile.accountNumber}</p>
                   <p className="text-xs text-muted-foreground font-semibold">{userProfile.bankName}</p>
@@ -60,24 +68,30 @@ function DashboardContent() {
 
             <div>
               <p className="text-sm text-muted-foreground">Naira Balance</p>
-              <p className="text-2xl font-bold">₦{userProfile?.nairaBalance?.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</p>
+              {isLoading ? (
+                <Skeleton className="h-8 w-40 mt-1" />
+              ) : (
+                <p className="text-2xl font-bold">₦{userProfile?.nairaBalance?.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</p>
+              )}
             </div>
             
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div>
                   <p className="text-sm text-muted-foreground">Reward Balance</p>
-                  <p className="font-semibold">{userProfile?.rewardBalance?.toLocaleString() || '0'}</p>
+                   {isLoading ? <Skeleton className="h-6 w-20 mt-1" /> : <p className="font-semibold">{userProfile?.rewardBalance?.toLocaleString() || '0'}</p>}
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Click Count</p>
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold">{userProfile?.clickCount?.toLocaleString() || 0}</p>
-                  {userProfile?.accountNumber && (
-                    <Button asChild size="sm" className="h-auto px-2 py-1 text-xs">
-                      <Link href="/dashboard/rewards">Get Reward</Link>
-                    </Button>
-                  )}
-                </div>
+                 {isLoading ? <Skeleton className="h-6 w-16 mt-1" /> : (
+                    <div className="flex items-center gap-2">
+                    <p className="font-semibold">{userProfile?.clickCount?.toLocaleString() || 0}</p>
+                    {userProfile?.accountNumber && (
+                        <Button asChild size="sm" className="h-auto px-2 py-1 text-xs">
+                        <Link href="/dashboard/rewards">Get Reward</Link>
+                        </Button>
+                    )}
+                    </div>
+                )}
               </div>
             </div>
           </CardContent>

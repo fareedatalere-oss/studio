@@ -74,9 +74,26 @@ export default function ChatPage() {
             </DropdownMenuContent>
         </DropdownMenu>
     </div>
-  )
+  );
+
+  const UserSkeleton = () => (
+    <div className="flex items-center gap-3">
+        <Skeleton className="h-12 w-12 rounded-full" />
+        <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
+        </div>
+    </div>
+  );
 
   const renderContent = (users: any[]) => {
+      if (isLoading) {
+        return (
+             <div className="p-4 space-y-4">
+                {Array.from({ length: 5 }).map((_, i) => <UserSkeleton key={i} />)}
+            </div>
+        )
+      }
       if (users.length > 0) {
         return (
             <div className="p-4 space-y-4">
@@ -84,10 +101,7 @@ export default function ChatPage() {
             </div>
         );
       }
-      if (!isLoading) {
-          return <p className="text-center text-muted-foreground p-6">No users found.</p>
-      }
-      return null;
+      return <p className="text-center text-muted-foreground p-6">No users found.</p>
   }
 
   return (
