@@ -12,6 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
 import { generateVirtualAccount } from '@/app/actions/flutterwave';
 import { doc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function GetAccountNumberPage() {
   const router = useRouter();
@@ -29,7 +31,6 @@ export default function GetAccountNumberPage() {
   const [step, setStep] = useState<'form' | 'countdown' | 'congrats' | 'displayAccount'>('form');
   const [countdown, setCountdown] = useState(15);
   const [generatedAccount, setGeneratedAccount] = useState<{ number: string; bank: string } | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -102,42 +103,60 @@ export default function GetAccountNumberPage() {
     }
   };
   
-  const handleSaveAndFinish = async () => {
+  const handleSaveAndFinish = () => {
     if (!user || !firestore || !generatedAccount) {
-        toast({ title: "Error", description: "Missing required data to save.", variant: "destructive" });
-        return;
+      toast({
+        title: 'Error',
+        description: 'Missing required data to save.',
+        variant: 'destructive',
+      });
+      return;
     }
-    setIsSaving(true);
-     try {
-        const userDocRef = doc(firestore, 'users', user.uid);
-        const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
-        
-        const accountData = {
-          accountNumber: generatedAccount.number,
-          bankName: generatedAccount.bank,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          phone: formData.phone,
-          bvn: formData.bvn,
-        };
 
-        await setDoc(userDocRef, accountData, { merge: true });
-        
-        await addDoc(notificationCollectionRef, {
-            title: 'Account Generated!',
-            description: `Your new ${generatedAccount.bank} account number is ${generatedAccount.number}. You can now fund this account.`,
-            type: 'system',
-            isRead: false,
-            createdAt: serverTimestamp(),
-        });
-        toast({ title: 'Account Saved!', description: 'Your new account is permanently saved.' });
-        router.push('/dashboard');
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Save Failed', description: error.message || 'Could not save your account details.' });
-    } finally {
-        setIsSaving(false);
-    }
-  }
+    toast({
+      title: 'Account Saved!',
+      description: 'Your new account is permanently saved.',
+    });
+    router.push('/dashboard');
+
+    // Save data in the background
+    const userDocRef = doc(firestore, 'users', user.uid);
+    const notificationCollectionRef = collection(
+      firestore,
+      'users',
+      user.uid,
+      'notifications'
+    );
+
+    const accountData = {
+      accountNumber: generatedAccount.number,
+      bankName: generatedAccount.bank,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      phone: formData.phone,
+      bvn: formData.bvn,
+    };
+
+    setDoc(userDocRef, accountData, { merge: true }).catch((serverError) => {
+      console.error('Error saving account details:', serverError);
+      const permissionError = new FirestorePermissionError({
+        path: userDocRef.path,
+        operation: 'update',
+        requestResourceData: accountData,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    });
+
+    addDoc(notificationCollectionRef, {
+      title: 'Account Generated!',
+      description: `Your new ${generatedAccount.bank} account number is ${generatedAccount.number}. You can now fund this account.`,
+      type: 'system',
+      isRead: false,
+      createdAt: serverTimestamp(),
+    }).catch((serverError) => {
+      console.error('Error adding notification:', serverError);
+    });
+  };
 
 
   if (step === 'countdown') {
@@ -191,8 +210,8 @@ export default function GetAccountNumberPage() {
                         <Label className="mt-2">Account Number</Label>
                         <p className="text-2xl font-bold font-mono tracking-wider">{generatedAccount?.number}</p>
                     </div>
-                    <Button onClick={handleSaveAndFinish} className="w-full" disabled={isSaving}>
-                        {isSaving ? 'Saving...' : 'Done'}
+                    <Button onClick={handleSaveAndFinish} className="w-full">
+                        Done
                     </Button>
                 </CardContent>
             </Card>
