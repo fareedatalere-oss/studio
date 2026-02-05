@@ -11,8 +11,11 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
-import { account } from '@/lib/appwrite';
+import { account, databases } from '@/lib/appwrite';
 
+// TODO: Replace with your actual Database and Collection IDs from Appwrite
+const DATABASE_ID = 'i-pay-db';
+const COLLECTION_ID_PROFILES = 'profiles';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -23,13 +26,24 @@ export default function SettingsPage() {
   const [pinData, setPinData] = useState({ current: '', new: '' });
   const [emailData, setEmailData] = useState({ new: '', password: '' });
   const [passwordData, setPasswordData] = useState({ current: '', new: '' });
-  const [usernameData, setUsernameData] = useState({ new: '', password: '' });
+  const [usernameData, setUsernameData] = useState({ new: '' });
 
   const handleUpdatePin = async () => {
+    if (!user) return;
     setIsLoading(true);
-    // TODO: Update PIN in Appwrite database
-    toast({ title: "PIN update not implemented for Appwrite yet."})
-    setIsLoading(false);
+    try {
+        const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
+        if (profile.pin !== pinData.current) {
+            throw new Error("The current PIN is incorrect.");
+        }
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, { pin: pinData.new });
+        toast({ title: 'PIN Updated', description: 'Your transaction PIN has been changed.' });
+        setPinData({ current: '', new: '' });
+    } catch(error: any) {
+        toast({ title: 'Error Updating PIN', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsLoading(false);
+    }
   };
   
   const handleUpdateEmail = async () => {
@@ -59,13 +73,17 @@ export default function SettingsPage() {
   };
   
   const handleUpdateUsername = async () => {
+    if (!user) return;
     setIsLoading(true);
     try {
+        // Update name in Appwrite Auth
         await account.updateName(usernameData.new);
-        // Also update in our profiles collection
-        // TODO: add call to databases.updateDocument
+        
+        // Also update username in our profiles collection
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, { username: usernameData.new });
+        
         toast({ title: 'Username Updated', description: 'Your username has been successfully updated.' });
-        setUsernameData({ new: '', password: '' });
+        setUsernameData({ new: '' });
     } catch (error: any) {
         toast({ title: 'Error Updating Username', description: error.message, variant: 'destructive' });
     } finally {

@@ -69,7 +69,6 @@ export default function UploadReelsPage() {
                 description: description,
                 allowComments: true, // Default settings for reels
                 allowDownload: true,
-                createdAt: new Date().toISOString(),
                 likes: [],
                 commentCount: 0,
             };

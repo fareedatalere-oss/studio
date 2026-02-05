@@ -61,7 +61,10 @@ export default function ProfilePage() {
             const fileDataUri = reader.result as string;
             const result = await uploadToCloudinary(fileDataUri);
             if (result.success && result.url) {
-                // TODO: Save avatar URL to user profile in Appwrite
+                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, authUser.$id, {
+                    avatar: result.url
+                });
+                setUserProfile((prev: any) => ({ ...prev, avatar: result.url }));
                 toast({ title: 'Avatar Updated!', description: 'Your new avatar is now live.' });
             } else {
                 throw new Error(result.message || 'Upload failed');

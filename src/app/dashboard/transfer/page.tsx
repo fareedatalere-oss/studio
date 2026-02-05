@@ -11,11 +11,20 @@ import { resolveAccountNumber } from '@/app/actions/flutterwave';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useUser } from '@/hooks/use-appwrite';
+import { databases } from '@/lib/appwrite';
+import { ID } from 'appwrite';
+
+// TODO: Replace with your actual Database and Collection IDs from Appwrite
+const DATABASE_ID = 'i-pay-db';
+const COLLECTION_ID_TRANSACTIONS = 'transactions';
+const COLLECTION_ID_PROFILES = 'profiles';
 
 
 export default function TransferPage() {
     const { toast } = useToast();
     const router = useRouter();
+    const { user } = useUser();
 
     // Step 1 state
     const [accountNumber, setAccountNumber] = useState('');
@@ -55,20 +64,58 @@ export default function TransferPage() {
         }
     };
 
-    const handleSendMoney = () => {
+    const handleSendMoney = async () => {
+        if (!user) {
+            toast({ variant: 'destructive', title: 'Error', description: 'You must be logged in to make a transfer.' });
+            return;
+        }
+
         setIsLoading(true);
-        // This is where the actual transfer API call will go.
-        // For now, I'll just simulate it and prepare for transaction history.
-        console.log("Sending money:", { accountNumber, bankCode, amount, narration, resolvedName });
-        setTimeout(() => {
+
+        try {
+            // Check PIN against user's profile
+            const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
+            if (userProfile.pin !== pin) {
+                throw new Error('Incorrect transaction PIN.');
+            }
+            
+            // TODO: In a real app, call the actual transfer API here.
+            // For now, we simulate success and save the transaction.
+
+            const transactionData = {
+                userId: user.$id,
+                type: 'transfer',
+                amount: Number(amount),
+                status: 'completed', // Assuming success for the simulation
+                recipientName: resolvedName,
+                recipientDetails: `${accountNumber} - ${nigerianBanks.find(b => b.code === bankCode)?.name}`,
+                narration: narration,
+                sessionId: `ipay-tx-${Date.now()}`
+            };
+
+            await databases.createDocument(
+                DATABASE_ID,
+                COLLECTION_ID_TRANSACTIONS,
+                ID.unique(),
+                transactionData
+            );
+            
             toast({
                 title: 'Transfer Successful (Simulated)',
                 description: `₦${amount} sent to ${resolvedName}. This is a simulation and no real money was sent.`
             });
-             // In the next step, I will save this to the database.
-            setIsLoading(false);
             router.push('/dashboard');
-        }, 2000);
+
+        } catch (error: any) {
+            console.error("Transfer error:", error);
+            toast({
+                title: 'Transfer Failed',
+                description: error.message || 'An unexpected error occurred.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     if (step === 2) {
