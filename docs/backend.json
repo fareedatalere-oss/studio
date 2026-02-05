@@ -13,6 +13,7 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "The timestamp when the profile was created." },
         "firstName": { "type": "string", "description": "The user's first name." },
         "lastName": { "type": "string", "description": "The user's last name." },
+        "middleName": { "type": "string", "description": "The user's middle name (optional)." },
         "phone": { "type": "string", "description": "The user's phone number." },
         "bvn": { "type": "string", "description": "The user's Bank Verification Number." },
         "accountNumber": { "type": "string", "description": "The user's generated virtual account number." },
