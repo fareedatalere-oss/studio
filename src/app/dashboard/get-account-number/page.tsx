@@ -32,25 +32,25 @@ export default function GetAccountNumberPage() {
   const [countdown, setCountdown] = useState(15);
   const [generatedAccount, setGeneratedAccount] = useState<{ number: string; bank: string } | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (step === 'countdown') {
-      if (countdown > 0) {
-        const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-        return () => clearTimeout(timer);
+    let timer: NodeJS.Timeout;
+    if (step === 'countdown' && countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    } else if (step === 'countdown' && countdown === 0) {
+      if (generatedAccount) {
+        setStep('congrats');
       } else {
-        if (generatedAccount) {
-          setStep('congrats');
-        } else {
-          toast({
-            variant: 'destructive',
-            title: 'Account Generation Failed',
-            description: apiError || 'We could not generate your account number. Please try again.',
-          });
-          setStep('form');
-        }
+        toast({
+          variant: 'destructive',
+          title: 'Account Generation Failed',
+          description: apiError || 'We could not generate your account number. Please try again.',
+        });
+        setStep('form');
       }
     }
+    return () => clearTimeout(timer);
   }, [step, countdown, generatedAccount, toast, apiError]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -64,7 +64,7 @@ export default function GetAccountNumberPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !user.email) {
       toast({
@@ -80,30 +80,28 @@ export default function GetAccountNumberPage() {
     setApiError(null);
     setGeneratedAccount(null);
 
-    // Call API in the background during the countdown
-    try {
-      const result = await generateVirtualAccount({
-        email: user.email,
-        firstname: formData.firstName,
-        lastname: formData.lastName,
-        phonenumber: formData.phone,
-        bvn: formData.bvn,
-      });
-
-      if (result.success && result.data.account_number) {
-        setGeneratedAccount({
-          number: result.data.account_number,
-          bank: result.data.bank_name,
-        });
-      } else {
-        setApiError(result.message || 'An unknown error occurred.');
-      }
-    } catch (error: any) {
-      setApiError(error.message || 'An unexpected network error occurred.');
-    }
+    // Call API in the background
+    generateVirtualAccount({
+      email: user.email,
+      firstname: formData.firstName,
+      lastname: formData.lastName,
+      phonenumber: formData.phone,
+      bvn: formData.bvn,
+    }).then(result => {
+        if (result.success && result.data.account_number) {
+            setGeneratedAccount({
+            number: result.data.account_number,
+            bank: result.data.bank_name,
+            });
+        } else {
+            setApiError(result.message || 'An unknown error occurred.');
+        }
+    }).catch(error => {
+        setApiError(error.message || 'An unexpected network error occurred.');
+    });
   };
   
-  const handleSaveAndFinish = () => {
+  const handleSaveAndFinish = async () => {
     if (!user || !firestore || !generatedAccount) {
       toast({
         title: 'Error',
@@ -113,20 +111,10 @@ export default function GetAccountNumberPage() {
       return;
     }
 
-    toast({
-      title: 'Account Saved!',
-      description: 'Your new account is permanently saved.',
-    });
-    router.push('/dashboard');
-
-    // Save data in the background
+    setIsSaving(true);
+    
     const userDocRef = doc(firestore, 'users', user.uid);
-    const notificationCollectionRef = collection(
-      firestore,
-      'users',
-      user.uid,
-      'notifications'
-    );
+    const notificationCollectionRef = collection(firestore, 'users', user.uid, 'notifications');
 
     const accountData = {
       accountNumber: generatedAccount.number,
@@ -136,26 +124,43 @@ export default function GetAccountNumberPage() {
       phone: formData.phone,
       bvn: formData.bvn,
     };
-
-    setDoc(userDocRef, accountData, { merge: true }).catch((serverError) => {
-      console.error('Error saving account details:', serverError);
-      const permissionError = new FirestorePermissionError({
-        path: userDocRef.path,
-        operation: 'update',
-        requestResourceData: accountData,
-      });
-      errorEmitter.emit('permission-error', permissionError);
-    });
-
-    addDoc(notificationCollectionRef, {
+    
+    const notificationData = {
       title: 'Account Generated!',
       description: `Your new ${generatedAccount.bank} account number is ${generatedAccount.number}. You can now fund this account.`,
       type: 'system',
       isRead: false,
       createdAt: serverTimestamp(),
-    }).catch((serverError) => {
-      console.error('Error adding notification:', serverError);
-    });
+    };
+
+    try {
+        await setDoc(userDocRef, accountData, { merge: true });
+        await addDoc(notificationCollectionRef, notificationData);
+
+        toast({
+            title: 'Account Saved!',
+            description: 'Your new account is permanently saved.',
+        });
+
+        router.push('/dashboard');
+
+    } catch (serverError: any) {
+        console.error('Error saving account details:', serverError);
+        const permissionError = new FirestorePermissionError({
+            path: userDocRef.path,
+            operation: 'update',
+            requestResourceData: accountData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+
+        toast({
+            variant: 'destructive',
+            title: 'Save Failed',
+            description: 'Could not save your new account. Please try again or contact support.'
+        });
+    } finally {
+        setIsSaving(false);
+    }
   };
 
 
@@ -210,8 +215,8 @@ export default function GetAccountNumberPage() {
                         <Label className="mt-2">Account Number</Label>
                         <p className="text-2xl font-bold font-mono tracking-wider">{generatedAccount?.number}</p>
                     </div>
-                    <Button onClick={handleSaveAndFinish} className="w-full">
-                        Done
+                    <Button onClick={handleSaveAndFinish} className="w-full" disabled={isSaving}>
+                        {isSaving ? 'Saving...' : 'Done'}
                     </Button>
                 </CardContent>
             </Card>
