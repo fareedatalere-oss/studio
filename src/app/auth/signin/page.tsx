@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
 import { account } from '@/lib/appwrite';
+import { useUser } from '@/hooks/use-appwrite';
 
 
 const MANAGER_EMAIL = 'i-paymanagerscare402@gmail.com';
@@ -18,10 +19,17 @@ const MANAGER_PASSWORD = 'Halimatussadiyya01/08162810155?admin';
 export default function SignInPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user, loading: userLoading } = useUser();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!userLoading && user) {
+      router.replace('/dashboard');
+    }
+  }, [user, userLoading, router]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,15 +66,24 @@ export default function SignInPage() {
 
     } catch (error: any) {
         console.error("Sign in error:", error);
+        let errorMessage = "An unexpected error occurred. Please try again.";
+        if (error.type === 'user_invalid_credentials' || error.code === 401) {
+            errorMessage = "Invalid email or password.";
+        }
+        
         toast({
             title: 'Sign In Failed',
-            description: error.message || "An unexpected error occurred. Please try again.",
+            description: errorMessage,
             variant: 'destructive',
         });
     } finally {
         setIsLoading(false);
     }
   };
+
+  if (userLoading || user) {
+    return null; // Or a loading spinner while we check auth status
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
