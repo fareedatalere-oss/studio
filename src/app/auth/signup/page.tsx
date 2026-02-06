@@ -77,12 +77,9 @@ export default function SignUpPage() {
       // Explicitly create a session to ensure it's active before the redirect.
       await account.createEmailPasswordSession(email, password);
       
-      // Create the profile document in the database
+      // Create the profile document in the database, saving ONLY the pin as commanded.
       const profileData = {
-          email: email,
           pin: pin,
-          username: email.split('@')[0], // A default username
-          createdAt: new Date().toISOString(),
       };
 
       await databases.createDocument(
