@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,17 +29,6 @@ export default function CompleteProfilePage() {
 
   const [isProcessing, setIsProcessing] = useState(false);
 
-  useEffect(() => {
-    if (!userLoading && !user) {
-      toast({
-        title: 'Session Expired',
-        description: 'Your session has expired. Please sign in again.',
-        variant: 'destructive',
-      });
-      router.push('/auth/signin');
-    }
-  }, [user, userLoading, router, toast]);
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
      if (id === 'pin') {
@@ -57,17 +46,18 @@ export default function CompleteProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsProcessing(true);
-
+    
     if (!user) {
       toast({
         title: 'Authentication Error',
-        description: "We're having trouble verifying your session. Please wait a moment and try again.",
+        description: "Your session has expired. Please sign in again.",
         variant: 'destructive'
       });
-      setIsProcessing(false);
+      router.push('/auth/signin');
       return;
     }
+
+    setIsProcessing(true);
     
     try {
       const profileData = {
@@ -104,7 +94,7 @@ export default function CompleteProfilePage() {
     }
   };
 
-  if (userLoading || !user) {
+  if (userLoading) {
       return (
         <div className="flex min-h-screen items-center justify-center bg-background p-4">
             <Card className="w-full max-w-lg">
@@ -188,7 +178,7 @@ export default function CompleteProfilePage() {
                 disabled={isProcessing}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isProcessing}>
+            <Button type="submit" className="w-full" disabled={isProcessing || !formData.country || !formData.username || formData.pin.length !== 5}>
               {isProcessing ? "Saving..." : "Create Account"}
             </Button>
           </form>
