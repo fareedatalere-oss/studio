@@ -14,8 +14,8 @@ import { uploadToCloudinary } from '@/app/actions/upload';
 import { account, databases } from '@/lib/appwrite';
 
 // TODO: Replace with your actual Database and Collection IDs from Appwrite
-const DATABASE_ID = 'YOUR_DATABASE_ID';
-const COLLECTION_ID_PROFILES = 'YOUR_COLLECTION_ID_PROFILES';
+const DATABASE_ID = 'i-pay-db';
+const COLLECTION_ID_PROFILES = 'profiles';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -89,12 +89,6 @@ export default function ProfilePage() {
     }
   };
 
-  const mockStats = {
-    followers: 1200,
-    following: 340,
-    likes: '10.5k',
-  };
-
   const actions = [
     { label: 'Settings', icon: Settings, href: '/dashboard/profile/settings' },
     { label: 'Contact Support', icon: Headset, href: '/dashboard/profile/support' },
@@ -134,15 +128,15 @@ export default function ProfilePage() {
         <Card className="w-full max-w-md">
           <CardContent className="flex justify-around p-4 text-center">
             <Link href="/dashboard/profile/connections?tab=followers" className="flex-1">
-              <p className="font-bold text-lg">{mockStats.followers.toLocaleString()}</p>
+              <p className="font-bold text-lg">0</p>
               <p className="text-sm text-muted-foreground">Followers</p>
             </Link>
             <Link href="/dashboard/profile/connections?tab=following" className="flex-1">
-              <p className="font-bold text-lg">{mockStats.following.toLocaleString()}</p>
+              <p className="font-bold text-lg">0</p>
               <p className="text-sm text-muted-foreground">Following</p>
             </Link>
             <div>
-              <p className="font-bold text-lg">{mockStats.likes}</p>
+              <p className="font-bold text-lg">0</p>
               <p className="text-sm text-muted-foreground">Likes</p>
             </div>
           </CardContent>

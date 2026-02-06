@@ -11,15 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Search, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-const mockFollowers = [
-  { id: 'user1', name: 'Jane Doe', avatar: 'https://picsum.photos/seed/101/100/100' },
-  { id: 'user3', name: 'Alice Johnson', avatar: 'https://picsum.photos/seed/103/100/100' },
-];
+const mockFollowers: any[] = [];
+const mockFollowing: any[] = [];
 
-const mockFollowing = [
-  { id: 'user4', name: 'Bob Williams', avatar: 'https://picsum.photos/seed/104/100/100' },
-  { id: 'user1', name: 'Jane Doe', avatar: 'https://picsum.photos/seed/101/100/100' },
-];
 
 function ConnectionsContent() {
   const { toast } = useToast();
@@ -39,7 +33,7 @@ function ConnectionsContent() {
   const filteredFollowers = mockFollowers.filter(user => user.name.toLowerCase().includes(search.toLowerCase()));
   const filteredFollowing = following.filter(user => user.name.toLowerCase().includes(search.toLowerCase()));
 
-  const UserItem = ({ user, type }: { user: typeof mockFollowers[0], type: 'follower' | 'following' }) => (
+  const UserItem = ({ user, type }: { user: {id: string, name: string, avatar: string}, type: 'follower' | 'following' }) => (
      <div className="flex items-center justify-between">
         <Link href={`/dashboard/chat/${user.id}`} className="flex items-center gap-3 flex-1">
             <Avatar>
@@ -85,7 +79,7 @@ function ConnectionsContent() {
               {filteredFollowers.length > 0 ? (
                   filteredFollowers.map(user => <UserItem key={user.id} user={user} type="follower" />)
               ) : (
-                <p className="text-center text-muted-foreground p-6">No followers found.</p>
+                <p className="text-center text-muted-foreground p-6">You have no followers yet.</p>
               )}
             </CardContent>
           </Card>
@@ -96,7 +90,7 @@ function ConnectionsContent() {
                {filteredFollowing.length > 0 ? (
                   filteredFollowing.map(user => <UserItem key={user.id} user={user} type="following" />)
               ) : (
-                <p className="text-center text-muted-foreground p-6">You are not following anyone.</p>
+                <p className="text-center text-muted-foreground p-6">You are not following anyone yet.</p>
               )}
             </CardContent>
           </Card>

@@ -46,18 +46,18 @@ export default function CompleteProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsProcessing(true);
+
     if (!user) {
       toast({
         title: 'Authentication Error',
-        description: 'Your session may have expired. Please sign in again to complete your profile.',
+        description: "We're having trouble verifying your session. Please wait a moment and try again.",
         variant: 'destructive'
       });
-      router.push('/auth/signin');
+      setIsProcessing(false);
       return;
     }
     
-    setIsProcessing(true);
-
     try {
       const profileData = {
         userId: user.$id,
@@ -85,7 +85,7 @@ export default function CompleteProfilePage() {
         console.error("Profile completion error:", error);
         toast({
             title: 'An Error Occurred',
-            description: error.message || 'Could not complete your profile. Please try again.',
+            description: error.message || 'Could not complete your profile. Please ensure you are logged in and try again.',
             variant: 'destructive',
         });
     } finally {
@@ -177,7 +177,7 @@ export default function CompleteProfilePage() {
                 disabled={isProcessing}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isProcessing}>
+            <Button type="submit" className="w-full" disabled={isProcessing || userLoading || !user}>
               {isProcessing ? "Saving..." : "Create Account"}
             </Button>
           </form>
