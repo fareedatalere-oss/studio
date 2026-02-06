@@ -11,8 +11,8 @@ client
 export const account = new Account(client);
 export const databases = new Databases(client);
 
-// Per your instruction, the database ID is 'profiles'.
-export const DATABASE_ID = 'profiles';
+// This is the correct Database ID from your screenshot.
+export const DATABASE_ID = '69857be6001af003c986';
 
 // Collection IDs
 export const COLLECTION_ID_PROFILES = 'profiles';
