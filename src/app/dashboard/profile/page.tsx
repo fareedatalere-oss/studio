@@ -13,7 +13,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { uploadToCloudinary } from '@/app/actions/upload';
 import { account, databases } from '@/lib/appwrite';
 
-// TODO: Replace with your actual Database and Collection IDs from Appwrite
 const DATABASE_ID = 'i-pay-db';
 const COLLECTION_ID_PROFILES = 'profiles';
 
