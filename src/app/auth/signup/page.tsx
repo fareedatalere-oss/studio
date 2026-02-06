@@ -94,7 +94,7 @@ export default function SignUpPage() {
           <CardDescription>Enter your email and password to sign up.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSignUp} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
