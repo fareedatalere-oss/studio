@@ -19,7 +19,7 @@ const COLLECTION_ID_PROFILES = 'profiles';
 export default function CompleteProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user, loading: userLoading } = useUser();
+  const { loading: userLoading } = useUser();
 
   const [formData, setFormData] = useState({
     country: '',
@@ -46,23 +46,15 @@ export default function CompleteProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!user) {
-      toast({
-        title: 'Session Error',
-        description: 'User information not found. Please try signing in again.',
-        variant: 'destructive',
-      });
-      router.push('/auth/signin');
-      return;
-    }
-
     setIsProcessing(true);
     
     try {
+      // Get user information directly on submit. This removes all prior checks and race conditions.
+      const loggedInUser = await account.get();
+
       const profileData = {
-        userId: user.$id,
-        email: user.email,
+        userId: loggedInUser.$id,
+        email: loggedInUser.email,
         username: formData.username,
         country: formData.country,
         pin: formData.pin,
@@ -71,7 +63,7 @@ export default function CompleteProfilePage() {
       await databases.createDocument(
         DATABASE_ID,
         COLLECTION_ID_PROFILES,
-        user.$id,
+        loggedInUser.$id,
         profileData
       );
 
@@ -86,9 +78,10 @@ export default function CompleteProfilePage() {
         console.error("Profile completion error:", error);
         toast({
             title: 'An Error Occurred',
-            description: error.message || 'Could not complete your profile. Please try again.',
+            description: "Your session could not be verified. Please sign in and try again.",
             variant: 'destructive',
         });
+        router.push('/auth/signin');
     } finally {
       setIsProcessing(false);
     }
