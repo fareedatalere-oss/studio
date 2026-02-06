@@ -20,6 +20,7 @@ export default function GetAccountNumberPage() {
   const { user } = useUser();
 
   const [formData, setFormData] = useState({
+    email: '',
     firstName: '',
     lastName: '',
     bvn: '',
@@ -43,11 +44,19 @@ export default function GetAccountNumberPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !user.email) {
+    if (!user) {
       toast({
         variant: 'destructive',
         title: 'Authentication Error',
-        description: 'Could not find user details. Please sign in again.',
+        description: 'You must be logged in to perform this action.',
+      });
+      return;
+    }
+    if (!formData.email) {
+      toast({
+        variant: 'destructive',
+        title: 'Email Required',
+        description: 'Please enter your email address.',
       });
       return;
     }
@@ -56,7 +65,7 @@ export default function GetAccountNumberPage() {
 
     try {
         const result = await generateVirtualAccount({
-            email: user.email,
+            email: formData.email,
             firstname: formData.firstName,
             lastname: formData.lastName,
             phonenumber: formData.phone,
@@ -134,11 +143,15 @@ export default function GetAccountNumberPage() {
         <CardHeader>
           <CardTitle>Generate Account Number</CardTitle>
           <CardDescription>
-            Provide your details to generate a new permanent account number. Your email is {user?.email || 'loading...'}.
+            Provide your details to generate a new permanent account number.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" value={formData.email} onChange={handleChange} placeholder="m@example.com" required />
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First Name</Label>
