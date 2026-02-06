@@ -19,8 +19,7 @@ const COLLECTION_ID_PROFILES = 'profiles';
 export default function CompleteProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
-  // We still use the hook to show a loading skeleton, but not for submission logic
-  const { loading: userLoading } = useUser();
+  const { user, loading: userLoading } = useUser();
 
   const [formData, setFormData] = useState({
     country: '',
@@ -47,15 +46,23 @@ export default function CompleteProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!user) {
+      toast({
+        title: 'Session Error',
+        description: 'User information not found. Please try signing in again.',
+        variant: 'destructive',
+      });
+      router.push('/auth/signin');
+      return;
+    }
+
     setIsProcessing(true);
     
     try {
-      // Get the current user session directly. This is more robust.
-      const currentUser = await account.get();
-
       const profileData = {
-        userId: currentUser.$id,
-        email: currentUser.email,
+        userId: user.$id,
+        email: user.email,
         username: formData.username,
         country: formData.country,
         pin: formData.pin,
@@ -64,7 +71,7 @@ export default function CompleteProfilePage() {
       await databases.createDocument(
         DATABASE_ID,
         COLLECTION_ID_PROFILES,
-        currentUser.$id,
+        user.$id,
         profileData
       );
 
@@ -77,20 +84,11 @@ export default function CompleteProfilePage() {
 
     } catch (error: any) {
         console.error("Profile completion error:", error);
-         if (error.code === 401) { // Appwrite specific code for unauthorized
-             toast({
-                title: 'Session Error',
-                description: 'Your session could not be verified. Please sign in again.',
-                variant: 'destructive',
-            });
-            router.push('/auth/signin');
-        } else {
-            toast({
-                title: 'An Error Occurred',
-                description: error.message || 'Could not complete your profile. Please try again.',
-                variant: 'destructive',
-            });
-        }
+        toast({
+            title: 'An Error Occurred',
+            description: error.message || 'Could not complete your profile. Please try again.',
+            variant: 'destructive',
+        });
     } finally {
       setIsProcessing(false);
     }
@@ -103,7 +101,7 @@ export default function CompleteProfilePage() {
                 <CardHeader>
                     <CardTitle className="text-2xl font-bold">Complete Your Profile</CardTitle>
                     <CardDescription>
-                        Verifying your new account...
+                        Finalizing your new account...
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
