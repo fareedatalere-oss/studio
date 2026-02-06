@@ -60,11 +60,7 @@ export default function SignUpPage() {
       // The `account.create` method also logs the user in, so we don't need to create a session again.
       await account.create(ID.unique(), email, password);
 
-      // Show success and navigate immediately
-      toast({
-        title: 'Success',
-        description: 'Account created successfully! Please complete your profile.',
-      });
+      // Instantly redirect as commanded.
       window.location.href = '/auth/complete-profile';
 
     } catch (error: any) {

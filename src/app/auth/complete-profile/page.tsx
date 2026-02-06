@@ -10,8 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { countries } from '@/lib/countries';
 import { useUser } from '@/hooks/use-appwrite';
-import { account, databases } from '@/lib/appwrite';
-import { Skeleton } from '@/components/ui/skeleton';
+import { databases } from '@/lib/appwrite';
 
 const DATABASE_ID = 'i-pay-db';
 const COLLECTION_ID_PROFILES = 'profiles';
@@ -19,7 +18,7 @@ const COLLECTION_ID_PROFILES = 'profiles';
 export default function CompleteProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { loading: userLoading } = useUser();
+  const { user } = useUser();
 
   const [formData, setFormData] = useState({
     country: '',
@@ -47,76 +46,51 @@ export default function CompleteProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
-    
-    try {
-      // Get user information directly on submit. This is the most reliable way to get the session info.
-      const loggedInUser = await account.get();
 
+    // This is a safety check. If the user object isn't loaded from the hook yet,
+    // we can't proceed. This avoids a frontend crash.
+    if (!user || !user.$id || !user.email) {
+        toast({
+            title: 'A temporary error occurred.',
+            description: "Your user session is still being prepared. Please try clicking 'Create Account' again in a moment.",
+            variant: 'destructive',
+        });
+        setIsProcessing(false);
+        return;
+    }
+
+    try {
       const profileData = {
-        userId: loggedInUser.$id,
-        email: loggedInUser.email,
+        userId: user.$id,
+        email: user.email,
         username: formData.username,
         country: formData.country,
         pin: formData.pin,
       };
 
+      // Directly attempt to create the document.
+      // The Appwrite server will do the real authentication check.
       await databases.createDocument(
         DATABASE_ID,
         COLLECTION_ID_PROFILES,
-        loggedInUser.$id,
+        user.$id,
         profileData
       );
 
-      toast({
-        title: "Profile Complete!",
-        description: "Your account is all set up.",
-      });
-
+      // On success, go straight to the dashboard, as commanded.
       router.push('/dashboard');
 
     } catch (error: any) {
+        // Show the raw database error, as commanded.
         console.error("Profile completion error:", error);
         toast({
-            title: 'A temporary error occurred.',
-            description: "Please wait a moment and try clicking 'Create Account' again.",
+            title: 'Database Error',
+            description: error.message,
             variant: 'destructive',
         });
-    } finally {
-      setIsProcessing(false);
+        setIsProcessing(false); // Stop processing on error so user can retry.
     }
   };
-
-  if (userLoading) {
-      return (
-        <div className="flex min-h-screen items-center justify-center bg-background p-4">
-            <Card className="w-full max-w-lg">
-                <CardHeader>
-                    <CardTitle className="text-2xl font-bold">Complete Your Profile</CardTitle>
-                    <CardDescription>
-                        Finalizing your new account...
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-6">
-                        <div className="space-y-2">
-                            <Label htmlFor="country">Country</Label>
-                             <Skeleton className="h-10 w-full" />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="username">Username</Label>
-                            <Skeleton className="h-10 w-full" />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="pin">5-Digit Transaction PIN</Label>
-                            <Skeleton className="h-10 w-full" />
-                        </div>
-                        <Skeleton className="h-10 w-full" />
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
-      );
-  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
