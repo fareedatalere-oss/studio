@@ -31,10 +31,6 @@ function DashboardContent() {
     if (user) {
       const fetchProfile = async () => {
         try {
-          if (DATABASE_ID.includes('YOUR_') || COLLECTION_ID_PROFILES.includes('YOUR_')) {
-            console.warn("Appwrite database/collection IDs not set.");
-            return;
-          }
           const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
           setUserProfile(profile);
         } catch (error) {

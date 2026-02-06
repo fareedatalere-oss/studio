@@ -46,8 +46,6 @@ export default function CompleteProfilePage() {
     setIsProcessing(true);
 
     try {
-      // Directly get the current user session from Appwrite.
-      // This is the direct command: talk to appwrite, no frontend checks.
       const currentUser = await account.get();
 
       const profileData = {
@@ -58,7 +56,6 @@ export default function CompleteProfilePage() {
         pin: formData.pin,
       };
 
-      // Force the data to the database.
       await databases.createDocument(
         DATABASE_ID,
         COLLECTION_ID_PROFILES,
@@ -66,12 +63,9 @@ export default function CompleteProfilePage() {
         profileData
       );
 
-      // Instantly land on the dashboard. No blocking.
       router.push('/dashboard');
 
     } catch (error: any) {
-        // Any error will come directly from the Appwrite SDK (account.get or databases.createDocument).
-        // This is what you commanded.
         console.error("Profile completion error:", error);
         toast({
             title: 'An error occurred',
