@@ -13,8 +13,8 @@ import { useUser } from '@/hooks/use-appwrite';
 import { generateVirtualAccount } from '@/app/actions/flutterwave';
 import { databases } from '@/lib/appwrite';
 
-const DATABASE_ID = 'YOUR_DATABASE_ID';
-const COLLECTION_ID_PROFILES = 'YOUR_COLLECTION_ID_PROFILES';
+const DATABASE_ID = 'i-pay-db';
+const COLLECTION_ID_PROFILES = 'profiles';
 
 export default function GetAccountNumberPage() {
   const router = useRouter();

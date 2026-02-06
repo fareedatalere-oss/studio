@@ -13,9 +13,8 @@ import { ArrowLeft } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
 import { account, databases } from '@/lib/appwrite';
 
-// TODO: Replace with your actual Database and Collection IDs from Appwrite
-const DATABASE_ID = 'YOUR_DATABASE_ID';
-const COLLECTION_ID_PROFILES = 'YOUR_COLLECTION_ID_PROFILES';
+const DATABASE_ID = 'i-pay-db';
+const COLLECTION_ID_PROFILES = 'profiles';
 
 export default function SettingsPage() {
   const router = useRouter();

@@ -15,9 +15,8 @@ import { databases } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 import { uploadToCloudinary } from '@/app/actions/upload';
 
-// TODO: Replace with your actual Database and Collection IDs from Appwrite
-const DATABASE_ID = 'YOUR_DATABASE_ID';
-const COLLECTION_ID_POSTS = 'YOUR_COLLECTION_ID_POSTS';
+const DATABASE_ID = 'i-pay-db';
+const COLLECTION_ID_POSTS = 'posts';
 
 export default function UploadMusicPage() {
   const { toast } = useToast();
