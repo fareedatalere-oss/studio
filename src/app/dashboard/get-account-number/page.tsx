@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -13,9 +13,8 @@ import { useUser } from '@/hooks/use-appwrite';
 import { generateVirtualAccount } from '@/app/actions/flutterwave';
 import { databases } from '@/lib/appwrite';
 
-// TODO: Replace with your actual Database and Collection IDs from Appwrite
-const DATABASE_ID = 'i-pay-db'; // example: '60d5e2d6b3f7e'
-const COLLECTION_ID_PROFILES = 'profiles'; // example: '60d5e2f1d8c0f'
+const DATABASE_ID = 'i-pay-db';
+const COLLECTION_ID_PROFILES = 'profiles';
 
 export default function GetAccountNumberPage() {
   const router = useRouter();
@@ -29,69 +28,10 @@ export default function GetAccountNumberPage() {
     phone: '',
   });
 
-  const [step, setStep] = useState<'form' | 'displayAccount' | 'saving'>('form');
+  const [step, setStep] = useState<'form' | 'displayAccount'>('form');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [generatedAccount, setGeneratedAccount] = useState<{ number: string; bank: string } | null>(null);
-  const [countdown, setCountdown] = useState(15);
-  
-  useEffect(() => {
-    if (countdown === 0 && step === 'saving') {
-      router.push('/dashboard');
-    }
-  }, [countdown, step, router]);
-
-  useEffect(() => {
-    if (step !== 'saving') return;
-
-    let timer: NodeJS.Timeout | undefined;
-
-    const performSave = async () => {
-      if (!user || !generatedAccount) {
-        toast({
-          variant: "destructive",
-          title: "Critical Error",
-          description: "Could not save account due to missing data. Please try again.",
-        });
-        setStep('displayAccount');
-        return;
-      }
-      
-      const accountData = {
-        accountNumber: generatedAccount.number,
-        bankName: generatedAccount.bank,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        phone: formData.phone,
-        bvn: formData.bvn,
-      };
-
-      try {
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, accountData);
-        console.log("Account and notification saved successfully in the background.");
-
-        timer = setInterval(() => {
-          setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
-        }, 1000);
-
-      } catch (serverError: any) {
-        console.error("Background save failed:", serverError);
-        toast({
-            variant: "destructive",
-            title: "Save Failed",
-            description: serverError.message || "Your account details could not be saved to the database. Please try again.",
-        });
-        setStep('displayAccount');
-      }
-    };
-
-    performSave();
-    
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-
-  }, [step, user, generatedAccount, formData, toast, router]);
-
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -150,26 +90,45 @@ export default function GetAccountNumberPage() {
     }
   };
   
-  const handleSaveAndFinish = () => {
-    setStep('saving');
-  };
+  const handleSaveAndFinish = async () => {
+    if (!user || !generatedAccount) {
+      toast({
+        variant: "destructive",
+        title: "Critical Error",
+        description: "Could not save account due to missing data. Please try again.",
+      });
+      return;
+    }
+    
+    setIsSaving(true);
+    
+    const accountData = {
+        accountNumber: generatedAccount.number,
+        bankName: generatedAccount.bank,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phone: formData.phone,
+        bvn: formData.bvn,
+    };
 
-  if (step === 'saving') {
-    return (
-      <div className="container py-8">
-        <Card className="w-full max-w-lg mx-auto">
-          <CardHeader>
-            <CardTitle>Saving Your Account</CardTitle>
-            <CardDescription>Please wait. Your account details are being saved to the database.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center justify-center space-y-4 h-48">
-            <p className="text-6xl font-bold font-mono">{countdown}</p>
-            <p className="text-muted-foreground">Redirecting to dashboard shortly...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+    try {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, accountData);
+        toast({
+            title: "Account Saved!",
+            description: "Your new account details are saved to your profile.",
+        });
+        router.push('/dashboard');
+    } catch (serverError: any) {
+        console.error("Account save failed:", serverError);
+        toast({
+            variant: "destructive",
+            title: "Save Failed",
+            description: serverError.message || "Your account details could not be saved. Please try again.",
+        });
+    } finally {
+        setIsSaving(false);
+    }
+  };
 
   if (step === 'displayAccount') {
     return (
@@ -186,8 +145,13 @@ export default function GetAccountNumberPage() {
                         <Label className="mt-2">Account Number</Label>
                         <p className="text-2xl font-bold font-mono tracking-wider">{generatedAccount?.number}</p>
                     </div>
-                    <Button onClick={handleSaveAndFinish} className="w-full">
-                        Done
+                    <Button onClick={handleSaveAndFinish} className="w-full" disabled={isSaving}>
+                        {isSaving ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Saving...
+                            </>
+                        ) : 'Done'}
                     </Button>
                 </CardContent>
             </Card>
