@@ -38,7 +38,6 @@ import { formatDistanceToNow } from 'date-fns';
 import { databases } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 
-const DATABASE_ID = 'i-pay-db';
 const COLLECTION_ID_POSTS = 'posts';
 
 
@@ -54,7 +53,7 @@ const PostCard = ({ post }: { post: any }) => {
       : [...currentLikes, currentUser.$id];
 
     try {
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_POSTS, post.$id, {
+        await databases.updateDocument(COLLECTION_ID_POSTS, post.$id, {
             likes: newLikes
         });
     } catch (error) {
@@ -142,12 +141,7 @@ const PostFeed = ({ type }: { type: string }) => {
     const fetchPosts = async () => {
         setLoading(true);
         try {
-            if (DATABASE_ID.includes('YOUR_') || COLLECTION_ID_POSTS.includes('YOUR_')) {
-                console.warn("Appwrite post collection not configured.");
-                setPosts([]);
-                return;
-            }
-            const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [
+            const response = await databases.listDocuments(COLLECTION_ID_POSTS, [
                 Query.equal('type', type),
                 Query.orderDesc('$createdAt'),
             ]);
@@ -161,7 +155,7 @@ const PostFeed = ({ type }: { type: string }) => {
     fetchPosts();
 
     // Appwrite real-time subscription
-    const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_POSTS}.documents`, response => {
+    const unsubscribe = databases.client.subscribe(`databases.i-pay-db.collections.${COLLECTION_ID_POSTS}.documents`, response => {
         // Refetch or update posts list
         fetchPosts();
     });

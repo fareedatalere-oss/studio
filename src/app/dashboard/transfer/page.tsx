@@ -15,7 +15,6 @@ import { useUser } from '@/hooks/use-appwrite';
 import { databases } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 
-const DATABASE_ID = 'i-pay-db';
 const COLLECTION_ID_TRANSACTIONS = 'transactions';
 const COLLECTION_ID_PROFILES = 'profiles';
 
@@ -73,7 +72,7 @@ export default function TransferPage() {
 
         try {
             // Check PIN against user's profile
-            const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
+            const userProfile = await databases.getDocument(COLLECTION_ID_PROFILES, user.$id);
             if (userProfile.pin !== pin) {
                 throw new Error('Incorrect transaction PIN.');
             }
@@ -93,7 +92,6 @@ export default function TransferPage() {
             };
 
             await databases.createDocument(
-                DATABASE_ID,
                 COLLECTION_ID_TRANSACTIONS,
                 ID.unique(),
                 transactionData

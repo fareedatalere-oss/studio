@@ -13,7 +13,6 @@ import { databases } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 import { uploadToCloudinary } from '@/app/actions/upload';
 
-const DATABASE_ID = 'i-pay-db';
 const COLLECTION_ID_POSTS = 'posts';
 
 export default function UploadReelsPage() {
@@ -71,7 +70,7 @@ export default function UploadReelsPage() {
                 likes: [],
                 commentCount: 0,
             };
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
+            await databases.createDocument(COLLECTION_ID_POSTS, ID.unique(), newPost);
             toast({ title: 'Reel Posted!', description: 'Your reel is now live.' });
             router.push('/dashboard/media');
         } else {

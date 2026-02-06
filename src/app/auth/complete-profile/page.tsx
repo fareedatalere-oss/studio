@@ -11,7 +11,6 @@ import { useToast } from '@/hooks/use-toast';
 import { countries } from '@/lib/countries';
 import { account, databases } from '@/lib/appwrite';
 
-const DATABASE_ID = 'i-pay-db';
 const COLLECTION_ID_PROFILES = 'profiles';
 
 export default function CompleteProfilePage() {
@@ -57,7 +56,6 @@ export default function CompleteProfilePage() {
       };
 
       await databases.createDocument(
-        DATABASE_ID,
         COLLECTION_ID_PROFILES,
         currentUser.$id,
         profileData

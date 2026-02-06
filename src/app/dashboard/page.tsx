@@ -19,7 +19,6 @@ import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { databases } from '@/lib/appwrite';
 
-const DATABASE_ID = 'i-pay-db';
 const COLLECTION_ID_PROFILES = 'profiles';
 
 function DashboardContent() {
@@ -31,7 +30,7 @@ function DashboardContent() {
     if (user) {
       const fetchProfile = async () => {
         try {
-          const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
+          const profile = await databases.getDocument(COLLECTION_ID_PROFILES, user.$id);
           setUserProfile(profile);
         } catch (error) {
           console.error("Failed to fetch user profile:", error);

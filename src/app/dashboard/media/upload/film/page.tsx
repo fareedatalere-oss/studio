@@ -17,7 +17,6 @@ import { ID } from 'appwrite';
 import { uploadToCloudinary } from '@/app/actions/upload';
 
 
-const DATABASE_ID = 'i-pay-db';
 const COLLECTION_ID_POSTS = 'posts';
 
 export default function UploadFilmPage() {
@@ -78,7 +77,7 @@ export default function UploadFilmPage() {
                     likes: [],
                     commentCount: 0,
                 };
-                await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
+                await databases.createDocument(COLLECTION_ID_POSTS, ID.unique(), newPost);
                 toast({
                     title: 'Film Uploaded!',
                     description: 'Your film is now live.',

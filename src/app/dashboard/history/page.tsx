@@ -11,7 +11,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { databases } from "@/lib/appwrite";
 import { Query } from "appwrite";
 
-const DATABASE_ID = 'i-pay-db';
 const COLLECTION_ID_TRANSACTIONS = 'transactions';
 
 export default function HistoryPage() {
@@ -25,7 +24,6 @@ export default function HistoryPage() {
                 setLoading(true);
                 try {
                     const response = await databases.listDocuments(
-                        DATABASE_ID,
                         COLLECTION_ID_TRANSACTIONS,
                         [
                             Query.equal('userId', user.$id),
