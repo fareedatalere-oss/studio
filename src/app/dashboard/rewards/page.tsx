@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,46 +8,78 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useUser } from '@/hooks/use-appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function RewardsPage() {
     const { toast } = useToast();
-    const [step, setStep] = useState('rules'); // 'rules', 'referral', 'main'
+    const { user, loading: userLoading } = useUser();
+    
+    const [userProfile, setUserProfile] = useState<any>(null);
+    const [profileLoading, setProfileLoading] = useState(true);
+    
+    // UI State
+    const [step, setStep] = useState('loading'); // 'loading', 'rules', 'referral', 'main'
     const [referralCode, setReferralCode] = useState('');
-    const [clickCount, setClickCount] = useState(0);
-    const [rewardBalance, setRewardBalance] = useState(0);
-    const [hasReferral, setHasReferral] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [monetizationLink, setMonetizationLink] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
 
     const OUO_API_KEY = 'YC3xdMJB';
 
-    const handleAccept = () => {
-        setStep('referral');
-    };
+    useEffect(() => {
+        if (user) {
+            const fetchProfile = async () => {
+                try {
+                    const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
+                    setUserProfile(profile);
+                    if (profile.hasReferral === null) { // First time user
+                        setStep('rules');
+                    } else {
+                        setStep('main');
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch profile", error);
+                    toast({ variant: 'destructive', title: 'Error', description: 'Could not load your profile.' });
+                } finally {
+                    setProfileLoading(false);
+                }
+            };
+            fetchProfile();
+        } else if (!userLoading) {
+            setProfileLoading(false);
+            // Redirect or show error if no user
+        }
+    }, [user, userLoading, toast]);
 
-    const handleSetReferral = () => {
-        if (referralCode === "johndoe@example.com") {
-             toast({
-                title: 'Invalid Referral',
-                description: "You can't use your own email as a referral code.",
-                variant: 'destructive',
-            });
+
+    const handleAccept = () => setStep('referral');
+
+    const handleSetReferral = async (skipped = false) => {
+        if (!user) return;
+        setIsProcessing(true);
+
+        let hasReferral = !skipped && referralCode.length > 0;
+
+        if (hasReferral && referralCode === user.email) {
+            toast({ variant: 'destructive', title: 'Invalid Referral', description: "You can't use your own email." });
+            setIsProcessing(false);
             return;
         }
-        if (referralCode) {
-            console.log("Referral code set:", referralCode);
-            setHasReferral(true);
-            toast({
-                title: 'Referral Set!',
-                description: 'You now have a referral bonus active.',
-            });
+
+        try {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, { hasReferral });
+            setUserProfile((prev: any) => ({ ...prev, hasReferral }));
+            if (hasReferral) {
+                toast({ title: 'Referral Set!', description: 'You now have a referral bonus active.' });
+            }
+            setStep('main');
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not save your choice.' });
+        } finally {
+            setIsProcessing(false);
         }
-        setStep('main');
-    };
-    
-    const handleSkipReferral = () => {
-        console.log("Referral skipped");
-        setStep('main');
     };
     
     const handleSearch = () => {
@@ -58,36 +90,71 @@ export default function RewardsPage() {
         }
     }
 
-    const handleMonetizationClick = () => {
-        const newClickCount = clickCount + 1;
-        setClickCount(newClickCount);
-        setMonetizationLink('');
-        setSearchQuery('');
+    const handleMonetizationClick = async () => {
+        if (!user || !userProfile) return;
 
-        let requiredClicks = hasReferral ? 1200 : 1000;
+        const newClickCount = (userProfile.clickCount || 0) + 1;
+        let newRewardBalance = userProfile.rewardBalance || 0;
+
+        const requiredClicks = userProfile.hasReferral ? 1200 : 1000;
 
         if (newClickCount > 0 && newClickCount % requiredClicks === 0) {
             const earnedAmount = 1000;
-            setRewardBalance(prev => prev + earnedAmount);
+            newRewardBalance += earnedAmount;
             toast({
                 title: 'Reward Earned!',
-                description: `You earned ₦${earnedAmount} in your reward balance.`,
+                description: `You earned ₦${earnedAmount.toLocaleString()} in your reward balance.`,
             });
         }
-         // Simulate referral bonus
-        if (hasReferral && newClickCount > 0 && newClickCount % 1200 === 0) {
-            // In a real app, you would credit the referrer.
-            console.log("Crediting 200 click count to referrer");
+        
+        try {
+             const updatedProfile = await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, {
+                clickCount: newClickCount,
+                rewardBalance: newRewardBalance
+            });
+            setUserProfile(updatedProfile);
+        } catch (error) {
+            console.error("Failed to update clicks/rewards", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not save your progress.' });
         }
+
+        setMonetizationLink('');
+        setSearchQuery('');
     };
     
-    const handleWithdraw = () => {
-        toast({
-            title: 'Withdrawal Initiated',
-            description: 'Your request is being processed and you will be credited soon.',
-        });
-        setRewardBalance(0);
-        setClickCount(0);
+    const handleWithdraw = async () => {
+        if (!user || !userProfile || (userProfile.rewardBalance || 0) < 10000) return;
+        
+        setIsProcessing(true);
+        toast({ title: 'Processing Withdrawal...' });
+
+        try {
+            const newNairaBalance = (userProfile.nairaBalance || 0) + userProfile.rewardBalance;
+
+            const updatedProfile = await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, {
+                nairaBalance: newNairaBalance,
+                rewardBalance: 0,
+                clickCount: 0 // Also reset click count on withdrawal
+            });
+            setUserProfile(updatedProfile);
+            toast({
+                title: 'Withdrawal Successful!',
+                description: `₦${userProfile.rewardBalance.toLocaleString()} has been added to your main balance.`,
+            });
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Withdrawal Failed', description: 'Could not process your withdrawal.' });
+        } finally {
+            setIsProcessing(false);
+        }
+    }
+    
+    if (userLoading || profileLoading || step === 'loading') {
+        return (
+             <div className="container py-8">
+                <Skeleton className="h-8 w-36 mb-4" />
+                <Card><CardContent className="p-6"><Skeleton className="h-48 w-full" /></CardContent></Card>
+             </div>
+        )
     }
     
     const renderRules = () => (
@@ -129,8 +196,8 @@ export default function RewardsPage() {
                         />
                     </div>
                     <div className="flex gap-2">
-                            <Button onClick={handleSetReferral} className="w-full">Done</Button>
-                            <Button onClick={handleSkipReferral} variant="secondary" className="w-full">Skip</Button>
+                            <Button onClick={() => handleSetReferral(false)} className="w-full" disabled={isProcessing || !referralCode}>Done</Button>
+                            <Button onClick={() => handleSetReferral(true)} variant="secondary" className="w-full" disabled={isProcessing}>Skip</Button>
                     </div>
                 </CardContent>
             </Card>
@@ -151,11 +218,11 @@ export default function RewardsPage() {
                     <CardContent className="flex justify-between items-center">
                         <div>
                             <p className="text-sm text-muted-foreground">Reward Balance</p>
-                            <p className="text-2xl font-bold">₦{rewardBalance.toLocaleString()}</p>
+                            <p className="text-2xl font-bold">₦{(userProfile?.rewardBalance || 0).toLocaleString()}</p>
                         </div>
                         <div>
                             <p className="text-sm text-muted-foreground">Click Count</p>
-                            <p className="text-2xl font-bold">{clickCount.toLocaleString()}</p>
+                            <p className="text-2xl font-bold">{(userProfile?.clickCount || 0).toLocaleString()}</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -178,17 +245,16 @@ export default function RewardsPage() {
                             </div>
                         ) : (
                              <Button
-                                onClick={handleMonetizationClick}
-                                className="w-full h-12"
                                 asChild
+                                className="w-full h-12"
                             >
-                               <a href={monetizationLink} target="_blank" rel="noopener noreferrer">Click Monetization Link</a>
+                               <a href={monetizationLink} target="_blank" rel="noopener noreferrer" onClick={handleMonetizationClick}>Click Monetization Link</a>
                             </Button>
                         )}
 
-                        {rewardBalance >= 10000 && (
-                                <Button onClick={handleWithdraw} className="w-full mt-4" variant="secondary">
-                                Withdraw Rewards
+                        {(userProfile?.rewardBalance || 0) >= 10000 && (
+                                <Button onClick={handleWithdraw} className="w-full mt-4" variant="secondary" disabled={isProcessing}>
+                                {isProcessing ? 'Withdrawing...' : 'Withdraw Rewards'}
                             </Button>
                         )}
                     </CardContent>
@@ -204,7 +270,12 @@ export default function RewardsPage() {
             return renderReferral();
         case 'main':
             return renderMain();
-        default:
-            return renderRules();
+        default: // loading
+            return (
+                 <div className="container py-8">
+                    <Skeleton className="h-8 w-36 mb-4" />
+                    <Card><CardContent className="p-6"><Skeleton className="h-48 w-full" /></CardContent></Card>
+                 </div>
+            );
     }
 }

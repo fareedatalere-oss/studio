@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, Loader2, ClipboardCopy } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -9,9 +9,15 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { generateVirtualAccount } from '@/app/actions/flutterwave';
+import { useUser } from '@/hooks/use-appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
+import { useRouter } from 'next/navigation';
 
 export default function GetAccountNumberPage() {
   const { toast } = useToast();
+  const router = useRouter();
+  const { user } = useUser();
+
   const [formData, setFormData] = useState({
     email: '',
     firstName: '',
@@ -22,6 +28,23 @@ export default function GetAccountNumberPage() {
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedAccount, setGeneratedAccount] = useState<{ number: string; bank: string } | null>(null);
+  const [countdown, setCountdown] = useState(15);
+
+  // Effect for countdown timer
+  useEffect(() => {
+    if (generatedAccount && countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (generatedAccount && countdown === 0) {
+      router.push('/dashboard');
+    }
+  }, [generatedAccount, countdown, router]);
+  
+  useEffect(() => {
+    if(user) {
+        setFormData(prev => ({ ...prev, email: user.email }));
+    }
+  }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -36,6 +59,11 @@ export default function GetAccountNumberPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+        toast({ variant: 'destructive', title: 'Error', description: 'You must be logged in.' });
+        return;
+    }
+    
     if (!formData.email) {
       toast({
         variant: 'destructive',
@@ -61,10 +89,22 @@ export default function GetAccountNumberPage() {
                 number: result.data.account_number,
                 bank: result.data.bank_name,
             };
+            
+            // Save account number and initialize balances in Appwrite
+            await databases.updateDocument(
+                DATABASE_ID,
+                COLLECTION_ID_PROFILES,
+                user.$id,
+                {
+                    accountNumber: accountInfo.number,
+                    bankName: accountInfo.bank,
+                }
+            );
+
             setGeneratedAccount(accountInfo);
              toast({
                 title: "Account Generated!",
-                description: "Here are your new account details.",
+                description: "Redirecting to dashboard shortly.",
             });
         } else {
             throw new Error(result.message || 'An unknown error occurred while generating the account.');
@@ -89,15 +129,11 @@ export default function GetAccountNumberPage() {
   if (generatedAccount) {
     return (
         <div className="container py-8">
-            <Link href="/dashboard" className="flex items-center gap-2 mb-4 text-sm">
-                <ArrowLeft className="h-4 w-4" />
-                Back to Dashboard
-            </Link>
             <Card className="w-full max-w-lg mx-auto">
                 <CardHeader>
                     <CardTitle>Account Generated Successfully!</CardTitle>
                     <CardDescription>
-                        Here are your new account details. Remember to save them as they are not stored for you.
+                        Here are your new account details. Redirecting to the dashboard in {countdown} seconds...
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -115,7 +151,7 @@ export default function GetAccountNumberPage() {
                         </div>
                     </div>
                     <Button asChild className="w-full mt-4">
-                        <Link href="/dashboard">Done</Link>
+                        <Link href="/dashboard">Go to Dashboard Now</Link>
                     </Button>
                 </CardContent>
             </Card>
@@ -140,7 +176,7 @@ export default function GetAccountNumberPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={formData.email} onChange={handleChange} placeholder="m@example.com" required />
+              <Input id="email" type="email" value={formData.email} onChange={handleChange} placeholder="m@example.com" required readOnly={!!user?.email}/>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">

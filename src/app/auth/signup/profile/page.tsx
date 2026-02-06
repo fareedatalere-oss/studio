@@ -13,6 +13,7 @@ import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/a
 import { countries } from '@/lib/countries';
 import { IPayLogo } from '@/components/icons';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ID } from 'appwrite';
 
 export default function CompleteProfilePage() {
   const router = useRouter();
@@ -68,6 +69,12 @@ export default function CompleteProfilePage() {
             username: username,
             country: country,
             pin: pin,
+            // Initialize balances and other fields
+            nairaBalance: 0,
+            rewardBalance: 0,
+            clickCount: 0,
+            avatar: '',
+            hasReferral: null, // Set to null to trigger referral setup
         };
 
         // Upsert logic: Try to create, and if it already exists, update it.
@@ -81,11 +88,16 @@ export default function CompleteProfilePage() {
         } catch (error: any) {
              // Appwrite throws a 409 conflict error if the document already exists
             if (error.code === 409) {
-                await databases.updateDocument(
+                // We only update the core profile info, don't overwrite balances
+                 await databases.updateDocument(
                     DATABASE_ID,
                     COLLECTION_ID_PROFILES,
                     user.$id,
-                    profileData
+                    {
+                        username: username,
+                        country: country,
+                        pin: pin,
+                    }
                 );
             } else {
                 // If it's a different error, we want to see it.
