@@ -65,7 +65,7 @@ export default function SignUpPage() {
         title: 'Success',
         description: 'Account created successfully! Please complete your profile.',
       });
-      router.push('/auth/complete-profile');
+      window.location.href = '/auth/complete-profile';
 
     } catch (error: any) {
       console.error("Sign up error:", error);
