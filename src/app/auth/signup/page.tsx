@@ -79,7 +79,6 @@ export default function SignUpPage() {
       
       // Create the profile document in the database
       const profileData = {
-          uid: newUser.$id,
           email: email,
           pin: pin,
           username: email.split('@')[0], // A default username
