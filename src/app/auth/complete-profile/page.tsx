@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,10 +11,10 @@ import { useToast } from '@/hooks/use-toast';
 import { countries } from '@/lib/countries';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases } from '@/lib/appwrite';
+import { Skeleton } from '@/components/ui/skeleton';
 
-// TODO: Replace with your actual Database and Collection IDs from Appwrite
-const DATABASE_ID = 'YOUR_DATABASE_ID'; // example: '60d5e2d6b3f7e'
-const COLLECTION_ID_PROFILES = 'YOUR_COLLECTION_ID_PROFILES'; // example: '60d5e2f1d8c0f'
+const DATABASE_ID = 'i-pay-db';
+const COLLECTION_ID_PROFILES = 'profiles';
 
 export default function CompleteProfilePage() {
   const router = useRouter();
@@ -28,17 +28,6 @@ export default function CompleteProfilePage() {
   });
 
   const [isProcessing, setIsProcessing] = useState(false);
-
-  useEffect(() => {
-    if (!userLoading && !user) {
-      toast({
-        title: 'Authentication Required',
-        description: 'Please sign up or sign in first.',
-        variant: 'destructive',
-      });
-      router.replace('/auth/signup');
-    }
-  }, [user, userLoading, router, toast]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -58,18 +47,13 @@ export default function CompleteProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      toast({ title: 'Not authenticated', description: 'No user is signed in.', variant: 'destructive' });
+      toast({
+        title: 'Authentication Error',
+        description: 'Your session may have expired. Please sign in again to complete your profile.',
+        variant: 'destructive'
+      });
+      router.push('/auth/signin');
       return;
-    }
-
-    if (DATABASE_ID.includes('YOUR_') || COLLECTION_ID_PROFILES.includes('YOUR_')) {
-        toast({
-            title: "Configuration Needed",
-            description: "Please ask your AI assistant to configure the database and collection IDs in src/app/auth/complete-profile/page.tsx before saving your profile.",
-            variant: "destructive",
-            duration: 9000,
-        });
-        return;
     }
     
     setIsProcessing(true);
@@ -86,7 +70,7 @@ export default function CompleteProfilePage() {
       await databases.createDocument(
         DATABASE_ID,
         COLLECTION_ID_PROFILES,
-        user.$id, // Use user's Appwrite ID as document ID
+        user.$id,
         profileData
       );
 
@@ -110,7 +94,35 @@ export default function CompleteProfilePage() {
   };
 
   if (userLoading) {
-      return null;
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background p-4">
+            <Card className="w-full max-w-lg">
+                <CardHeader>
+                    <CardTitle className="text-2xl font-bold">Complete Your Profile</CardTitle>
+                    <CardDescription>
+                        Just a few more details to get you started.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-6">
+                        <div className="space-y-2">
+                            <Label htmlFor="country">Country</Label>
+                             <Skeleton className="h-10 w-full" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="username">Username</Label>
+                            <Skeleton className="h-10 w-full" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="pin">5-Digit Transaction PIN</Label>
+                            <Skeleton className="h-10 w-full" />
+                        </div>
+                        <Skeleton className="h-10 w-full" />
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+      );
   }
 
   return (
@@ -119,7 +131,7 @@ export default function CompleteProfilePage() {
         <CardHeader>
           <CardTitle className="text-2xl font-bold">Complete Your Profile</CardTitle>
           <CardDescription>
-            Just a few more details to get you started. Before saving, ensure your developer has set up the 'profiles' collection in your Appwrite database with the necessary attributes (userId, username, country, pin) and permissions.
+            Just a few more details to get you started.
           </CardDescription>
         </CardHeader>
         <CardContent>
