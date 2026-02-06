@@ -20,7 +20,7 @@
         "bankName": { "type": "string", "description": "The bank name for the virtual account." },
         "avatar": { "type": "string", "format": "uri", "description": "URL to the user's profile picture." }
       },
-      "required": ["uid", "email", "createdAt"]
+      "required": ["uid", "email", "createdAt", "username", "country", "pin"]
     },
     "Notification": {
       "title": "Notification",

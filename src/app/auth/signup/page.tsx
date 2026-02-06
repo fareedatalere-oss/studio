@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
-import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
+import { account } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 
 const MANAGER_EMAIL = 'i-paymanagerscare402@gmail.com';
@@ -19,24 +19,16 @@ export default function SignUpPage() {
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [pin, setPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (/^\d{0,5}$/.test(value)) {
-        setPin(value);
-    }
-  };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    if (!email || !password || pin.length !== 5) {
+    if (!email || !password) {
       toast({
         title: 'Error',
-        description: 'Email, password, and a 5-digit PIN are required.',
+        description: 'Email and password are required.',
         variant: 'destructive',
       });
       setIsLoading(false);
@@ -72,30 +64,18 @@ export default function SignUpPage() {
       });
 
       // Create the user account
-      const newUser = await account.create(ID.unique(), email, password);
+      await account.create(ID.unique(), email, password);
       
       // Explicitly create a session to ensure it's active before the redirect.
       await account.createEmailPasswordSession(email, password);
-      
-      // Create the profile document in the database, saving ONLY the pin as commanded.
-      const profileData = {
-          pin: pin,
-      };
-
-      await databases.createDocument(
-        DATABASE_ID,
-        COLLECTION_ID_PROFILES,
-        newUser.$id,
-        profileData
-      );
 
       toast({
           title: 'Account Created!',
-          description: "Welcome to I-Pay. You are now logged in.",
+          description: "Next, complete your profile.",
       });
 
-      // Instantly redirect as commanded.
-      router.push('/dashboard');
+      // Redirect to the profile setup page
+      router.push('/auth/signup/profile');
 
     } catch (error: any) {
       console.error("Sign up error:", error);
@@ -121,7 +101,7 @@ export default function SignUpPage() {
         <CardHeader className="text-center">
           <IPayLogo className="mx-auto h-12 w-12" />
           <CardTitle className="mt-4 text-2xl font-bold">Create an Account</CardTitle>
-          <CardDescription>Provide your email, password, and transaction PIN.</CardDescription>
+          <CardDescription>Provide your email and password to get started.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignUp} className="space-y-4">
@@ -148,23 +128,8 @@ export default function SignUpPage() {
                 disabled={isLoading}
               />
             </div>
-             <div className="space-y-2">
-              <Label htmlFor="pin">5-Digit Transaction PIN</Label>
-              <Input
-                id="pin"
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={pin}
-                onChange={handlePinChange}
-                maxLength={5}
-                placeholder="e.g. 12345"
-                required
-                disabled={isLoading}
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={isLoading || !email || !password || pin.length !== 5}>
-              {isLoading ? "Creating Account..." : "Sign Up"}
+            <Button type="submit" className="w-full" disabled={isLoading || !email || !password}>
+              {isLoading ? "Creating Account..." : "Continue"}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">
