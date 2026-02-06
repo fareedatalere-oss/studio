@@ -47,6 +47,13 @@ export default function SignInPage() {
     }
     
     try {
+      // Delete any existing session before trying to sign in.
+      // This is the fix that allows you to test sign-in repeatedly.
+      await account.deleteSession('current').catch(() => {
+        // Ignore error if no session exists
+        console.log("No active session to delete. Proceeding with signin.");
+      });
+
       await account.createEmailPasswordSession(email, password);
 
       // Successful sign-in, redirect immediately.
