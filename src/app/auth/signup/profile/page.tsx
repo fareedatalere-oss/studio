@@ -70,13 +70,28 @@ export default function CompleteProfilePage() {
             pin: pin,
         };
 
-        // The document ID for the profile should be the user's ID
-        await databases.createDocument(
-            DATABASE_ID,
-            COLLECTION_ID_PROFILES,
-            user.$id,
-            profileData
-        );
+        // Upsert logic: Try to create, and if it already exists, update it.
+        try {
+            await databases.createDocument(
+                DATABASE_ID,
+                COLLECTION_ID_PROFILES,
+                user.$id,
+                profileData
+            );
+        } catch (error: any) {
+             // Appwrite throws a 409 conflict error if the document already exists
+            if (error.code === 409) {
+                await databases.updateDocument(
+                    DATABASE_ID,
+                    COLLECTION_ID_PROFILES,
+                    user.$id,
+                    profileData
+                );
+            } else {
+                // If it's a different error, we want to see it.
+                throw error;
+            }
+        }
         
         toast({
             title: 'Profile Complete!',
