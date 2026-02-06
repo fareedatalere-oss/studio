@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,17 @@ export default function CompleteProfilePage() {
   });
 
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    if (!userLoading && !user) {
+      toast({
+        title: 'Session Expired',
+        description: 'Your session has expired. Please sign in again.',
+        variant: 'destructive',
+      });
+      router.push('/auth/signin');
+    }
+  }, [user, userLoading, router, toast]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -93,14 +104,14 @@ export default function CompleteProfilePage() {
     }
   };
 
-  if (userLoading) {
+  if (userLoading || !user) {
       return (
         <div className="flex min-h-screen items-center justify-center bg-background p-4">
             <Card className="w-full max-w-lg">
                 <CardHeader>
                     <CardTitle className="text-2xl font-bold">Complete Your Profile</CardTitle>
                     <CardDescription>
-                        Just a few more details to get you started.
+                        Verifying your session...
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -177,7 +188,7 @@ export default function CompleteProfilePage() {
                 disabled={isProcessing}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isProcessing || userLoading || !user}>
+            <Button type="submit" className="w-full" disabled={isProcessing}>
               {isProcessing ? "Saving..." : "Create Account"}
             </Button>
           </form>
