@@ -57,8 +57,12 @@ export default function SignUpPage() {
     }
 
     try {
-      // The `account.create` method also logs the user in, so we don't need to create a session again.
+      // Create the user account
       await account.create(ID.unique(), email, password);
+      
+      // Explicitly create a session to ensure it's active before the redirect.
+      // This is to prevent session issues on the next page.
+      await account.createEmailPasswordSession(email, password);
 
       // Instantly redirect as commanded.
       window.location.href = '/auth/complete-profile';
