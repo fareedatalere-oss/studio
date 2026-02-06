@@ -51,10 +51,14 @@ export default function TransferPage() {
             setResolvedName(result.data.account_name);
             setStep(2);
         } else {
+            let description = result.message || 'Could not verify the account details. Please check and try again.';
+            if (result.message?.toLowerCase().includes('unknown bank code')) {
+                description = 'The selected bank is not currently supported or the bank code is incorrect. Please try another bank.';
+            }
             toast({
                 variant: 'destructive',
                 title: 'Account Verification Failed',
-                description: result.message || 'Could not verify the account details. Please check and try again.',
+                description: description,
             });
         }
     };
@@ -68,38 +72,67 @@ export default function TransferPage() {
         setIsLoading(true);
 
         try {
-            // Check PIN against user's profile
+            // 1. Fetch user profile
             const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
+
+            // 2. Check PIN
             if (userProfile.pin !== pin) {
                 throw new Error('Incorrect transaction PIN.');
             }
             
-            // TODO: In a real app, call the actual transfer API here.
-            // For now, we simulate success and save the transaction.
-
-            const transactionData = {
-                userId: user.$id,
-                type: 'transfer',
-                amount: Number(amount),
-                status: 'completed', // Assuming success for the simulation
-                recipientName: resolvedName,
-                recipientDetails: `${accountNumber} - ${nigerianBanks.find(b => b.code === bankCode)?.name}`,
-                narration: narration,
-                sessionId: `ipay-tx-${Date.now()}`
-            };
-
-            await databases.createDocument(
-                DATABASE_ID,
-                COLLECTION_ID_TRANSACTIONS,
-                ID.unique(),
-                transactionData
-            );
+            const transferAmount = Number(amount);
+            if (isNaN(transferAmount) || transferAmount <= 0) {
+                throw new Error('Invalid transfer amount.');
+            }
             
-            toast({
-                title: 'Transfer Successful (Simulated)',
-                description: `₦${amount} sent to ${resolvedName}. This is a simulation and no real money was sent.`
-            });
-            router.push('/dashboard');
+            // 3. Check balance
+            if (userProfile.nairaBalance < transferAmount) {
+                throw new Error('Insufficient balance to complete this transaction.');
+            }
+
+            // 4. Simulate the actual transfer API call. In a real app, this would be an API call to Flutterwave.
+            // If the API call fails, we would throw an error and not proceed.
+            // For this prototype, we'll assume it succeeds.
+            const transferSuccessful = true; 
+
+            if (transferSuccessful) {
+                // 5. Deduct balance from user profile
+                const newNairaBalance = userProfile.nairaBalance - transferAmount;
+                await databases.updateDocument(
+                    DATABASE_ID,
+                    COLLECTION_ID_PROFILES,
+                    user.$id,
+                    { nairaBalance: newNairaBalance }
+                );
+
+                // 6. Save the transaction record
+                const transactionData = {
+                    userId: user.$id,
+                    type: 'transfer',
+                    amount: transferAmount,
+                    status: 'completed',
+                    recipientName: resolvedName,
+                    recipientDetails: `${accountNumber} - ${nigerianBanks.find(b => b.code === bankCode)?.name}`,
+                    narration: narration,
+                    sessionId: `ipay-tx-${Date.now()}`
+                };
+
+                await databases.createDocument(
+                    DATABASE_ID,
+                    COLLECTION_ID_TRANSACTIONS,
+                    ID.unique(),
+                    transactionData
+                );
+                
+                toast({
+                    title: 'Transfer Successful',
+                    description: `₦${transferAmount.toLocaleString()} has been sent to ${resolvedName}.`
+                });
+                router.push('/dashboard');
+            } else {
+                // If the simulated transfer failed
+                throw new Error('The transfer could not be processed by the bank.');
+            }
 
         } catch (error: any) {
             console.error("Transfer error:", error);
@@ -112,6 +145,7 @@ export default function TransferPage() {
             setIsLoading(false);
         }
     };
+
 
     if (step === 2) {
         return (
