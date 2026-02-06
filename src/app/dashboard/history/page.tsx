@@ -12,8 +12,8 @@ import { databases } from "@/lib/appwrite";
 import { Query } from "appwrite";
 
 // TODO: Replace with your actual Database and Collection IDs from Appwrite
-const DATABASE_ID = 'i-pay-db';
-const COLLECTION_ID_TRANSACTIONS = 'transactions';
+const DATABASE_ID = 'YOUR_DATABASE_ID';
+const COLLECTION_ID_TRANSACTIONS = 'YOUR_COLLECTION_ID_TRANSACTIONS';
 
 export default function HistoryPage() {
     const { user, loading: userLoading } = useUser();

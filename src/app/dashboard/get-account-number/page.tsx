@@ -13,8 +13,8 @@ import { useUser } from '@/hooks/use-appwrite';
 import { generateVirtualAccount } from '@/app/actions/flutterwave';
 import { databases } from '@/lib/appwrite';
 
-const DATABASE_ID = 'i-pay-db';
-const COLLECTION_ID_PROFILES = 'profiles';
+const DATABASE_ID = 'YOUR_DATABASE_ID';
+const COLLECTION_ID_PROFILES = 'YOUR_COLLECTION_ID_PROFILES';
 
 export default function GetAccountNumberPage() {
   const router = useRouter();
@@ -28,7 +28,6 @@ export default function GetAccountNumberPage() {
     phone: '',
   });
 
-  const [step, setStep] = useState<'form' | 'displayAccount'>('form');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [generatedAccount, setGeneratedAccount] = useState<{ number: string; bank: string } | null>(null);
@@ -67,15 +66,12 @@ export default function GetAccountNumberPage() {
         });
 
         if (result.success && result.data.account_number) {
-            setGeneratedAccount({
+            const accountInfo = {
                 number: result.data.account_number,
                 bank: result.data.bank_name,
-            });
-            setStep('displayAccount');
-            toast({
-                title: 'Account Generated!',
-                description: 'Please review and save your new account details.',
-            });
+            };
+            setGeneratedAccount(accountInfo);
+            await handleSaveAndFinish(accountInfo);
         } else {
             throw new Error(result.message || 'An unknown error occurred while generating the account.');
         }
@@ -90,8 +86,8 @@ export default function GetAccountNumberPage() {
     }
   };
   
-  const handleSaveAndFinish = async () => {
-    if (!user || !generatedAccount) {
+  const handleSaveAndFinish = async (account: { number: string; bank: string }) => {
+    if (!user) {
       toast({
         variant: "destructive",
         title: "Critical Error",
@@ -103,8 +99,8 @@ export default function GetAccountNumberPage() {
     setIsSaving(true);
     
     const accountData = {
-        accountNumber: generatedAccount.number,
-        bankName: generatedAccount.bank,
+        accountNumber: account.number,
+        bankName: account.bank,
         firstName: formData.firstName,
         lastName: formData.lastName,
         phone: formData.phone,
@@ -129,35 +125,6 @@ export default function GetAccountNumberPage() {
         setIsSaving(false);
     }
   };
-
-  if (step === 'displayAccount') {
-    return (
-        <div className="container py-8">
-            <Card className="w-full max-w-lg mx-auto">
-                <CardHeader>
-                    <CardTitle>Your New Account</CardTitle>
-                    <CardDescription>Click Done to permanently save this information to your profile.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="p-4 bg-muted rounded-lg">
-                        <Label>Bank Name</Label>
-                        <p className="text-lg font-bold">{generatedAccount?.bank}</p>
-                        <Label className="mt-2">Account Number</Label>
-                        <p className="text-2xl font-bold font-mono tracking-wider">{generatedAccount?.number}</p>
-                    </div>
-                    <Button onClick={handleSaveAndFinish} className="w-full" disabled={isSaving}>
-                        {isSaving ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Saving...
-                            </>
-                        ) : 'Done'}
-                    </Button>
-                </CardContent>
-            </Card>
-        </div>
-    );
-  }
 
   return (
     <div className="container py-8">
@@ -192,11 +159,11 @@ export default function GetAccountNumberPage() {
               <Label htmlFor="phone">Phone Number</Label>
               <Input id="phone" type="tel" value={formData.phone} onChange={handleChange} required />
             </div>
-            <Button type="submit" className="w-full" disabled={isGenerating}>
-              {isGenerating ? (
+            <Button type="submit" className="w-full" disabled={isGenerating || isSaving}>
+              {isGenerating || isSaving ? (
                 <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
+                    {isGenerating ? 'Generating...' : 'Saving...'}
                 </>
               ) : 'Get Account Number'}
             </Button>
