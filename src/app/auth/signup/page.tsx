@@ -57,6 +57,13 @@ export default function SignUpPage() {
     }
 
     try {
+      // Before creating a new account, we must ensure no old session is active.
+      // This is the fix that allows you to test signup repeatedly.
+      await account.deleteSession('current').catch(() => {
+        // Ignore error if no session exists
+        console.log("No active session found. Proceeding with signup.");
+      });
+
       // Create the user account
       await account.create(ID.unique(), email, password);
       
