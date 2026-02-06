@@ -86,7 +86,7 @@ export default function CompleteProfilePage() {
         console.error("Profile completion error:", error);
         toast({
             title: 'An Error Occurred',
-            description: error.message || 'Could not complete your profile. Please ensure you are logged in and try again.',
+            description: error.message || 'Could not complete your profile. Please try again.',
             variant: 'destructive',
         });
     } finally {
@@ -101,7 +101,7 @@ export default function CompleteProfilePage() {
                 <CardHeader>
                     <CardTitle className="text-2xl font-bold">Complete Your Profile</CardTitle>
                     <CardDescription>
-                        Verifying your session...
+                        Verifying your new account...
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -178,7 +178,7 @@ export default function CompleteProfilePage() {
                 disabled={isProcessing}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isProcessing || !formData.country || !formData.username || formData.pin.length !== 5}>
+            <Button type="submit" className="w-full" disabled={userLoading || !user || isProcessing || !formData.country || !formData.username || formData.pin.length !== 5}>
               {isProcessing ? "Saving..." : "Create Account"}
             </Button>
           </form>
