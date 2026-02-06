@@ -112,25 +112,47 @@ export default function GetAccountNumberPage() {
         lastName: formData.lastName,
         phone: formData.phone,
         bvn: formData.bvn,
+        email: formData.email,
     };
 
     try {
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, accountData);
-        toast({
-            title: "Account Saved!",
-            description: "Your new account details are saved to your profile.",
-        });
-        router.push('/dashboard');
-    } catch (serverError: any) {
-        console.error("Account save failed:", serverError);
-        toast({
+      // First, try to update the document.
+      await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, accountData);
+    } catch (error: any) {
+      // If the document is not found (error code 404), create it instead.
+      if (error.code === 404) {
+        try {
+          await databases.createDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, accountData);
+        } catch (createError: any) {
+          console.error("Account creation failed after update failed:", createError);
+          toast({
             variant: "destructive",
             title: "Save Failed",
-            description: serverError.message || "Your account details could not be saved. Please try again.",
+            description: createError.message || "Your account details could not be saved. Please try again.",
+          });
+          setIsSaving(false);
+          return;
+        }
+      } else {
+        // For any other error, show the original error message.
+        console.error("Account save failed:", error);
+        toast({
+          variant: "destructive",
+          title: "Save Failed",
+          description: error.message || "Your account details could not be saved. Please try again.",
         });
-    } finally {
         setIsSaving(false);
+        return;
+      }
     }
+
+    // If we reach here, either the update or create was successful.
+    toast({
+        title: "Account Saved!",
+        description: "Your new account details are saved to your profile.",
+    });
+    router.push('/dashboard');
+    setIsSaving(false);
   };
 
   return (
