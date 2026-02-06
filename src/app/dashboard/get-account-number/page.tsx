@@ -1,24 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, ClipboardCopy } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { useUser } from '@/hooks/use-appwrite';
 import { generateVirtualAccount } from '@/app/actions/flutterwave';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
-
 
 export default function GetAccountNumberPage() {
-  const router = useRouter();
   const { toast } = useToast();
-  const { user } = useUser();
-
   const [formData, setFormData] = useState({
     email: '',
     firstName: '',
@@ -28,7 +21,6 @@ export default function GetAccountNumberPage() {
   });
 
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [generatedAccount, setGeneratedAccount] = useState<{ number: string; bank: string } | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,14 +36,6 @@ export default function GetAccountNumberPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) {
-      toast({
-        variant: 'destructive',
-        title: 'Authentication Error',
-        description: 'You must be logged in to perform this action.',
-      });
-      return;
-    }
     if (!formData.email) {
       toast({
         variant: 'destructive',
@@ -78,7 +62,10 @@ export default function GetAccountNumberPage() {
                 bank: result.data.bank_name,
             };
             setGeneratedAccount(accountInfo);
-            await handleSaveAndFinish(accountInfo);
+             toast({
+                title: "Account Generated!",
+                description: "Here are your new account details.",
+            });
         } else {
             throw new Error(result.message || 'An unknown error occurred while generating the account.');
         }
@@ -93,67 +80,48 @@ export default function GetAccountNumberPage() {
     }
   };
   
-  const handleSaveAndFinish = async (account: { number: string; bank: string }) => {
-    if (!user) {
-      toast({
-        variant: "destructive",
-        title: "Critical Error",
-        description: "Could not save account due to missing data. Please try again.",
-      });
-      return;
-    }
-    
-    setIsSaving(true);
-    
-    const accountData = {
-        accountNumber: account.number,
-        bankName: account.bank,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        phone: formData.phone,
-        bvn: formData.bvn,
-        email: formData.email,
-    };
-
-    try {
-      // First, try to update the document.
-      await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, accountData);
-    } catch (error: any) {
-      // If the document is not found (error code 404), create it instead.
-      if (error.code === 404) {
-        try {
-          await databases.createDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, accountData);
-        } catch (createError: any) {
-          console.error("Account creation failed after update failed:", createError);
-          toast({
-            variant: "destructive",
-            title: "Save Failed",
-            description: createError.message || "Your account details could not be saved. Please try again.",
-          });
-          setIsSaving(false);
-          return;
-        }
-      } else {
-        // For any other error, show the original error message.
-        console.error("Account save failed:", error);
-        toast({
-          variant: "destructive",
-          title: "Save Failed",
-          description: error.message || "Your account details could not be saved. Please try again.",
-        });
-        setIsSaving(false);
-        return;
-      }
-    }
-
-    // If we reach here, either the update or create was successful.
-    toast({
-        title: "Account Saved!",
-        description: "Your new account details are saved to your profile.",
-    });
-    router.push('/dashboard');
-    setIsSaving(false);
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: 'Copied to clipboard!' });
   };
+
+
+  if (generatedAccount) {
+    return (
+        <div className="container py-8">
+            <Link href="/dashboard" className="flex items-center gap-2 mb-4 text-sm">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Dashboard
+            </Link>
+            <Card className="w-full max-w-lg mx-auto">
+                <CardHeader>
+                    <CardTitle>Account Generated Successfully!</CardTitle>
+                    <CardDescription>
+                        Here are your new account details. Remember to save them as they are not stored for you.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="space-y-1">
+                        <Label>Bank Name</Label>
+                        <p className="font-semibold text-lg">{generatedAccount.bank}</p>
+                    </div>
+                    <div className="space-y-1">
+                        <Label>Account Number</Label>
+                        <div className="flex items-center gap-2">
+                             <p className="font-mono font-semibold text-xl flex-1">{generatedAccount.number}</p>
+                             <Button variant="outline" size="icon" onClick={() => copyToClipboard(generatedAccount.number)}>
+                                <ClipboardCopy className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                    <Button asChild className="w-full mt-4">
+                        <Link href="/dashboard">Done</Link>
+                    </Button>
+                </CardContent>
+            </Card>
+        </div>
+    );
+  }
 
   return (
     <div className="container py-8">
@@ -192,11 +160,11 @@ export default function GetAccountNumberPage() {
               <Label htmlFor="phone">Phone Number</Label>
               <Input id="phone" type="tel" value={formData.phone} onChange={handleChange} required />
             </div>
-            <Button type="submit" className="w-full" disabled={isGenerating || isSaving}>
-              {isGenerating || isSaving ? (
+            <Button type="submit" className="w-full" disabled={isGenerating}>
+              {isGenerating ? (
                 <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isGenerating ? 'Generating...' : 'Saving...'}
+                    Generating...
                 </>
               ) : 'Get Account Number'}
             </Button>
