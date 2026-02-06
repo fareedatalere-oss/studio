@@ -47,14 +47,13 @@ export default function CompleteProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // The explicit check for the user is removed from here.
+    // The button's disabled state `disabled={!user}` already prevents submission
+    // until the user object is available, providing a much better user experience.
     if (!user) {
-      toast({
-        title: 'Authentication Error',
-        description: "Your session has expired. Please sign in again.",
-        variant: 'destructive'
-      });
-      router.push('/auth/signin');
-      return;
+        // This should theoretically not be hit if the button is disabled correctly.
+        console.error("Attempted to submit without a user session.");
+        return;
     }
 
     setIsProcessing(true);
