@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { countries } from '@/lib/countries';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases } from '@/lib/appwrite';
+import { account, databases } from '@/lib/appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const DATABASE_ID = 'i-pay-db';
@@ -19,7 +19,8 @@ const COLLECTION_ID_PROFILES = 'profiles';
 export default function CompleteProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user, loading: userLoading } = useUser();
+  // We still use the hook to show a loading skeleton, but not for submission logic
+  const { loading: userLoading } = useUser();
 
   const [formData, setFormData] = useState({
     country: '',
@@ -46,22 +47,15 @@ export default function CompleteProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // The explicit check for the user is removed from here.
-    // The button's disabled state `disabled={!user}` already prevents submission
-    // until the user object is available, providing a much better user experience.
-    if (!user) {
-        // This should theoretically not be hit if the button is disabled correctly.
-        console.error("Attempted to submit without a user session.");
-        return;
-    }
-
     setIsProcessing(true);
     
     try {
+      // Get the current user session directly. This is more robust.
+      const currentUser = await account.get();
+
       const profileData = {
-        userId: user.$id,
-        email: user.email,
+        userId: currentUser.$id,
+        email: currentUser.email,
         username: formData.username,
         country: formData.country,
         pin: formData.pin,
@@ -70,7 +64,7 @@ export default function CompleteProfilePage() {
       await databases.createDocument(
         DATABASE_ID,
         COLLECTION_ID_PROFILES,
-        user.$id,
+        currentUser.$id,
         profileData
       );
 
@@ -83,11 +77,20 @@ export default function CompleteProfilePage() {
 
     } catch (error: any) {
         console.error("Profile completion error:", error);
-        toast({
-            title: 'An Error Occurred',
-            description: error.message || 'Could not complete your profile. Please try again.',
-            variant: 'destructive',
-        });
+         if (error.code === 401) { // Appwrite specific code for unauthorized
+             toast({
+                title: 'Session Error',
+                description: 'Your session could not be verified. Please sign in again.',
+                variant: 'destructive',
+            });
+            router.push('/auth/signin');
+        } else {
+            toast({
+                title: 'An Error Occurred',
+                description: error.message || 'Could not complete your profile. Please try again.',
+                variant: 'destructive',
+            });
+        }
     } finally {
       setIsProcessing(false);
     }
@@ -177,7 +180,7 @@ export default function CompleteProfilePage() {
                 disabled={isProcessing}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={userLoading || !user || isProcessing || !formData.country || !formData.username || formData.pin.length !== 5}>
+            <Button type="submit" className="w-full" disabled={isProcessing || !formData.country || !formData.username || formData.pin.length !== 5}>
               {isProcessing ? "Saving..." : "Create Account"}
             </Button>
           </form>
