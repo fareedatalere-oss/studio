@@ -13,9 +13,24 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_POSTS } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
 import { ID } from 'appwrite';
-import { uploadToCloudinary } from '@/app/actions/upload';
+
+function dataURLtoFile(dataurl: string, filename: string): File {
+    const arr = dataurl.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    if (!mimeMatch) {
+        throw new Error('Invalid data URL');
+    }
+    const mime = mimeMatch[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+}
 
 
 export default function UploadImagePage() {
@@ -100,30 +115,28 @@ export default function UploadImagePage() {
     toast({ title: 'Posting...' });
 
     try {
-      const uploadResult = await uploadToCloudinary(imageSrc, 'image');
+      const fileToUpload = dataURLtoFile(imageSrc, 'upload.png');
+      const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), fileToUpload);
+      const mediaUrl = getAppwriteStorageUrl(uploadResult.$id);
 
-      if (uploadResult.success && uploadResult.url) {
-        const newPost = {
-          userId: authUser.$id,
-          username: userProfile.username,
-          userAvatar: userProfile.avatar,
-          type: 'image',
-          mediaUrl: uploadResult.url,
-          description: description,
-          allowComments: allowComments,
-          allowDownload: allowDownload,
-          likes: [],
-          commentCount: 0,
-        };
-        await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
-        toast({ title: 'Posted!', description: 'Your image is now live.' });
-        router.push('/dashboard/media');
-      } else {
-        throw new Error(uploadResult.message || 'Upload failed');
-      }
-    } catch (error) {
+      const newPost = {
+        userId: authUser.$id,
+        username: userProfile.username,
+        userAvatar: userProfile.avatar,
+        type: 'image',
+        mediaUrl: mediaUrl,
+        description: description,
+        allowComments: allowComments,
+        allowDownload: allowDownload,
+        likes: [],
+        commentCount: 0,
+      };
+      await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
+      toast({ title: 'Posted!', description: 'Your image is now live.' });
+      router.push('/dashboard/media');
+    } catch (error: any) {
       console.error("Post creation failed:", error);
-      toast({ title: 'Post Failed', description: 'Could not post your image.', variant: 'destructive' });
+      toast({ title: 'Post Failed', description: error.message || 'Could not post your image.', variant: 'destructive' });
       setIsPosting(false);
     }
   };

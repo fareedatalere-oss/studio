@@ -34,8 +34,8 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
-import { uploadToCloudinary } from '@/app/actions/upload';
-import { account, databases } from '@/lib/appwrite';
+import { account, databases, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
+import { ID } from 'appwrite';
 
 type Message = {
   $id: string;
@@ -73,27 +73,20 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
   };
 
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: Message['type']) => {
-    // This part can remain as it uses a server action
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: Message['type']) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (loadEvent) => {
-      const fileDataUri = loadEvent.target?.result as string;
-      if (!fileDataUri) return;
+    toast({ title: 'Uploading...', description: 'Your file is being uploaded.' });
+    try {
+        const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
+        const fileUrl = getAppwriteStorageUrl(uploadResult.$id);
 
-      toast({ title: 'Uploading...', description: 'Your file is being uploaded.' });
-      const result = await uploadToCloudinary(fileDataUri);
-
-      if (result.success && result.url) {
         toast({ title: 'Upload successful!', description: 'File sent.' });
-        handleSendMessage(result.url, type);
-      } else {
-        toast({ title: 'Upload Failed', description: result.message, variant: 'destructive' });
-      }
-    };
-    reader.readAsDataURL(file);
+        handleSendMessage(fileUrl, type);
+    } catch (error) {
+        toast({ title: 'Upload Failed', description: (error as Error).message, variant: 'destructive' });
+    }
   };
   
   const handleDeleteMessage = (messageId: string) => {

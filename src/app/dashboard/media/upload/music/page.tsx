@@ -11,9 +11,8 @@ import { useRouter } from 'next/navigation';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_POSTS } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
 import { ID } from 'appwrite';
-import { uploadToCloudinary } from '@/app/actions/upload';
 
 export default function UploadMusicPage() {
   const { toast } = useToast();
@@ -53,35 +52,28 @@ export default function UploadMusicPage() {
     toast({ title: 'Uploading track...' });
     
     try {
-        const reader = new FileReader();
-        reader.readAsDataURL(audioFile);
-        reader.onload = async () => {
-            const fileDataUri = reader.result as string;
-            const uploadResult = await uploadToCloudinary(fileDataUri, 'video'); // Cloudinary treats audio as video type for storage
+        const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), audioFile);
+        const mediaUrl = getAppwriteStorageUrl(uploadResult.$id);
 
-            if (uploadResult.success && uploadResult.url) {
-                const newPost = {
-                    userId: authUser.$id,
-                    username: userProfile.username,
-                    userAvatar: userProfile.avatar,
-                    type: 'music',
-                    mediaUrl: uploadResult.url,
-                    description: description,
-                    allowComments: allowComments,
-                    allowDownload: allowDownload,
-                    likes: [],
-                    commentCount: 0,
-                };
-                await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
-                toast({ title: 'Music Posted!', description: 'Your track is now live.' });
-                router.push('/dashboard/media');
-            } else {
-                throw new Error(uploadResult.message || 'Upload failed');
-            }
+        const newPost = {
+            userId: authUser.$id,
+            username: userProfile.username,
+            userAvatar: userProfile.avatar,
+            type: 'music',
+            mediaUrl: mediaUrl,
+            description: description,
+            allowComments: allowComments,
+            allowDownload: allowDownload,
+            likes: [],
+            commentCount: 0,
         };
-    } catch (error) {
+        await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
+        toast({ title: 'Music Posted!', description: 'Your track is now live.' });
+        router.push('/dashboard/media');
+        
+    } catch (error: any) {
         console.error("Post creation failed:", error);
-        toast({ title: 'Post Failed', description: 'Could not upload your music.', variant: 'destructive' });
+        toast({ title: 'Post Failed', description: error.message || 'Could not upload your music.', variant: 'destructive' });
         setIsPosting(false);
     }
   };

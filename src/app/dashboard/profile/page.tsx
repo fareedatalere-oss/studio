@@ -10,8 +10,8 @@ import { LogOut, PenSquare, Settings, Headset } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
-import { uploadToCloudinary } from '@/app/actions/upload';
-import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
+import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
+import { ID } from 'appwrite';
 
 
 export default function ProfilePage() {
@@ -52,25 +52,17 @@ export default function ProfilePage() {
     toast({ title: 'Uploading new avatar...'});
 
     try {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = async () => {
-            const fileDataUri = reader.result as string;
-            const result = await uploadToCloudinary(fileDataUri);
-            if (result.success && result.url) {
-                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, authUser.$id, {
-                    avatar: result.url
-                });
-                setUserProfile((prev: any) => ({ ...prev, avatar: result.url }));
-                toast({ title: 'Avatar Updated!', description: 'Your new avatar is now live.' });
-            } else {
-                throw new Error(result.message || 'Upload failed');
-            }
-        };
-        reader.onerror = (error) => { throw error; }
-    } catch (error) {
+        const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
+        const fileUrl = getAppwriteStorageUrl(uploadResult.$id);
+
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, authUser.$id, {
+            avatar: fileUrl
+        });
+        setUserProfile((prev: any) => ({ ...prev, avatar: fileUrl }));
+        toast({ title: 'Avatar Updated!', description: 'Your new avatar is now live.' });
+    } catch (error: any) {
         console.error("Avatar upload failed:", error);
-        toast({ title: 'Upload Failed', description: 'Could not update your avatar.', variant: 'destructive' });
+        toast({ title: 'Upload Failed', description: error.message || 'Could not update your avatar.', variant: 'destructive' });
     } finally {
         setIsUploading(false);
     }

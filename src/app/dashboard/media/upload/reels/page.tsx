@@ -9,9 +9,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_POSTS } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
 import { ID } from 'appwrite';
-import { uploadToCloudinary } from '@/app/actions/upload';
 
 
 export default function UploadReelsPage() {
@@ -19,6 +18,7 @@ export default function UploadReelsPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [description, setDescription] = useState('');
+  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [isPosting, setIsPosting] = useState(false);
 
@@ -37,16 +37,13 @@ export default function UploadReelsPage() {
           });
           return;
       }
-      const reader = new FileReader();
-      reader.onload = (loadEvent) => {
-        setVideoSrc(loadEvent.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+      setVideoFile(file);
+      setVideoSrc(URL.createObjectURL(file));
     }
   };
 
   const handlePost = async () => {
-     if (!videoSrc || !authUser || !userProfile) {
+     if (!videoFile || !authUser || !userProfile) {
       toast({ variant: 'destructive', title: 'Error', description: 'Missing video or user data.' });
       return;
     }
@@ -54,30 +51,28 @@ export default function UploadReelsPage() {
     toast({ title: 'Posting reel...' });
 
     try {
-        const uploadResult = await uploadToCloudinary(videoSrc, 'video');
+        const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), videoFile);
+        const mediaUrl = getAppwriteStorageUrl(uploadResult.$id);
 
-        if (uploadResult.success && uploadResult.url) {
-            const newPost = {
-                userId: authUser.$id,
-                username: userProfile.username,
-                userAvatar: userProfile.avatar,
-                type: 'reels',
-                mediaUrl: uploadResult.url,
-                description: description,
-                allowComments: true, // Default settings for reels
-                allowDownload: true,
-                likes: [],
-                commentCount: 0,
-            };
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
-            toast({ title: 'Reel Posted!', description: 'Your reel is now live.' });
-            router.push('/dashboard/media');
-        } else {
-            throw new Error(uploadResult.message || 'Upload failed');
-        }
-    } catch(error) {
+        const newPost = {
+            userId: authUser.$id,
+            username: userProfile.username,
+            userAvatar: userProfile.avatar,
+            type: 'reels',
+            mediaUrl: mediaUrl,
+            description: description,
+            allowComments: true, // Default settings for reels
+            allowDownload: true,
+            likes: [],
+            commentCount: 0,
+        };
+        await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
+        toast({ title: 'Reel Posted!', description: 'Your reel is now live.' });
+        router.push('/dashboard/media');
+
+    } catch(error: any) {
         console.error("Post creation failed:", error);
-        toast({ title: 'Post Failed', description: 'Could not post your reel.', variant: 'destructive' });
+        toast({ title: 'Post Failed', description: error.message || 'Could not post your reel.', variant: 'destructive' });
         setIsPosting(false);
     }
   };
@@ -124,7 +119,7 @@ export default function UploadReelsPage() {
           />
         </CardContent>
         <CardFooter>
-          <Button onClick={handlePost} className="w-full" disabled={!videoSrc || isPosting}>
+          <Button onClick={handlePost} className="w-full" disabled={!videoFile || isPosting}>
             {isPosting ? 'Posting...' : 'Post Reel'}
           </Button>
         </CardFooter>
