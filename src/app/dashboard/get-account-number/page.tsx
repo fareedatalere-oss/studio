@@ -11,9 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
 import { generateVirtualAccount } from '@/app/actions/flutterwave';
-import { databases } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 
-const COLLECTION_ID_PROFILES = 'profiles';
 
 export default function GetAccountNumberPage() {
   const router = useRouter();
@@ -107,7 +106,7 @@ export default function GetAccountNumberPage() {
     };
 
     try {
-        await databases.updateDocument(COLLECTION_ID_PROFILES, user.$id, accountData);
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, accountData);
         toast({
             title: "Account Saved!",
             description: "Your new account details are saved to your profile.",

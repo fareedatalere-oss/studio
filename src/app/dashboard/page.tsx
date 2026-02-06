@@ -17,9 +17,8 @@ import {
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
-import { databases } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 
-const COLLECTION_ID_PROFILES = 'profiles';
 
 function DashboardContent() {
   const { user, loading: userLoading } = useUser();
@@ -30,7 +29,7 @@ function DashboardContent() {
     if (user) {
       const fetchProfile = async () => {
         try {
-          const profile = await databases.getDocument(COLLECTION_ID_PROFILES, user.$id);
+          const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
           setUserProfile(profile);
         } catch (error) {
           console.error("Failed to fetch user profile:", error);

@@ -35,10 +35,8 @@ import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { databases } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS } from '@/lib/appwrite';
 import { Query } from 'appwrite';
-
-const COLLECTION_ID_POSTS = 'posts';
 
 
 const PostCard = ({ post }: { post: any }) => {
@@ -53,7 +51,7 @@ const PostCard = ({ post }: { post: any }) => {
       : [...currentLikes, currentUser.$id];
 
     try {
-        await databases.updateDocument(COLLECTION_ID_POSTS, post.$id, {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_POSTS, post.$id, {
             likes: newLikes
         });
     } catch (error) {
@@ -141,7 +139,7 @@ const PostFeed = ({ type }: { type: string }) => {
     const fetchPosts = async () => {
         setLoading(true);
         try {
-            const response = await databases.listDocuments(COLLECTION_ID_POSTS, [
+            const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [
                 Query.equal('type', type),
                 Query.orderDesc('$createdAt'),
             ]);
@@ -155,7 +153,7 @@ const PostFeed = ({ type }: { type: string }) => {
     fetchPosts();
 
     // Appwrite real-time subscription
-    const unsubscribe = databases.client.subscribe(`databases.i-pay-db.collections.${COLLECTION_ID_POSTS}.documents`, response => {
+    const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_POSTS}.documents`, response => {
         // Refetch or update posts list
         fetchPosts();
     });

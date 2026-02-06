@@ -12,12 +12,10 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 import { uploadToCloudinary } from '@/app/actions/upload';
 
-
-const COLLECTION_ID_POSTS = 'posts';
 
 export default function UploadFilmPage() {
   const { toast } = useToast();
@@ -77,7 +75,7 @@ export default function UploadFilmPage() {
                     likes: [],
                     commentCount: 0,
                 };
-                await databases.createDocument(COLLECTION_ID_POSTS, ID.unique(), newPost);
+                await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
                 toast({
                     title: 'Film Uploaded!',
                     description: 'Your film is now live.',

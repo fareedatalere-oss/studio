@@ -12,11 +12,9 @@ import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 
-
-const COLLECTION_ID_POSTS = 'posts';
 
 const colors = [
   { name: 'Red', value: 'bg-red-700' },
@@ -64,7 +62,7 @@ export default function UploadTextPage() {
         likes: [],
         commentCount: 0,
       };
-      await databases.createDocument(COLLECTION_ID_POSTS, ID.unique(), newPost);
+      await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
       toast({
         title: 'Published!',
         description: 'Your text post is now live.',

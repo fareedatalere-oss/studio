@@ -11,11 +11,9 @@ import { useRouter } from 'next/navigation';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 import { uploadToCloudinary } from '@/app/actions/upload';
-
-const COLLECTION_ID_POSTS = 'posts';
 
 export default function UploadMusicPage() {
   const { toast } = useToast();
@@ -74,7 +72,7 @@ export default function UploadMusicPage() {
                     likes: [],
                     commentCount: 0,
                 };
-                await databases.createDocument(COLLECTION_ID_POSTS, ID.unique(), newPost);
+                await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
                 toast({ title: 'Music Posted!', description: 'Your track is now live.' });
                 router.push('/dashboard/media');
             } else {

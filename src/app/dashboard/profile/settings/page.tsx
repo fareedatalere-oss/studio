@@ -11,9 +11,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
-import { account, databases } from '@/lib/appwrite';
+import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 
-const COLLECTION_ID_PROFILES = 'profiles';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -30,11 +29,11 @@ export default function SettingsPage() {
     if (!user) return;
     setIsLoading(true);
     try {
-        const profile = await databases.getDocument(COLLECTION_ID_PROFILES, user.$id);
+        const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
         if (profile.pin !== pinData.current) {
             throw new Error("The current PIN is incorrect.");
         }
-        await databases.updateDocument(COLLECTION_ID_PROFILES, user.$id, { pin: pinData.new });
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, { pin: pinData.new });
         toast({ title: 'PIN Updated', description: 'Your transaction PIN has been changed.' });
         setPinData({ current: '', new: '' });
     } catch(error: any) {
@@ -78,7 +77,7 @@ export default function SettingsPage() {
         await account.updateName(usernameData.new);
         
         // Also update username in our profiles collection
-        await databases.updateDocument(COLLECTION_ID_PROFILES, user.$id, { username: usernameData.new });
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, { username: usernameData.new });
         
         toast({ title: 'Username Updated', description: 'Your username has been successfully updated.' });
         setUsernameData({ new: '' });

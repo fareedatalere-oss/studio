@@ -9,12 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
-import { account, databases } from '@/lib/appwrite';
+import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 
 const MANAGER_EMAIL = 'i-paymanagerscare402@gmail.com';
-const DATABASE_ID = 'i-pay-db';
-const COLLECTION_ID_PROFILES = 'profiles';
 
 export default function SignUpPage() {
   const router = useRouter();

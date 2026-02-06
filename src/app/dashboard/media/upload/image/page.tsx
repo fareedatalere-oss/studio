@@ -13,12 +13,10 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 import { uploadToCloudinary } from '@/app/actions/upload';
 
-
-const COLLECTION_ID_POSTS = 'posts';
 
 export default function UploadImagePage() {
   const { toast } = useToast();
@@ -117,7 +115,7 @@ export default function UploadImagePage() {
           likes: [],
           commentCount: 0,
         };
-        await databases.createDocument(COLLECTION_ID_POSTS, ID.unique(), newPost);
+        await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
         toast({ title: 'Posted!', description: 'Your image is now live.' });
         router.push('/dashboard/media');
       } else {

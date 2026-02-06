@@ -11,9 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { uploadToCloudinary } from '@/app/actions/upload';
-import { account, databases } from '@/lib/appwrite';
+import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 
-const COLLECTION_ID_PROFILES = 'profiles';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -28,7 +27,7 @@ export default function ProfilePage() {
     if (authUser) {
       const fetchProfile = async () => {
         try {
-          const profile = await databases.getDocument(COLLECTION_ID_PROFILES, authUser.$id);
+          const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, authUser.$id);
           setUserProfile(profile);
         } catch (error) {
           console.error("Failed to fetch user profile:", error);
@@ -59,7 +58,7 @@ export default function ProfilePage() {
             const fileDataUri = reader.result as string;
             const result = await uploadToCloudinary(fileDataUri);
             if (result.success && result.url) {
-                await databases.updateDocument(COLLECTION_ID_PROFILES, authUser.$id, {
+                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, authUser.$id, {
                     avatar: result.url
                 });
                 setUserProfile((prev: any) => ({ ...prev, avatar: result.url }));
