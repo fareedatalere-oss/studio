@@ -49,7 +49,7 @@ export default function CompleteProfilePage() {
     setIsProcessing(true);
     
     try {
-      // Get user information directly on submit. This removes all prior checks and race conditions.
+      // Get user information directly on submit. This is the most reliable way to get the session info.
       const loggedInUser = await account.get();
 
       const profileData = {
@@ -77,11 +77,10 @@ export default function CompleteProfilePage() {
     } catch (error: any) {
         console.error("Profile completion error:", error);
         toast({
-            title: 'An Error Occurred',
-            description: "Your session could not be verified. Please sign in and try again.",
+            title: 'A temporary error occurred.',
+            description: "Please wait a moment and try clicking 'Create Account' again.",
             variant: 'destructive',
         });
-        router.push('/auth/signin');
     } finally {
       setIsProcessing(false);
     }
