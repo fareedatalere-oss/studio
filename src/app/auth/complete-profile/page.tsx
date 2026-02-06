@@ -9,8 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { countries } from '@/lib/countries';
-import { useUser } from '@/hooks/use-appwrite';
-import { databases } from '@/lib/appwrite';
+import { account, databases } from '@/lib/appwrite';
 
 const DATABASE_ID = 'i-pay-db';
 const COLLECTION_ID_PROFILES = 'profiles';
@@ -18,7 +17,6 @@ const COLLECTION_ID_PROFILES = 'profiles';
 export default function CompleteProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useUser();
 
   const [formData, setFormData] = useState({
     country: '',
@@ -47,48 +45,40 @@ export default function CompleteProfilePage() {
     e.preventDefault();
     setIsProcessing(true);
 
-    // This is a safety check. If the user object isn't loaded from the hook yet,
-    // we can't proceed. This avoids a frontend crash.
-    if (!user || !user.$id || !user.email) {
-        toast({
-            title: 'A temporary error occurred.',
-            description: "Your user session is still being prepared. Please try clicking 'Create Account' again in a moment.",
-            variant: 'destructive',
-        });
-        setIsProcessing(false);
-        return;
-    }
-
     try {
+      // Directly get the current user session from Appwrite.
+      // This is the direct command: talk to appwrite, no frontend checks.
+      const currentUser = await account.get();
+
       const profileData = {
-        userId: user.$id,
-        email: user.email,
+        userId: currentUser.$id,
+        email: currentUser.email,
         username: formData.username,
         country: formData.country,
         pin: formData.pin,
       };
 
-      // Directly attempt to create the document.
-      // The Appwrite server will do the real authentication check.
+      // Force the data to the database.
       await databases.createDocument(
         DATABASE_ID,
         COLLECTION_ID_PROFILES,
-        user.$id,
+        currentUser.$id,
         profileData
       );
 
-      // On success, go straight to the dashboard, as commanded.
+      // Instantly land on the dashboard. No blocking.
       router.push('/dashboard');
 
     } catch (error: any) {
-        // Show the raw database error, as commanded.
+        // Any error will come directly from the Appwrite SDK (account.get or databases.createDocument).
+        // This is what you commanded.
         console.error("Profile completion error:", error);
         toast({
-            title: 'Database Error',
+            title: 'An error occurred',
             description: error.message,
             variant: 'destructive',
         });
-        setIsProcessing(false); // Stop processing on error so user can retry.
+        setIsProcessing(false);
     }
   };
 
