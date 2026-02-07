@@ -1,13 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { nigerianBanks } from '@/lib/nigerian-banks';
-import { resolveAccountNumber } from '@/app/actions/flutterwave';
+import { resolveAccountNumber, getBankList } from '@/app/actions/flutterwave';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -15,6 +14,11 @@ import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 
+type Bank = {
+    id: number;
+    code: string;
+    name: string;
+};
 
 export default function TransferPage() {
     const { toast } = useToast();
@@ -31,9 +35,32 @@ export default function TransferPage() {
     const [narration, setNarration] = useState('');
     const [pin, setPin] = useState('');
 
+    // Bank list state
+    const [banks, setBanks] = useState<Bank[]>([]);
+    const [banksLoading, setBanksLoading] = useState(true);
+
     // Control state
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        const fetchBanks = async () => {
+            setBanksLoading(true);
+            const result = await getBankList();
+            if (result.success) {
+                setBanks(result.data);
+            } else {
+                toast({
+                    variant: 'destructive',
+                    title: 'Could Not Load Banks',
+                    description: result.message || 'Failed to fetch the list of banks. Please try again later.',
+                });
+            }
+            setBanksLoading(false);
+        };
+
+        fetchBanks();
+    }, [toast]);
 
     const handleAccountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
@@ -91,7 +118,6 @@ export default function TransferPage() {
             }
 
             // 4. Simulate the actual transfer API call. In a real app, this would be an API call to Flutterwave.
-            // If the API call fails, we would throw an error and not proceed.
             // For this prototype, we'll assume it succeeds.
             const transferSuccessful = true; 
 
@@ -112,7 +138,7 @@ export default function TransferPage() {
                     amount: transferAmount,
                     status: 'completed',
                     recipientName: resolvedName,
-                    recipientDetails: `${accountNumber} - ${nigerianBanks.find(b => b.code === bankCode)?.name}`,
+                    recipientDetails: `${accountNumber} - ${banks.find(b => b.code === bankCode)?.name}`,
                     narration: narration,
                     sessionId: `ipay-tx-${Date.now()}`
                 };
@@ -159,7 +185,7 @@ export default function TransferPage() {
                     <CardContent className="space-y-4">
                         <div className="text-center bg-muted p-4 rounded-md">
                             <p className="font-bold text-lg">{resolvedName}</p>
-                            <p className="text-sm text-muted-foreground">{accountNumber} - {nigerianBanks.find(b => b.code === bankCode)?.name}</p>
+                            <p className="text-sm text-muted-foreground">{accountNumber} - {banks.find(b => b.code === bankCode)?.name}</p>
                         </div>
                         
                         <div className="space-y-2">
@@ -206,12 +232,12 @@ export default function TransferPage() {
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="bank">Destination Bank</Label>
-                         <Select onValueChange={setBankCode} value={bankCode}>
+                         <Select onValueChange={setBankCode} value={bankCode} disabled={banksLoading}>
                             <SelectTrigger id="bank">
-                                <SelectValue placeholder="Select a bank" />
+                                <SelectValue placeholder={banksLoading ? "Loading banks..." : "Select a bank"} />
                             </SelectTrigger>
                             <SelectContent>
-                                {nigerianBanks.map((b) => (
+                                {banks.map((b) => (
                                 <SelectItem key={b.code} value={b.code}>
                                     {b.name}
                                 </SelectItem>
@@ -219,7 +245,7 @@ export default function TransferPage() {
                             </SelectContent>
                         </Select>
                     </div>
-                    <Button onClick={handleVerifyDetails} className="w-full" disabled={isLoading || accountNumber.length !== 10 || !bankCode}>
+                    <Button onClick={handleVerifyDetails} className="w-full" disabled={isLoading || accountNumber.length !== 10 || !bankCode || banksLoading}>
                         {isLoading ? 'Verifying...' : 'Continue'}
                     </Button>
                 </CardContent>

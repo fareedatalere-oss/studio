@@ -6,6 +6,46 @@ const FLUTTERWAVE_API_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
 const API_KEY_ERROR_MESSAGE = 'Your API key is not configured. Please contact an administrator.';
 const REQUEST_TIMEOUT = 15000; // 15 seconds
 
+export async function getBankList() {
+    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
+        return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+    try {
+        // Flutterwave uses NG as the country code for Nigeria
+        const response = await fetch('https://api.flutterwave.com/v3/banks/NG', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`,
+            },
+            signal: controller.signal,
+            cache: 'force-cache' // Cache the response to avoid repeated calls
+        });
+
+        clearTimeout(timeoutId);
+
+        const data = await response.json();
+
+        if (data.status === 'success' && data.data) {
+            return { success: true, data: data.data, message: 'Banks fetched successfully.' }; // data is an array of banks { id, code, name }
+        } else {
+            console.error("Flutterwave API Error (getBankList):", data);
+            return { success: false, message: data.message || 'Failed to fetch bank list.', data: [] };
+        }
+    } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            return { success: false, message: 'The request to the payment service timed out.', data: [] };
+        }
+        console.error("Flutterwave Connection Error (getBankList):", error);
+        return { success: false, message: error.message || 'An unexpected error occurred while fetching banks.', data: [] };
+    }
+}
+
+
 interface VirtualAccountPayload {
     email: string;
     firstname: string;
