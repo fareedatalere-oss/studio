@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
-import { account } from '@/lib/appwrite';
+import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 
 
 const MANAGER_EMAIL = 'i-paymanagerscare402@gmail.com';
@@ -54,14 +54,31 @@ export default function SignInPage() {
         console.log("No active session to delete. Proceeding with signin.");
       });
 
-      await account.createEmailPasswordSession(email, password);
-
-      // Successful sign-in, redirect immediately.
-      toast({
-        title: 'Success',
-        description: 'Signed in successfully!',
-      });
-      router.push('/dashboard');
+      const session = await account.createEmailPasswordSession(email, password);
+      
+      // After successful sign-in, check if a profile document exists.
+      try {
+        await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, session.userId);
+        // Profile exists, proceed to dashboard.
+        toast({
+          title: 'Success',
+          description: 'Signed in successfully!',
+        });
+        router.push('/dashboard');
+      } catch (dbError: any) {
+        // Appwrite throws code 404 if the document is not found.
+        if (dbError.code === 404) {
+          // Profile does not exist, so redirect the user to complete it.
+          toast({
+            title: 'Welcome!',
+            description: 'Please complete your profile to continue.',
+          });
+          router.push('/auth/signup/profile');
+        } else {
+          // If it's a different database error, re-throw it to the main catch block.
+          throw dbError;
+        }
+      }
 
     } catch (error: any) {
         console.error("Sign in error:", error);
