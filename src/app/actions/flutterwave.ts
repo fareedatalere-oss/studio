@@ -1,4 +1,6 @@
 'use server';
+import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
+import { ID } from 'appwrite';
 
 const FLUTTERWAVE_API_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
 const API_KEY_ERROR_MESSAGE = 'Your API key is not configured. Please contact an administrator.';
@@ -95,5 +97,79 @@ export async function resolveAccountNumber(payload: { accountNumber: string; ban
         }
         console.error("Flutterwave Connection Error:", error);
         return { success: false, message: error.message || 'An unexpected error occurred while resolving account.' };
+    }
+}
+
+export async function makeBillPayment(payload: {
+    userId: string;
+    pin: string;
+    billerCode: string;
+    customer: string;
+    amount: number;
+    type: string;
+    narration: string;
+}) {
+     if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
+        return { success: false, message: API_KEY_ERROR_MESSAGE };
+    }
+
+    try {
+        // 1. Fetch user profile & validate
+        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
+
+        if (userProfile.pin !== payload.pin) {
+            throw new Error('Incorrect transaction PIN.');
+        }
+        if (userProfile.nairaBalance < payload.amount) {
+            throw new Error('Insufficient balance.');
+        }
+
+        // 2. Make payment via Flutterwave
+        const reference = `ipay-bill-${Date.now()}`;
+        const fwResponse = await fetch('https://api.flutterwave.com/v3/bills', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                country: 'NG',
+                customer: payload.customer,
+                amount: payload.amount,
+                type: payload.billerCode, // Biller code like 'BIL108'
+                reference: reference,
+                // recurrence: 'ONCE', // Seems to cause issues, removing for wider compatibility
+            }),
+        });
+        
+        const fwData = await fwResponse.json();
+
+        if (fwData.status === 'success') {
+            // 3. Deduct balance and record transaction
+            const newBalance = userProfile.nairaBalance - payload.amount;
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, {
+                nairaBalance: newBalance,
+            });
+
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+                userId: payload.userId,
+                type: payload.type.toLowerCase().replace(' ', '_'),
+                amount: payload.amount,
+                status: 'completed',
+                recipientName: payload.narration,
+                recipientDetails: payload.customer,
+                narration: payload.narration,
+                sessionId: reference,
+            });
+
+            return { success: true, message: `${payload.narration} successful.` };
+        } else {
+             console.error("Flutterwave Bill Payment Error:", fwData);
+            throw new Error(fwData.message || 'The transaction failed at the provider.');
+        }
+
+    } catch (error: any) {
+        console.error("Bill payment server action error:", error);
+        return { success: false, message: error.message || 'An unexpected server error occurred.' };
     }
 }
