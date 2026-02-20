@@ -54,7 +54,8 @@ export default function ChatPage() {
       (user.email && user.email.toLowerCase().includes(search.toLowerCase()))
   );
   
-  const recentUsers = filteredUsers; // For now, recent is the same as all
+  // TODO: Implement fetching actual recent chats from the database
+  const recentUsers: any[] = [];
 
   const UserItem = ({ user }: { user: any }) => {
     const displayName = user.username || user.email || 'I-Pay User';
@@ -89,8 +90,8 @@ export default function ChatPage() {
     </div>
   )};
 
-  const renderContent = (users: any[]) => {
-      if (usersLoading || userLoading) {
+  const renderContent = (users: any[], loading: boolean, emptyMessage: string) => {
+      if (loading) {
         return (
             <div className="p-4 space-y-4">
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -112,7 +113,7 @@ export default function ChatPage() {
             </div>
         );
       }
-      return <p className="text-center text-muted-foreground p-8">No other users found.</p>
+      return <p className="text-center text-muted-foreground p-8">{emptyMessage}</p>
   }
 
   return (
@@ -134,14 +135,14 @@ export default function ChatPage() {
         <TabsContent value="all">
           <Card>
             <CardContent className="p-0">
-              {renderContent(filteredUsers)}
+              {renderContent(filteredUsers, usersLoading || userLoading, "No other users found.")}
             </CardContent>
           </Card>
         </TabsContent>
         <TabsContent value="recent">
           <Card>
              <CardContent className="p-0">
-               {renderContent(recentUsers)}
+               {renderContent(recentUsers, false, "No recent chats.")}
             </CardContent>
           </Card>
         </TabsContent>

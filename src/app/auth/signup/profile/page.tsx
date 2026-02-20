@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -67,12 +65,26 @@ export default function CompleteProfilePage() {
         // Update the user's name in the Appwrite auth system
         await account.updateName(username);
 
-        // Prepare the data with only the required fields.
+        // Prepare the data with all required fields for the database.
         const profileData = {
+            uid: user.$id,
+            email: user.email,
             username: username,
             country: country,
             pin: pin,
-            avatar: '',
+            avatar: '', // Default empty avatar
+            createdAt: new Date().toISOString(),
+            nairaBalance: 0,
+            rewardBalance: 0,
+            clickCount: 0,
+            hasReferral: null,
+            firstName: '',
+            lastName: '',
+            middleName: '',
+            phone: '',
+            bvn: '',
+            accountNumber: '',
+            bankName: '',
         };
 
         // Create the new profile document using the user's ID as the document ID
