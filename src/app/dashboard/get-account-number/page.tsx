@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { generateVirtualAccount } from '@/app/actions/flutterwave';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
+import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 import { useRouter } from 'next/navigation';
 
 export default function GetAccountNumberPage() {
@@ -112,6 +112,9 @@ export default function GetAccountNumberPage() {
                 number: result.data.account_number,
                 bank: result.data.bank_name,
             };
+
+            // Update user's main name in Appwrite Auth
+            await account.updateName(`${formData.firstName} ${formData.lastName}`);
             
             // Save account number and other details to the profile
             await databases.updateDocument(
@@ -125,6 +128,7 @@ export default function GetAccountNumberPage() {
                     lastName: formData.lastName,
                     phone: formData.phone,
                     bvn: formData.bvn,
+                    username: `${formData.firstName.toLowerCase()}${formData.lastName.toLowerCase()}`, // Update username to something more meaningful
                 }
             );
 

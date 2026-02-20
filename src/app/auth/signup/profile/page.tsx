@@ -20,7 +20,6 @@ export default function CompleteProfilePage() {
   const { toast } = useToast();
   const { user, loading: userLoading } = useUser();
 
-  const [username, setUsername] = useState('');
   const [country, setCountry] = useState('');
   const [pin, setPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -51,10 +50,10 @@ export default function CompleteProfilePage() {
         return;
     }
 
-    if (!username || !country || pin.length !== 5) {
+    if (!country || pin.length !== 5) {
       toast({
         title: 'Error',
-        description: 'All fields are required and PIN must be 5 digits.',
+        description: 'Country and a 5-digit PIN are required.',
         variant: 'destructive',
       });
       return;
@@ -62,29 +61,29 @@ export default function CompleteProfilePage() {
     setIsLoading(true);
 
     try {
-        // Update the user's name in the Appwrite auth system
-        await account.updateName(username);
+        // Generate a temporary username from email. This will be updated later.
+        const tempUsername = user.email.split('@')[0] + Math.floor(Math.random() * 1000);
+        await account.updateName(tempUsername);
 
-        // Prepare the data with all required fields for the database.
+        // Prepare a complete data object that matches the database schema
         const profileData = {
-            uid: user.$id,
             email: user.email,
-            username: username,
+            username: tempUsername,
             country: country,
             pin: pin,
-            avatar: '', // Default empty avatar
             createdAt: new Date().toISOString(),
+            firstName: "",
+            lastName: "",
+            middleName: "",
+            phone: "",
+            bvn: "",
+            accountNumber: "",
+            bankName: "",
+            avatar: "",
             nairaBalance: 0,
             rewardBalance: 0,
             clickCount: 0,
-            hasReferral: null,
-            firstName: '',
-            lastName: '',
-            middleName: '',
-            phone: '',
-            bvn: '',
-            accountNumber: '',
-            bankName: '',
+            hasReferral: false,
         };
 
         // Create the new profile document using the user's ID as the document ID
@@ -106,7 +105,7 @@ export default function CompleteProfilePage() {
         console.error("Profile setup error:", error);
         toast({
             title: 'Setup Failed',
-            description: `An unexpected error occurred: ${error.message}`,
+            description: `A critical error occurred while creating your profile: ${error.message}`,
             variant: 'destructive',
         });
     } finally {
@@ -123,7 +122,6 @@ export default function CompleteProfilePage() {
                        <Skeleton className="h-4 w-64 mx-auto" />
                   </CardHeader>
                   <CardContent className="space-y-4">
-                      <Skeleton className="h-10 w-full" />
                       <Skeleton className="h-10 w-full" />
                       <Skeleton className="h-10 w-full" />
                       <Skeleton className="h-10 w-full" />
@@ -159,17 +157,6 @@ export default function CompleteProfilePage() {
                 </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                placeholder="e.g., johndoe"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                disabled={isLoading}
-              />
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="pin">5-Digit Transaction PIN</Label>
               <Input
                 id="pin"
@@ -184,7 +171,7 @@ export default function CompleteProfilePage() {
                 disabled={isLoading}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading || !username || !country || pin.length !== 5}>
+            <Button type="submit" className="w-full" disabled={isLoading || !country || pin.length !== 5}>
               {isLoading ? "Saving Profile..." : "Finish Sign Up"}
             </Button>
           </form>
