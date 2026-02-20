@@ -64,49 +64,18 @@ export default function CompleteProfilePage() {
     setIsLoading(true);
 
     try {
-        // Check if a profile already exists to prevent errors.
-        try {
-            await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
-            // If getDocument succeeds, a profile already exists.
-            toast({
-                title: 'Profile Already Exists',
-                description: 'Redirecting you to the dashboard.',
-            });
-            router.push('/dashboard');
-            setIsLoading(false);
-            return;
-        } catch (error: any) {
-            // A 404 error is expected if the profile doesn't exist, so we can proceed.
-            if (error.code !== 404) {
-                throw error; // Re-throw unexpected errors.
-            }
-        }
-        
         // Update the user's name in the Appwrite auth system
         await account.updateName(username);
 
-        // Prepare the complete data required by the database schema
+        // Prepare the data with only the required fields.
         const profileData = {
-            uid: user.$id,
-            email: user.email,
-            createdAt: new Date().toISOString(),
             username: username,
             country: country,
             pin: pin,
             avatar: '',
-            nairaBalance: 0,
-            rewardBalance: 0,
-            clickCount: 0,
-            hasReferral: null,
-            firstName: '',
-            lastName: '',
-            phone: '',
-            bvn: '',
-            accountNumber: '',
-            bankName: '',
         };
 
-        // Create the new profile document
+        // Create the new profile document using the user's ID as the document ID
         await databases.createDocument(
             DATABASE_ID,
             COLLECTION_ID_PROFILES,
