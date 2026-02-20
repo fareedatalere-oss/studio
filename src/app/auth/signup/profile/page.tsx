@@ -67,6 +67,7 @@ export default function CompleteProfilePage() {
 
         const profileData = {
             username: username,
+            email: user.email, // Save email to the profile
             country: country,
             pin: pin,
             // Initialize balances and other fields
@@ -97,6 +98,7 @@ export default function CompleteProfilePage() {
                         username: username,
                         country: country,
                         pin: pin,
+                        email: user.email,
                     }
                 );
             } else {

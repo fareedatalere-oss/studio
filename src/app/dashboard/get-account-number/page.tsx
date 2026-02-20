@@ -16,7 +16,7 @@ import { useRouter } from 'next/navigation';
 export default function GetAccountNumberPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const { user } = useUser();
+  const { user, loading: userLoading } = useUser();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -29,25 +29,36 @@ export default function GetAccountNumberPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedAccount, setGeneratedAccount] = useState<{ number: string; bank: string } | null>(null);
   const [countdown, setCountdown] = useState(15);
+  const [isPageLoading, setIsPageLoading] = useState(true);
 
-  // Effect to ensure user has a profile before attempting to generate an account
+  // Effect to pre-fill form with existing profile data
   useEffect(() => {
     if (user) {
       databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id)
-        .catch((error) => {
-          if (error.code === 404) {
-            toast({
-              title: 'Profile Incomplete',
-              description: 'Please complete your profile before generating an account number.',
-              variant: 'destructive',
-            });
-            router.push('/auth/signup/profile');
-          }
+        .then(profile => {
+          setFormData(prev => ({
+            ...prev,
+            email: user.email || '',
+            firstName: profile.firstName || '',
+            lastName: profile.lastName || '',
+            phone: profile.phone || '',
+            bvn: profile.bvn || '',
+          }));
+        })
+        .catch(error => {
+          // It's okay if the profile doesn't have these fields yet, just log for debugging.
+          console.log("Could not pre-fill all profile data, user might need to enter it manually.", error.message);
+        })
+        .finally(() => {
+            setIsPageLoading(false);
         });
+    } else if (!userLoading) {
+        // If there's no user and we're not loading, stop loading the page.
+        setIsPageLoading(false);
     }
-  }, [user, router, toast]);
+  }, [user, userLoading]);
 
-  // Effect for countdown timer
+  // Effect for countdown timer after account generation
   useEffect(() => {
     if (generatedAccount && countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -57,11 +68,6 @@ export default function GetAccountNumberPage() {
     }
   }, [generatedAccount, countdown, router]);
   
-  useEffect(() => {
-    if(user) {
-        setFormData(prev => ({ ...prev, email: user.email }));
-    }
-  }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -81,11 +87,11 @@ export default function GetAccountNumberPage() {
         return;
     }
     
-    if (!formData.email) {
+    if (!formData.firstName || !formData.lastName || !formData.bvn || !formData.phone) {
       toast({
         variant: 'destructive',
-        title: 'Email Required',
-        description: 'Please enter your email address.',
+        title: 'All Fields Required',
+        description: 'Please fill out all the details to generate an account.',
       });
       return;
     }
@@ -94,7 +100,7 @@ export default function GetAccountNumberPage() {
 
     try {
         const result = await generateVirtualAccount({
-            email: formData.email,
+            email: user.email, // Always use the authenticated user's email
             firstname: formData.firstName,
             lastname: formData.lastName,
             phonenumber: formData.phone,
@@ -107,7 +113,7 @@ export default function GetAccountNumberPage() {
                 bank: result.data.bank_name,
             };
             
-            // Save account number and initialize balances in Appwrite
+            // Save account number and other details to the profile
             await databases.updateDocument(
                 DATABASE_ID,
                 COLLECTION_ID_PROFILES,
@@ -115,6 +121,10 @@ export default function GetAccountNumberPage() {
                 {
                     accountNumber: accountInfo.number,
                     bankName: accountInfo.bank,
+                    firstName: formData.firstName,
+                    lastName: formData.lastName,
+                    phone: formData.phone,
+                    bvn: formData.bvn,
                 }
             );
 
@@ -190,38 +200,44 @@ export default function GetAccountNumberPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={formData.email} onChange={handleChange} placeholder="m@example.com" required readOnly={!!user?.email}/>
+          {isPageLoading ? (
+            <div className="flex justify-center items-center h-48">
+                <Loader2 className="h-8 w-8 animate-spin" />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="firstName">First Name</Label>
-                <Input id="firstName" value={formData.firstName} onChange={handleChange} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName">Last Name</Label>
-                <Input id="lastName" value={formData.lastName} onChange={handleChange} required />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bvn">NIN/BVN (11 digits)</Label>
-              <Input id="bvn" value={formData.bvn} onChange={handleChange} required maxLength={11} minLength={11} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
-              <Input id="phone" type="tel" value={formData.phone} onChange={handleChange} required />
-            </div>
-            <Button type="submit" className="w-full" disabled={isGenerating}>
-              {isGenerating ? (
-                <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                </>
-              ) : 'Get Account Number'}
-            </Button>
-          </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" value={formData.email} onChange={handleChange} placeholder="m@example.com" required readOnly/>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="firstName">First Name</Label>
+                    <Input id="firstName" value={formData.firstName} onChange={handleChange} required />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="lastName">Last Name</Label>
+                    <Input id="lastName" value={formData.lastName} onChange={handleChange} required />
+                </div>
+                </div>
+                <div className="space-y-2">
+                <Label htmlFor="bvn">NIN/BVN (11 digits)</Label>
+                <Input id="bvn" value={formData.bvn} onChange={handleChange} required maxLength={11} minLength={11} />
+                </div>
+                <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input id="phone" type="tel" value={formData.phone} onChange={handleChange} required />
+                </div>
+                <Button type="submit" className="w-full" disabled={isGenerating}>
+                {isGenerating ? (
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating...
+                    </>
+                ) : 'Get Account Number'}
+                </Button>
+            </form>
+           )}
         </CardContent>
       </Card>
     </div>
