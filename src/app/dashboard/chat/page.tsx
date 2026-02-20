@@ -16,16 +16,24 @@ import { MoreVertical, Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS } from '@/lib/appwrite';
 import { Query } from 'appwrite';
-
+import { formatDistanceToNow } from 'date-fns';
 
 export default function ChatPage() {
   const { user: currentUser, loading: userLoading } = useUser();
+  
+  // For 'All Users' tab
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
+  
+  // For 'Recent' tab
+  const [recentChats, setRecentChats] = useState<any[]>([]);
+  const [recentsLoading, setRecentsLoading] = useState(true);
+
   const [search, setSearch] = useState('');
 
+  // Fetch all users for the 'All' tab
   useEffect(() => {
     if (!currentUser) return;
     
@@ -49,13 +57,67 @@ export default function ChatPage() {
     fetchUsers();
   }, [currentUser]);
 
-  const filteredUsers = allUsers.filter(user => 
+  // Fetch recent chats and subscribe to updates
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const fetchRecentChats = async () => {
+        setRecentsLoading(true);
+        try {
+            const response = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTION_ID_CHATS,
+                [
+                    Query.equal('participants', currentUser.$id),
+                    Query.orderDesc('lastMessageAt')
+                ]
+            );
+
+            // For each chat, get the other user's profile
+            const chatsWithData = await Promise.all(response.documents.map(async (chat) => {
+                const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
+                if (!otherUserId) return null;
+
+                try {
+                    const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
+                    return { ...chat, otherUser: userProfile };
+                } catch {
+                    // Handle case where profile might not exist
+                    return { ...chat, otherUser: { $id: otherUserId, username: 'Unknown User' }};
+                }
+            }));
+
+            setRecentChats(chatsWithData.filter(Boolean)); // Filter out any nulls
+
+        } catch (error) {
+            console.error("Failed to fetch recent chats:", error);
+        } finally {
+            setRecentsLoading(false);
+        }
+    };
+    
+    fetchRecentChats();
+
+    const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_CHATS}.documents`, response => {
+      // Very basic implementation: just refetch everything on any change.
+      // A more optimized approach would be to check response.events and update state accordingly.
+      if ((response.payload as any).participants?.includes(currentUser.$id)) {
+        fetchRecentChats();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  const filteredAllUsers = allUsers.filter(user => 
       (user.username && user.username.toLowerCase().includes(search.toLowerCase())) ||
       (user.email && user.email.toLowerCase().includes(search.toLowerCase()))
   );
   
-  // TODO: Implement fetching actual recent chats from the database
-  const recentUsers: any[] = [];
+  const filteredRecentChats = recentChats.filter(chat =>
+      (chat.otherUser?.username && chat.otherUser.username.toLowerCase().includes(search.toLowerCase())) ||
+      (chat.otherUser?.email && chat.otherUser.email.toLowerCase().includes(search.toLowerCase()))
+  );
 
   const UserItem = ({ user }: { user: any }) => {
     const displayName = user.username || user.email || 'I-Pay User';
@@ -73,47 +135,65 @@ export default function ChatPage() {
                  {user.email && <p className="text-sm text-muted-foreground truncate">{user.email}</p>}
             </div>
         </Link>
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-                <MoreVertical className="h-5 w-5" />
-            </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-            <DropdownMenuItem asChild>
-                <Link href={`/dashboard/chat/${user.$id}`}>Chat</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem>Block</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
+    </div>
+  )};
+  
+   const RecentChatItem = ({ chat }: { chat: any }) => {
+    const displayName = chat.otherUser.username || chat.otherUser.email || 'I-Pay User';
+    const fallback = displayName.charAt(0).toUpperCase();
+
+    return (
+     <div className="flex items-center justify-between">
+        <Link href={`/dashboard/chat/${chat.otherUser.$id}`} className="flex items-center gap-3 flex-1">
+            <Avatar>
+              <AvatarImage src={chat.otherUser.avatar} alt={displayName} />
+              <AvatarFallback>{fallback}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 truncate">
+                <div className="flex justify-between items-center">
+                    <span className="font-semibold">{displayName}</span>
+                    <span className="text-xs text-muted-foreground">
+                        {chat.lastMessageAt ? formatDistanceToNow(new Date(chat.lastMessageAt), { addSuffix: true }) : ''}
+                    </span>
+                </div>
+                <p className="text-sm text-muted-foreground truncate">{chat.lastMessage}</p>
+            </div>
+        </Link>
     </div>
   )};
 
-  const renderContent = (users: any[], loading: boolean, emptyMessage: string) => {
-      if (loading) {
-        return (
-            <div className="p-4 space-y-4">
-                {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                        <Skeleton className="h-10 w-10 rounded-full" />
-                        <div className="space-y-2 flex-1">
-                            <Skeleton className="h-4 w-1/2" />
-                            <Skeleton className="h-3 w-3/4" />
-                        </div>
-                    </div>
-                ))}
-            </div>
-        )
-      }
-      if (users.length > 0) {
-        return (
-            <div className="p-4 space-y-4">
-                {users.map(user => <UserItem key={user.$id} user={user} />)}
-            </div>
-        );
-      }
-      return <p className="text-center text-muted-foreground p-8">{emptyMessage}</p>
+  const renderLoadingSkeleton = () => (
+      <div className="p-4 space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <div className="space-y-2 flex-1">
+                      <Skeleton className="h-4 w-1/2" />
+                      <Skeleton className="h-3 w-3/4" />
+                  </div>
+              </div>
+          ))}
+      </div>
+  );
+
+  const renderAllUsers = () => {
+    if (usersLoading) return renderLoadingSkeleton();
+    if (filteredAllUsers.length > 0) {
+      return <div className="p-4 space-y-4">{filteredAllUsers.map(user => <UserItem key={user.$id} user={user} />)}</div>;
+    }
+    return <p className="text-center text-muted-foreground p-8">No other users found.</p>
+  }
+  
+  const renderRecentChats = () => {
+    if (recentsLoading) return renderLoadingSkeleton();
+    if (filteredRecentChats.length > 0) {
+      return <div className="p-4 space-y-4">{filteredRecentChats.map(chat => <RecentChatItem key={chat.$id} chat={chat} />)}</div>;
+    }
+    return <p className="text-center text-muted-foreground p-8">No recent chats. Start a conversation from the 'All' tab.</p>
+  }
+
+  if (userLoading) {
+    return <div className="container py-4">{renderLoadingSkeleton()}</div>
   }
 
   return (
@@ -135,14 +215,14 @@ export default function ChatPage() {
         <TabsContent value="all">
           <Card>
             <CardContent className="p-0">
-              {renderContent(filteredUsers, usersLoading || userLoading, "No other users found.")}
+              {renderAllUsers()}
             </CardContent>
           </Card>
         </TabsContent>
         <TabsContent value="recent">
           <Card>
              <CardContent className="p-0">
-               {renderContent(recentUsers, false, "No recent chats.")}
+               {renderRecentChats()}
             </CardContent>
           </Card>
         </TabsContent>
