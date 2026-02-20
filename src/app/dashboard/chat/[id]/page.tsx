@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -10,12 +11,8 @@ import {
   Check,
   CheckCheck,
   MoreVertical,
-  Phone,
-  Video,
   Trash2,
-  CornerUpRight,
   X,
-  Play,
   File,
   Image as ImageIcon,
   Headphones,
@@ -35,9 +32,10 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
-import { account, databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, getAppwriteStorageUrl } from '@/lib/appwrite';
+import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, getAppwriteStorageUrl } from '@/lib/appwrite';
 import { ID, Query } from 'appwrite';
 import { format } from 'date-fns';
+import { useParams } from 'next/navigation';
 
 type Message = {
   $id: string;
@@ -50,8 +48,9 @@ type Message = {
   $createdAt: string;
 };
 
-export default function ChatThreadPage({ params }: { params: { id: string } }) {
-  const otherUserId = params.id;
+export default function ChatThreadPage() {
+  const params = useParams();
+  const otherUserId = params.id as string;
   const { toast } = useToast();
   const { user: currentUser, loading: userLoading } = useUser();
   const [chatId, setChatId] = useState<string | null>(null);
@@ -71,6 +70,7 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
 
   // Fetch other user's profile
   useEffect(() => {
+    if (!otherUserId) return;
     setOtherUserLoading(true);
     databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId)
       .then(setOtherUser)
@@ -265,7 +265,6 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
                      <div className="flex items-center gap-2">
                          <Skeleton className="h-8 w-8 rounded-full" />
                          <Skeleton className="h-8 w-8 rounded-full" />
-                         <Skeleton className="h-8 w-8 rounded-full" />
                     </div>
                 </header>
                 <div className="flex-1 p-4 flex justify-center items-center">
@@ -279,7 +278,7 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
       if (!msg.mediaUrl || !msg.mediaType) return null;
       switch(msg.mediaType) {
           case 'image': return <ImageIcon className="h-10 w-10 text-muted-foreground"/> 
-          case 'video': return <Video className="h-10 w-10 text-muted-foreground"/>
+          case 'video': return <X className="h-10 w-10 text-muted-foreground"/>
           case 'audio': return <Headphones className="h-10 w-10 text-muted-foreground"/>
           case 'file': return <File className="h-10 w-10 text-muted-foreground"/>
           default: return null;
@@ -310,8 +309,6 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
             </div>
         </div>
         <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon"><Phone /></Button>
-            <Button variant="ghost" size="icon"><Video /></Button>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon"><MoreVertical /></Button>
@@ -416,7 +413,7 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                     <DropdownMenuItem onClick={() => openFilePicker('image')}><ImageIcon className="mr-2 h-4 w-4" /><span>Image</span></DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => openFilePicker('video')}><Video className="mr-2 h-4 w-4" /><span>Video</span></DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openFilePicker('video')}><X className="mr-2 h-4 w-4" /><span>Video</span></DropdownMenuItem>
                     <DropdownMenuItem onClick={() => openFilePicker('file')}><File className="mr-2 h-4 w-4" /><span>Document</span></DropdownMenuItem>
                     <DropdownMenuItem onClick={() => openFilePicker('audio')}><Headphones className="mr-2 h-4 w-4" /><span>Audio</span></DropdownMenuItem>
                 </DropdownMenuContent>
@@ -433,3 +430,5 @@ export default function ChatThreadPage({ params }: { params: { id: string } }) {
     </div>
   );
 }
+
+    
