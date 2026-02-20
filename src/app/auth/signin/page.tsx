@@ -48,27 +48,44 @@ export default function SignInPage() {
     
     try {
       // Delete any existing session before trying to sign in.
-      // This is the fix that allows you to test sign-in repeatedly.
       await account.deleteSession('current').catch(() => {
         // Ignore error if no session exists
         console.log("No active session to delete. Proceeding with signin.");
       });
 
-      await account.createEmailPasswordSession(email, password);
+      const session = await account.createEmailPasswordSession(email, password);
       
-      // The dashboard page will handle fetching the profile.
-      // This provides a smoother sign-in experience and avoids getting stuck.
-      toast({
-        title: 'Success',
-        description: 'Signed in successfully!',
-      });
-      router.push('/dashboard');
+      // Check if a profile document exists for this user.
+      try {
+        await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, session.userId);
+        
+        // Profile exists, so we can go to the dashboard.
+        toast({
+          title: 'Success',
+          description: 'Signed in successfully!',
+        });
+        router.push('/dashboard');
+      } catch (profileError: any) {
+        // A 404 error means the profile document was not found.
+        if (profileError.code === 404) {
+          toast({
+            title: 'Welcome!',
+            description: "Please complete your profile to continue.",
+          });
+          router.push('/auth/signup/profile');
+        } else {
+          // For any other error, we should show it.
+          throw profileError;
+        }
+      }
 
     } catch (error: any) {
         console.error("Sign in error:", error);
         let errorMessage = "An unexpected error occurred. Please try again.";
         if (error.type === 'user_invalid_credentials' || error.code === 401) {
             errorMessage = "Invalid email or password.";
+        } else if (error.message) {
+            errorMessage = error.message;
         }
         
         toast({
