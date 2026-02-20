@@ -85,7 +85,6 @@ export default function CompleteProfilePage() {
 
         // Prepare the complete data for the new user's profile document
         const profileData = {
-            uid: user.$id,
             email: user.email,
             username: username,
             country: country,
