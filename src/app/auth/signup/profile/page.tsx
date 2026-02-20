@@ -90,11 +90,12 @@ export default function CompleteProfilePage() {
             username: username,
             country: country,
             pin: pin,
+            createdAt: new Date().toISOString(),
             nairaBalance: 0,
             rewardBalance: 0,
             clickCount: 0,
             avatar: '',
-            hasReferral: null,
+            hasReferral: false,
             // Initialize other fields to avoid null issues later
             firstName: '',
             lastName: '',
