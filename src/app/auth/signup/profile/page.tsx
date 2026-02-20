@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -85,7 +86,6 @@ export default function CompleteProfilePage() {
 
         // Prepare the complete data for the new user's profile document
         const profileData = {
-            email: user.email,
             username: username,
             country: country,
             pin: pin,
@@ -124,7 +124,7 @@ export default function CompleteProfilePage() {
         console.error("Profile setup error:", error);
         toast({
             title: 'Setup Failed',
-            description: error.message || 'We could not save your profile. This might be due to a network issue or an existing username.',
+            description: error.message || 'We could not save your profile. Please check your details and try again.',
             variant: 'destructive',
         });
     } finally {
