@@ -108,7 +108,7 @@ export default function ProfilePage() {
                 </div>
             ) : (
                 <>
-                    <h1 className="text-2xl font-bold">@{userProfile?.username || 'New User'}</h1>
+                    <h1 className="text-2xl font-bold">@{(userProfile?.username || authUser?.name) || 'New User'}</h1>
                     <p className="text-sm text-muted-foreground">{authUser?.email}</p>
                 </>
             )}

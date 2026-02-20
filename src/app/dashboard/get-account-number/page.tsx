@@ -30,6 +30,23 @@ export default function GetAccountNumberPage() {
   const [generatedAccount, setGeneratedAccount] = useState<{ number: string; bank: string } | null>(null);
   const [countdown, setCountdown] = useState(15);
 
+  // Effect to ensure user has a profile before attempting to generate an account
+  useEffect(() => {
+    if (user) {
+      databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id)
+        .catch((error) => {
+          if (error.code === 404) {
+            toast({
+              title: 'Profile Incomplete',
+              description: 'Please complete your profile before generating an account number.',
+              variant: 'destructive',
+            });
+            router.push('/auth/signup/profile');
+          }
+        });
+    }
+  }, [user, router, toast]);
+
   // Effect for countdown timer
   useEffect(() => {
     if (generatedAccount && countdown > 0) {
