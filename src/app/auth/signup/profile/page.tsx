@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -84,12 +85,25 @@ export default function CompleteProfilePage() {
         // Update the user's name in the Appwrite auth system
         await account.updateName(username);
 
-        // Prepare ONLY the data the user wants to save
+        // Prepare the complete data required by the database schema
         const profileData = {
+            uid: user.$id,
+            email: user.email,
+            createdAt: new Date().toISOString(),
             username: username,
             country: country,
             pin: pin,
             avatar: '',
+            nairaBalance: 0,
+            rewardBalance: 0,
+            clickCount: 0,
+            hasReferral: null,
+            firstName: '',
+            lastName: '',
+            phone: '',
+            bvn: '',
+            accountNumber: '',
+            bankName: '',
         };
 
         // Create the new profile document
