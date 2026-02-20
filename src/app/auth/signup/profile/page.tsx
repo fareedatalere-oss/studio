@@ -88,7 +88,8 @@ export default function CompleteProfilePage() {
         const profileData = {
             username: username,
             country: country,
-            pin: pin
+            pin: pin,
+            avatar: '',
         };
 
         // Create the new profile document
