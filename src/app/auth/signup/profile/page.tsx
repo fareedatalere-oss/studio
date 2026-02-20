@@ -84,25 +84,11 @@ export default function CompleteProfilePage() {
         // Update the user's name in the Appwrite auth system
         await account.updateName(username);
 
-        // Prepare the complete data for the new user's profile document
+        // Prepare ONLY the data the user wants to save
         const profileData = {
             username: username,
             country: country,
-            pin: pin,
-            createdAt: new Date().toISOString(),
-            nairaBalance: 0,
-            rewardBalance: 0,
-            clickCount: 0,
-            avatar: '',
-            hasReferral: false,
-            // Initialize other fields to avoid null issues later
-            firstName: '',
-            lastName: '',
-            middleName: '',
-            phone: '',
-            bvn: '',
-            accountNumber: '',
-            bankName: '',
+            pin: pin
         };
 
         // Create the new profile document
@@ -124,7 +110,7 @@ export default function CompleteProfilePage() {
         console.error("Profile setup error:", error);
         toast({
             title: 'Setup Failed',
-            description: error.message || 'We could not save your profile. Please check your details and try again.',
+            description: `An unexpected error occurred: ${error.message}`,
             variant: 'destructive',
         });
     } finally {
