@@ -18,7 +18,11 @@
         "bvn": { "type": "string", "description": "The user's Bank Verification Number." },
         "accountNumber": { "type": "string", "description": "The user's generated virtual account number." },
         "bankName": { "type": "string", "description": "The bank name for the virtual account." },
-        "avatar": { "type": "string", "format": "uri", "description": "URL to the user's profile picture." }
+        "avatar": { "type": "string", "format": "uri", "description": "URL to the user's profile picture." },
+        "nairaBalance": { "type": "number", "description": "The user's main account balance in Naira." },
+        "rewardBalance": { "type": "number", "description": "The user's reward points balance." },
+        "clickCount": { "type": "number", "description": "The user's click count for rewards." },
+        "hasReferral": { "type": "boolean", "description": "Whether the user has used a referral code." }
       },
       "required": ["uid", "email", "createdAt", "username", "country", "pin"]
     },

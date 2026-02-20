@@ -62,50 +62,56 @@ export default function CompleteProfilePage() {
     setIsLoading(true);
 
     try {
-        // Appwrite user names are unique by default. Let's update the auth user's name first.
+        // Check if a profile already exists to prevent errors.
+        try {
+            await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
+            // If getDocument succeeds, a profile already exists.
+            toast({
+                title: 'Profile Already Exists',
+                description: 'Redirecting you to the dashboard.',
+            });
+            router.push('/dashboard');
+            setIsLoading(false);
+            return;
+        } catch (error: any) {
+            // A 404 error is expected if the profile doesn't exist, so we can proceed.
+            if (error.code !== 404) {
+                throw error; // Re-throw unexpected errors.
+            }
+        }
+        
+        // Update the user's name in the Appwrite auth system
         await account.updateName(username);
 
+        // Prepare the complete data for the new user's profile document
         const profileData = {
+            uid: user.$id,
+            email: user.email,
             username: username,
-            email: user.email, // Save email to the profile
             country: country,
             pin: pin,
-            // Initialize balances and other fields
             nairaBalance: 0,
             rewardBalance: 0,
             clickCount: 0,
             avatar: '',
-            hasReferral: null, // Set to null to trigger referral setup
+            hasReferral: null,
+            // Initialize other fields to avoid null issues later
+            firstName: '',
+            lastName: '',
+            middleName: '',
+            phone: '',
+            bvn: '',
+            accountNumber: '',
+            bankName: '',
         };
 
-        // Upsert logic: Try to create, and if it already exists, update it.
-        try {
-            await databases.createDocument(
-                DATABASE_ID,
-                COLLECTION_ID_PROFILES,
-                user.$id,
-                profileData
-            );
-        } catch (error: any) {
-             // Appwrite throws a 409 conflict error if the document already exists
-            if (error.code === 409) {
-                // We only update the core profile info, don't overwrite balances
-                 await databases.updateDocument(
-                    DATABASE_ID,
-                    COLLECTION_ID_PROFILES,
-                    user.$id,
-                    {
-                        username: username,
-                        country: country,
-                        pin: pin,
-                        email: user.email,
-                    }
-                );
-            } else {
-                // If it's a different error, we want to see it.
-                throw error;
-            }
-        }
+        // Create the new profile document
+        await databases.createDocument(
+            DATABASE_ID,
+            COLLECTION_ID_PROFILES,
+            user.$id,
+            profileData
+        );
         
         toast({
             title: 'Profile Complete!',
@@ -118,7 +124,7 @@ export default function CompleteProfilePage() {
         console.error("Profile setup error:", error);
         toast({
             title: 'Setup Failed',
-            description: error.message || 'An unexpected error occurred.',
+            description: error.message || 'We could not save your profile. This might be due to a network issue or an existing username.',
             variant: 'destructive',
         });
     } finally {
