@@ -24,13 +24,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { MoreVertical, Search } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 
 export default function ChatPage() {
   const { user: currentUser, profile: currentUserProfile, loading: userLoading } = useUser();
@@ -58,49 +59,58 @@ export default function ChatPage() {
       .finally(() => setUsersLoading(false));
   }, [currentUser]);
 
+  const fetchRecentChats = useCallback(async () => {
+    if (!currentUser) return;
+    setRecentsLoading(true);
+    try {
+        const response = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTION_ID_CHATS,
+            [
+                Query.equal('participants', [currentUser.$id]),
+                Query.orderDesc('lastMessageAt')
+            ]
+        );
+
+        const chatsWithData = await Promise.all(response.documents.map(async (chat) => {
+            const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
+            if (!otherUserId) return null;
+
+            try {
+                const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
+                
+                // Get unread messages count
+                const unreadResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
+                    Query.equal('chatId', [chat.$id]),
+                    Query.equal('senderId', [otherUserId]),
+                    Query.equal('status', ['sent', 'delivered'])
+                ]);
+
+                return { ...chat, otherUser: userProfile, unreadCount: unreadResponse.total };
+            } catch {
+                return { ...chat, otherUser: { $id: otherUserId, username: 'Unknown User', avatar: null }, unreadCount: 0 };
+            }
+        }));
+
+        setRecentChats(chatsWithData.filter(Boolean));
+
+    } catch (error: any) {
+        console.error("Failed to fetch recent chats:", error);
+         toast({
+            variant: 'destructive',
+            title: 'Could Not Load Chats',
+            description: error.message || 'There was an issue fetching your conversations.'
+        });
+        setRecentChats([]);
+    } finally {
+        setRecentsLoading(false);
+    }
+  }, [currentUser, toast]);
+
+
   // Fetch recent chats and subscribe
   useEffect(() => {
     if (!currentUser) return;
-
-    const fetchRecentChats = async () => {
-        if (!currentUser) return;
-        setRecentsLoading(true);
-        try {
-            const response = await databases.listDocuments(
-                DATABASE_ID,
-                COLLECTION_ID_CHATS,
-                [
-                    Query.equal('participants', [currentUser.$id]),
-                    Query.orderDesc('lastMessageAt')
-                ]
-            );
-
-            const chatsWithData = await Promise.all(response.documents.map(async (chat) => {
-                const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
-                if (!otherUserId) return null;
-
-                try {
-                    const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
-                    return { ...chat, otherUser: userProfile };
-                } catch {
-                    return { ...chat, otherUser: { $id: otherUserId, username: 'Unknown User', avatar: null }};
-                }
-            }));
-
-            setRecentChats(chatsWithData.filter(Boolean));
-
-        } catch (error: any) {
-            console.error("Failed to fetch recent chats:", error);
-             toast({
-                variant: 'destructive',
-                title: 'Could Not Load Chats',
-                description: error.message || 'There was an issue fetching your conversations.'
-            });
-            setRecentChats([]);
-        } finally {
-            setRecentsLoading(false);
-        }
-    };
     
     fetchRecentChats();
 
@@ -113,7 +123,7 @@ export default function ChatPage() {
     });
 
     return () => unsubscribe();
-  }, [currentUser, toast]);
+  }, [currentUser, fetchRecentChats]);
 
     const handleBlockUser = async (otherUserId: string, otherUserName: string) => {
         if (!currentUserProfile) return;
@@ -187,7 +197,10 @@ export default function ChatPage() {
                         {chat.lastMessageAt ? formatDistanceToNow(new Date(chat.lastMessageAt), { addSuffix: true }) : ''}
                     </span>
                 </div>
-                <p className="text-sm text-muted-foreground truncate">{chat.lastMessage}</p>
+                 <div className="flex justify-between items-center">
+                    <p className="text-sm text-muted-foreground truncate">{chat.lastMessage}</p>
+                    {chat.unreadCount > 0 && <Badge className="h-5 w-5 justify-center p-0">{chat.unreadCount}</Badge>}
+                </div>
             </div>
         </Link>
         <AlertDialog>
