@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { resolveAccountNumber, getBankList } from '@/app/actions/flutterwave';
+import { resolveAccountNumber, getBankList, makeBankTransfer } from '@/app/actions/flutterwave';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -117,11 +117,15 @@ export default function TransferPage() {
                 throw new Error('Insufficient balance to complete this transaction.');
             }
 
-            // 4. Simulate the actual transfer API call. In a real app, this would be an API call to Flutterwave.
-            // For this prototype, we'll assume it succeeds.
-            const transferSuccessful = true; 
+            // 4. Call the Flutterwave transfer API
+            const transferResult = await makeBankTransfer({
+                bankCode,
+                accountNumber,
+                amount: transferAmount,
+                narration,
+            });
 
-            if (transferSuccessful) {
+            if (transferResult.success) {
                 // 5. Deduct balance from user profile
                 const newNairaBalance = userProfile.nairaBalance - transferAmount;
                 await databases.updateDocument(
@@ -156,8 +160,8 @@ export default function TransferPage() {
                 });
                 router.push('/dashboard');
             } else {
-                // If the simulated transfer failed
-                throw new Error('The transfer could not be processed by the bank.');
+                // If the API transfer failed
+                throw new Error(transferResult.message || 'The transfer could not be processed by the bank.');
             }
 
         } catch (error: any) {

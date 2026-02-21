@@ -140,6 +140,46 @@ export async function resolveAccountNumber(payload: { accountNumber: string; ban
     }
 }
 
+export async function makeBankTransfer(payload: { bankCode: string; accountNumber: string; amount: number; narration: string; }) {
+    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
+        return { success: false, message: API_KEY_ERROR_MESSAGE };
+    }
+
+    try {
+        const response = await fetch('https://api.flutterwave.com/v3/transfers', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                account_bank: payload.bankCode,
+                account_number: payload.accountNumber,
+                amount: payload.amount,
+                narration: payload.narration,
+                currency: "NGN",
+                reference: `ipay-transfer-${Date.now()}`,
+                callback_url: "https://webhook.site/b3e505b0-fe02-430e-ac2d-a00e5803831c" // Placeholder callback
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            // The transfer is initiated. Flutterwave will use webhooks to confirm completion.
+            // For this app, we will assume success if the API call is successful.
+            return { success: true, message: data.message };
+        } else {
+            console.error("Flutterwave Transfer Error:", data);
+            return { success: false, message: data.message || 'The transfer could not be initiated.' };
+        }
+
+    } catch (error: any) {
+        console.error("Flutterwave Transfer Connection Error:", error);
+        return { success: false, message: error.message || 'An unexpected error occurred.' };
+    }
+}
+
 export async function makeBillPayment(payload: {
     userId: string;
     pin: string;
