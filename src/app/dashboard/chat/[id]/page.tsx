@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
-  ArrowLeft, Mic, Paperclip, Send, Check, CheckCheck, MoreVertical, Trash2, X, File,
+  ArrowLeft, Mic, Paperclip, Send, Check, CheckCheck, MoreVertical, Trash2, X, File as FileIcon,
   ImageIcon, Loader2, Edit, Forward,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -334,13 +334,16 @@ export default function ChatThreadPage() {
 
   const sendAudio = async () => {
     if (!audioPreview) return;
+    setIsSending(true);
     try {
         const audioBlob = await fetch(audioPreview).then(r => r.blob());
         const audioFile = new File([audioBlob], "voice-note.webm", { type: "audio/webm" });
         await handleSendMessage('', audioFile, 'audio');
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Failed to send audio', description: error.message });
+        setIsSending(false); // Reset on failure
     }
+    // isSending is reset in handleSendMessage's finally block on success
   };
   
   const MessageStatus = ({ status, isSender }: { status: Message['status'], isSender: boolean }) => {
@@ -404,7 +407,7 @@ export default function ChatThreadPage() {
                                 <audio controls src={msg.mediaUrl} className="max-w-xs" />
                           ) : msg.mediaUrl ? (
                             <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className='flex items-center gap-2'>
-                              <File className="h-10 w-10 text-muted-foreground"/> <span>{msg.text || msg.mediaType}</span>
+                              <FileIcon className="h-10 w-10 text-muted-foreground"/> <span>{msg.text || msg.mediaType}</span>
                             </a>
                           ) : null}
                           {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
@@ -480,7 +483,7 @@ export default function ChatThreadPage() {
                     <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><Paperclip /></Button></DropdownMenuTrigger>
                     <DropdownMenuContent>
                         <DropdownMenuItem onClick={() => openFilePicker('image')}><ImageIcon className="mr-2 h-4 w-4" /><span>Image</span></DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => openFilePicker('file')}><File className="mr-2 h-4 w-4" /><span>Document</span></DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openFilePicker('file')}><FileIcon className="mr-2 h-4 w-4" /><span>Document</span></DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
                 <Button variant="ghost" size="icon" onClick={startRecording}><Mic /></Button>
