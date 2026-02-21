@@ -28,6 +28,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'sfo.cloud.appwrite.io',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };
