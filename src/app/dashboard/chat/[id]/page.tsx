@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, getAppwriteStorageUrl } from '@/lib/appwrite';
-import { ID, Query } from 'appwrite';
+import { ID, Query, Permission, Role } from 'appwrite';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import { useParams } from 'next/navigation';
 
@@ -236,7 +236,24 @@ export default function ChatThreadPage() {
       let currentChatId = chatId;
       if (!currentChatId) {
         const sortedParticipants = [currentUser.$id, otherUser.$id].sort();
-        const newChatDoc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_CHATS, ID.unique(), { participants: sortedParticipants, lastMessage: text.trim() || `Sent a ${type}`, lastMessageAt: new Date().toISOString() });
+        // Define permissions for the new chat document
+        const permissions = [
+            Permission.read(Role.user(currentUser.$id)),
+            Permission.read(Role.user(otherUser.$id)),
+            Permission.update(Role.user(currentUser.$id)),
+            Permission.update(Role.user(otherUser.$id)),
+        ];
+        const newChatDoc = await databases.createDocument(
+            DATABASE_ID,
+            COLLECTION_ID_CHATS,
+            ID.unique(),
+            {
+                participants: sortedParticipants,
+                lastMessage: text.trim() || `Sent a ${type}`,
+                lastMessageAt: new Date().toISOString()
+            },
+            permissions // Pass permissions here
+        );
         currentChatId = newChatDoc.$id;
         setChatId(currentChatId);
       } else {
@@ -332,7 +349,8 @@ export default function ChatThreadPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    handleSendMessage('', file, fileTypeRef.current);
+    const fileToSend = new File([file], file.name, { type: file.type });
+    handleSendMessage('', fileToSend, fileTypeRef.current);
     e.target.value = ''; // Reset file input
   };
 
