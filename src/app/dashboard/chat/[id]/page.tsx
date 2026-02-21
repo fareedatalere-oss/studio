@@ -109,6 +109,11 @@ export default function ChatThreadPage() {
 
   useEffect(() => {
     if (!otherUserId || !currentUser?.$id || !currentUserProfile) return;
+    
+    // Clear old state when user changes
+    setMessages([]);
+    setChatId(null);
+    setMessagesLoading(true);
 
     databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId)
       .then(profile => {
@@ -118,7 +123,6 @@ export default function ChatThreadPage() {
       })
       .catch(() => toast({ variant: 'destructive', title: 'Error', description: 'Could not load user profile.' }));
 
-    setMessagesLoading(true);
     findChatId(currentUser.$id, otherUserId).then(foundChatId => {
       if (foundChatId) {
         databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
@@ -235,8 +239,12 @@ export default function ChatThreadPage() {
         const newChatDoc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_CHATS, ID.unique(), { participants: sortedParticipants, lastMessage: text.trim() || `Sent a ${type}`, lastMessageAt: new Date().toISOString() });
         currentChatId = newChatDoc.$id;
         setChatId(currentChatId);
+      } else {
+         // ALWAYS update the chat doc to bring it to the top of recents
+         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, currentChatId, { lastMessage: text.trim() || `Sent a ${type}`, lastMessageAt: new Date().toISOString() });
       }
       if (!currentChatId) throw new Error("Failed to create or find chat.");
+
 
       const messagePayload: any = { 
           chatId: currentChatId, 
@@ -248,8 +256,7 @@ export default function ChatThreadPage() {
       };
 
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), messagePayload);
-      await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, currentChatId, { lastMessage: text.trim() || `Sent a ${type}`, lastMessageAt: new Date().toISOString() });
-
+      
       setInputText('');
       setAudioPreview(null);
     } catch (error: any) {
@@ -419,57 +426,60 @@ export default function ChatThreadPage() {
             visibleMessages.map((msg) => {
                 const isSender = msg.senderId === currentUser?.$id;
                 return (
-                <DropdownMenu key={msg.$id}>
-                    <DropdownMenuTrigger asChild>
-                    <div className={cn('flex max-w-[75%] flex-col gap-1', isSender ? 'ml-auto items-end' : 'mr-auto items-start' )}>
-                        <div className={cn('rounded-lg px-3 py-2', isSender ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
-                          {msg.mediaUrl && msg.mediaType === 'image' ? (
-                                <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer">
-                                  <img src={msg.mediaUrl} alt="sent image" className="max-w-xs rounded-md" />
-                                </a>
-                          ) : msg.mediaUrl && msg.mediaType === 'audio' ? (
-                                <audio controls src={msg.mediaUrl} className="max-w-xs" />
-                          ) : msg.mediaUrl ? (
-                            <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className='flex items-center gap-2'>
-                              <FileIcon className="h-10 w-10 text-muted-foreground"/> <span>{msg.text || msg.mediaType}</span>
+                <div key={msg.$id} className={cn('group flex items-end gap-2 max-w-[75%]', isSender ? 'ml-auto flex-row-reverse' : 'mr-auto' )}>
+                     <div className={cn('rounded-lg px-3 py-2', isSender ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
+                      {msg.mediaUrl && msg.mediaType === 'image' ? (
+                            <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer">
+                              <img src={msg.mediaUrl} alt="sent image" className="max-w-xs rounded-md" />
                             </a>
-                          ) : null}
-                          {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-muted-foreground text-xs px-1">
+                      ) : msg.mediaUrl && msg.mediaType === 'audio' ? (
+                            <audio controls src={msg.mediaUrl} className="max-w-xs" />
+                      ) : msg.mediaUrl ? (
+                        <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className='flex items-center gap-2'>
+                          <FileIcon className="h-10 w-10 text-muted-foreground"/> <span>{msg.text || msg.mediaType}</span>
+                        </a>
+                      ) : null}
+                      {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
+                    </div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className='h-6 w-6 opacity-0 group-hover:opacity-100'><MoreVertical className='h-4 w-4'/></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                <DropdownMenuItem onClick={() => toast({ title: 'Forwarding coming soon!' })}><Forward className="mr-2 h-4 w-4" /><span>Forward</span></DropdownMenuItem>
+                                {isSender && msg.mediaType === 'text' && (
+                                    <DropdownMenuItem onClick={() => handleStartEdit(msg)}><Edit className="mr-2 h-4 w-4" /><span>Edit</span></DropdownMenuItem>
+                                )}
+                                {isSender && (
+                                    <>
+                                        <DropdownMenuSeparator />
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /><span>Delete</span></DropdownMenuItem>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Delete Message?</AlertDialogTitle>
+                                                    <AlertDialogDescription>This will permanently delete this message for everyone. This action cannot be undone.</AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteForEveryone(msg.$id)} className='bg-destructive hover:bg-destructive/80'>Delete for Everyone</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </>
+                                )}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                         <div className="text-muted-foreground text-xs flex items-center gap-1">
                             {msg.isEdited && <span>(edited)</span>}
                             <span>{format(new Date(msg.$createdAt), 'p')}</span>
                             <MessageStatus status={msg.status} isSender={isSender} />
                         </div>
                     </div>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                        <DropdownMenuItem onClick={() => toast({ title: 'Forwarding coming soon!' })}><Forward className="mr-2 h-4 w-4" /><span>Forward</span></DropdownMenuItem>
-                         {isSender && msg.mediaType === 'text' && (
-                            <DropdownMenuItem onClick={() => handleStartEdit(msg)}><Edit className="mr-2 h-4 w-4" /><span>Edit</span></DropdownMenuItem>
-                         )}
-                         {isSender && (
-                            <>
-                                <DropdownMenuSeparator />
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /><span>Delete</span></DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Delete Message?</AlertDialogTitle>
-                                            <AlertDialogDescription>This will permanently delete this message for everyone. This action cannot be undone.</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDeleteForEveryone(msg.$id)} className='bg-destructive hover:bg-destructive/80'>Delete for Everyone</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </>
-                         )}
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                </div>
             )})
         )}
         <div ref={chatBottomRef} />
