@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,12 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { makeBillPayment, getUtilityProviders, getUtilityPlans } from '@/app/actions/flutterwave';
-
-type Provider = {
-    biller_code: string;
-    name: string;
-};
+import { makeBillPayment, getUtilityPlans } from '@/app/actions/flutterwave';
 
 type Plan = {
     item_code: string;
@@ -25,13 +21,19 @@ type Plan = {
     amount: number;
 };
 
+// Static list of major Nigerian data providers and their parent biller codes
+const dataNetworks = [
+    { name: 'MTN Data', biller_code: 'BIL108' },
+    { name: 'Airtel Data', biller_code: 'BIL109' },
+    { name: 'Glo Data', biller_code: 'BIL110' },
+    { name: '9mobile Data', biller_code: 'BIL111' },
+];
+
 export default function BuyDataPage() {
     const router = useRouter();
     const { toast } = useToast();
     const { user } = useUser();
 
-    const [dataProviders, setDataProviders] = useState<Provider[]>([]);
-    const [providersLoading, setProvidersLoading] = useState(true);
     const [plans, setPlans] = useState<Plan[]>([]);
     const [plansLoading, setPlansLoading] = useState(false);
 
@@ -40,25 +42,6 @@ export default function BuyDataPage() {
     const [planCode, setPlanCode] = useState('');
     const [pin, setPin] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-
-    useEffect(() => {
-        async function fetchProviders() {
-            setProvidersLoading(true);
-            const result = await getUtilityProviders('data');
-            if (result.success) {
-                const uniqueProviders = Array.from(new Map(result.data.map((item: Provider) => [item.biller_code, item])).values());
-                setDataProviders(uniqueProviders);
-            } else {
-                toast({
-                    variant: 'destructive',
-                    title: 'Error',
-                    description: 'Could not load data providers. Please try again later.',
-                });
-            }
-            setProvidersLoading(false);
-        }
-        fetchProviders();
-    }, [toast]);
 
     useEffect(() => {
         if (!networkCode) {
@@ -71,7 +54,11 @@ export default function BuyDataPage() {
             setPlanCode(''); 
             const result = await getUtilityPlans(networkCode);
             if (result.success) {
-                setPlans(result.data.filter((plan: Plan) => plan.amount > 0));
+                // Filter for valid plans and sort them by amount (smallest to biggest)
+                const sortedPlans = result.data
+                    .filter((plan: Plan) => plan.amount > 0)
+                    .sort((a: Plan, b: Plan) => a.amount - b.amount);
+                setPlans(sortedPlans);
             } else {
                 toast({
                     variant: 'destructive',
@@ -86,7 +73,7 @@ export default function BuyDataPage() {
     }, [networkCode, toast]);
 
 
-    const selectedNetwork = dataProviders.find(p => p.biller_code === networkCode);
+    const selectedNetwork = dataNetworks.find(p => p.biller_code === networkCode);
     const selectedPlan = plans.find(p => p.item_code === planCode);
 
     const handlePurchase = async () => {
@@ -96,7 +83,7 @@ export default function BuyDataPage() {
         const result = await makeBillPayment({
             userId: user.$id,
             pin,
-            billerCode: selectedPlan.item_code,
+            billerCode: selectedPlan.item_code, // Use the specific plan's item_code for payment
             customer: phoneNumber,
             amount: selectedPlan.amount,
             type: 'data',
@@ -134,12 +121,12 @@ export default function BuyDataPage() {
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="network">Network</Label>
-                        <Select onValueChange={setNetworkCode} value={networkCode} disabled={providersLoading}>
+                        <Select onValueChange={setNetworkCode} value={networkCode}>
                             <SelectTrigger id="network">
-                                <SelectValue placeholder={providersLoading ? "Loading networks..." : "Select a network"} />
+                                <SelectValue placeholder="Select a network" />
                             </SelectTrigger>
                             <SelectContent>
-                                {dataProviders.map(p => (
+                                {dataNetworks.map(p => (
                                     <SelectItem key={p.biller_code} value={p.biller_code}>{p.name}</SelectItem>
                                 ))}
                             </SelectContent>
