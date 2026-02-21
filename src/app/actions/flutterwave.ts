@@ -146,6 +146,25 @@ export async function makeBankTransfer(payload: { bankCode: string; accountNumbe
     }
 
     try {
+        // 1. Fetch user profile
+        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
+
+        // 2. Check PIN
+        if (userProfile.pin !== payload.pin) {
+            throw new Error('Incorrect transaction PIN.');
+        }
+
+        const transferAmount = Number(payload.amount);
+        if (isNaN(transferAmount) || transferAmount <= 0) {
+            throw new Error('Invalid transfer amount.');
+        }
+
+        // 3. Check balance
+        if (userProfile.nairaBalance < transferAmount) {
+            throw new Error('Insufficient balance to complete this transaction.');
+        }
+
+        // 4. Call the Flutterwave transfer API
         const response = await fetch('https://api.flutterwave.com/v3/transfers', {
             method: 'POST',
             headers: {
@@ -155,7 +174,7 @@ export async function makeBankTransfer(payload: { bankCode: string; accountNumbe
             body: JSON.stringify({
                 account_bank: payload.bankCode,
                 account_number: payload.accountNumber,
-                amount: payload.amount,
+                amount: transferAmount,
                 narration: payload.narration,
                 currency: "NGN",
                 reference: `ipay-transfer-${Date.now()}`,
@@ -166,12 +185,31 @@ export async function makeBankTransfer(payload: { bankCode: string; accountNumbe
         const data = await response.json();
 
         if (data.status === 'success') {
-            // The transfer is initiated. Flutterwave will use webhooks to confirm completion.
-            // For this app, we will assume success if the API call is successful.
+            // 5. Deduct balance from user profile
+            const newNairaBalance = userProfile.nairaBalance - transferAmount;
+            await databases.updateDocument(
+                DATABASE_ID,
+                COLLECTION_ID_PROFILES,
+                payload.userId,
+                { nairaBalance: newNairaBalance }
+            );
+
+            // 6. Save the transaction record
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+                userId: payload.userId,
+                type: 'transfer',
+                amount: transferAmount,
+                status: 'completed',
+                recipientName: payload.recipientName,
+                recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
+                narration: payload.narration,
+                sessionId: data.data.id,
+            });
+
             return { success: true, message: data.message };
         } else {
             console.error("Flutterwave Transfer Error:", data);
-            return { success: false, message: data.message || 'The transfer could not be initiated.' };
+            throw new Error(data.message || 'The transfer could not be initiated.');
         }
 
     } catch (error: any) {
@@ -260,10 +298,11 @@ const billCategoryMapping = {
     airtime: 'airtime=1',
     data: 'data_bundle=1',
     tv: 'cables=1',
-    electricity: 'power=1'
+    electricity: 'power=1',
+    education: 'education=1',
 };
 
-export async function getUtilityProviders(type: 'airtime' | 'data' | 'tv' | 'electricity') {
+export async function getUtilityProviders(type: 'airtime' | 'data' | 'tv' | 'electricity' | 'education') {
     if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
         return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
     }
