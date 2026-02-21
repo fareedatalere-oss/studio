@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -12,19 +12,45 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { airtimeProviders } from '@/lib/utility-providers';
-import { makeBillPayment } from '@/app/actions/flutterwave';
+import { makeBillPayment, getUtilityProviders } from '@/app/actions/flutterwave';
+
+type Provider = {
+    biller_code: string;
+    name: string;
+};
 
 export default function BuyAirtimePage() {
     const router = useRouter();
     const { toast } = useToast();
     const { user } = useUser();
 
+    const [airtimeProviders, setAirtimeProviders] = useState<Provider[]>([]);
+    const [providersLoading, setProvidersLoading] = useState(true);
+
     const [network, setNetwork] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
     const [amount, setAmount] = useState('');
     const [pin, setPin] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        async function fetchProviders() {
+            setProvidersLoading(true);
+            const result = await getUtilityProviders('airtime');
+            if (result.success) {
+                setAirtimeProviders(result.data);
+            } else {
+                toast({
+                    variant: 'destructive',
+                    title: 'Error',
+                    description: 'Could not load airtime providers. Please try again later.',
+                });
+            }
+            setProvidersLoading(false);
+        }
+        fetchProviders();
+    }, [toast]);
+
 
     const selectedProvider = airtimeProviders.find(p => p.biller_code === network);
 
@@ -73,9 +99,9 @@ export default function BuyAirtimePage() {
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="network">Network</Label>
-                        <Select onValueChange={setNetwork} value={network}>
+                        <Select onValueChange={setNetwork} value={network} disabled={providersLoading}>
                             <SelectTrigger id="network">
-                                <SelectValue placeholder="Select a network" />
+                                <SelectValue placeholder={providersLoading ? "Loading networks..." : "Select a network"} />
                             </SelectTrigger>
                             <SelectContent>
                                 {airtimeProviders.map(p => (

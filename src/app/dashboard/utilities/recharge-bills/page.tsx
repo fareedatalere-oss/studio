@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -12,14 +12,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { electricityProviders } from '@/lib/utility-providers';
-import { makeBillPayment } from '@/app/actions/flutterwave';
+import { makeBillPayment, getUtilityProviders } from '@/app/actions/flutterwave';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+
+type Provider = {
+    biller_code: string;
+    name: string;
+};
 
 export default function RechargeBillsPage() {
     const router = useRouter();
     const { toast } = useToast();
     const { user } = useUser();
+
+    const [electricityProviders, setElectricityProviders] = useState<Provider[]>([]);
+    const [providersLoading, setProvidersLoading] = useState(true);
 
     const [discoCode, setDiscoCode] = useState('');
     const [meterNumber, setMeterNumber] = useState('');
@@ -27,6 +34,25 @@ export default function RechargeBillsPage() {
     const [meterType, setMeterType] = useState('prepaid');
     const [pin, setPin] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        async function fetchProviders() {
+            setProvidersLoading(true);
+            const result = await getUtilityProviders('electricity');
+            if (result.success) {
+                setElectricityProviders(result.data);
+            } else {
+                toast({
+                    variant: 'destructive',
+                    title: 'Error',
+                    description: 'Could not load electricity providers.',
+                });
+            }
+            setProvidersLoading(false);
+        }
+        fetchProviders();
+    }, [toast]);
+
 
     const selectedDisco = electricityProviders.find(p => p.biller_code === discoCode);
 
@@ -75,9 +101,9 @@ export default function RechargeBillsPage() {
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="disco">Distribution Company (Disco)</Label>
-                        <Select onValueChange={setDiscoCode} value={discoCode}>
+                        <Select onValueChange={setDiscoCode} value={discoCode} disabled={providersLoading}>
                             <SelectTrigger id="disco">
-                                <SelectValue placeholder="Select your Disco" />
+                                <SelectValue placeholder={providersLoading ? "Loading Discos..." : "Select your Disco"} />
                             </SelectTrigger>
                             <SelectContent>
                                 {electricityProviders.map(p => (

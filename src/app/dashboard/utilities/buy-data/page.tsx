@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -12,13 +12,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { dataProviders } from '@/lib/utility-providers';
-import { makeBillPayment } from '@/app/actions/flutterwave';
+import { makeBillPayment, getUtilityProviders, getUtilityPlans } from '@/app/actions/flutterwave';
+
+type Provider = {
+    biller_code: string;
+    name: string;
+};
+
+type Plan = {
+    item_code: string;
+    name: string;
+    amount: number;
+};
 
 export default function BuyDataPage() {
     const router = useRouter();
     const { toast } = useToast();
     const { user } = useUser();
+
+    const [dataProviders, setDataProviders] = useState<Provider[]>([]);
+    const [providersLoading, setProvidersLoading] = useState(true);
+    const [plans, setPlans] = useState<Plan[]>([]);
+    const [plansLoading, setPlansLoading] = useState(false);
 
     const [networkCode, setNetworkCode] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
@@ -26,21 +41,65 @@ export default function BuyDataPage() {
     const [pin, setPin] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
+    useEffect(() => {
+        async function fetchProviders() {
+            setProvidersLoading(true);
+            const result = await getUtilityProviders('data');
+            if (result.success) {
+                setDataProviders(result.data);
+            } else {
+                toast({
+                    variant: 'destructive',
+                    title: 'Error',
+                    description: 'Could not load data providers. Please try again later.',
+                });
+            }
+            setProvidersLoading(false);
+        }
+        fetchProviders();
+    }, [toast]);
+
+    useEffect(() => {
+        if (!networkCode) {
+            setPlans([]);
+            return;
+        }
+
+        async function fetchPlans() {
+            setPlansLoading(true);
+            setPlanCode(''); 
+            const result = await getUtilityPlans(networkCode);
+            if (result.success) {
+                setPlans(result.data.filter((plan: Plan) => plan.amount > 0));
+            } else {
+                toast({
+                    variant: 'destructive',
+                    title: 'Error',
+                    description: 'Could not load data plans for this network.',
+                });
+                setPlans([]);
+            }
+            setPlansLoading(false);
+        }
+        fetchPlans();
+    }, [networkCode, toast]);
+
+
     const selectedNetwork = dataProviders.find(p => p.biller_code === networkCode);
-    const selectedPlan = selectedNetwork?.plans.find(p => p.item_code === planCode);
+    const selectedPlan = plans.find(p => p.item_code === planCode);
 
     const handlePurchase = async () => {
-        if (!user || !selectedPlan) return;
+        if (!user || !selectedPlan || !selectedNetwork) return;
         setIsLoading(true);
 
         const result = await makeBillPayment({
             userId: user.$id,
             pin,
-            billerCode: planCode, // For data, the plan code is the biller code
+            billerCode: selectedPlan.item_code,
             customer: phoneNumber,
             amount: selectedPlan.amount,
             type: 'data',
-            narration: `${selectedNetwork?.name} ${selectedPlan.name}`,
+            narration: `${selectedNetwork.name} ${selectedPlan.name}`,
         });
 
         setIsLoading(false);
@@ -74,9 +133,9 @@ export default function BuyDataPage() {
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="network">Network</Label>
-                        <Select onValueChange={setNetworkCode} value={networkCode}>
+                        <Select onValueChange={setNetworkCode} value={networkCode} disabled={providersLoading}>
                             <SelectTrigger id="network">
-                                <SelectValue placeholder="Select a network" />
+                                <SelectValue placeholder={providersLoading ? "Loading networks..." : "Select a network"} />
                             </SelectTrigger>
                             <SelectContent>
                                 {dataProviders.map(p => (
@@ -96,15 +155,15 @@ export default function BuyDataPage() {
                             maxLength={11}
                         />
                     </div>
-                    {selectedNetwork && (
+                    {networkCode && (
                         <div className="space-y-2">
                             <Label htmlFor="plan">Data Plan</Label>
-                            <Select onValueChange={setPlanCode} value={planCode}>
+                            <Select onValueChange={setPlanCode} value={planCode} disabled={plansLoading}>
                                 <SelectTrigger id="plan">
-                                    <SelectValue placeholder="Select a data plan" />
+                                    <SelectValue placeholder={plansLoading ? "Loading plans..." : "Select a data plan"} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {selectedNetwork.plans.map(plan => (
+                                    {plans.map(plan => (
                                         <SelectItem key={plan.item_code} value={plan.item_code}>
                                             {plan.name} - ₦{plan.amount.toLocaleString()}
                                         </SelectItem>

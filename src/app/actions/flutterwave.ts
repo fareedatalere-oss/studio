@@ -176,15 +176,15 @@ export async function makeBillPayment(payload: {
                 country: 'NG',
                 customer: payload.customer,
                 amount: payload.amount,
-                type: payload.billerCode, // Biller code like 'BIL108'
+                type: payload.billerCode, // Biller code like 'BIL108' for airtime, or specific item code for data/tv
                 reference: reference,
-                // recurrence: 'ONCE', // Seems to cause issues, removing for wider compatibility
             }),
         });
         
         const fwData = await fwResponse.json();
 
-        if (fwData.status === 'success') {
+        // Flutterwave bill payments can sometimes be "pending" initially. We will treat 'pending' and 'successful' as success from our side.
+        if (fwData.status === 'success' || fwData.status === 'pending') {
             // 3. Deduct balance and record transaction
             const newBalance = userProfile.nairaBalance - payload.amount;
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, {
@@ -202,7 +202,8 @@ export async function makeBillPayment(payload: {
                 sessionId: reference,
             });
 
-            return { success: true, message: `${payload.narration} successful.` };
+            const successMessage = fwData.data?.response_message || `${payload.narration} successful.`;
+            return { success: true, message: successMessage };
         } else {
              console.error("Flutterwave Bill Payment Error:", fwData);
             throw new Error(fwData.message || 'The transaction failed at the provider.');
@@ -211,5 +212,80 @@ export async function makeBillPayment(payload: {
     } catch (error: any) {
         console.error("Bill payment server action error:", error);
         return { success: false, message: error.message || 'An unexpected server error occurred.' };
+    }
+}
+
+
+const billCategoryMapping = {
+    airtime: 'airtime=1',
+    data: 'data_bundle=1',
+    tv: 'cables=1',
+    electricity: 'power=1'
+};
+
+export async function getUtilityProviders(type: 'airtime' | 'data' | 'tv' | 'electricity') {
+    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
+        return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
+    }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+    try {
+        const query = billCategoryMapping[type];
+        const response = await fetch(`https://api.flutterwave.com/v3/bill-categories?${query}`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` },
+            signal: controller.signal,
+            next: { revalidate: 3600 } // Revalidate every hour
+        });
+        clearTimeout(timeoutId);
+
+        const data = await response.json();
+        if (data.status === 'success' && data.data) {
+            return { success: true, data: data.data };
+        } else {
+            console.error("Flutterwave API Error (getUtilityProviders):", data);
+            return { success: false, message: data.message || `Failed to fetch ${type} providers.`, data: [] };
+        }
+    } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            return { success: false, message: 'The request to the payment service timed out.', data: [] };
+        }
+        console.error(`Flutterwave Connection Error (getUtilityProviders for ${type}):`, error);
+        return { success: false, message: error.message || 'An unexpected error occurred.', data: [] };
+    }
+}
+
+export async function getUtilityPlans(billerCode: string) {
+    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
+        return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
+    }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+    try {
+        const response = await fetch(`https://api.flutterwave.com/v3/bill-categories?biller_code=${billerCode}`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` },
+            signal: controller.signal,
+            next: { revalidate: 3600 }
+        });
+        clearTimeout(timeoutId);
+        
+        const data = await response.json();
+        if (data.status === 'success' && data.data) {
+            return { success: true, data: data.data };
+        } else {
+            console.error("Flutterwave API Error (getUtilityPlans):", data);
+            return { success: false, message: data.message || `Failed to fetch plans for ${billerCode}.`, data: [] };
+        }
+    } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            return { success: false, message: 'The request to the payment service timed out.', data: [] };
+        }
+        console.error(`Flutterwave Connection Error (getUtilityPlans for ${billerCode}):`, error);
+        return { success: false, message: error.message || 'An unexpected error occurred.', data: [] };
     }
 }
