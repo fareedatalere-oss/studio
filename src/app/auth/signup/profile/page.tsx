@@ -84,6 +84,8 @@ export default function CompleteProfilePage() {
             rewardBalance: 0,
             clickCount: 0,
             hasReferral: false,
+            lastSeen: new Date().toISOString(),
+            blockedUsers: [],
         };
 
         // Create the new profile document using the user's ID as the document ID
