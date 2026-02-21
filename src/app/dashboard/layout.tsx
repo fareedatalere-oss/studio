@@ -6,14 +6,19 @@ import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useUser } from '@/hooks/use-appwrite';
 import { Badge } from '@/components/ui/badge';
-import { useMemo } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user, profile } = useUser();
+  const { user, profile, loading } = useUser();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   
   // TODO: Re-implement notifications with Appwrite
   const unreadNotifications: any[] = [];
@@ -47,7 +52,9 @@ export default function DashboardLayout({
             <Link href="/dashboard/profile">
               <Avatar>
                 <AvatarImage src={profile?.avatar} />
-                <AvatarFallback>{profile?.username?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                <AvatarFallback>
+                  {isMounted && !loading ? (profile?.username?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U') : null}
+                </AvatarFallback>
               </Avatar>
             </Link>
           </div>
