@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -24,6 +24,7 @@ import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_PROFI
 import { ID, Query } from 'appwrite';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import { useParams } from 'next/navigation';
+import { AlertDialogTrigger } from '@radix-ui/react-alert-dialog';
 
 type Message = {
   $id: string;
@@ -246,13 +247,18 @@ export default function ChatThreadPage() {
       }
   }
 
-  const handleDeleteMessage = async (messageId: string) => {
+  const handleDeleteForEveryone = async (messageId: string) => {
     if (!currentUser) return;
+    const messageToDelete = messages.find(m => m.$id === messageId);
+    if (!messageToDelete || messageToDelete.senderId !== currentUser.$id) {
+        toast({ title: 'Error', description: 'You can only delete your own messages.', variant: 'destructive' });
+        return;
+    }
     try {
         await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, messageId);
         toast({ title: 'Message deleted' });
-    } catch(error) { 
-        toast({ title: 'Failed to delete message', variant: 'destructive' }); 
+    } catch(error: any) { 
+        toast({ title: 'Failed to delete message', variant: 'destructive', description: error.message }); 
     }
   };
   
@@ -328,15 +334,18 @@ export default function ChatThreadPage() {
 
   const sendAudio = async () => {
     if (!audioPreview) return;
-    const audioBlob = await fetch(audioPreview).then(r => r.blob());
-    const audioFile = new File([audioBlob], "voice-note.webm", { type: "audio/webm" });
-    await handleSendMessage(inputText, audioFile, 'audio');
+    try {
+        const audioBlob = await fetch(audioPreview).then(r => r.blob());
+        const audioFile = new File([audioBlob], "voice-note.webm", { type: "audio/webm" });
+        await handleSendMessage('', audioFile, 'audio');
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Failed to send audio', description: error.message });
+    }
   };
   
   const MessageStatus = ({ status, isSender }: { status: Message['status'], isSender: boolean }) => {
     if (!isSender) return null;
-    // Read status is disabled due to permission issues.
-    // if (status === 'read') return <CheckCheck className="h-4 w-4 text-blue-500" />; 
+    // Read status (blue check) is disabled because it requires permissions the app doesn't have, causing errors.
     if (status === 'delivered') return <CheckCheck className="h-4 w-4" />;
     if (status === 'sent') return <Check className="h-4 w-4" />;
     return null;
@@ -426,7 +435,7 @@ export default function ChatThreadPage() {
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDeleteMessage(msg.$id)} className='bg-destructive hover:bg-destructive/80'>Delete</AlertDialogAction>
+                                            <AlertDialogAction onClick={() => handleDeleteForEveryone(msg.$id)} className='bg-destructive hover:bg-destructive/80'>Delete for Everyone</AlertDialogAction>
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
