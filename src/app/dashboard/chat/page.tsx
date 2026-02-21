@@ -24,7 +24,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { MoreVertical, Search } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS } from '@/lib/appwrite';
@@ -63,8 +63,6 @@ export default function ChatPage() {
     if (!currentUser) return;
 
     const fetchRecentChats = async () => {
-        // This check is important because the subscription callback might fire
-        // after the user has logged out.
         if (!currentUser) return;
         setRecentsLoading(true);
         try {
@@ -85,14 +83,20 @@ export default function ChatPage() {
                     const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
                     return { ...chat, otherUser: userProfile };
                 } catch {
-                    return { ...chat, otherUser: { $id: otherUserId, username: 'Unknown User' }};
+                    return { ...chat, otherUser: { $id: otherUserId, username: 'Unknown User', avatar: null }};
                 }
             }));
 
             setRecentChats(chatsWithData.filter(Boolean));
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to fetch recent chats:", error);
+             toast({
+                variant: 'destructive',
+                title: 'Could Not Load Chats',
+                description: error.message || 'There was an issue fetching your conversations.'
+            });
+            setRecentChats([]);
         } finally {
             setRecentsLoading(false);
         }
@@ -109,7 +113,7 @@ export default function ChatPage() {
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, toast]);
 
     const handleBlockUser = async (otherUserId: string, otherUserName: string) => {
         if (!currentUserProfile) return;
