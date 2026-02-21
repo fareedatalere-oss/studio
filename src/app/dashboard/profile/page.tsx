@@ -17,7 +17,7 @@ import { ID } from 'appwrite';
 export default function ProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user: authUser, loading: userLoading } = useUser();
+  const { user: authUser, loading: userLoading, recheckUser } = useUser();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -71,6 +71,7 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     try {
         await account.deleteSession('current');
+        await recheckUser();
         toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
         router.push('/auth/signin');
     } catch (error) {

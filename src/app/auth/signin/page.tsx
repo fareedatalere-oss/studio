@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
+import { useUser } from '@/hooks/use-appwrite';
 
 
 const MANAGER_EMAIL = 'i-paymanagerscare402@gmail.com';
@@ -18,6 +19,7 @@ const MANAGER_PASSWORD = 'Halimatussadiyya01/08162810155?admin';
 export default function SignInPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { recheckUser } = useUser();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -54,6 +56,9 @@ export default function SignInPage() {
       });
 
       const session = await account.createEmailPasswordSession(email, password);
+      
+      // Force the provider to update its state with the new user
+      await recheckUser();
       
       // Check if a profile document exists for this user.
       try {
