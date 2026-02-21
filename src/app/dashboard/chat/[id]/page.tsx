@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft, Mic, Paperclip, Send, Check, CheckCheck, MoreVertical, Trash2, X, File,
-  ImageIcon, Headphones, Loader2, Edit, Forward, Play, Pause,
+  ImageIcon, Loader2, Edit, Forward,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -14,13 +14,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { Skeleton } from '@/components/ui/skeleton';
 import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, getAppwriteStorageUrl } from '@/lib/appwrite';
 import { ID, Query } from 'appwrite';
 import { format, formatDistanceToNowStrict } from 'date-fns';
@@ -56,13 +55,11 @@ export default function ChatThreadPage() {
   const [isSending, setIsSending] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
 
-  // Blocking state
   const [isBlockedByMe, setIsBlockedByMe] = useState(false);
   const [amIBlocked, setAmIBlocked] = useState(false);
 
-  // File and voice state
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const fileTypeRef = useRef<'image' | 'video' | 'audio' | 'file'>('file');
+  const fileTypeRef = useRef<'image' | 'file'>('file');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -73,11 +70,11 @@ export default function ChatThreadPage() {
 
   // --- Data Fetching and Realtime ---
 
-  const findOrCreateChat = useCallback(async (currentUId: string, otherUId: string) => {
+  const findChatId = useCallback(async (currentUId: string, otherUId: string) => {
+    const sortedParticipants = [currentUId, otherUId].sort();
     try {
       const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
-        Query.search('participants', currentUId),
-        Query.search('participants', otherUId)
+        Query.equal('participants', sortedParticipants)
       ]);
       const existingChat = response.documents[0];
       if (existingChat) {
@@ -88,11 +85,9 @@ export default function ChatThreadPage() {
     return null;
   }, []);
 
-  // Fetch initial data
   useEffect(() => {
     if (!otherUserId || !currentUser?.$id || !currentUserProfile) return;
 
-    // Fetch other user's profile and check blocking status
     databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId)
       .then(profile => {
         setOtherUser(profile);
@@ -101,9 +96,8 @@ export default function ChatThreadPage() {
       })
       .catch(() => toast({ variant: 'destructive', title: 'Error', description: 'Could not load user profile.' }));
 
-    // Find chat and load messages
     setMessagesLoading(true);
-    findOrCreateChat(currentUser.$id, otherUserId).then(foundChatId => {
+    findChatId(currentUser.$id, otherUserId).then(foundChatId => {
       if (foundChatId) {
         databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
           Query.equal('chatId', foundChatId),
@@ -118,113 +112,158 @@ export default function ChatThreadPage() {
         setMessagesLoading(false);
       }
     });
-  }, [otherUserId, currentUser, currentUserProfile, findOrCreateChat, toast]);
+  }, [otherUserId, currentUser, currentUserProfile, findChatId, toast]);
 
   // Realtime subscriptions
   useEffect(() => {
     if (!currentUser?.$id || !otherUserId) return;
 
-    // Presence subscription
     const presenceUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${otherUserId}`, response => {
       const updatedProfile = response.payload as any;
-      setOtherUser(updatedProfile);
+      setOtherUser(prev => ({...prev, ...updatedProfile}));
       setAmIBlocked(updatedProfile.blockedUsers?.includes(currentUser.$id) || false);
       
       const lastSeen = new Date(updatedProfile.lastSeen).getTime();
       const now = new Date().getTime();
-      setIsOtherUserOnline((now - lastSeen) < 5 * 60 * 1000); // Online if active in last 5 mins
+      const isNowOnline = (now - lastSeen) < 60 * 1000;
+      setIsOtherUserOnline(isNowOnline);
+
+      if (isNowOnline && chatId) {
+        databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
+            Query.equal('chatId', chatId),
+            Query.equal('senderId', currentUser.$id),
+            Query.equal('status', 'sent')
+        ]).then(res => {
+            const updates = res.documents.map(m => 
+                databases.updateDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, m.$id, { status: 'delivered' })
+            );
+            Promise.all(updates).catch(err => console.error("Failed to upgrade messages to delivered:", err));
+        });
+      }
     });
     
-    // Own profile subscription for unblocking
     const selfUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${currentUser.$id}`, response => {
       const myProfile = response.payload as any;
       setIsBlockedByMe(myProfile.blockedUsers?.includes(otherUserId) || false);
     });
 
-    // Update my presence
     const updatePresence = () => {
-        databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id, { lastSeen: new Date().toISOString() });
+        if (document.visibilityState === 'visible') {
+            databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id, { lastSeen: new Date().toISOString() });
+        }
     }
     updatePresence();
-    const presenceInterval = setInterval(updatePresence, 60 * 1000); // update every minute
+    const presenceInterval = setInterval(updatePresence, 30 * 1000);
 
     return () => {
       presenceUnsubscribe();
       selfUnsubscribe();
       clearInterval(presenceInterval);
     };
-  }, [currentUser, otherUserId]);
+  }, [currentUser, otherUserId, chatId]);
 
   useEffect(() => {
     if (!chatId) return;
     const messagesUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`, response => {
-      const newMessage = response.payload as Message;
-      if (newMessage.chatId !== chatId) return;
+      const payload = response.payload as Message;
+      if (payload.chatId !== chatId) return;
       
       const eventType = response.events[0];
       if (eventType.includes('.create')) {
-        setMessages(prev => [...prev, newMessage]);
+        setMessages(prev => prev.find(m => m.$id === payload.$id) ? prev : [...prev, payload]);
       } else if (eventType.includes('.update')) {
-        setMessages(prev => prev.map(m => m.$id === newMessage.$id ? newMessage : m));
+        setMessages(prev => prev.map(m => m.$id === payload.$id ? payload : m));
       } else if (eventType.includes('.delete')) {
-        setMessages(prev => prev.filter(m => m.$id !== newMessage.$id));
+        setMessages(prev => prev.filter(m => m.$id !== payload.$id));
       }
     });
     return () => messagesUnsubscribe();
   }, [chatId]);
   
+  useEffect(() => {
+    if (!chatId || !currentUser?.$id || messages.length === 0) return;
+
+    const unreadMessages = messages.filter(
+      (m) => m.senderId === otherUserId && m.status !== 'read'
+    );
+
+    if (unreadMessages.length > 0) {
+      const updates = unreadMessages.map((m) =>
+        databases.updateDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, m.$id, {
+          status: 'read',
+        })
+      );
+      Promise.all(updates).catch((err) => {
+        console.error('Failed to mark messages as read:', err);
+      });
+    }
+  }, [messages, chatId, currentUser, otherUserId]);
+
   useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   // --- Actions ---
 
-  const handleSendMessage = async (mediaUrl?: string, type?: Message['mediaType']) => {
-    if ((!inputText.trim() && !mediaUrl) || !currentUser || !otherUser) return;
+  const handleSendMessage = async (text: string, file?: File, type?: Message['mediaType']) => {
+    if ((!text.trim() && !file) || !currentUser || !otherUser) return;
     setIsSending(true);
 
-    const messageText = inputText.trim();
-    setInputText('');
-    
     try {
-      if (editingMessage) {
-        // --- Edit existing message ---
-        const updatedMessage = await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, editingMessage.$id, { text: messageText, isEdited: true });
-        setMessages(prev => prev.map(m => m.$id === updatedMessage.$id ? (updatedMessage as Message) : m));
-        setEditingMessage(null);
-      } else {
-        // --- Send new message ---
-        let currentChatId = chatId;
-        if (!currentChatId) {
-          const sortedParticipants = [currentUser.$id, otherUser.$id].sort();
-          const newChatDoc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_CHATS, ID.unique(), { participants: sortedParticipants, lastMessage: '...', lastMessageAt: new Date().toISOString() });
-          currentChatId = newChatDoc.$id;
-          setChatId(currentChatId);
-        }
-        if (!currentChatId) throw new Error("Failed to create or find chat.");
-
-        const messagePayload: any = { chatId: currentChatId, senderId: currentUser.$id, status: 'sent' };
-        if (mediaUrl && type) {
-            messagePayload.mediaUrl = mediaUrl;
-            messagePayload.mediaType = type;
-            if (messageText) messagePayload.text = messageText;
-        } else {
-            messagePayload.text = messageText;
-            messagePayload.mediaType = 'text';
-        }
-
-        const newMessage = await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), messagePayload);
-        // Optimistic update (though realtime subscription also handles this)
-        if (!messages.find(m => m.$id === newMessage.$id)) {
-            setMessages(prev => [...prev, newMessage as Message]);
-        }
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, currentChatId, { lastMessage: messageText || `Sent a ${type}`, lastMessageAt: new Date().toISOString() });
+      let mediaUrl: string | undefined = undefined;
+      if (file && type) {
+        const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
+        mediaUrl = getAppwriteStorageUrl(uploadResult.$id);
       }
+
+      let currentChatId = chatId;
+      if (!currentChatId) {
+        const sortedParticipants = [currentUser.$id, otherUser.$id].sort();
+        const existingChats = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
+            Query.equal('participants', sortedParticipants)
+        ]);
+        if (existingChats.documents[0]) {
+            currentChatId = existingChats.documents[0].$id;
+        } else {
+            const newChatDoc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_CHATS, ID.unique(), { participants: sortedParticipants, lastMessage: '...', lastMessageAt: new Date().toISOString() });
+            currentChatId = newChatDoc.$id;
+        }
+        setChatId(currentChatId);
+      }
+      if (!currentChatId) throw new Error("Failed to create or find chat.");
+
+      const messagePayload: any = { 
+          chatId: currentChatId, 
+          senderId: currentUser.$id, 
+          status: isOtherUserOnline ? 'delivered' : 'sent',
+          text: text.trim(),
+          mediaUrl: mediaUrl,
+          mediaType: type || 'text'
+      };
+
+      await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), messagePayload);
+      await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, currentChatId, { lastMessage: text.trim() || `Sent a ${type}`, lastMessageAt: new Date().toISOString() });
+
+      setInputText('');
+      setAudioPreview(null);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Failed to send message', description: error.message });
-      setInputText(messageText); // Restore input on failure
     } finally {
       setIsSending(false);
     }
   };
+
+  const handleEdit = async () => {
+      if (!editingMessage || !inputText.trim()) return;
+      setIsSending(true);
+      try {
+          await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, editingMessage.$id, { text: inputText.trim(), isEdited: true });
+          setEditingMessage(null);
+          setInputText('');
+      } catch (e: any) {
+          toast({ variant: 'destructive', title: 'Failed to edit message', description: e.message });
+      } finally {
+          setIsSending(false);
+      }
+  }
 
   const handleDeleteMessage = async (messageId: string, forEveryone: boolean) => {
     if (!currentUser) return;
@@ -242,7 +281,7 @@ export default function ChatThreadPage() {
     } catch(error) { toast({ title: 'Failed to delete message', variant: 'destructive' }); }
   };
   
-  const handleEditMessage = (message: Message) => {
+  const handleStartEdit = (message: Message) => {
     if(message.mediaType === 'text' && message.text) {
         setEditingMessage(message);
         setInputText(message.text);
@@ -272,29 +311,16 @@ export default function ChatThreadPage() {
     }
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    toast({ title: 'Uploading...', description: 'Your file is being uploaded.' });
-    setIsSending(true);
-    try {
-        const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
-        const fileUrl = getAppwriteStorageUrl(uploadResult.$id);
-        await handleSendMessage(fileUrl, fileTypeRef.current);
-    } catch (error) {
-        toast({ title: 'Upload Failed', description: (error as Error).message, variant: 'destructive' });
-    } finally { setIsSending(false); }
+    handleSendMessage('', file, fileTypeRef.current);
   };
-
-  // --- Voice Recording ---
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRecording) {
-        interval = setInterval(() => {
-            setRecordingTime(prev => prev + 1);
-        }, 1000);
+        interval = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
     }
     return () => clearInterval(interval);
   }, [isRecording]);
@@ -304,13 +330,10 @@ export default function ChatThreadPage() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorderRef.current = new MediaRecorder(stream);
       audioChunksRef.current = [];
-      mediaRecorderRef.current.ondataavailable = event => {
-        audioChunksRef.current.push(event.data);
-      };
+      mediaRecorderRef.current.ondataavailable = event => audioChunksRef.current.push(event.data);
       mediaRecorderRef.current.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const audioUrl = URL.createObjectURL(audioBlob);
-        setAudioPreview(audioUrl);
+        setAudioPreview(URL.createObjectURL(audioBlob));
       };
       mediaRecorderRef.current.start();
       setIsRecording(true);
@@ -332,23 +355,11 @@ export default function ChatThreadPage() {
     if (!audioPreview) return;
     const audioBlob = await fetch(audioPreview).then(r => r.blob());
     const audioFile = new File([audioBlob], "voice-note.webm", { type: "audio/webm" });
-
-    setIsSending(true);
-    toast({ title: 'Uploading voice note...' });
-    try {
-        const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), audioFile);
-        const fileUrl = getAppwriteStorageUrl(uploadResult.$id);
-        await handleSendMessage(fileUrl, 'audio');
-        setAudioPreview(null);
-        setRecordingTime(0);
-    } catch (error) {
-        toast({ title: 'Upload Failed', variant: 'destructive' });
-    } finally { setIsSending(false); }
+    await handleSendMessage(inputText, audioFile, 'audio');
   };
   
-  // --- Render Logic ---
-
-  const MessageStatus = ({ status }: { status: Message['status'] }) => {
+  const MessageStatus = ({ status, isSender }: { status: Message['status'], isSender: boolean }) => {
+    if (!isSender) return null;
     if (status === 'read') return <CheckCheck className="h-4 w-4 text-blue-500" />;
     if (status === 'delivered') return <CheckCheck className="h-4 w-4" />;
     if (status === 'sent') return <Check className="h-4 w-4" />;
@@ -356,17 +367,14 @@ export default function ChatThreadPage() {
   };
   
   const isLoading = userLoading || !otherUser || !currentUserProfile;
-  
-  const openFilePicker = (type: 'image' | 'video' | 'audio' | 'file') => {
+  const openFilePicker = (type: 'image' | 'file') => {
       fileTypeRef.current = type;
       fileInputRef.current?.click();
   }
-
   const visibleMessages = messages.filter(m => !m.deletedFor?.includes(currentUser?.$id ?? ''));
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <header className="sticky top-16 md:top-0 bg-background border-b flex items-center justify-between gap-3 p-3">
         <div className='flex items-center gap-3'>
             <Link href="/dashboard/chat" className="md:hidden">
@@ -380,7 +388,7 @@ export default function ChatThreadPage() {
             <h2 className="font-semibold">{otherUser?.username || 'User'}</h2>
             <div className="flex items-center gap-1.5">
                 <span className={cn('h-2 w-2 rounded-full', isOtherUserOnline ? 'bg-green-500' : 'bg-gray-400')}></span>
-                <p className="text-xs text-muted-foreground">{isOtherUserOnline ? 'Online' : (otherUser?.lastSeen ? formatDistanceToNowStrict(new Date(otherUser.lastSeen)) : 'Offline')}</p>
+                <p className="text-xs text-muted-foreground">{isOtherUserOnline ? 'Online' : (otherUser?.lastSeen ? `Last seen ${formatDistanceToNowStrict(new Date(otherUser.lastSeen), {addSuffix: true})}` : 'Offline')}</p>
             </div>
             </div>
         </div>
@@ -388,22 +396,21 @@ export default function ChatThreadPage() {
             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical /></Button></DropdownMenuTrigger>
             <DropdownMenuContent>
                 <DropdownMenuItem onClick={handleBlockToggle}>{isBlockedByMe ? 'Unblock User' : 'Block User'}</DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive">Delete Chat</DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
       </header>
 
-      {/* Chat Body */}
       <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-        {isLoading ? <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>
-        : messagesLoading ? <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>
+        {isLoading || messagesLoading ? <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>
         : visibleMessages.length === 0 ? <p className='text-center text-muted-foreground'>No messages yet. Say hello!</p>
         : (
-            visibleMessages.map((msg) => (
+            visibleMessages.map((msg) => {
+                const isSender = msg.senderId === currentUser?.$id;
+                return (
                 <DropdownMenu key={msg.$id}>
                     <DropdownMenuTrigger asChild>
-                    <div className={cn('flex max-w-[75%] flex-col gap-1', msg.senderId === currentUser?.$id ? 'ml-auto items-end' : 'mr-auto items-start' )}>
-                        <div className={cn('rounded-lg px-3 py-2', msg.senderId === currentUser?.$id ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
+                    <div className={cn('flex max-w-[75%] flex-col gap-1', isSender ? 'ml-auto items-end' : 'mr-auto items-start' )}>
+                        <div className={cn('rounded-lg px-3 py-2', isSender ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
                           {msg.mediaUrl && msg.mediaType === 'image' ? (
                                 <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer">
                                   <img src={msg.mediaUrl} alt="sent image" className="max-w-xs rounded-md" />
@@ -420,14 +427,14 @@ export default function ChatThreadPage() {
                         <div className="flex items-center gap-1.5 text-muted-foreground text-xs px-1">
                             {msg.isEdited && <span>(edited)</span>}
                             <span>{format(new Date(msg.$createdAt), 'p')}</span>
-                            {msg.senderId === currentUser?.$id && <MessageStatus status={msg.status} />}
+                            <MessageStatus status={msg.status} isSender={isSender} />
                         </div>
                     </div>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent>
-                        <DropdownMenuItem><Forward className="mr-2 h-4 w-4" /><span>Forward</span></DropdownMenuItem>
-                         {msg.senderId === currentUser?.$id && msg.mediaType === 'text' && (
-                            <DropdownMenuItem onClick={() => handleEditMessage(msg)}><Edit className="mr-2 h-4 w-4" /><span>Edit</span></DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toast({ title: 'Coming soon!' })}><Forward className="mr-2 h-4 w-4" /><span>Forward</span></DropdownMenuItem>
+                         {isSender && msg.mediaType === 'text' && (
+                            <DropdownMenuItem onClick={() => handleStartEdit(msg)}><Edit className="mr-2 h-4 w-4" /><span>Edit</span></DropdownMenuItem>
                          )}
                          <DropdownMenuSeparator />
                         <AlertDialog>
@@ -437,7 +444,7 @@ export default function ChatThreadPage() {
                             <AlertDialogContent>
                                 <AlertDialogHeader><AlertDialogTitle>Delete Message?</AlertDialogTitle></AlertDialogHeader>
                                 <AlertDialogFooter className='sm:flex-col sm:space-x-0 gap-2'>
-                                    {msg.senderId === currentUser?.$id && <AlertDialogAction onClick={() => handleDeleteMessage(msg.$id, true)} className='bg-destructive hover:bg-destructive/80'>Delete for Everyone</AlertDialogAction>}
+                                    {isSender && <AlertDialogAction onClick={() => handleDeleteMessage(msg.$id, true)} className='bg-destructive hover:bg-destructive/80'>Delete for Everyone</AlertDialogAction>}
                                     <AlertDialogAction onClick={() => handleDeleteMessage(msg.$id, false)} variant="outline">Delete for Me</AlertDialogAction>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 </AlertDialogFooter>
@@ -445,12 +452,11 @@ export default function ChatThreadPage() {
                         </AlertDialog>
                     </DropdownMenuContent>
                 </DropdownMenu>
-            ))
+            )})
         )}
         <div ref={chatBottomRef} />
       </div>
 
-      {/* Chat Input */}
       <footer className="sticky bottom-16 md:bottom-0 bg-background border-t p-3">
         {isBlockedByMe ? <Card className="bg-muted text-center p-3 text-sm text-muted-foreground">You blocked this user. <Button variant="link" className="p-1 h-auto" onClick={handleBlockToggle}>Unblock</Button></Card>
         : amIBlocked ? <Card className="bg-muted text-center p-3 text-sm text-muted-foreground">You can't reply to this conversation.</Card>
@@ -468,15 +474,15 @@ export default function ChatThreadPage() {
             </div>
         ) : (
             <div className="flex items-center gap-2">
-            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileSelect} accept="image/*,video/*,application/*" />
+            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileSelect} accept="image/*,application/*" />
             <Textarea
                 placeholder={editingMessage ? "Edit message..." : "Type a message..."}
                 value={inputText} onChange={(e) => setInputText(e.target.value)} rows={1}
                 className="resize-none min-h-[40px] max-h-[120px]"
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); editingMessage ? handleEdit() : handleSendMessage(inputText); } }}
             />
              {inputText ? (
-                <Button size="icon" onClick={() => handleSendMessage()} disabled={isSending}>{isSending ? <Loader2 className="animate-spin" /> : <Send />}</Button>
+                <Button size="icon" onClick={() => editingMessage ? handleEdit() : handleSendMessage(inputText)} disabled={isSending}>{isSending ? <Loader2 className="animate-spin" /> : <Send />}</Button>
              ) : (
                 <>
                 <DropdownMenu>
