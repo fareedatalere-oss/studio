@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -180,25 +180,6 @@ export default function ChatThreadPage() {
     return () => messagesUnsubscribe();
   }, [chatId]);
   
-  useEffect(() => {
-    if (!chatId || !currentUser?.$id || messages.length === 0) return;
-
-    const unreadMessages = messages.filter(
-      (m) => m.senderId === otherUserId && m.status !== 'read'
-    );
-
-    if (unreadMessages.length > 0) {
-      const updates = unreadMessages.map((m) =>
-        databases.updateDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, m.$id, {
-          status: 'read',
-        })
-      );
-      Promise.all(updates).catch((err) => {
-        console.error('Failed to mark messages as read:', err);
-      });
-    }
-  }, [messages, chatId, currentUser, otherUserId]);
-
   useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   // --- Actions ---
@@ -265,20 +246,14 @@ export default function ChatThreadPage() {
       }
   }
 
-  const handleDeleteMessage = async (messageId: string, forEveryone: boolean) => {
+  const handleDeleteMessage = async (messageId: string) => {
     if (!currentUser) return;
     try {
-      if (forEveryone) {
         await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, messageId);
-      } else {
-        const message = messages.find(m => m.$id === messageId);
-        const currentDeletedFor = message?.deletedFor || [];
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, messageId, {
-          deletedFor: [...currentDeletedFor, currentUser.$id]
-        });
-      }
-      toast({ title: 'Message deleted' });
-    } catch(error) { toast({ title: 'Failed to delete message', variant: 'destructive' }); }
+        toast({ title: 'Message deleted' });
+    } catch(error) { 
+        toast({ title: 'Failed to delete message', variant: 'destructive' }); 
+    }
   };
   
   const handleStartEdit = (message: Message) => {
@@ -360,7 +335,8 @@ export default function ChatThreadPage() {
   
   const MessageStatus = ({ status, isSender }: { status: Message['status'], isSender: boolean }) => {
     if (!isSender) return null;
-    if (status === 'read') return <CheckCheck className="h-4 w-4 text-blue-500" />;
+    // Read status is disabled due to permission issues.
+    // if (status === 'read') return <CheckCheck className="h-4 w-4 text-blue-500" />; 
     if (status === 'delivered') return <CheckCheck className="h-4 w-4" />;
     if (status === 'sent') return <Check className="h-4 w-4" />;
     return null;
@@ -436,20 +412,26 @@ export default function ChatThreadPage() {
                          {isSender && msg.mediaType === 'text' && (
                             <DropdownMenuItem onClick={() => handleStartEdit(msg)}><Edit className="mr-2 h-4 w-4" /><span>Edit</span></DropdownMenuItem>
                          )}
-                         <DropdownMenuSeparator />
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /><span>Delete...</span></DropdownMenuItem>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader><AlertDialogTitle>Delete Message?</AlertDialogTitle></AlertDialogHeader>
-                                <AlertDialogFooter className='sm:flex-col sm:space-x-0 gap-2'>
-                                    {isSender && <AlertDialogAction onClick={() => handleDeleteMessage(msg.$id, true)} className='bg-destructive hover:bg-destructive/80'>Delete for Everyone</AlertDialogAction>}
-                                    <AlertDialogAction onClick={() => handleDeleteMessage(msg.$id, false)} variant="outline">Delete for Me</AlertDialogAction>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
+                         {isSender && (
+                            <>
+                                <DropdownMenuSeparator />
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /><span>Delete</span></DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Delete Message?</AlertDialogTitle>
+                                            <AlertDialogDescription>This will permanently delete this message for everyone. This action cannot be undone.</AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteMessage(msg.$id)} className='bg-destructive hover:bg-destructive/80'>Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </>
+                         )}
                     </DropdownMenuContent>
                 </DropdownMenu>
             )})
