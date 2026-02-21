@@ -59,42 +59,44 @@ export default function ChatPage() {
   }, [currentUser]);
 
   // Fetch recent chats and subscribe
-  const fetchRecentChats = useCallback(async () => {
-    if (!currentUser) return;
-    setRecentsLoading(true);
-    try {
-        const response = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTION_ID_CHATS,
-            [
-                Query.equal('participants', [currentUser.$id]),
-                Query.orderDesc('lastMessageAt')
-            ]
-        );
-
-        const chatsWithData = await Promise.all(response.documents.map(async (chat) => {
-            const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
-            if (!otherUserId) return null;
-
-            try {
-                const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
-                return { ...chat, otherUser: userProfile };
-            } catch {
-                return { ...chat, otherUser: { $id: otherUserId, username: 'Unknown User' }};
-            }
-        }));
-
-        setRecentChats(chatsWithData.filter(Boolean));
-
-    } catch (error) {
-        console.error("Failed to fetch recent chats:", error);
-    } finally {
-        setRecentsLoading(false);
-    }
-  }, [currentUser]);
-  
   useEffect(() => {
     if (!currentUser) return;
+
+    const fetchRecentChats = async () => {
+        // This check is important because the subscription callback might fire
+        // after the user has logged out.
+        if (!currentUser) return;
+        setRecentsLoading(true);
+        try {
+            const response = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTION_ID_CHATS,
+                [
+                    Query.equal('participants', [currentUser.$id]),
+                    Query.orderDesc('lastMessageAt')
+                ]
+            );
+
+            const chatsWithData = await Promise.all(response.documents.map(async (chat) => {
+                const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
+                if (!otherUserId) return null;
+
+                try {
+                    const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
+                    return { ...chat, otherUser: userProfile };
+                } catch {
+                    return { ...chat, otherUser: { $id: otherUserId, username: 'Unknown User' }};
+                }
+            }));
+
+            setRecentChats(chatsWithData.filter(Boolean));
+
+        } catch (error) {
+            console.error("Failed to fetch recent chats:", error);
+        } finally {
+            setRecentsLoading(false);
+        }
+    };
     
     fetchRecentChats();
 
@@ -107,7 +109,7 @@ export default function ChatPage() {
     });
 
     return () => unsubscribe();
-  }, [currentUser, fetchRecentChats]);
+  }, [currentUser]);
 
     const handleBlockUser = async (otherUserId: string, otherUserName: string) => {
         if (!currentUserProfile) return;
