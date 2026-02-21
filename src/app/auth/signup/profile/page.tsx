@@ -13,13 +13,13 @@ import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/a
 import { countries } from '@/lib/countries';
 import { IPayLogo } from '@/components/icons';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ID } from 'appwrite';
 
 export default function CompleteProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
   const { user, loading: userLoading } = useUser();
 
+  const [username, setUsername] = useState('');
   const [country, setCountry] = useState('');
   const [pin, setPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -50,10 +50,10 @@ export default function CompleteProfilePage() {
         return;
     }
 
-    if (!country || pin.length !== 5) {
+    if (!username || !country || pin.length !== 5) {
       toast({
         title: 'Error',
-        description: 'Country and a 5-digit PIN are required.',
+        description: 'Username, country, and a 5-digit PIN are required.',
         variant: 'destructive',
       });
       return;
@@ -61,31 +61,18 @@ export default function CompleteProfilePage() {
     setIsLoading(true);
 
     try {
-        // Generate a temporary username from email. This will be updated later.
-        const tempUsername = user.email.split('@')[0] + Math.floor(Math.random() * 1000);
-        await account.updateName(tempUsername);
+        await account.updateName(username);
 
-        // Prepare a complete data object that matches the database schema
+        // Prepare only the essential data for the new profile
         const profileData = {
             email: user.email,
-            username: tempUsername,
+            username: username,
             country: country,
             pin: pin,
             createdAt: new Date().toISOString(),
-            firstName: "",
-            lastName: "",
-            middleName: "",
-            phone: "",
-            bvn: "",
-            accountNumber: "",
-            bankName: "",
-            avatar: "",
-            nairaBalance: 0,
-            rewardBalance: 0,
-            clickCount: 0,
-            hasReferral: false,
             lastSeen: new Date().toISOString(),
             blockedUsers: [],
+            hasReferral: false, // Set default
         };
 
         // Create the new profile document using the user's ID as the document ID
@@ -105,9 +92,14 @@ export default function CompleteProfilePage() {
 
     } catch (error: any) {
         console.error("Profile setup error:", error);
+        let errorMessage = `A critical error occurred while creating your profile: ${error.message}`;
+        if (error.type === 'document_already_exists') {
+             errorMessage = 'A profile for this user already exists. Redirecting to dashboard.';
+             router.push('/dashboard');
+        }
         toast({
             title: 'Setup Failed',
-            description: `A critical error occurred while creating your profile: ${error.message}`,
+            description: errorMessage,
             variant: 'destructive',
         });
     } finally {
@@ -124,6 +116,7 @@ export default function CompleteProfilePage() {
                        <Skeleton className="h-4 w-64 mx-auto" />
                   </CardHeader>
                   <CardContent className="space-y-4">
+                      <Skeleton className="h-10 w-full" />
                       <Skeleton className="h-10 w-full" />
                       <Skeleton className="h-10 w-full" />
                       <Skeleton className="h-10 w-full" />
@@ -144,9 +137,20 @@ export default function CompleteProfilePage() {
         <CardContent>
           <form onSubmit={handleProfileSetup} className="space-y-4">
             <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                 <Input
+                    id="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="e.g., johndoe"
+                    required
+                    disabled={isLoading}
+                />
+            </div>
+            <div className="space-y-2">
                 <Label htmlFor="country">Country</Label>
                 <Select onValueChange={setCountry} value={country} required>
-                    <SelectTrigger id="country">
+                    <SelectTrigger id="country" disabled={isLoading}>
                         <SelectValue placeholder="Select your country" />
                     </SelectTrigger>
                     <SelectContent>
@@ -173,7 +177,7 @@ export default function CompleteProfilePage() {
                 disabled={isLoading}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading || !country || pin.length !== 5}>
+            <Button type="submit" className="w-full" disabled={isLoading || !username || !country || pin.length !== 5}>
               {isLoading ? "Saving Profile..." : "Finish Sign Up"}
             </Button>
           </form>
