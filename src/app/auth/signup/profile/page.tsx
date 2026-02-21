@@ -63,14 +63,12 @@ export default function CompleteProfilePage() {
     try {
         await account.updateName(username);
 
-        // Prepare only the essential data for the new profile
+        // Prepare only the essential data for the new profile, as requested.
         const profileData = {
-            email: user.email,
             username: username,
             country: country,
             pin: pin,
-            avatar: '', // Set initial avatar to empty
-            createdAt: new Date().toISOString(),
+            avatar: '',
         };
 
         // Create the new profile document using the user's ID as the document ID
