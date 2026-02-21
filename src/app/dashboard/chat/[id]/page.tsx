@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -24,7 +24,6 @@ import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_PROFI
 import { ID, Query } from 'appwrite';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import { useParams } from 'next/navigation';
-import { AlertDialogTrigger } from '@radix-ui/react-alert-dialog';
 
 type Message = {
   $id: string;
@@ -72,6 +71,7 @@ export default function ChatThreadPage() {
   // --- Data Fetching and Realtime ---
 
   const findChatId = useCallback(async (currentUId: string, otherUId: string) => {
+    // Queries need an index on `participants`. Ensure this is created in your Appwrite console.
     const sortedParticipants = [currentUId, otherUId].sort();
     try {
       const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
@@ -85,6 +85,27 @@ export default function ChatThreadPage() {
     } catch (error) { console.error("Error finding chat:", error); }
     return null;
   }, []);
+
+  const markMessagesAsRead = useCallback(async (chatId: string) => {
+    if (!currentUser?.$id) return;
+    try {
+      // Get all messages in this chat sent by the OTHER user that are not yet 'read'
+      const unreadMessages = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
+        Query.equal('chatId', [chatId]),
+        Query.equal('senderId', [otherUserId]),
+        Query.notEqual('status', 'read')
+      ]);
+
+      // Update them all to 'read'
+      const updatePromises = unreadMessages.documents.map(msg =>
+        databases.updateDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, msg.$id, { status: 'read' })
+      );
+      await Promise.all(updatePromises);
+
+    } catch (error) {
+      console.error("Failed to mark messages as read: ", error);
+    }
+  }, [currentUser?.$id, otherUserId]);
 
   useEffect(() => {
     if (!otherUserId || !currentUser?.$id || !currentUserProfile) return;
@@ -106,6 +127,7 @@ export default function ChatThreadPage() {
           Query.limit(100)
         ]).then(response => {
           setMessages(response.documents as Message[]);
+          markMessagesAsRead(foundChatId); // Mark messages as read on load
         }).catch(() => toast({ variant: 'destructive', title: 'Error loading messages' }))
           .finally(() => setMessagesLoading(false));
       } else {
@@ -113,11 +135,23 @@ export default function ChatThreadPage() {
         setMessagesLoading(false);
       }
     });
-  }, [otherUserId, currentUser, currentUserProfile, findChatId, toast]);
+  }, [otherUserId, currentUser, currentUserProfile, findChatId, toast, markMessagesAsRead]);
 
   // Realtime subscriptions
   useEffect(() => {
     if (!currentUser?.$id || !otherUserId) return;
+
+    // This function will be called to update the user's online status
+    const updatePresence = () => {
+        if (document.visibilityState === 'visible') {
+            databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id, { lastSeen: new Date().toISOString() })
+              .catch(err => console.error("Failed to update presence:", err));
+        }
+    };
+    
+    // Update presence immediately and then every 30 seconds
+    updatePresence();
+    const presenceInterval = setInterval(updatePresence, 30 * 1000);
 
     const presenceUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${otherUserId}`, response => {
       const updatedProfile = response.payload as any;
@@ -126,9 +160,11 @@ export default function ChatThreadPage() {
       
       const lastSeen = new Date(updatedProfile.lastSeen).getTime();
       const now = new Date().getTime();
+      // Consider online if last seen within the last minute
       const isNowOnline = (now - lastSeen) < 60 * 1000;
       setIsOtherUserOnline(isNowOnline);
 
+      // If the other user just came online, we can upgrade our sent messages to 'delivered'
       if (isNowOnline && chatId) {
         databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
             Query.equal('chatId', chatId),
@@ -148,14 +184,6 @@ export default function ChatThreadPage() {
       setIsBlockedByMe(myProfile.blockedUsers?.includes(otherUserId) || false);
     });
 
-    const updatePresence = () => {
-        if (document.visibilityState === 'visible') {
-            databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id, { lastSeen: new Date().toISOString() });
-        }
-    }
-    updatePresence();
-    const presenceInterval = setInterval(updatePresence, 30 * 1000);
-
     return () => {
       presenceUnsubscribe();
       selfUnsubscribe();
@@ -172,14 +200,19 @@ export default function ChatThreadPage() {
       const eventType = response.events[0];
       if (eventType.includes('.create')) {
         setMessages(prev => prev.find(m => m.$id === payload.$id) ? prev : [...prev, payload]);
+        // If the new message is from the other user, mark it as read immediately
+        if (payload.senderId === otherUserId) {
+            markMessagesAsRead(chatId);
+        }
       } else if (eventType.includes('.update')) {
         setMessages(prev => prev.map(m => m.$id === payload.$id ? payload : m));
       } else if (eventType.includes('.delete')) {
+        // This is handled optimistically on the client, but this ensures sync
         setMessages(prev => prev.filter(m => m.$id !== payload.$id));
       }
     });
     return () => messagesUnsubscribe();
-  }, [chatId]);
+  }, [chatId, otherUserId, markMessagesAsRead]);
   
   useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -199,15 +232,8 @@ export default function ChatThreadPage() {
       let currentChatId = chatId;
       if (!currentChatId) {
         const sortedParticipants = [currentUser.$id, otherUser.$id].sort();
-        const existingChats = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
-            Query.equal('participants', sortedParticipants)
-        ]);
-        if (existingChats.documents[0]) {
-            currentChatId = existingChats.documents[0].$id;
-        } else {
-            const newChatDoc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_CHATS, ID.unique(), { participants: sortedParticipants, lastMessage: '...', lastMessageAt: new Date().toISOString() });
-            currentChatId = newChatDoc.$id;
-        }
+        const newChatDoc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_CHATS, ID.unique(), { participants: sortedParticipants, lastMessage: text.trim() || `Sent a ${type}`, lastMessageAt: new Date().toISOString() });
+        currentChatId = newChatDoc.$id;
         setChatId(currentChatId);
       }
       if (!currentChatId) throw new Error("Failed to create or find chat.");
@@ -232,8 +258,8 @@ export default function ChatThreadPage() {
       setIsSending(false);
     }
   };
-
-  const handleEdit = async () => {
+  
+    const handleEdit = async () => {
       if (!editingMessage || !inputText.trim()) return;
       setIsSending(true);
       try {
@@ -245,7 +271,7 @@ export default function ChatThreadPage() {
       } finally {
           setIsSending(false);
       }
-  }
+    }
 
   const handleDeleteForEveryone = async (messageId: string) => {
     if (!currentUser) return;
@@ -254,10 +280,14 @@ export default function ChatThreadPage() {
         toast({ title: 'Error', description: 'You can only delete your own messages.', variant: 'destructive' });
         return;
     }
+    // Optimistic UI update
+    setMessages(prev => prev.filter(m => m.$id !== messageId));
     try {
         await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, messageId);
         toast({ title: 'Message deleted' });
     } catch(error: any) { 
+        // Revert optimistic update on failure
+        setMessages(prev => [...prev, messageToDelete].sort((a,b) => new Date(a.$createdAt).getTime() - new Date(b.$createdAt).getTime()));
         toast({ title: 'Failed to delete message', variant: 'destructive', description: error.message }); 
     }
   };
@@ -296,6 +326,7 @@ export default function ChatThreadPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     handleSendMessage('', file, fileTypeRef.current);
+    e.target.value = ''; // Reset file input
   };
 
   useEffect(() => {
@@ -334,21 +365,14 @@ export default function ChatThreadPage() {
 
   const sendAudio = async () => {
     if (!audioPreview) return;
-    setIsSending(true);
-    try {
-        const audioBlob = await fetch(audioPreview).then(r => r.blob());
-        const audioFile = new File([audioBlob], "voice-note.webm", { type: "audio/webm" });
-        await handleSendMessage('', audioFile, 'audio');
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Failed to send audio', description: error.message });
-        setIsSending(false); // Reset on failure
-    }
-    // isSending is reset in handleSendMessage's finally block on success
+    const audioBlob = await fetch(audioPreview).then(r => r.blob());
+    const audioFile = new File([audioBlob], "voice-note.webm", { type: "audio/webm" });
+    await handleSendMessage('', audioFile, 'audio');
   };
   
   const MessageStatus = ({ status, isSender }: { status: Message['status'], isSender: boolean }) => {
     if (!isSender) return null;
-    // Read status (blue check) is disabled because it requires permissions the app doesn't have, causing errors.
+    if (status === 'read') return <CheckCheck className="h-4 w-4 text-blue-500" />;
     if (status === 'delivered') return <CheckCheck className="h-4 w-4" />;
     if (status === 'sent') return <Check className="h-4 w-4" />;
     return null;
@@ -363,7 +387,7 @@ export default function ChatThreadPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <header className="sticky top-16 md:top-0 bg-background border-b flex items-center justify-between gap-3 p-3">
+      <header className="sticky top-16 md:top-0 bg-background border-b flex items-center justify-between gap-3 p-3 z-10">
         <div className='flex items-center gap-3'>
             <Link href="/dashboard/chat" className="md:hidden">
                 <Button variant="ghost" size="icon"><ArrowLeft /></Button>
@@ -420,7 +444,7 @@ export default function ChatThreadPage() {
                     </div>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent>
-                        <DropdownMenuItem onClick={() => toast({ title: 'Coming soon!' })}><Forward className="mr-2 h-4 w-4" /><span>Forward</span></DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toast({ title: 'Forwarding coming soon!' })}><Forward className="mr-2 h-4 w-4" /><span>Forward</span></DropdownMenuItem>
                          {isSender && msg.mediaType === 'text' && (
                             <DropdownMenuItem onClick={() => handleStartEdit(msg)}><Edit className="mr-2 h-4 w-4" /><span>Edit</span></DropdownMenuItem>
                          )}
@@ -451,7 +475,7 @@ export default function ChatThreadPage() {
         <div ref={chatBottomRef} />
       </div>
 
-      <footer className="sticky bottom-16 md:bottom-0 bg-background border-t p-3">
+      <footer className="sticky bottom-16 md:bottom-0 bg-background border-t p-3 z-10">
         {isBlockedByMe ? <Card className="bg-muted text-center p-3 text-sm text-muted-foreground">You blocked this user. <Button variant="link" className="p-1 h-auto" onClick={handleBlockToggle}>Unblock</Button></Card>
         : amIBlocked ? <Card className="bg-muted text-center p-3 text-sm text-muted-foreground">You can't reply to this conversation.</Card>
         : audioPreview ? (
@@ -468,6 +492,9 @@ export default function ChatThreadPage() {
             </div>
         ) : (
             <div className="flex items-center gap-2">
+            {editingMessage && (
+                <Button onClick={() => { setEditingMessage(null); setInputText(''); }} variant="ghost" size="icon"><X className="text-destructive" /></Button>
+            )}
             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileSelect} accept="image/*,application/*" />
             <Textarea
                 placeholder={editingMessage ? "Edit message..." : "Type a message..."}
@@ -475,7 +502,7 @@ export default function ChatThreadPage() {
                 className="resize-none min-h-[40px] max-h-[120px]"
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); editingMessage ? handleEdit() : handleSendMessage(inputText); } }}
             />
-             {inputText ? (
+             {inputText || editingMessage ? (
                 <Button size="icon" onClick={() => editingMessage ? handleEdit() : handleSendMessage(inputText)} disabled={isSending}>{isSending ? <Loader2 className="animate-spin" /> : <Send />}</Button>
              ) : (
                 <>

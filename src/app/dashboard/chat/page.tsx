@@ -24,10 +24,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { MoreVertical, Search } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -51,6 +51,7 @@ export default function ChatPage() {
     setUsersLoading(true);
     databases.listDocuments(DATABASE_ID, COLLECTION_ID_PROFILES, [Query.limit(100)])
       .then(response => {
+        // Exclude current user from the list of all users
         setAllUsers(response.documents.filter(doc => doc.$id !== currentUser.$id));
       })
       .catch(error => console.error("Failed to fetch users:", error))
@@ -58,52 +59,55 @@ export default function ChatPage() {
   }, [currentUser]);
 
   // Fetch recent chats and subscribe
+  const fetchRecentChats = useCallback(async () => {
+    if (!currentUser) return;
+    setRecentsLoading(true);
+    try {
+        const response = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTION_ID_CHATS,
+            [
+                Query.equal('participants', [currentUser.$id]),
+                Query.orderDesc('lastMessageAt')
+            ]
+        );
+
+        const chatsWithData = await Promise.all(response.documents.map(async (chat) => {
+            const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
+            if (!otherUserId) return null;
+
+            try {
+                const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
+                return { ...chat, otherUser: userProfile };
+            } catch {
+                return { ...chat, otherUser: { $id: otherUserId, username: 'Unknown User' }};
+            }
+        }));
+
+        setRecentChats(chatsWithData.filter(Boolean));
+
+    } catch (error) {
+        console.error("Failed to fetch recent chats:", error);
+    } finally {
+        setRecentsLoading(false);
+    }
+  }, [currentUser]);
+  
   useEffect(() => {
     if (!currentUser) return;
-
-    const fetchRecentChats = async () => {
-        setRecentsLoading(true);
-        try {
-            const response = await databases.listDocuments(
-                DATABASE_ID,
-                COLLECTION_ID_CHATS,
-                [
-                    Query.equal('participants', currentUser.$id),
-                    Query.orderDesc('lastMessageAt')
-                ]
-            );
-
-            const chatsWithData = await Promise.all(response.documents.map(async (chat) => {
-                const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
-                if (!otherUserId) return null;
-
-                try {
-                    const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
-                    return { ...chat, otherUser: userProfile };
-                } catch {
-                    return { ...chat, otherUser: { $id: otherUserId, username: 'Unknown User' }};
-                }
-            }));
-
-            setRecentChats(chatsWithData.filter(Boolean));
-
-        } catch (error) {
-            console.error("Failed to fetch recent chats:", error);
-        } finally {
-            setRecentsLoading(false);
-        }
-    };
     
     fetchRecentChats();
 
     const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_CHATS}.documents`, response => {
+      // Check if the current user is a participant in the changed chat document
       if ((response.payload as any).participants?.includes(currentUser.$id)) {
+        // Refetch the entire list to ensure order and content is correct
         fetchRecentChats();
       }
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, fetchRecentChats]);
 
     const handleBlockUser = async (otherUserId: string, otherUserName: string) => {
         if (!currentUserProfile) return;
@@ -127,7 +131,7 @@ export default function ChatPage() {
     const handleDeleteChat = async (chatId: string) => {
         try {
             // A more robust solution would be a server function to delete all messages
-            // For client-side, we can just delete the chat document itself
+            // For client-side, we can just delete the chat document itself which will remove it from recents
             await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId);
             setRecentChats(prev => prev.filter(c => c.$id !== chatId));
             toast({ title: 'Chat Deleted', description: 'The chat has been removed from your recents.' });
@@ -135,7 +139,6 @@ export default function ChatPage() {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not delete the chat.' });
         }
     };
-
 
   const filteredAllUsers = allUsers.filter(user => 
       (user.username && user.username.toLowerCase().includes(search.toLowerCase())) ||
@@ -189,7 +192,7 @@ export default function ChatPage() {
                 <DropdownMenuContent>
                     <DropdownMenuItem onClick={() => handleBlockUser(chat.otherUser.$id, displayName)}>Block User</DropdownMenuItem>
                     <AlertDialogTrigger asChild>
-                        <DropdownMenuItem className="text-destructive">Delete Chat</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive">Delete Chat</DropdownMenuItem>
                     </AlertDialogTrigger>
                 </DropdownMenuContent>
             </DropdownMenu>
