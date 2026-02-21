@@ -45,7 +45,6 @@ export default function ChatThreadPage() {
   const { user: currentUser, profile: currentUserProfile, loading: userLoading } = useUser();
   
   const [otherUser, setOtherUser] = useState<any>(null);
-  const [isOtherUserOnline, setIsOtherUserOnline] = useState(false);
 
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -144,44 +143,6 @@ export default function ChatThreadPage() {
   // Realtime subscriptions
   useEffect(() => {
     if (!currentUser?.$id || !otherUserId) return;
-
-    // This function will be called to update the user's online status
-    const updatePresence = () => {
-        if (document.visibilityState === 'visible') {
-            databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id, { lastSeen: new Date().toISOString() })
-              .catch(err => console.error("Failed to update presence:", err));
-        }
-    };
-    
-    // Update presence immediately and then every 30 seconds
-    updatePresence();
-    const presenceInterval = setInterval(updatePresence, 30 * 1000);
-
-    const presenceUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${otherUserId}`, response => {
-      const updatedProfile = response.payload as any;
-      setOtherUser(prev => ({...prev, ...updatedProfile}));
-      setAmIBlocked(updatedProfile.blockedUsers?.includes(currentUser.$id) || false);
-      
-      const lastSeen = new Date(updatedProfile.lastSeen).getTime();
-      const now = new Date().getTime();
-      // Consider online if last seen within the last minute
-      const isNowOnline = (now - lastSeen) < 60 * 1000;
-      setIsOtherUserOnline(isNowOnline);
-
-      // If the other user just came online, we can upgrade our sent messages to 'delivered'
-      if (isNowOnline && chatId) {
-        databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
-            Query.equal('chatId', chatId),
-            Query.equal('senderId', currentUser.$id),
-            Query.equal('status', 'sent')
-        ]).then(res => {
-            const updates = res.documents.map(m => 
-                databases.updateDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, m.$id, { status: 'delivered' })
-            );
-            Promise.all(updates).catch(err => console.error("Failed to upgrade messages to delivered:", err));
-        });
-      }
-    });
     
     const selfUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${currentUser.$id}`, response => {
       const myProfile = response.payload as any;
@@ -189,9 +150,7 @@ export default function ChatThreadPage() {
     });
 
     return () => {
-      presenceUnsubscribe();
       selfUnsubscribe();
-      clearInterval(presenceInterval);
     };
   }, [currentUser, otherUserId, chatId]);
 
@@ -264,7 +223,7 @@ export default function ChatThreadPage() {
       const messagePayload: any = { 
           chatId: currentChatId, 
           senderId: currentUser.$id, 
-          status: isOtherUserOnline ? 'delivered' : 'sent',
+          status: 'sent',
           text: text.trim(),
           mediaUrl: mediaUrl,
           mediaType: type || 'text'
@@ -433,11 +392,7 @@ export default function ChatThreadPage() {
               <AvatarFallback>{(otherUser?.username || 'U').charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
             <div>
-            <h2 className="font-semibold">{otherUser?.username || 'User'}</h2>
-            <div className="flex items-center gap-1.5">
-                <span className={cn('h-2 w-2 rounded-full', isOtherUserOnline ? 'bg-green-500' : 'bg-gray-400')}></span>
-                <p className="text-xs text-muted-foreground">{isOtherUserOnline ? 'Online' : (otherUser?.lastSeen ? `Last seen ${formatDistanceToNowStrict(new Date(otherUser.lastSeen), {addSuffix: true})}` : 'Offline')}</p>
-            </div>
+              <h2 className="font-semibold">{otherUser?.username || 'User'}</h2>
             </div>
         </div>
         <DropdownMenu>
