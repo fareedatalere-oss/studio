@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Search } from 'lucide-react';
+import { ArrowLeft, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -26,7 +26,7 @@ export default function RewardsPage() {
     const [monetizationLink, setMonetizationLink] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
 
-    const OUO_API_KEY = 'YC3xdMJB';
+    const SHRINKME_API_KEY = 'bb12d3d3b9762a5365077db9c4804ee1983895fc';
 
     useEffect(() => {
         if (user) {
@@ -34,7 +34,7 @@ export default function RewardsPage() {
                 try {
                     const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
                     setUserProfile(profile);
-                    if (profile.hasReferral === null) { // First time user
+                    if (profile.hasReferral === null || profile.hasReferral === undefined) { 
                         setStep('rules');
                     } else {
                         setStep('main');
@@ -82,13 +82,35 @@ export default function RewardsPage() {
         }
     };
     
-    const handleSearch = () => {
-        if(searchQuery) {
+    const handleSearch = async () => {
+        if (!searchQuery) return;
+        setIsProcessing(true);
+        try {
             const destinationUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
-            const generatedLink = `https://ouo.io/qs/${OUO_API_KEY}?s=${encodeURIComponent(destinationUrl)}`;
-            setMonetizationLink(generatedLink);
+            const apiUrl = `https://shrinkme.click/api?api=${SHRINKME_API_KEY}&url=${encodeURIComponent(destinationUrl)}`;
+    
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+                throw new Error(`API request failed with status ${response.status}`);
+            }
+            const data = await response.json();
+    
+            if (data.status === 'success' && data.shortenedUrl) {
+                setMonetizationLink(data.shortenedUrl);
+            } else {
+                throw new Error(data.message || 'Failed to shorten URL. The format might be invalid.');
+            }
+        } catch (error: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Error creating link',
+                description: error.message || 'Could not generate monetization link.',
+            });
+            setMonetizationLink('');
+        } finally {
+            setIsProcessing(false);
         }
-    }
+    };
 
     const handleMonetizationClick = async () => {
         if (!user || !userProfile) return;
@@ -170,7 +192,7 @@ export default function RewardsPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="prose prose-sm dark:prose-invert text-sm text-muted-foreground">
-                        <p>This is a Monetization link from ouo.io. To earn, you should keep clicking and be watching the ads shown to you.</p>
+                        <p>This is a Monetization link from shrinkme.click. To earn, you should keep clicking and be watching the ads shown to you.</p>
                     </div>
                     <Button onClick={handleAccept} className="w-full">Accept and Continue</Button>
                 </CardContent>
@@ -241,7 +263,9 @@ export default function RewardsPage() {
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
-                                <Button onClick={handleSearch} disabled={!searchQuery}><Search className="h-4 w-4 mr-2" /> Search</Button>
+                                <Button onClick={handleSearch} disabled={!searchQuery || isProcessing}>
+                                    {isProcessing ? <Loader2 className="h-4 w-4 animate-spin"/> : <><Search className="h-4 w-4 mr-2" /> Search</>}
+                                </Button>
                             </div>
                         ) : (
                              <Button
@@ -254,7 +278,7 @@ export default function RewardsPage() {
 
                         {(userProfile?.rewardBalance || 0) >= 10000 && (
                                 <Button onClick={handleWithdraw} className="w-full mt-4" variant="secondary" disabled={isProcessing}>
-                                {isProcessing ? 'Withdrawing...' : 'Withdraw Rewards'}
+                                {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Withdrawing...</> : 'Withdraw Rewards'}
                             </Button>
                         )}
                     </CardContent>
