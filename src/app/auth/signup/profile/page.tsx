@@ -69,10 +69,8 @@ export default function CompleteProfilePage() {
             username: username,
             country: country,
             pin: pin,
+            avatar: '', // Set initial avatar to empty
             createdAt: new Date().toISOString(),
-            lastSeen: new Date().toISOString(),
-            blockedUsers: [],
-            hasReferral: false, // Set default
         };
 
         // Create the new profile document using the user's ID as the document ID
