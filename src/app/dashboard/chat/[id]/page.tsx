@@ -252,16 +252,14 @@ export default function ChatThreadPage() {
                 lastMessage: text.trim() || `Sent a ${type}`,
                 lastMessageAt: new Date().toISOString()
             },
-            permissions // Pass permissions here
+            permissions
         );
         currentChatId = newChatDoc.$id;
         setChatId(currentChatId);
       } else {
-         // ALWAYS update the chat doc to bring it to the top of recents
          await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, currentChatId, { lastMessage: text.trim() || `Sent a ${type}`, lastMessageAt: new Date().toISOString() });
       }
       if (!currentChatId) throw new Error("Failed to create or find chat.");
-
 
       const messagePayload: any = { 
           chatId: currentChatId, 
@@ -272,7 +270,20 @@ export default function ChatThreadPage() {
           mediaType: type || 'text'
       };
 
-      await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), messagePayload);
+      const messagePermissions = [
+        Permission.read(Role.user(currentUser.$id)),
+        Permission.read(Role.user(otherUser.$id)),
+        Permission.update(Role.user(currentUser.$id)),
+        Permission.delete(Role.user(currentUser.$id)),
+      ];
+
+      await databases.createDocument(
+          DATABASE_ID, 
+          COLLECTION_ID_MESSAGES, 
+          ID.unique(), 
+          messagePayload,
+          messagePermissions
+      );
       
       setInputText('');
       setAudioPreview(null);
