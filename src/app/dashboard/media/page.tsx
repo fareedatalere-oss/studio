@@ -69,7 +69,7 @@ const PostCard = ({ post }: { post: any }) => {
                 <div className="flex items-center gap-3">
                     <Avatar>
                         <AvatarImage src={post.userAvatar || `https://picsum.photos/seed/${post.userId}/100/100`} />
-                        <AvatarFallback>{post.username?.charAt(0) || 'U'}</AvatarFallback>
+                        <AvatarFallback>{post.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
                     </Avatar>
                     <div>
                         <p className="font-semibold">{post.username}</p>
@@ -87,17 +87,17 @@ const PostCard = ({ post }: { post: any }) => {
             <h2 className="text-3xl font-bold whitespace-pre-wrap">{post.text}</h2>
           </div>
         )}
-        {post.type === 'image' && (
+        {post.type === 'image' && post.mediaUrl && (
           <Image src={post.mediaUrl} alt={post.description || 'Post image'} layout="fill" objectFit="contain" />
         )}
-        {(post.type === 'reels' || post.type === 'film') && (
+        {(post.type === 'reels' || post.type === 'film') && post.mediaUrl && (
            <video src={post.mediaUrl} controls autoPlay muted loop className="w-full h-full object-contain" />
         )}
         {post.type === 'music' && (
             <div className="flex flex-col items-center justify-center p-8 text-center">
                 <Music className="h-32 w-32 mb-4"/>
                 <h2 className="text-2xl font-bold">{post.description || 'Untitled Track'}</h2>
-                <audio controls src={post.mediaUrl} className="mt-8 w-full max-w-sm"></audio>
+                {post.mediaUrl && <audio controls src={post.mediaUrl} className="mt-8 w-full max-w-sm"></audio>}
             </div>
         )}
       </div>

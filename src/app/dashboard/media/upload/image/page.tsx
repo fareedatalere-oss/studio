@@ -47,9 +47,7 @@ export default function UploadImagePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { user: authUser } = useUser();
-  // TODO: Get user profile from Appwrite to fetch username/avatar
-  const userProfile = { username: authUser?.name || 'Anonymous', avatar: null };
+  const { user: authUser, profile: userProfile } = useUser();
 
   useEffect(() => {
     if (step === 1) {

@@ -36,9 +36,7 @@ export default function UploadTextPage() {
   const [allowComments, setAllowComments] = useState(true);
   const [isPosting, setIsPosting] = useState(false);
 
-  const { user: authUser } = useUser();
-  // TODO: Get user profile from Appwrite to fetch username/avatar
-  const userProfile = { username: authUser?.name || 'Anonymous', avatar: null };
+  const { user: authUser, profile: userProfile } = useUser();
 
   const handlePublish = async () => {
     if (!text.trim() || !authUser || !userProfile) {

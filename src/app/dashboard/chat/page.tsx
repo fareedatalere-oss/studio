@@ -10,54 +10,53 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { MoreVertical, Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { formatDistanceToNow } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ChatPage() {
-  const { user: currentUser, loading: userLoading } = useUser();
+  const { user: currentUser, profile: currentUserProfile, loading: userLoading } = useUser();
+  const { toast } = useToast();
   
-  // For 'All Users' tab
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   
-  // For 'Recent' tab
   const [recentChats, setRecentChats] = useState<any[]>([]);
   const [recentsLoading, setRecentsLoading] = useState(true);
 
   const [search, setSearch] = useState('');
 
-  // Fetch all users for the 'All' tab
+  // Fetch all users
   useEffect(() => {
     if (!currentUser) return;
     
     setUsersLoading(true);
-    const fetchUsers = async () => {
-        try {
-            const response = await databases.listDocuments(
-                DATABASE_ID,
-                COLLECTION_ID_PROFILES,
-                [Query.limit(100)] // Fetch up to 100 users
-            );
-            // Filter out the current user from the list
-            const otherUsers = response.documents.filter(doc => doc.$id !== currentUser.$id);
-            setAllUsers(otherUsers);
-        } catch (error) {
-            console.error("Failed to fetch users:", error);
-        } finally {
-            setUsersLoading(false);
-        }
-    };
-    fetchUsers();
+    databases.listDocuments(DATABASE_ID, COLLECTION_ID_PROFILES, [Query.limit(100)])
+      .then(response => {
+        setAllUsers(response.documents.filter(doc => doc.$id !== currentUser.$id));
+      })
+      .catch(error => console.error("Failed to fetch users:", error))
+      .finally(() => setUsersLoading(false));
   }, [currentUser]);
 
-  // Fetch recent chats and subscribe to updates
+  // Fetch recent chats and subscribe
   useEffect(() => {
     if (!currentUser) return;
 
@@ -73,7 +72,6 @@ export default function ChatPage() {
                 ]
             );
 
-            // For each chat, get the other user's profile
             const chatsWithData = await Promise.all(response.documents.map(async (chat) => {
                 const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
                 if (!otherUserId) return null;
@@ -82,12 +80,11 @@ export default function ChatPage() {
                     const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
                     return { ...chat, otherUser: userProfile };
                 } catch {
-                    // Handle case where profile might not exist
                     return { ...chat, otherUser: { $id: otherUserId, username: 'Unknown User' }};
                 }
             }));
 
-            setRecentChats(chatsWithData.filter(Boolean)); // Filter out any nulls
+            setRecentChats(chatsWithData.filter(Boolean));
 
         } catch (error) {
             console.error("Failed to fetch recent chats:", error);
@@ -99,8 +96,6 @@ export default function ChatPage() {
     fetchRecentChats();
 
     const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_CHATS}.documents`, response => {
-      // Very basic implementation: just refetch everything on any change.
-      // A more optimized approach would be to check response.events and update state accordingly.
       if ((response.payload as any).participants?.includes(currentUser.$id)) {
         fetchRecentChats();
       }
@@ -108,6 +103,38 @@ export default function ChatPage() {
 
     return () => unsubscribe();
   }, [currentUser]);
+
+    const handleBlockUser = async (otherUserId: string, otherUserName: string) => {
+        if (!currentUserProfile) return;
+        
+        const currentBlocked = currentUserProfile.blockedUsers || [];
+        if (currentBlocked.includes(otherUserId)) {
+             toast({ title: 'Already Blocked', description: `You have already blocked ${otherUserName}.` });
+             return;
+        }
+
+        try {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUserProfile.$id, {
+                blockedUsers: [...currentBlocked, otherUserId]
+            });
+            toast({ title: 'User Blocked', description: `You have blocked ${otherUserName}.` });
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to block user.' });
+        }
+    };
+
+    const handleDeleteChat = async (chatId: string) => {
+        try {
+            // A more robust solution would be a server function to delete all messages
+            // For client-side, we can just delete the chat document itself
+            await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId);
+            setRecentChats(prev => prev.filter(c => c.$id !== chatId));
+            toast({ title: 'Chat Deleted', description: 'The chat has been removed from your recents.' });
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not delete the chat.' });
+        }
+    };
+
 
   const filteredAllUsers = allUsers.filter(user => 
       (user.username && user.username.toLowerCase().includes(search.toLowerCase())) ||
@@ -119,31 +146,25 @@ export default function ChatPage() {
       (chat.otherUser?.email && chat.otherUser.email.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const UserItem = ({ user }: { user: any }) => {
-    const displayName = user.username || user.email || 'I-Pay User';
-    const fallback = displayName.charAt(0).toUpperCase();
-
-    return (
-     <div className="flex items-center justify-between">
-        <Link href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 flex-1">
-            <Avatar>
-              <AvatarImage src={user.avatar} alt={displayName} />
-              <AvatarFallback>{fallback}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1 truncate">
-                <span className="font-semibold">{displayName}</span>
-                 {user.email && <p className="text-sm text-muted-foreground truncate">{user.email}</p>}
-            </div>
-        </Link>
-    </div>
-  )};
+  const UserItem = ({ user }: { user: any }) => (
+     <Link href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 flex-1 p-2 rounded-md hover:bg-muted">
+        <Avatar>
+          <AvatarImage src={user.avatar} alt={user.username} />
+          <AvatarFallback>{user.username?.charAt(0).toUpperCase() || 'I'}</AvatarFallback>
+        </Avatar>
+        <div className="flex-1 truncate">
+            <span className="font-semibold">{user.username || user.email}</span>
+             {user.email && <p className="text-sm text-muted-foreground truncate">{user.email}</p>}
+        </div>
+    </Link>
+  );
   
    const RecentChatItem = ({ chat }: { chat: any }) => {
     const displayName = chat.otherUser.username || chat.otherUser.email || 'I-Pay User';
     const fallback = displayName.charAt(0).toUpperCase();
 
     return (
-     <div className="flex items-center justify-between">
+     <div className="flex items-center justify-between hover:bg-muted p-2 rounded-md">
         <Link href={`/dashboard/chat/${chat.otherUser.$id}`} className="flex items-center gap-3 flex-1">
             <Avatar>
               <AvatarImage src={chat.otherUser.avatar} alt={displayName} />
@@ -159,6 +180,29 @@ export default function ChatPage() {
                 <p className="text-sm text-muted-foreground truncate">{chat.lastMessage}</p>
             </div>
         </Link>
+        <AlertDialog>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0"><MoreVertical /></Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => handleBlockUser(chat.otherUser.$id, displayName)}>Block User</DropdownMenuItem>
+                    <AlertDialogTrigger asChild>
+                        <DropdownMenuItem className="text-destructive">Delete Chat</DropdownMenuItem>
+                    </AlertDialogTrigger>
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>This will permanently delete your chat history with {displayName}. This action cannot be undone.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => handleDeleteChat(chat.$id)} className="bg-destructive hover:bg-destructive/80">Delete</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </div>
   )};
 
@@ -179,7 +223,7 @@ export default function ChatPage() {
   const renderAllUsers = () => {
     if (usersLoading) return renderLoadingSkeleton();
     if (filteredAllUsers.length > 0) {
-      return <div className="p-4 space-y-4">{filteredAllUsers.map(user => <UserItem key={user.$id} user={user} />)}</div>;
+      return <div className="p-4 space-y-2">{filteredAllUsers.map(user => <UserItem key={user.$id} user={user} />)}</div>;
     }
     return <p className="text-center text-muted-foreground p-8">No other users found.</p>
   }
@@ -187,7 +231,7 @@ export default function ChatPage() {
   const renderRecentChats = () => {
     if (recentsLoading) return renderLoadingSkeleton();
     if (filteredRecentChats.length > 0) {
-      return <div className="p-4 space-y-4">{filteredRecentChats.map(chat => <RecentChatItem key={chat.$id} chat={chat} />)}</div>;
+      return <div className="p-4 space-y-2">{filteredRecentChats.map(chat => <RecentChatItem key={chat.$id} chat={chat} />)}</div>;
     }
     return <p className="text-center text-muted-foreground p-8">No recent chats. Start a conversation from the 'All' tab.</p>
   }

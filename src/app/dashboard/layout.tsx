@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Bot, Bell, Home, MessageCircle, PlaySquare, Store, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useUser } from '@/hooks/use-appwrite';
 import { Badge } from '@/components/ui/badge';
 import { useMemo } from 'react';
@@ -13,7 +13,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user } = useUser();
+  const { user, profile } = useUser();
   
   // TODO: Re-implement notifications with Appwrite
   const unreadNotifications: any[] = [];
@@ -44,9 +44,12 @@ export default function DashboardLayout({
                 <span className="sr-only">Notifications</span>
               </Link>
             </Button>
-            <Avatar>
-              <AvatarFallback>{user?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
-            </Avatar>
+            <Link href="/dashboard/profile">
+              <Avatar>
+                <AvatarImage src={profile?.avatar} />
+                <AvatarFallback>{profile?.username?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+              </Avatar>
+            </Link>
           </div>
         </div>
       </header>

@@ -22,7 +22,9 @@
         "nairaBalance": { "type": "number", "description": "The user's main account balance in Naira." },
         "rewardBalance": { "type": "number", "description": "The user's reward points balance." },
         "clickCount": { "type": "number", "description": "The user's click count for rewards." },
-        "hasReferral": { "type": "boolean", "description": "Whether the user has used a referral code." }
+        "hasReferral": { "type": "boolean", "description": "Whether the user has used a referral code." },
+        "lastSeen": { "type": "string", "format": "date-time", "description": "The last time the user was active." },
+        "blockedUsers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that this user has blocked."}
       },
       "required": ["uid", "email", "createdAt", "username", "country", "pin"]
     },
@@ -84,7 +86,9 @@
             "mediaUrl": { "type": "string", "format": "uri", "description": "URL of any attached media." },
             "mediaType": { "type": "string", "enum": ["image", "video", "audio", "file"] },
             "createdAt": { "type": "string", "format": "date-time" },
-            "status": { "type": "string", "enum": ["sent", "delivered", "read"] }
+            "status": { "type": "string", "enum": ["sent", "delivered", "read"] },
+            "isEdited": { "type": "boolean", "description": "True if the message has been edited." },
+            "deletedFor": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs for whom this message is deleted."}
         },
         "required": ["senderId", "createdAt"]
     },

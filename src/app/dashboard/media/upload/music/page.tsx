@@ -24,9 +24,7 @@ export default function UploadMusicPage() {
   const [allowDownload, setAllowDownload] = useState(true);
   const [isPosting, setIsPosting] = useState(false);
 
-  const { user: authUser } = useUser();
-  // TODO: Get user profile from Appwrite to fetch username/avatar
-  const userProfile = { username: authUser?.name || 'Anonymous', avatar: null };
+  const { user: authUser, profile: userProfile } = useUser();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
