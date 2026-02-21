@@ -38,7 +38,8 @@ export default function BuyAirtimePage() {
             setProvidersLoading(true);
             const result = await getUtilityProviders('airtime');
             if (result.success) {
-                setAirtimeProviders(result.data);
+                const uniqueProviders = Array.from(new Map(result.data.map((item: Provider) => [item.biller_code, item])).values());
+                setAirtimeProviders(uniqueProviders);
             } else {
                 toast({
                     variant: 'destructive',

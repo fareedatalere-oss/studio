@@ -40,7 +40,8 @@ export default function RechargeBillsPage() {
             setProvidersLoading(true);
             const result = await getUtilityProviders('electricity');
             if (result.success) {
-                setElectricityProviders(result.data);
+                const uniqueProviders = Array.from(new Map(result.data.map((item: Provider) => [item.biller_code, item])).values());
+                setElectricityProviders(uniqueProviders);
             } else {
                 toast({
                     variant: 'destructive',

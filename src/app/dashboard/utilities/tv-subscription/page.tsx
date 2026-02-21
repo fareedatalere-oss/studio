@@ -47,7 +47,8 @@ export default function TvSubscriptionPage() {
             setProvidersLoading(true);
             const result = await getUtilityProviders('tv');
             if (result.success) {
-                setTvProviders(result.data);
+                const uniqueProviders = Array.from(new Map(result.data.map((item: Provider) => [item.biller_code, item])).values());
+                setTvProviders(uniqueProviders);
             } else {
                 toast({
                     variant: 'destructive',

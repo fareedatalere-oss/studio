@@ -46,7 +46,8 @@ export default function BuyDataPage() {
             setProvidersLoading(true);
             const result = await getUtilityProviders('data');
             if (result.success) {
-                setDataProviders(result.data);
+                const uniqueProviders = Array.from(new Map(result.data.map((item: Provider) => [item.biller_code, item])).values());
+                setDataProviders(uniqueProviders);
             } else {
                 toast({
                     variant: 'destructive',
