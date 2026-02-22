@@ -13,8 +13,11 @@ import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/a
 import { useUser } from '@/hooks/use-appwrite';
 
 
-const MANAGER_EMAIL = 'i-paymanagerscare402@gmail.com';
-const MANAGER_PASSWORD = 'Halimatussadiyya01/08162810155?admin';
+const MANAGER_EMAIL_1 = 'i-paymanagerscare402@gmail.com';
+const MANAGER_PASSWORD_1 = 'Halimatussadiyya01/08162810155?admin';
+const MANAGER_EMAIL_2 = 'ipatmanager@17@gmail.com';
+const MANAGER_PASSWORD_2 = 'Abdussalam@100';
+
 
 export default function SignInPage() {
   const router = useRouter();
@@ -39,7 +42,12 @@ export default function SignInPage() {
       return;
     }
 
-    if (email.toLowerCase() === MANAGER_EMAIL && password === MANAGER_PASSWORD) {
+    const lowerCaseEmail = email.toLowerCase();
+
+    if (
+      (lowerCaseEmail === MANAGER_EMAIL_1 && password === MANAGER_PASSWORD_1) ||
+      (lowerCaseEmail === MANAGER_EMAIL_2 && password === MANAGER_PASSWORD_2)
+    ) {
       toast({
         title: 'Manager Login Successful',
         description: 'Redirecting to security verification.',

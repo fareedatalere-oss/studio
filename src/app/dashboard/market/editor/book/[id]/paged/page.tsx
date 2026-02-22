@@ -193,7 +193,7 @@ export default function PagedBookEditorPage() {
                         onclick="
                             const dialog = document.createElement('dialog');
                             dialog.style.cssText = 'padding: 0; border: none; background: transparent; max-width: 90vw; max-height: 90vh;';
-                            dialog.innerHTML = '<img src=\\'${base64Data}\\' style=\\'max-width: 100%; max-height: 100%; object-fit: contain;\\' />';
+                            dialog.innerHTML = '<img src=\'${base64Data}\' style=\'max-width: 100%; max-height: 100%; object-fit: contain;\' />';
                             dialog.addEventListener('click', () => dialog.close());
                             document.body.appendChild(dialog);
                             dialog.showModal();
@@ -293,9 +293,9 @@ export default function PagedBookEditorPage() {
                             <DialogTrigger asChild>
                                 <Button variant="outline" size="sm"><Upload className="mr-2 h-4 w-4"/> Image</Button>
                             </DialogTrigger>
-                            <DialogContent>
+                             <DialogContent>
                                 <DialogHeader>
-                                  <DialogTitle>Upload an Image</DialogTitle>
+                                    <DialogTitle>Upload an Image</DialogTitle>
                                 </DialogHeader>
                                 <div className="space-y-2">
                                     <Button className="w-full justify-start gap-2" onClick={() => toast({ title: 'Camera coming soon!' })}><Camera className="h-5 w-5" /> Use Camera</Button>

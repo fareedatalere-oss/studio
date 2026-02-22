@@ -1,6 +1,7 @@
+'use client';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Code, FileText, LifeBuoy, ShieldCheck, Users } from 'lucide-react';
+import { Users, Landmark, Store, PlaySquare, Star } from 'lucide-react';
 import { IPayLogo } from '@/components/icons';
 
 export default function ManagerLayout({
@@ -9,10 +10,11 @@ export default function ManagerLayout({
   children: React.ReactNode;
 }) {
   const navItems = [
-    { href: '/manager/support', label: 'Support', icon: LifeBuoy },
-    { href: '/manager/legal', label: 'Legal Check', icon: ShieldCheck },
-    { href: '/manager/codes', label: 'Codes', icon: Code },
-    { href: '/manager/users', label: 'My Users', icon: Users },
+    { href: '/manager/users', label: 'Users', icon: Users },
+    { href: '/manager/transactions', label: 'Transactions', icon: Landmark },
+    { href: '/manager/market', label: 'Market', icon: Store },
+    { href: '/manager/media', label: 'Media', icon: PlaySquare },
+    { href: '/manager/creators', label: 'Content Creators', icon: Star },
   ];
 
   return (

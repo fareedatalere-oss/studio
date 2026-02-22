@@ -11,19 +11,23 @@ import { useToast } from '@/hooks/use-toast';
 import { ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 
-const MANAGER_BYPASS_CODE = 'Ipay0816210155#';
+const CORRECT_NAME = 'Ipaymanager';
+const CORRECT_CLASS = '08162810155/07048468458';
+const CORRECT_ID = 'Fahad0121';
 
 export default function ManagerBypassPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [bypassCode, setBypassCode] = useState('');
+  const [name, setName] = useState('');
+  const [managerClass, setManagerClass] = useState('');
+  const [managerId, setManagerId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    if (bypassCode === MANAGER_BYPASS_CODE) {
+    if (name === CORRECT_NAME && managerClass === CORRECT_CLASS && managerId === CORRECT_ID) {
       toast({
         title: 'Access Granted',
         description: 'Welcome to the Manager Dashboard.',
@@ -32,7 +36,7 @@ export default function ManagerBypassPage() {
     } else {
       toast({
         title: 'Access Denied',
-        description: 'The bypass code is incorrect.',
+        description: 'One or more bypass codes are incorrect.',
         variant: 'destructive',
       });
       setIsLoading(false);
@@ -43,29 +47,52 @@ export default function ManagerBypassPage() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold">Manager Security Check</CardTitle>
-          <CardDescription>Please enter the bypass code to proceed.</CardDescription>
+          <CardTitle className="flex items-center gap-2 text-2xl font-bold text-destructive">
+            <ShieldAlert className="h-8 w-8" />
+            Manager Security Check
+          </CardTitle>
+          <CardDescription>Please enter the bypass codes to proceed.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Alert variant="destructive">
             <ShieldAlert className="h-4 w-4" />
-            <AlertTitle>Warning: Restricted Area</AlertTitle>
+            <AlertTitle>High Security Area!</AlertTitle>
             <AlertDescription>
-              This area is for authorized managers only. If you have arrived here by mistake, please do not proceed. Contact{' '}
-              <Link href="/dashboard/profile/support" className="underline">
-                support
-              </Link>{' '}
+              This is one of our powerful security layers. Unauthorized bypassing can lead to serious issues. If you have arrived here by mistake, GO BACK. Contact{' '}
+              <a href="mailto:Ipayapp166@gmail.com" className="underline">
+                Ipayapp166@gmail.com
+              </a>{' '}
               if you believe this is an error.
             </AlertDescription>
           </Alert>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="bypass-code">Manager Bypass Code</Label>
+              <Label htmlFor="bypass-name">Name</Label>
               <Input
-                id="bypass-code"
+                id="bypass-name"
                 type="password"
-                value={bypassCode}
-                onChange={(e) => setBypassCode(e.target.value)}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bypass-class">Class</Label>
+              <Input
+                id="bypass-class"
+                type="password"
+                value={managerClass}
+                onChange={(e) => setManagerClass(e.target.value)}
+                required
+              />
+            </div>
+             <div className="space-y-2">
+              <Label htmlFor="bypass-id">Manager ID</Label>
+              <Input
+                id="bypass-id"
+                type="password"
+                value={managerId}
+                onChange={(e) => setManagerId(e.target.value)}
                 required
               />
             </div>
