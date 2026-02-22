@@ -36,6 +36,7 @@ import { Query } from 'appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Label } from '@/components/ui/label';
 
 export default function ManagerUsersPage() {
   const { toast } = useToast();
