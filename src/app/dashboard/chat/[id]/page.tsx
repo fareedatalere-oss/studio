@@ -195,8 +195,8 @@ export default function ChatThreadPage() {
       let currentChatId = chatId;
       if (!currentChatId) {
         const sortedParticipants = [currentUser.$id, otherUser.$id].sort();
-        // Use the Appwrite SDK to create permissions correctly.
-        const permissions = [
+        // **FIX:** Use the official Appwrite SDK to create permissions correctly.
+        const chatPermissions = [
             Permission.read(Role.user(currentUser.$id)),
             Permission.read(Role.user(otherUser.$id)),
             Permission.update(Role.user(currentUser.$id)),
@@ -211,7 +211,7 @@ export default function ChatThreadPage() {
                 lastMessage: text.trim() || `Sent a ${type}`,
                 lastMessageAt: new Date().toISOString()
             },
-            permissions
+            chatPermissions
         );
         currentChatId = newChatDoc.$id;
         setChatId(currentChatId);
@@ -229,7 +229,7 @@ export default function ChatThreadPage() {
           mediaType: type || 'text'
       };
 
-      // Use the Appwrite SDK to create permissions for the message document.
+      // **FIX:** Use the official Appwrite SDK to create permissions for the message document.
       const messagePermissions = [
         Permission.read(Role.user(currentUser.$id)),
         Permission.read(Role.user(otherUser.$id)),
