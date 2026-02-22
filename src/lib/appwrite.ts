@@ -18,6 +18,7 @@ export const BUCKET_ID_UPLOADS = 'uploads';
 export const COLLECTION_ID_PROFILES = 'profiles';
 export const COLLECTION_ID_TRANSACTIONS = 'transactions';
 export const COLLECTION_ID_POSTS = 'posts';
+export const COLLECTION_ID_POST_COMMENTS = 'post_comments';
 export const COLLECTION_ID_CHATS = 'chats';
 export const COLLECTION_ID_MESSAGES = 'messages';
 

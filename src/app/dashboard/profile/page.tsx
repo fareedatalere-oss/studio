@@ -17,30 +17,20 @@ import { ID } from 'appwrite';
 export default function ProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user: authUser, loading: userLoading, recheckUser } = useUser();
+  const { user: authUser, loading: userLoading, recheckUser, profile: userProfileFromHook } = useUser();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(true);
 
   useEffect(() => {
-    if (authUser) {
-      const fetchProfile = async () => {
-        try {
-          const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, authUser.$id);
-          setUserProfile(profile);
-        } catch (error) {
-          console.error("Failed to fetch user profile:", error);
-          setUserProfile(null);
-        } finally {
-          setProfileLoading(false);
-        }
-      };
-      fetchProfile();
+    if (userProfileFromHook) {
+        setUserProfile(userProfileFromHook);
+        setProfileLoading(false);
     } else if (!userLoading) {
         setProfileLoading(false);
     }
-  }, [authUser, userLoading]);
+  }, [userProfileFromHook, userLoading]);
 
   const isLoading = userLoading || profileLoading;
 
@@ -59,6 +49,7 @@ export default function ProfilePage() {
             avatar: fileUrl
         });
         setUserProfile((prev: any) => ({ ...prev, avatar: fileUrl }));
+        recheckUser();
         toast({ title: 'Avatar Updated!', description: 'Your new avatar is now live.' });
     } catch (error: any) {
         console.error("Avatar upload failed:", error);
@@ -118,11 +109,11 @@ export default function ProfilePage() {
         <Card className="w-full max-w-md">
           <CardContent className="flex justify-around p-4 text-center">
             <Link href="/dashboard/profile/connections?tab=followers" className="flex-1">
-              <p className="font-bold text-lg">0</p>
+               {isLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : <p className="font-bold text-lg">{userProfile?.followerCount || 0}</p>}
               <p className="text-sm text-muted-foreground">Followers</p>
             </Link>
             <Link href="/dashboard/profile/connections?tab=following" className="flex-1">
-              <p className="font-bold text-lg">0</p>
+               {isLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : <p className="font-bold text-lg">{userProfile?.followingCount || 0}</p>}
               <p className="text-sm text-muted-foreground">Following</p>
             </Link>
             <div>
