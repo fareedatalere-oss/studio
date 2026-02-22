@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -17,6 +18,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -237,7 +239,7 @@ export default function FullBookEditorPage() {
     }
 
     return (
-        <div className="flex flex-col h-screen">
+        <div className="flex flex-col h-screen" style={{ direction: 'ltr' }}>
             <header className="sticky top-0 bg-background border-b p-4 z-10">
                 <div className="container flex items-center justify-between">
                     <div>
@@ -305,7 +307,6 @@ export default function FullBookEditorPage() {
                     contentEditable={true}
                     onInput={handleContentChange}
                     suppressContentEditableWarning={true}
-                    dir="ltr"
                     className="h-full w-full p-4 prose dark:prose-invert max-w-none focus:outline-none"
                     style={{ direction: 'ltr', textAlign: 'left' }}
                 />
