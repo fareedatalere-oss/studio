@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Users, Landmark, Store, PlaySquare, Star } from 'lucide-react';
+import { Users, Landmark, Store, PlaySquare, Star, User } from 'lucide-react';
 import { IPayLogo } from '@/components/icons';
 
 export default function ManagerLayout({
@@ -15,6 +15,7 @@ export default function ManagerLayout({
     { href: '/manager/market', label: 'Market', icon: Store },
     { href: '/manager/media', label: 'Media', icon: PlaySquare },
     { href: '/manager/creators', label: 'Content Creators', icon: Star },
+    { href: '/manager/profile', label: 'Profile', icon: User },
   ];
 
   return (
