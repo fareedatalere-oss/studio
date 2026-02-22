@@ -67,7 +67,7 @@ export default function ChatPage() {
             DATABASE_ID,
             COLLECTION_ID_CHATS,
             [
-                Query.equal('participants', [currentUser.$id]),
+                Query.equal('participants', currentUser.$id),
                 Query.orderDesc('lastMessageAt')
             ]
         );
