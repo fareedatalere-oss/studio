@@ -21,6 +21,11 @@ export const COLLECTION_ID_POSTS = 'posts';
 export const COLLECTION_ID_POST_COMMENTS = 'postComments';
 export const COLLECTION_ID_CHATS = 'chats';
 export const COLLECTION_ID_MESSAGES = 'messages';
+export const COLLECTION_ID_APPS = 'apps';
+export const COLLECTION_ID_PRODUCTS = 'products';
+export const COLLECTION_ID_BOOKS = 'books';
+export const COLLECTION_ID_UPWORK_PROFILES = 'upworkProfiles';
+
 
 export function getAppwriteStorageUrl(fileId: string) {
     if (!fileId) return '';

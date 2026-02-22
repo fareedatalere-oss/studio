@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowRight, Search, ChevronUp, Upload, ShoppingCart, Trash2, Phone, Book, Library, MoreVertical, Video, UserPlus } from 'lucide-react';
+import { ArrowRight, Search, ChevronUp, Upload, ShoppingCart, Trash2, Phone, Book, Library, MoreVertical, Video, UserPlus, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -14,93 +14,108 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
-
-const mockApps = [
-  { id: '1', name: 'I-Pay Connect', icon: 'https://picsum.photos/seed/app1/200/200', platform: 'android', price: 'Free' },
-  { id: '2', name: 'Wallet Pro', icon: 'https://picsum.photos/seed/app2/200/200', platform: 'android', price: '₦500' },
-  { id: '3', name: 'Finance Tracker', icon: 'https://picsum.photos/seed/app3/200/200', platform: 'ios', price: '₦1200' },
-  { id: '4', name: 'Photo Editor+', icon: 'https://picsum.photos/seed/app4/200/200', platform: 'ios', price: 'Free' },
-];
-
-const mockProducts = [
-    { id: 'p1', name: 'Wireless Headphones', icon: 'https://picsum.photos/seed/prod1/200/200', price: 15000, contactType: 'chat', description: 'High-fidelity wireless headphones with noise cancellation.' },
-    { id: 'p2', name: 'Leather Wallet', icon: 'https://picsum.photos/seed/prod2/200/200', price: 4500, contactType: 'call', contactInfo: '08012345678', description: 'Handcrafted genuine leather wallet.' },
-];
-
-const mockBooks = [
-    { id: 'b1', name: 'The Art of I-Pay', icon: 'https://picsum.photos/seed/book1/200/300', price: 2500, description: 'A deep dive into the philosophy and technology behind I-Pay.' },
-    { id: 'b2', name: 'Digital Currency Explained', icon: 'https://picsum.photos/seed/book2/200/300', price: 0, description: 'A beginner\'s guide to understanding the world of digital finance.' },
-    { id: 'b3', name: 'Marketplace Success', icon: 'https://picsum.photos/seed/book3/200/300', price: 5000, description: 'Strategies for selling your digital products online.' },
-];
-
-const mockUpworkProfiles = [
-    { id: 'u1', name: 'John Doe', title: 'Senior Developer', avatar: 'https://picsum.photos/seed/upwork1/200/200', description: 'Experienced full-stack developer with 10+ years of experience building scalable web applications. Proficient in React, Node.js, and cloud infrastructure.', videoUrl: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_5MB.mp4', phoneNumber: '08011223344' },
-];
-
+import { databases, DATABASE_ID, COLLECTION_ID_APPS, COLLECTION_ID_PRODUCTS, COLLECTION_ID_BOOKS, COLLECTION_ID_UPWORK_PROFILES } from '@/lib/appwrite';
+import { Query } from 'appwrite';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function MarketContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const [currentTab, setCurrentTab] = useState('apps');
+  
+  // Control State
+  const [currentTab, setCurrentTab] = useState(searchParams.get('tab') || 'apps');
   const [isSubscribed, setIsSubscribed] = useState(false);
-  const [apps, setApps] = useState(mockApps);
-  const [products, setProducts] = useState(mockProducts);
-  const [books, setBooks] = useState(mockBooks);
-  const [upworkProfiles, setUpworkProfiles] = useState(mockUpworkProfiles);
-  const [cart, setCart] = useState<typeof mockProducts[0][]>([]);
-  const [library, setLibrary] = useState<string[]>([]); // Store book IDs
-  const [pin, setPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [pin, setPin] = useState('');
 
+  // Data State
+  const [apps, setApps] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [books, setBooks] = useState<any[]>([]);
+  const [upworkProfiles, setUpworkProfiles] = useState<any[]>([]);
+  const [dataLoading, setDataLoading] = useState({ apps: true, products: true, books: true, upwork: true });
+
+  // Cart/Library State
+  const [cart, setCart] = useState<any[]>([]);
+  const [library, setLibrary] = useState<string[]>([]); // Store book IDs
 
   useEffect(() => {
-    const tab = searchParams.get('tab');
-    if (tab) {
-        setCurrentTab(tab);
-    }
     if (searchParams.get('subscribed') === 'true') {
       setIsSubscribed(true);
     }
-    if (searchParams.get('new_app') === 'true') {
-      const newApp = { id: '5', name: 'My Uploaded App', icon: 'https://picsum.photos/seed/newapp/200/200', platform: 'android', price: 'Free' };
-      if (!apps.find(app => app.id === newApp.id)) {
-        setApps(prev => [newApp, ...prev]);
-      }
-    }
-     if (searchParams.get('new_product') === 'true') {
-      const newProduct = { id: 'p3', name: 'New Gadget', icon: 'https://picsum.photos/seed/newprod/200/200', price: 7500, contactType: 'chat', description: 'A brand new gadget just for you!' };
-      if (!products.find(p => p.id === newProduct.id)) {
-        setProducts(prev => [newProduct, ...prev]);
-      }
-    }
-    if (searchParams.get('new_book') === 'true') {
-      const newBook = { id: 'b4', name: 'My New Book', icon: 'https://picsum.photos/seed/newbook/200/300', price: 1000, description: 'A freshly published book.' };
-      if (!books.find(b => b.id === newBook.id)) {
-          setBooks(prev => [newBook, ...prev]);
-      }
-    }
-    if (searchParams.get('new_upwork') === 'true') {
-      const newProfile = { id: 'u2', name: 'New Freelancer', title: 'Graphic Designer', avatar: 'https://picsum.photos/seed/newupwork/200/200', description: 'Creative graphic designer ready for new challenges.', videoUrl: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_5MB.mp4', phoneNumber: '08099887766' };
-      if (!upworkProfiles.find(p => p.id === newProfile.id)) {
-        setUpworkProfiles(prev => [newProfile, ...prev]);
-      }
-    }
-  }, [searchParams, apps, products, books, upworkProfiles]);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const fetchAndSubscribe = (collectionId: string, setter: React.Dispatch<any>, loadingKey: keyof typeof dataLoading) => {
+      setDataLoading(prev => ({...prev, [loadingKey]: true}));
+      databases.listDocuments(DATABASE_ID, collectionId, [Query.orderDesc('$createdAt')])
+        .then(res => setter(res.documents))
+        .catch(err => console.error(`Failed to fetch ${collectionId}`, err))
+        .finally(() => setDataLoading(prev => ({...prev, [loadingKey]: false})));
+
+      const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${collectionId}.documents`, response => {
+         setter(prev => {
+            const newDoc = response.payload;
+            // Avoid duplicates on create event
+            if (response.events.some(e => e.includes('.create')) && prev.some(p => p.$id === newDoc.$id)) {
+                return prev;
+            }
+            // Update or add
+            const docExists = prev.some(p => p.$id === newDoc.$id);
+            let newArray = docExists 
+              ? prev.map(p => p.$id === newDoc.$id ? newDoc : p)
+              : [newDoc, ...prev];
+            // Handle delete
+            if (response.events.some(e => e.includes('.delete'))) {
+                newArray = newArray.filter(p => p.$id !== newDoc.$id);
+            }
+            return newArray;
+        });
+      });
+      return unsubscribe;
+    };
+    
+    const unsubApps = fetchAndSubscribe(COLLECTION_ID_APPS, setApps, 'apps');
+    const unsubProducts = fetchAndSubscribe(COLLECTION_ID_PRODUCTS, setProducts, 'products');
+    const unsubBooks = fetchAndSubscribe(COLLECTION_ID_BOOKS, setBooks, 'books');
+    const unsubUpwork = fetchAndSubscribe(COLLECTION_ID_UPWORK_PROFILES, setUpworkProfiles, 'upwork');
+
+    return () => {
+        unsubApps();
+        unsubProducts();
+        unsubBooks();
+        unsubUpwork();
+    };
+  }, []);
   
-  const AppItem = ({ app }: { app: typeof mockApps[0]}) => (
-    <Link href={`/dashboard/market/apps/${app.id}`}>
+  
+  const AppItem = ({ app }: { app: any}) => (
+    <Link href={`/dashboard/market/apps/${app.$id}`}>
         <Card className="hover:bg-muted/50 transition-colors">
             <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                <Image src={app.icon} alt={app.name} width={64} height={64} className="rounded-xl" />
+                <Image src={app.iconUrl} alt={app.name} width={64} height={64} className="rounded-xl" />
                 <p className="font-semibold text-sm truncate w-full">{app.name}</p>
-                <p className="text-xs text-muted-foreground">{app.price}</p>
+                <p className="text-xs text-muted-foreground">{app.priceType === 'free' ? 'Free' : `₦${app.price}`}</p>
             </CardContent>
         </Card>
     </Link>
   );
+  
+  const LoadingSkeleton = () => (
+    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
+        {Array.from({length: 5}).map((_, i) => (
+            <Card key={i}>
+                <CardContent className="p-4 flex flex-col items-center gap-2">
+                    <Skeleton className="h-16 w-16 rounded-xl" />
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-3 w-10" />
+                </CardContent>
+            </Card>
+        ))}
+    </div>
+  );
 
-  const handleBuyProduct = (product: typeof mockProducts[0]) => {
+  const handleBuyProduct = (product: any) => {
     setIsLoading(true);
     // Simulate PIN check, payment, and notifications
     setTimeout(() => {
@@ -127,7 +142,7 @@ function MarketContent() {
     }, 1500);
   };
   
-  const handleGetBook = (book: typeof mockBooks[0]) => {
+  const handleGetBook = (book: any) => {
     setIsLoading(true);
     setTimeout(() => {
         if (book.price > 0 && pin !== '12345') {
@@ -158,10 +173,10 @@ function MarketContent() {
     }, 1500);
   };
 
-  const ProductItem = ({ product }: { product: typeof mockProducts[0]}) => (
+  const ProductItem = ({ product }: { product: any}) => (
     <Card className="flex flex-col">
         <CardContent className="p-4 flex flex-col items-center text-center gap-2 flex-1">
-            <Image src={product.icon} alt={product.name} width={80} height={80} className="rounded-xl object-cover aspect-square" />
+            <Image src={product.imageUrl} alt={product.name} width={80} height={80} className="rounded-xl object-cover aspect-square" />
             <p className="font-semibold text-sm truncate w-full mt-2">{product.name}</p>
             <p className="text-sm font-bold">₦{(product.price + 80).toLocaleString()}</p>
         </CardContent>
@@ -172,7 +187,7 @@ function MarketContent() {
                 </Button>
             ) : (
                  <Button asChild variant="ghost" size="sm">
-                    <Link href={`/dashboard/chat/seller-${product.id}`}>Chat</Link>
+                    <Link href={`/dashboard/chat/seller-${product.sellerId}`}>Chat</Link>
                 </Button>
             )}
              <DropdownMenu>
@@ -222,7 +237,7 @@ function MarketContent() {
                         </AlertDialogContent>
                     </AlertDialog>
                     <DropdownMenuItem onClick={() => {
-                        if (!cart.find(item => item.id === product.id)) {
+                        if (!cart.find(item => item.$id === product.$id)) {
                             setCart(prev => [...prev, product]);
                             toast({title: 'Added to Cart', description: `${product.name} has been added to your cart.`});
                         } else {
@@ -235,12 +250,12 @@ function MarketContent() {
     </Card>
   );
 
-  const BookItem = ({ book }: { book: typeof mockBooks[0]}) => (
+  const BookItem = ({ book }: { book: any}) => (
     <Card className="flex flex-col">
         <CardContent className="p-4 flex flex-col items-center text-center gap-2 flex-1">
-            <Image src={book.icon} alt={book.name} width={80} height={120} className="rounded-md object-cover shadow-md" />
+            <Image src={book.coverUrl} alt={book.name} width={80} height={120} className="rounded-md object-cover shadow-md" />
             <p className="font-semibold text-sm truncate w-full mt-2">{book.name}</p>
-            <p className="text-xs font-bold text-muted-foreground">{book.price > 0 ? `₦${(book.price + 50).toLocaleString()}` : 'Free'}</p>
+            <p className="text-xs font-bold text-muted-foreground">{book.priceType === 'free' ? 'Free' : `₦${(book.price + 50).toLocaleString()}`}</p>
         </CardContent>
          <div className="border-t p-2 flex items-center justify-end">
              <DropdownMenu>
@@ -258,7 +273,7 @@ function MarketContent() {
                             <AlertDialogFooter><AlertDialogCancel>Close</AlertDialogCancel></AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
-                    {library.includes(book.id) ? (
+                    {library.includes(book.$id) ? (
                         <DropdownMenuItem asChild>
                             <Link href="/dashboard/market/library">Go to Library</Link>
                         </DropdownMenuItem>
@@ -273,9 +288,9 @@ function MarketContent() {
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <div className="space-y-2">
-                                    <Label htmlFor={`pin-book-${book.id}`}>5-Digit Transaction PIN</Label>
+                                    <Label htmlFor={`pin-book-${book.$id}`}>5-Digit Transaction PIN</Label>
                                     <Input
-                                        id={`pin-book-${book.id}`}
+                                        id={`pin-book-${book.$id}`}
                                         type="password"
                                         inputMode="numeric"
                                         value={pin}
@@ -303,11 +318,11 @@ function MarketContent() {
     </Card>
   )
 
-  const UpworkProfileItem = ({ profile }: { profile: typeof mockUpworkProfiles[0]}) => (
+  const UpworkProfileItem = ({ profile }: { profile: any}) => (
       <Card>
         <CardHeader>
             <div className="flex items-center gap-4">
-                <Image src={profile.avatar} alt={profile.name} width={60} height={60} className="rounded-full" />
+                <Image src={profile.avatarUrl} alt={profile.name} width={60} height={60} className="rounded-full" />
                 <div>
                     <CardTitle>{profile.name}</CardTitle>
                     <CardDescription>{profile.title}</CardDescription>
@@ -319,7 +334,7 @@ function MarketContent() {
                 <a href={`tel:${profile.phoneNumber}`}><Phone className="mr-2 h-4 w-4" /> Call</a>
             </Button>
              <Button asChild variant="secondary" className="flex-1">
-                <Link href={`/dashboard/chat/upwork-${profile.id}`}>Chat</Link>
+                <Link href={`/dashboard/chat/upwork-${profile.sellerId}`}>Chat</Link>
             </Button>
              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -377,15 +392,15 @@ function MarketContent() {
                 </SheetHeader>
                 <div className="mt-4 space-y-4">
                     {cart.length > 0 ? cart.map(item => (
-                        <div key={item.id} className="flex items-center justify-between">
+                        <div key={item.$id} className="flex items-center justify-between">
                             <div className='flex items-center gap-3'>
-                                <Image src={item.icon} alt={item.name} width={48} height={48} className="rounded-md" />
+                                <Image src={item.imageUrl} alt={item.name} width={48} height={48} className="rounded-md" />
                                 <div>
                                     <p className='font-semibold'>{item.name}</p>
                                     <p className='text-sm text-muted-foreground'>₦{(item.price + 80).toLocaleString()}</p>
                                 </div>
                             </div>
-                            <Button variant="ghost" size="icon" onClick={() => setCart(prev => prev.filter(c => c.id !== item.id))}>
+                            <Button variant="ghost" size="icon" onClick={() => setCart(prev => prev.filter(c => c.$id !== item.$id))}>
                                 <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                         </div>
@@ -417,26 +432,28 @@ function MarketContent() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input placeholder="Search for apps..." className="pl-10" />
           </div>
-          <Tabs defaultValue="android" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="android">Android</TabsTrigger>
-                <TabsTrigger value="ios">iOS</TabsTrigger>
-            </TabsList>
-            <TabsContent value="android" className="mt-4">
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
-                    {apps.filter(a => a.platform === 'android').map(app => (
-                        <AppItem key={app.id} app={app} />
-                    ))}
-                </div>
-            </TabsContent>
-             <TabsContent value="ios" className="mt-4">
-                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
-                    {apps.filter(a => a.platform === 'ios').map(app => (
-                        <AppItem key={app.id} app={app} />
-                    ))}
-                </div>
-            </TabsContent>
-          </Tabs>
+          {dataLoading.apps ? <LoadingSkeleton /> : (
+            <Tabs defaultValue="android" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="android">Android</TabsTrigger>
+                  <TabsTrigger value="ios">iOS</TabsTrigger>
+              </TabsList>
+              <TabsContent value="android" className="mt-4">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
+                      {apps.filter(a => a.platform === 'android').map(app => (
+                          <AppItem key={app.$id} app={app} />
+                      ))}
+                  </div>
+              </TabsContent>
+               <TabsContent value="ios" className="mt-4">
+                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
+                      {apps.filter(a => a.platform === 'ios').map(app => (
+                          <AppItem key={app.$id} app={app} />
+                      ))}
+                  </div>
+              </TabsContent>
+            </Tabs>
+          )}
         </TabsContent>
 
         <TabsContent value="products" className="mt-4 space-y-4">
@@ -454,9 +471,11 @@ function MarketContent() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input placeholder="Search for products..." className="pl-10" />
           </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {products.map(prod => <ProductItem key={prod.id} product={prod} />)}
-            </div>
+            {dataLoading.products ? <LoadingSkeleton /> : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {products.map(prod => <ProductItem key={prod.$id} product={prod} />)}
+              </div>
+            )}
         </TabsContent>
 
         <TabsContent value="bookstore" className="mt-4 space-y-4">
@@ -477,9 +496,11 @@ function MarketContent() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input placeholder="Search for books..." className="pl-10" />
           </div>
-           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {books.map(book => <BookItem key={book.id} book={book} />)}
-            </div>
+           {dataLoading.books ? <LoadingSkeleton /> : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {books.map(book => <BookItem key={book.$id} book={book} />)}
+              </div>
+           )}
         </TabsContent>
 
         <TabsContent value="upwork" className="mt-4 space-y-4">
@@ -494,9 +515,11 @@ function MarketContent() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input placeholder="Search for freelancers..." className="pl-10" />
             </div>
-             <div className="space-y-4">
-                {upworkProfiles.map(profile => <UpworkProfileItem key={profile.id} profile={profile} />)}
-            </div>
+             {dataLoading.upwork ? <Skeleton className="h-40 w-full" /> : (
+              <div className="space-y-4">
+                  {upworkProfiles.map(profile => <UpworkProfileItem key={profile.$id} profile={profile} />)}
+              </div>
+             )}
         </TabsContent>
       </Tabs>
     </div>
@@ -505,7 +528,7 @@ function MarketContent() {
 
 export default function MarketPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div><Loader2 className="h-6 w-6 animate-spin" /></div>}>
       <MarketContent />
     </Suspense>
   )

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -12,6 +12,7 @@ import {
   Star,
   FileText,
   Camera,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,46 +32,44 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
+import { useParams } from 'next/navigation';
+import { databases, DATABASE_ID, COLLECTION_ID_APPS } from '@/lib/appwrite';
+import { Skeleton } from '@/components/ui/skeleton';
 
-const mockApp = {
-  id: '1',
-  name: 'I-Pay Connect',
-  icon: 'https://picsum.photos/seed/app1/200/200',
-  price: '₦500',
-  isFree: false,
-  developerEmail: 'dev@ipay.com',
-  description: 'The best way to connect with friends and family on I-Pay. Secure, fast, and reliable messaging. Share photos, videos, and more with end-to-end encryption.',
-  screenshots: [
-    'https://picsum.photos/seed/screen1/400/800',
-    'https://picsum.photos/seed/screen2/400/800',
-    'https://picsum.photos/seed/screen3/400/800',
-    'https://picsum.photos/seed/screen4/400/800',
-  ],
-};
-
-const mockComments = [
-  { id: 1, user: { name: 'John S.', avatar: 'https://picsum.photos/seed/102/100/100', id: 'user2' }, text: 'Great app! Very useful.' },
-  { id: 2, user: { name: 'Alice J.', avatar: 'https://picsum.photos/seed/103/100/100', id: 'user3' }, text: 'Love the new update. Keep up the good work.' },
-];
-
-export default function AppDetailsPage({ params }: { params: { id: string } }) {
+export default function AppDetailsPage() {
   const { toast } = useToast();
+  const params = useParams();
+  const appId = params.id as string;
+  
+  const [app, setApp] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
   const [pin, setPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  useEffect(() => {
+    if (!appId) return;
+    setLoading(true);
+    databases.getDocument(DATABASE_ID, COLLECTION_ID_APPS, appId)
+      .then(doc => setApp(doc))
+      .catch(() => toast({ variant: 'destructive', title: 'Error', description: 'Could not load app details.' }))
+      .finally(() => setLoading(false));
+  }, [appId, toast]);
+
 
   const handleDownload = () => {
     setIsLoading(true);
-    // Simulate PIN check, payment, and download
+    // This is still a mock action as payment logic is not yet built
     setTimeout(() => {
-      if (mockApp.isFree || pin === '12345') {
+      if (app.priceType === 'free' || pin === '12345') { // using mock pin
         toast({
           title: 'Download Started',
-          description: `${mockApp.name} is being downloaded to your device.`,
+          description: `${app.name} is being downloaded to your device.`,
         });
-        if (!mockApp.isFree) {
+        if (app.priceType !== 'free') {
             toast({
                 title: 'Payment Successful',
-                description: `You have purchased ${mockApp.name}.`
+                description: `You have purchased ${app.name}.`
             });
              toast({
                 title: 'Sale Notification Sent',
@@ -89,8 +88,32 @@ export default function AppDetailsPage({ params }: { params: { id: string } }) {
     }, 1500);
   };
 
+  if (loading) {
+    return (
+        <div className="container py-8">
+             <Skeleton className="h-8 w-48 mb-4" />
+             <Card>
+                <CardHeader><Skeleton className="h-10 w-3/4" /></CardHeader>
+                <CardContent className="space-y-4">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-40 w-full" />
+                </CardContent>
+             </Card>
+        </div>
+    )
+  }
+
+  if (!app) {
+     return (
+        <div className="container py-8 text-center">
+            <p>App not found.</p>
+            <Button asChild variant="link"><Link href="/dashboard/market">Back to Market</Link></Button>
+        </div>
+    )
+  }
+  
   const DownloadButton = () => (
-    mockApp.isFree ? (
+    app.priceType === 'free' ? (
         <Button onClick={() => handleDownload()} className="w-full">
             <Download className="mr-2 h-4 w-4" />
             Download (Free)
@@ -100,14 +123,14 @@ export default function AppDetailsPage({ params }: { params: { id: string } }) {
             <AlertDialogTrigger asChild>
                 <Button className="w-full">
                     <Download className="mr-2 h-4 w-4" />
-                    Download ({mockApp.price})
+                    Download (₦{app.price})
                 </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Enter your 5-digit PIN to purchase and download {mockApp.name} for {mockApp.price}.
+                        Enter your 5-digit PIN to purchase and download {app.name} for ₦{app.price}.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="space-y-2">
@@ -142,9 +165,9 @@ export default function AppDetailsPage({ params }: { params: { id: string } }) {
 
       <Card>
         <CardHeader className="flex flex-row items-center gap-4">
-          <Image src={mockApp.icon} alt={mockApp.name} width={80} height={80} className="rounded-2xl" />
+          <Image src={app.iconUrl} alt={app.name} width={80} height={80} className="rounded-2xl" />
           <div className="flex-1">
-            <CardTitle>{mockApp.name}</CardTitle>
+            <CardTitle>{app.name}</CardTitle>
             <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
               <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
               <span>4.5 (1.2k reviews)</span>
@@ -159,7 +182,7 @@ export default function AppDetailsPage({ params }: { params: { id: string } }) {
             {/* App Description */}
             <div id="description">
                 <h3 className="font-semibold mb-2 text-lg">Description</h3>
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{mockApp.description}</p>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{app.description}</p>
             </div>
 
              {/* Screenshots */}
@@ -167,7 +190,7 @@ export default function AppDetailsPage({ params }: { params: { id: string } }) {
                 <h3 className="font-semibold mb-2 text-lg">Screenshots</h3>
                 <Link href={`/dashboard/market/apps/${params.id}/screenshots`}>
                     <div className="relative h-48 w-full rounded-lg overflow-hidden group">
-                        <Image src={mockApp.screenshots[0]} alt="Screenshot" fill className="object-cover"/>
+                        <Image src={app.screenshots[0]} alt="Screenshot" fill className="object-cover"/>
                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                             <Camera className="h-8 w-8 text-white"/>
                         </div>
@@ -178,22 +201,7 @@ export default function AppDetailsPage({ params }: { params: { id: string } }) {
             {/* Comments */}
             <div id="comments">
                 <h3 className="font-semibold mb-2 text-lg">Comments</h3>
-                <div className="space-y-4">
-                    {mockComments.map(comment => (
-                        <div key={comment.id} className="flex items-start gap-3">
-                            <Link href={`/dashboard/chat/${comment.user.id}`}>
-                                <Avatar>
-                                    <AvatarImage src={comment.user.avatar} alt={comment.user.name} />
-                                    <AvatarFallback>{comment.user.name.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                            </Link>
-                            <div className='flex-1'>
-                                <p className="font-semibold text-sm">{comment.user.name}</p>
-                                <p className="text-sm text-muted-foreground">{comment.text}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                 <p className="text-sm text-muted-foreground">Comments coming soon.</p>
                  <div className="mt-4">
                     <Textarea placeholder="Drop a comment..." />
                     <Button className="mt-2">Send</Button>
@@ -203,7 +211,7 @@ export default function AppDetailsPage({ params }: { params: { id: string } }) {
             {/* Contact */}
             <div id="contact">
                  <h3 className="font-semibold mb-2 text-lg">Contact Developer</h3>
-                 <a href={`mailto:${mockApp.developerEmail}`} className="block">
+                 <a href={`mailto:${app.developerEmail}`} className="block">
                     <Card className="hover:bg-muted/50 transition-colors">
                         <CardContent className="p-4 flex items-center justify-between">
                             <div className="flex items-center gap-3">

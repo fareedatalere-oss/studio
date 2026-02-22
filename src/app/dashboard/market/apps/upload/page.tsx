@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, UploadCloud, ShieldAlert, FileText, Image as ImageIcon, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, UploadCloud, ShieldAlert, FileText, Image as ImageIcon, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,11 +12,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ToastAction } from '@/components/ui/toast';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Progress } from '@/components/ui/progress';
+import { useUser } from '@/hooks/use-appwrite';
+import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_APPS, getAppwriteStorageUrl } from '@/lib/appwrite';
+import { ID } from 'appwrite';
 
 function AppUploadWarning({ onAccept }: { onAccept: () => void }) {
   return (
@@ -55,16 +56,25 @@ function AppUploadWarning({ onAccept }: { onAccept: () => void }) {
 function AppUploadForm() {
     const { toast } = useToast();
     const router = useRouter();
-    const [isLoading, setIsLoading] = useState(false);
+    const { user } = useUser();
+
+    // Form State
+    const [appName, setAppName] = useState('');
+    const [description, setDescription] = useState('');
+    const [developerEmail, setDeveloperEmail] = useState('');
     const [platform, setPlatform] = useState('');
+    const [priceType, setPriceType] = useState('free');
+    const [price, setPrice] = useState('');
+    
+    // File State
     const [appIcon, setAppIcon] = useState<File | null>(null);
     const [appIconPreview, setAppIconPreview] = useState<string | null>(null);
     const [appFile, setAppFile] = useState<File | null>(null);
     const [screenshots, setScreenshots] = useState<File[]>([]);
     const [screenshotPreviews, setScreenshotPreviews] = useState<string[]>([]);
-    const [priceType, setPriceType] = useState('free');
-    const [price, setPrice] = useState('');
-    const [uploadProgress, setUploadProgress] = useState(0);
+    
+    // Control State
+    const [isLoading, setIsLoading] = useState(false);
 
     const appIconInputRef = useRef<HTMLInputElement>(null);
     const appFileInputRef = useRef<HTMLInputElement>(null);
@@ -74,11 +84,7 @@ function AppUploadForm() {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             setAppIcon(file);
-            const reader = new FileReader();
-            reader.onload = (loadEvent) => {
-                setAppIconPreview(loadEvent.target?.result as string);
-            };
-            reader.readAsDataURL(file);
+            setAppIconPreview(URL.createObjectURL(file));
         }
     }
 
@@ -109,34 +115,55 @@ function AppUploadForm() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (screenshots.length < 3) {
-            toast({ variant: 'destructive', title: 'Upload at least 3 screenshots.' });
+
+        if (!user) {
+            toast({ variant: 'destructive', title: 'You must be logged in to post.' });
+            return;
+        }
+
+        if (!appName || !appIcon || screenshots.length < 3 || !appFile || !platform || !description || !developerEmail || (priceType === 'paid' && !price)) {
+            toast({ variant: 'destructive', title: 'Please fill all required fields and upload all files.' });
             return;
         }
 
         setIsLoading(true);
-        setUploadProgress(100);
+        toast({ title: "Submitting your app...", description: "Uploading files and creating your listing. Please wait." });
 
-        const interval = setInterval(() => {
-            setUploadProgress(prev => {
-                if (prev <= 10) {
-                    clearInterval(interval);
-                    toast({
-                        title: "App Submitted Successfully!",
-                        description: "Your app is now live on the marketplace. You can view it now.",
-                        duration: 999999, // Permanent for prototype
-                        action: (
-                            <ToastAction altText="View App" asChild>
-                                <Link href="/dashboard/market/apps/1">View App</Link>
-                            </ToastAction>
-                        )
-                    });
-                    router.push('/dashboard/market?new_app=true');
-                    return 0;
-                }
-                return prev - 10;
-            });
-        }, 150);
+        try {
+            const uploadPromises = [
+                storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), appIcon),
+                ...screenshots.map(file => storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file)),
+                storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), appFile),
+            ];
+
+            const [appIconUpload, ...otherUploads] = await Promise.all(uploadPromises);
+            const screenshotUploads = otherUploads.slice(0, screenshots.length);
+            const appFileUpload = otherUploads[screenshots.length];
+            
+            const newApp = {
+                name: appName,
+                iconUrl: getAppwriteStorageUrl(appIconUpload.$id),
+                screenshots: screenshotUploads.map(upload => getAppwriteStorageUrl(upload.$id)),
+                platform: platform,
+                description: description,
+                appFileUrl: getAppwriteStorageUrl(appFileUpload.$id),
+                developerEmail: developerEmail,
+                price: priceType === 'paid' ? Number(price) : 0,
+                priceType: priceType,
+                sellerId: user.$id,
+            };
+
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_APPS, ID.unique(), newApp);
+            
+            toast({ title: 'App Submitted!', description: 'Your app is now live on the marketplace.' });
+            router.push('/dashboard/market?tab=apps');
+
+        } catch (error: any) {
+            console.error(error);
+            toast({ variant: 'destructive', title: 'Upload Failed', description: error.message || 'An unknown error occurred.' });
+        } finally {
+            setIsLoading(false);
+        }
     }
 
   return (
@@ -149,7 +176,7 @@ function AppUploadForm() {
             <form onSubmit={handleSubmit} className="space-y-6">
                  <div className="space-y-2">
                     <Label htmlFor="appName">App Name</Label>
-                    <Input id="appName" placeholder="e.g., I-Pay Connect" required/>
+                    <Input id="appName" value={appName} onChange={(e) => setAppName(e.target.value)} placeholder="e.g., I-Pay Connect" required/>
                 </div>
                  <div className="space-y-2">
                     <Label htmlFor="appIcon">App Icon</Label>
@@ -208,7 +235,7 @@ function AppUploadForm() {
                 </div>
                  <div className="space-y-2">
                     <Label htmlFor="description">App Description</Label>
-                    <Textarea id="description" placeholder="Describe what your app does..." required rows={4}/>
+                    <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe what your app does..." required rows={4}/>
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="appFile">Application File</Label>
@@ -251,7 +278,7 @@ function AppUploadForm() {
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="email">Your Email Address</Label>
-                    <Input id="email" type="email" placeholder="you@example.com" required/>
+                    <Input id="email" type="email" value={developerEmail} onChange={(e) => setDeveloperEmail(e.target.value)} placeholder="you@example.com" required/>
                 </div>
                 <div className="space-y-3">
                     <Label>Pricing</Label>
@@ -274,15 +301,8 @@ function AppUploadForm() {
                     )}
                 </div>
                 
-                 {isLoading && (
-                    <div className='space-y-2'>
-                        <Label>Checking for malicious software...</Label>
-                        <Progress value={100 - uploadProgress} />
-                    </div>
-                )}
-
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Posting App..." : "Post App"}
+                    {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Posting App...</> : "Post App"}
                 </Button>
             </form>
         </CardContent>

@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, UploadCloud, ImageIcon, Film } from 'lucide-react';
+import { ArrowLeft, UploadCloud, ImageIcon, Film, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,17 +11,30 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { ToastAction } from '@/components/ui/toast';
+import { useUser } from '@/hooks/use-appwrite';
+import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_UPWORK_PROFILES, getAppwriteStorageUrl } from '@/lib/appwrite';
+import { ID } from 'appwrite';
 
 export default function UploadUpworkProfilePage() {
     const { toast } = useToast();
     const router = useRouter();
-    const [isLoading, setIsLoading] = useState(false);
+    const { user } = useUser();
     
+    // Form state
+    const [name, setName] = useState('');
+    const [title, setTitle] = useState('');
+    const [description, setDescription] = useState('');
+    const [phone, setPhone] = useState('');
+    const [address, setAddress] = useState('');
+
+    // File state
     const [avatar, setAvatar] = useState<File | null>(null);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
     const [certificate, setCertificate] = useState<File | null>(null);
     const [introVideo, setIntroVideo] = useState<File | null>(null);
+    
+    // Control state
+    const [isLoading, setIsLoading] = useState(false);
 
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const certificateInputRef = useRef<HTMLInputElement>(null);
@@ -36,32 +49,57 @@ export default function UploadUpworkProfilePage() {
             const file = e.target.files[0];
             setter(file);
             if (previewSetter) {
-                const reader = new FileReader();
-                reader.onload = (loadEvent) => {
-                    previewSetter(loadEvent.target?.result as string);
-                };
-                reader.readAsDataURL(file);
+                previewSetter(URL.createObjectURL(file));
             }
         }
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsLoading(true);
+        
+        if (!user) {
+            toast({ variant: 'destructive', title: 'You must be logged in.' });
+            return;
+        }
 
-        setTimeout(() => {
+        if (!name || !title || !description || !phone || !address || !avatar || !certificate || !introVideo) {
+            toast({ variant: 'destructive', title: 'Please fill all fields and upload all required files.' });
+            return;
+        }
+
+        setIsLoading(true);
+        toast({ title: 'Creating your profile...', description: 'This may take a moment.' });
+
+        try {
+            const [avatarUpload, certificateUpload, videoUpload] = await Promise.all([
+                storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), avatar),
+                storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), certificate),
+                storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), introVideo)
+            ]);
+
+            const newProfile = {
+                name,
+                title,
+                description,
+                phoneNumber: phone,
+                address,
+                avatarUrl: getAppwriteStorageUrl(avatarUpload.$id),
+                certificateUrl: getAppwriteStorageUrl(certificateUpload.$id),
+                videoUrl: getAppwriteStorageUrl(videoUpload.$id),
+                sellerId: user.$id
+            };
+
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_UPWORK_PROFILES, ID.unique(), newProfile);
+            
+            toast({ title: "Profile Created!", description: "Your Upwork profile is now live on the marketplace." });
+            router.push('/dashboard/market?tab=upwork');
+
+        } catch (error: any) {
+            console.error(error);
+            toast({ variant: 'destructive', title: 'Creation Failed', description: error.message });
+        } finally {
             setIsLoading(false);
-            toast({
-                title: "Profile Created!",
-                description: "Your Upwork profile is now live on the marketplace.",
-                 action: (
-                  <ToastAction altText="View" asChild>
-                    <Link href="/dashboard/market?tab=upwork">View</Link>
-                  </ToastAction>
-                ),
-            });
-            router.push('/dashboard/market?tab=upwork&new_upwork=true');
-        }, 1500);
+        }
     }
 
   return (
@@ -96,15 +134,15 @@ export default function UploadUpworkProfilePage() {
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="name">Your Name</Label>
-                        <Input id="name" placeholder="e.g., John Doe" required/>
+                        <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., John Doe" required/>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="title">Professional Background</Label>
-                        <Input id="title" placeholder="e.g., Senior Developer, Lawyer" required/>
+                        <Input id="title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Senior Developer, Lawyer" required/>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="description">Description of Work (max 200 characters)</Label>
-                        <Textarea id="description" placeholder="Tell us about your skills and experience..." required rows={4} maxLength={200}/>
+                        <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Tell us about your skills and experience..." required rows={4} maxLength={200}/>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="certificate">Certificate of Operation</Label>
@@ -124,15 +162,15 @@ export default function UploadUpworkProfilePage() {
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="phone">Phone Number</Label>
-                        <Input id="phone" type="tel" placeholder="Your contact number" required/>
+                        <Input id="phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Your contact number" required/>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="address">Your Address</Label>
-                        <Input id="address" placeholder="City, Country" required/>
+                        <Input id="address" value={address} onChange={e => setAddress(e.target.value)} placeholder="City, Country" required/>
                     </div>
 
                     <Button type="submit" className="w-full" disabled={isLoading}>
-                        {isLoading ? "Creating Profile..." : "Done"}
+                        {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Creating Profile...</> : "Done"}
                     </Button>
                 </form>
             </CardContent>

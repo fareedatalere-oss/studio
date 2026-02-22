@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, UploadCloud, ImageIcon } from 'lucide-react';
+import { ArrowLeft, Loader2, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,15 +12,28 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { useUser } from '@/hooks/use-appwrite';
+import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_BOOKS, getAppwriteStorageUrl } from '@/lib/appwrite';
+import { ID } from 'appwrite';
 
 export default function UploadBookPage() {
     const { toast } = useToast();
     const router = useRouter();
-    const [isLoading, setIsLoading] = useState(false);
-    const [bookCover, setBookCover] = useState<File | null>(null);
-    const [bookCoverPreview, setBookCoverPreview] = useState<string | null>(null);
+    const { user } = useUser();
+
+    // Form state
+    const [bookName, setBookName] = useState('');
+    const [description, setDescription] = useState('');
+    const [content, setContent] = useState('');
     const [priceType, setPriceType] = useState('free');
     const [price, setPrice] = useState('');
+
+    // File state
+    const [bookCover, setBookCover] = useState<File | null>(null);
+    const [bookCoverPreview, setBookCoverPreview] = useState<string | null>(null);
+    
+    // Control state
+    const [isLoading, setIsLoading] = useState(false);
     
     const bookCoverInputRef = useRef<HTMLInputElement>(null);
 
@@ -28,27 +41,50 @@ export default function UploadBookPage() {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             setBookCover(file);
-            const reader = new FileReader();
-            reader.onload = (loadEvent) => {
-                setBookCoverPreview(loadEvent.target?.result as string);
-            };
-            reader.readAsDataURL(file);
+            setBookCoverPreview(URL.createObjectURL(file));
         }
     }
     
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsLoading(true);
+        
+        if (!user) {
+            toast({ variant: 'destructive', title: 'You must be logged in.' });
+            return;
+        }
 
-        // Simulate upload and processing
-        setTimeout(() => {
+        if (!bookName || !bookCover || !description || !content || (priceType === 'paid' && !price)) {
+            toast({ variant: 'destructive', title: 'Please fill all fields and upload a cover.' });
+            return;
+        }
+
+        setIsLoading(true);
+        toast({ title: 'Publishing book...' });
+
+        try {
+            const coverUpload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), bookCover);
+
+            const newBook = {
+                name: bookName,
+                description: description,
+                content: content,
+                coverUrl: getAppwriteStorageUrl(coverUpload.$id),
+                price: priceType === 'paid' ? Number(price) : 0,
+                priceType: priceType,
+                sellerId: user.$id,
+            };
+
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_BOOKS, ID.unique(), newBook);
+
+            toast({ title: "Book Submitted!", description: "Your book is now live on the marketplace." });
+            router.push('/dashboard/market?tab=bookstore');
+
+        } catch (error: any) {
+            console.error(error);
+            toast({ variant: 'destructive', title: 'Submission Failed', description: error.message });
+        } finally {
             setIsLoading(false);
-            toast({
-                title: "Book Submitted!",
-                description: "Your book is now live on the marketplace.",
-            });
-            router.push('/dashboard/market?new_book=true');
-        }, 1500);
+        }
     }
 
   return (
@@ -66,7 +102,7 @@ export default function UploadBookPage() {
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-2">
                         <Label htmlFor="bookName">Book Name</Label>
-                        <Input id="bookName" placeholder="e.g., The Art of I-Pay" required/>
+                        <Input id="bookName" value={bookName} onChange={e => setBookName(e.target.value)} placeholder="e.g., The Art of I-Pay" required/>
                     </div>
 
                     <div className="space-y-2">
@@ -92,12 +128,12 @@ export default function UploadBookPage() {
 
                     <div className="space-y-2">
                         <Label htmlFor="description">Book Description</Label>
-                        <Textarea id="description" placeholder="Describe your book (up to 200 characters)..." required rows={3} maxLength={200}/>
+                        <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe your book (up to 200 characters)..." required rows={3} maxLength={200}/>
                     </div>
 
                      <div className="space-y-2">
                         <Label htmlFor="content">Book Content</Label>
-                        <Textarea id="content" placeholder="Paste the full content of your book here..." required rows={10}/>
+                        <Textarea id="content" value={content} onChange={e => setContent(e.target.value)} placeholder="Paste the full content of your book here..." required rows={10}/>
                         <p className="text-xs text-muted-foreground">For this prototype, page-by-page editing is disabled. Please paste the full text.</p>
                     </div>
 
@@ -123,7 +159,7 @@ export default function UploadBookPage() {
                     </div>
 
                     <Button type="submit" className="w-full" disabled={isLoading}>
-                        {isLoading ? "Posting Book..." : "Post Book"}
+                        {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Posting Book...</> : "Post Book"}
                     </Button>
                 </form>
             </CardContent>
