@@ -93,9 +93,11 @@ export default function UploadMusicPage() {
               <UploadCloud className="mr-2 h-4 w-4" />
               From Device
             </Button>
-             <Button variant="secondary" className="w-full" onClick={() => toast({ title: 'Feature Coming Soon', description: 'Music library integration is on the way.'})}>
-              <Library className="mr-2 h-4 w-4" />
-              Music Library
+             <Button asChild variant="secondary" className="w-full">
+               <Link href="/dashboard/media/editor/audio">
+                <Library className="mr-2 h-4 w-4" />
+                Music Library
+               </Link>
             </Button>
           </div>
           {audioFile ? (

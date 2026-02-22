@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, UploadCloud, Camera, Library } from 'lucide-react';
+import { ArrowLeft, UploadCloud, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -104,11 +104,6 @@ export default function UploadReelsPage() {
                 </Button>
                  <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="w-full justify-start gap-2">
                     <UploadCloud className="h-5 w-5" /> From Device
-                </Button>
-                <Button asChild variant="outline" className="w-full justify-start gap-2">
-                    <Link href="/dashboard/media/editor?back=/dashboard/media/upload/reels">
-                        <Library className="h-5 w-5" /> Use Library (VN Editor)
-                    </Link>
                 </Button>
                  <p className="text-xs text-muted-foreground text-center pt-2">MP4, MOV, etc. up to 200MB</p>
             </div>
