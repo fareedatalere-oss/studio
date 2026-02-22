@@ -21,11 +21,11 @@ export default function ManagerLayout({
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-40 border-b bg-background">
         <div className="container flex h-16 items-center justify-between">
-          <Link href="/manager/dashboard" className="flex items-center gap-2">
+          <Link href="/manager/dashboard" className="flex items-center gap-2 flex-shrink-0">
             <IPayLogo className="h-8 w-8" />
             <span className="font-bold">Manager Panel</span>
           </Link>
-          <nav className="hidden items-center gap-4 md:flex">
+          <nav className="flex items-center gap-4 overflow-x-auto whitespace-nowrap">
             {navItems.map((item) => (
               <Button key={item.label} asChild variant="ghost">
                 <Link href={item.href} className="flex items-center gap-2">
