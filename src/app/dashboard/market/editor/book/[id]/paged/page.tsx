@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Save, Send, Trash2, Upload, Camera, Image as ImageIcon, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Loader2, Save, Send, Trash2, Upload, Camera, Image as ImageIcon, ArrowLeft, ArrowRight, Bold, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { databases, storage, DATABASE_ID, COLLECTION_ID_BOOKS, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
@@ -20,6 +20,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ID } from 'appwrite';
 
 function dataURLtoFile(dataurl: string, filename: string): File {
@@ -44,6 +45,12 @@ function toBase64(file: File): Promise<string> {
         reader.onerror = error => reject(error);
     });
 }
+
+const bookEditorColors = [
+    '#000000', '#ef4444', '#3b82f6', '#22c55e', '#f97316', '#a855f7', '#ec4899', 
+    '#8b5cf6', '#64748b', '#facc15', '#14b8a6', '#ffffff', '#6b7280', '#84cc16', '#d946ef'
+];
+
 
 export default function PagedBookEditorPage() {
     const router = useRouter();
@@ -211,6 +218,20 @@ export default function PagedBookEditorPage() {
             toast({ variant: 'destructive', title: 'Upload failed', description: error.message });
         }
     };
+    
+    const applyColor = (color: string) => {
+        if (contentEditableRef.current) {
+            contentEditableRef.current.focus();
+            document.execCommand('foreColor', false, color);
+        }
+    };
+    
+    const applyBold = () => {
+        if (contentEditableRef.current) {
+            contentEditableRef.current.focus();
+            document.execCommand('bold');
+        }
+    };
 
     const handleNextPage = () => {
         handleContentChange();
@@ -245,6 +266,28 @@ export default function PagedBookEditorPage() {
                         <p className="text-sm text-muted-foreground">Page {currentPage + 1} of {pages.length}</p>
                     </div>
                     <div className="flex items-center gap-2">
+                        <Button variant="outline" size="icon" onClick={applyBold} title="Bold">
+                            <Bold className="h-4 w-4" />
+                        </Button>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" size="icon" title="Text Color">
+                                    <Palette className="h-4 w-4" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto">
+                                <div className="grid grid-cols-5 gap-2">
+                                    {bookEditorColors.map(color => (
+                                        <button 
+                                            key={color} 
+                                            onClick={() => applyColor(color)}
+                                            className="h-6 w-6 rounded-full border"
+                                            style={{ backgroundColor: color }}
+                                        />
+                                    ))}
+                                </div>
+                            </PopoverContent>
+                        </Popover>
                         <Button variant="outline" size="icon" onClick={handlePrevPage} disabled={currentPage === 0}><ArrowLeft className="h-4 w-4" /></Button>
                         <Button variant="outline" size="icon" onClick={handleNextPage}><ArrowRight className="h-4 w-4" /></Button>
                         <Dialog>
@@ -277,6 +320,7 @@ export default function PagedBookEditorPage() {
                     onInput={handleContentChange}
                     suppressContentEditableWarning={true}
                     className="h-full w-full p-4 prose dark:prose-invert max-w-none focus:outline-none book-editor-content"
+                    style={{ direction: 'ltr', textAlign: 'left' }}
                 />
             </main>
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleImageUpload(e.target.files[0])}/>

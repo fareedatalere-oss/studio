@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Save, Send, Trash2, Upload, Camera, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Save, Send, Trash2, Upload, Camera, Image as ImageIcon, Palette, Bold } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { databases, storage, DATABASE_ID, COLLECTION_ID_BOOKS, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
@@ -17,9 +17,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ID } from 'appwrite';
 
 function dataURLtoFile(dataurl: string, filename: string): File {
@@ -44,6 +44,11 @@ function toBase64(file: File): Promise<string> {
         reader.onerror = error => reject(error);
     });
 }
+
+const bookEditorColors = [
+    '#000000', '#ef4444', '#3b82f6', '#22c55e', '#f97316', '#a855f7', '#ec4899', 
+    '#8b5cf6', '#64748b', '#facc15', '#14b8a6', '#ffffff', '#6b7280', '#84cc16', '#d946ef'
+];
 
 export default function FullBookEditorPage() {
     const router = useRouter();
@@ -208,6 +213,20 @@ export default function FullBookEditorPage() {
         }
     };
 
+    const applyColor = (color: string) => {
+        if (contentEditableRef.current) {
+            contentEditableRef.current.focus();
+            document.execCommand('foreColor', false, color);
+        }
+    };
+
+    const applyBold = () => {
+        if (contentEditableRef.current) {
+            contentEditableRef.current.focus();
+            document.execCommand('bold');
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="flex flex-col h-screen">
@@ -226,6 +245,28 @@ export default function FullBookEditorPage() {
                         <p className="text-sm text-muted-foreground">Full Page Mode</p>
                     </div>
                     <div className="flex items-center gap-2">
+                        <Button variant="outline" size="icon" onClick={applyBold} title="Bold">
+                            <Bold className="h-4 w-4" />
+                        </Button>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" size="icon" title="Text Color">
+                                    <Palette className="h-4 w-4" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto">
+                                <div className="grid grid-cols-5 gap-2">
+                                    {bookEditorColors.map(color => (
+                                        <button 
+                                            key={color} 
+                                            onClick={() => applyColor(color)}
+                                            className="h-6 w-6 rounded-full border"
+                                            style={{ backgroundColor: color }}
+                                        />
+                                    ))}
+                                </div>
+                            </PopoverContent>
+                        </Popover>
                         <Dialog>
                             <DialogTrigger asChild>
                                 <Button variant="outline" size="sm"><Upload className="mr-2 h-4 w-4"/> Upload Image</Button>
@@ -256,6 +297,7 @@ export default function FullBookEditorPage() {
                     onInput={handleContentChange}
                     suppressContentEditableWarning={true}
                     className="h-full w-full p-4 prose dark:prose-invert max-w-none focus:outline-none book-editor-content"
+                    style={{ direction: 'ltr', textAlign: 'left' }}
                 />
             </main>
              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleImageUpload(e.target.files[0])}/>
