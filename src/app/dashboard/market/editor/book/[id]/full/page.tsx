@@ -122,10 +122,9 @@ export default function FullBookEditorPage() {
         toast({ title: 'Submitting draft to database...' });
 
         try {
-            // Process content: find base64 images, upload them, and replace with URLs
-            let finalContent = contentEditableRef.current.innerHTML;
+            const currentContent = contentEditableRef.current.innerHTML;
             const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = finalContent;
+            tempDiv.innerHTML = currentContent;
             
             const imageWrappers = tempDiv.querySelectorAll<HTMLDivElement>('div[data-base64]');
             
@@ -148,7 +147,7 @@ export default function FullBookEditorPage() {
                 wrapper.replaceWith(finalImg);
             });
 
-            finalContent = tempDiv.innerHTML;
+            const finalContent = tempDiv.innerHTML;
 
             // Upload cover image
             const coverFile = dataURLtoFile(draft.coverUrl, 'cover.png');
@@ -168,7 +167,7 @@ export default function FullBookEditorPage() {
             router.push(`/dashboard/market/editor/book/${document.$id}/preview`);
 
         } catch (error: any) {
-             toast({ variant: 'destructive', title: 'Error', description: `Could not post book: ${error.message}` });
+             toast({ variant: 'destructive', title: 'Error Posting Book', description: `Could not post book: ${error.message}` });
              setIsSaving(false);
         }
     };
@@ -301,12 +300,13 @@ export default function FullBookEditorPage() {
                     </div>
                 </div>
             </header>
-            <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto" style={{ direction: 'ltr' }}>
                 <div
                     ref={contentEditableRef}
                     contentEditable={true}
                     onInput={handleContentChange}
                     suppressContentEditableWarning={true}
+                    dir="ltr"
                     className="h-full w-full p-4 prose dark:prose-invert max-w-none focus:outline-none"
                     style={{ direction: 'ltr', textAlign: 'left' }}
                 />

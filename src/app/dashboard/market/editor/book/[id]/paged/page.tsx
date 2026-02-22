@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -258,7 +259,7 @@ export default function PagedBookEditorPage() {
     }
     
     return (
-        <div className="flex flex-col h-screen">
+        <div className="flex flex-col h-screen" style={{ direction: 'ltr' }}>
             <header className="sticky top-0 bg-background border-b p-4 z-10">
                 <div className="container flex items-center justify-between">
                      <div>
@@ -322,7 +323,7 @@ export default function PagedBookEditorPage() {
                     </div>
                 </div>
             </header>
-            <main className="flex-1 p-4 overflow-y-auto">
+            <main className="flex-1 p-4 overflow-y-auto" style={{ direction: 'ltr' }}>
                  <div
                     ref={contentEditableRef}
                     contentEditable={true}
