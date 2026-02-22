@@ -139,7 +139,6 @@
         "platform": { "type": "string", "enum": ["android", "ios"] },
         "description": { "type": "string" },
         "appFileUrl": { "type": "string", "format": "uri" },
-        "developerEmail": { "type": "string", "format": "email" },
         "price": { "type": "number" },
         "priceType": { "type": "string", "enum": ["free", "paid"] },
         "sellerId": { "type": "string" }

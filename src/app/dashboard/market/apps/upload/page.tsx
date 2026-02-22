@@ -146,7 +146,6 @@ function AppUploadForm() {
                 platform: platform,
                 description: description,
                 appFileUrl: getAppwriteStorageUrl(appFileUpload.$id),
-                developerEmail: user.email,
                 price: priceType === 'paid' ? Number(price) : 0,
                 priceType: priceType,
                 sellerId: user.$id,
