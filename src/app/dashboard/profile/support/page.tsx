@@ -1,12 +1,16 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, BookOpen, Building, Mail, Phone, MessageCircle } from 'lucide-react';
+import { ArrowLeft, BookOpen, Building, Mail, Phone, MessageCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { databases, DATABASE_ID, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const DOCUMENT_ID_MAIN_CONFIG = 'main';
 
 const DocumentationContent = () => (
     <Accordion type="single" collapsible className="w-full">
@@ -50,58 +54,99 @@ const DocumentationContent = () => (
     </Accordion>
 );
 
-const ContactContent = () => (
-    <div className="space-y-6">
-        <div>
-            <h3 className="font-bold text-lg mb-2">Abuja Office</h3>
-            <div className="text-sm text-muted-foreground space-y-1">
-                <p><strong>Address:</strong> Area Kpebi Serki Asokoro Extension FCT ABUJA, Kpebi Okada Junction line street Phone charging shop.</p>
-                <p><strong>Contact Person:</strong> Abubakar Abdullahi</p>
-                <p className="flex items-center gap-2">
-                    <Phone className="h-4 w-4" /> 08169503595
-                </p>
+const ContactContent = ({ supportInfo, loading }: { supportInfo: any, loading: boolean }) => {
+    if (loading) {
+        return (
+            <div className="space-y-6">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-32 w-full" />
             </div>
-        </div>
-         <div>
-            <h3 className="font-bold text-lg mb-2">Kaduna Office</h3>
-            <div className="text-sm text-muted-foreground space-y-1">
-                 <p><strong>Address:</strong> Lere Local Government Area, 12 Dankaka way, or Kwarfada chief palace.</p>
-                 <p className="flex items-center gap-2">
-                    <Phone className="h-4 w-4" /> 07086556098
-                 </p>
-            </div>
-        </div>
-        <div>
-            <h3 className="font-bold text-lg mb-2">Alternative Support</h3>
-             <div className="space-y-2">
-                <Button asChild variant="outline" className="w-full justify-start gap-2">
-                    <a href="https://wa.me/2348169503595" target="_blank" rel="noopener noreferrer">
-                        <MessageCircle className="h-5 w-5 text-green-500" /> WhatsApp (1)
-                    </a>
-                </Button>
-                 <Button asChild variant="outline" className="w-full justify-start gap-2">
-                    <a href="https://wa.me/2348162810155" target="_blank" rel="noopener noreferrer">
-                        <MessageCircle className="h-5 w-5 text-green-500" /> WhatsApp (2)
-                    </a>
-                </Button>
-                <Button asChild variant="outline" className="w-full justify-start gap-2">
-                    <a href="mailto:Ipayapp166@gmail.com">
-                        <Mail className="h-5 w-5"/> Email Support (1)
-                    </a>
-                </Button>
-                 <Button asChild variant="outline" className="w-full justify-start gap-2">
-                    <a href="mailto:Ipaycustometcare973@gmail.com">
-                        <Mail className="h-5 w-5"/> Email Support (2)
-                    </a>
-                </Button>
-             </div>
-        </div>
-    </div>
-);
+        );
+    }
 
+    if (!supportInfo) {
+        return <p className="text-center text-muted-foreground">Contact information is not available at the moment.</p>
+    }
+
+    return (
+        <div className="space-y-6">
+            {supportInfo.abujaAddress && (
+                 <div>
+                    <h3 className="font-bold text-lg mb-2">Abuja Office</h3>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                        <p><strong>Address:</strong> {supportInfo.abujaAddress}</p>
+                        {supportInfo.abujaContactPerson && <p><strong>Contact Person:</strong> {supportInfo.abujaContactPerson}</p>}
+                        {supportInfo.abujaPhone && <p className="flex items-center gap-2"><Phone className="h-4 w-4" /> {supportInfo.abujaPhone}</p>}
+                    </div>
+                </div>
+            )}
+            {supportInfo.kadunaAddress && (
+                 <div>
+                    <h3 className="font-bold text-lg mb-2">Kaduna Office</h3>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                         <p><strong>Address:</strong> {supportInfo.kadunaAddress}</p>
+                         {supportInfo.kadunaPhone && <p className="flex items-center gap-2"><Phone className="h-4 w-4" /> {supportInfo.kadunaPhone}</p>}
+                    </div>
+                </div>
+            )}
+            <div>
+                <h3 className="font-bold text-lg mb-2">Alternative Support</h3>
+                 <div className="space-y-2">
+                    {supportInfo.whatsapp1 && (
+                        <Button asChild variant="outline" className="w-full justify-start gap-2">
+                            <a href={`https://wa.me/${supportInfo.whatsapp1}`} target="_blank" rel="noopener noreferrer">
+                                <MessageCircle className="h-5 w-5 text-green-500" /> WhatsApp (1)
+                            </a>
+                        </Button>
+                    )}
+                    {supportInfo.whatsapp2 && (
+                         <Button asChild variant="outline" className="w-full justify-start gap-2">
+                            <a href={`https://wa.me/${supportInfo.whatsapp2}`} target="_blank" rel="noopener noreferrer">
+                                <MessageCircle className="h-5 w-5 text-green-500" /> WhatsApp (2)
+                            </a>
+                        </Button>
+                    )}
+                    {supportInfo.email1 && (
+                        <Button asChild variant="outline" className="w-full justify-start gap-2">
+                            <a href={`mailto:${supportInfo.email1}`}>
+                                <Mail className="h-5 w-5"/> Email Support (1)
+                            </a>
+                        </Button>
+                    )}
+                    {supportInfo.email2 && (
+                        <Button asChild variant="outline" className="w-full justify-start gap-2">
+                            <a href={`mailto:${supportInfo.email2}`}>
+                                <Mail className="h-5 w-5"/> Email Support (2)
+                            </a>
+                        </Button>
+                    )}
+                 </div>
+            </div>
+        </div>
+    );
+};
 
 export default function SupportPage() {
     const [view, setView] = useState<'docs' | 'contact'>('docs');
+    const [supportInfo, setSupportInfo] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchSupportInfo = async () => {
+            setLoading(true);
+            try {
+                const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG);
+                setSupportInfo(doc);
+            } catch (error) {
+                console.log("Could not fetch support info. It may not be set up yet.");
+                setSupportInfo(null);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchSupportInfo();
+    }, []);
 
   return (
     <div className="container py-8">
@@ -126,7 +171,7 @@ export default function SupportPage() {
                 </Button>
             </div>
             
-            {view === 'docs' ? <DocumentationContent /> : <ContactContent />}
+            {view === 'docs' ? <DocumentationContent /> : <ContactContent supportInfo={supportInfo} loading={loading} />}
 
         </CardContent>
       </Card>

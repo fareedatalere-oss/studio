@@ -23,9 +23,29 @@
         "rewardBalance": { "type": "number", "description": "The user's reward points balance." },
         "clickCount": { "type": "number", "description": "The user's click count for rewards." },
         "hasReferral": { "type": "boolean", "description": "Whether the user has used a referral code." },
-        "blockedUsers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that this user has blocked."}
+        "blockedUsers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that this user has blocked."},
+        "following": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that this user is following." },
+        "followers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that follow this user." },
+        "isBanned": { "type": "boolean", "description": "Whether the user's account is banned." }
       },
       "required": ["uid", "email", "createdAt", "username", "country", "pin"]
+    },
+    "SupportInfo": {
+        "title": "Support Information",
+        "description": "Stores contact and support information for the application.",
+        "type": "object",
+        "properties": {
+            "abujaAddress": { "type": "string" },
+            "abujaContactPerson": { "type": "string" },
+            "abujaPhone": { "type": "string" },
+            "kadunaAddress": { "type": "string" },
+            "kadunaPhone": { "type": "string" },
+            "whatsapp1": { "type": "string" },
+            "whatsapp2": { "type": "string" },
+            "email1": { "type": "string" },
+            "email2": { "type": "string" },
+            "logoUrl": { "type": "string", "format": "uri" }
+        }
     },
     "Notification": {
       "title": "Notification",
@@ -117,13 +137,80 @@
         "description": "Represents a single comment on a media post.",
         "type": "object",
         "properties": {
+            "postId": { "type": "string", "description": "The ID of the post this comment belongs to." },
             "userId": { "type": "string" },
             "username": { "type": "string" },
             "userAvatar": { "type": "string", "format": "uri" },
             "text": { "type": "string" },
             "createdAt": { "type": "string", "format": "date-time" }
         },
-        "required": ["userId", "text", "createdAt"]
+        "required": ["postId", "userId", "text", "createdAt"]
+    },
+    "MarketApp": {
+      "title": "Marketplace App",
+      "description": "Represents an application listed on the marketplace.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "iconUrl": { "type": "string", "format": "uri" },
+        "screenshots": { "type": "array", "items": { "type": "string", "format": "uri" } },
+        "platform": { "type": "string", "enum": ["android", "ios"] },
+        "description": { "type": "string" },
+        "appFileUrl": { "type": "string", "format": "uri" },
+        "price": { "type": "number" },
+        "priceType": { "type": "string", "enum": ["free", "paid"] },
+        "sellerId": { "type": "string" }
+      },
+      "required": ["name", "iconUrl", "platform", "description", "appFileUrl", "price", "priceType", "sellerId"]
+    },
+    "MarketProduct": {
+      "title": "Marketplace Product",
+      "description": "Represents a physical or digital product sold on the marketplace.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string", "format": "uri" },
+        "price": { "type": "number" },
+        "contactType": { "type": "string", "enum": ["chat", "call"] },
+        "contactInfo": { "type": "string", "description": "Phone number if contact type is call" },
+        "sellerId": { "type": "string" }
+      },
+      "required": ["name", "imageUrl", "price", "contactType", "sellerId"]
+    },
+    "MarketBook": {
+      "title": "Marketplace Book",
+      "description": "Represents a book sold on the marketplace.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "content": { "type": "array", "items": { "type": "string" }, "description": "The content of the book, structured as an array of pages for page-by-page editing, or a single element for full-page editing." },
+        "coverUrl": { "type": "string", "format": "uri" },
+        "price": { "type": "number" },
+        "priceType": { "type": "string", "enum": ["free", "paid"] },
+        "sellerId": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "published"], "description": "The publishing status of the book." },
+        "pageByPage": { "type": "boolean", "description": "True if the book is meant to be read page by page." }
+      },
+      "required": ["name", "coverUrl", "priceType", "sellerId", "status"]
+    },
+    "UpworkProfile": {
+      "title": "Upwork Freelancer Profile",
+      "description": "Represents a freelancer's profile on the Upwork section.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "address": { "type": "string" },
+        "avatarUrl": { "type": "string", "format": "uri" },
+        "certificateUrl": { "type": "string", "format": "uri" },
+        "videoUrl": { "type": "string", "format": "uri" },
+        "sellerId": { "type": "string" }
+      },
+      "required": ["name", "title", "description", "phoneNumber", "address", "avatarUrl", "certificateUrl", "videoUrl", "sellerId"]
     }
   },
   "auth": {
@@ -163,6 +250,26 @@
     "/postComments/{commentId}": {
       "schema": { "$ref": "#/entities/PostComment" },
       "description": "Stores comments for a specific post."
+    },
+    "/apps/{appId}": {
+      "schema": { "$ref": "#/entities/MarketApp" },
+      "description": "Stores marketplace app listings."
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/MarketProduct" },
+      "description": "Stores marketplace product listings."
+    },
+    "/books/{bookId}": {
+      "schema": { "$ref": "#/entities/MarketBook" },
+      "description": "Stores marketplace book listings."
+    },
+    "/upworkProfiles/{profileId}": {
+      "schema": { "$ref": "#/entities/UpworkProfile" },
+      "description": "Stores freelancer profiles for the Upwork section."
+    },
+     "/app_config/{configId}": {
+        "schema": { "$ref": "#/entities/SupportInfo" },
+        "description": "Stores application-wide configuration like support details."
     }
   }
 }

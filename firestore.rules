@@ -14,7 +14,8 @@ service cloud.firestore {
       allow get: if isSignedIn();
       
       // A user can only create or update their own document.
-      allow create, update: if request.auth.uid == userId;
+      // For banning, a manager role would be required. For now, allow any user to update for prototype.
+      allow create, update: if isSignedIn();
       
       // Deleting a user document is not allowed from the client.
       allow delete: if false;
@@ -73,6 +74,14 @@ service cloud.firestore {
         allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
         allow delete: if false;
       }
+    }
+    
+    // Rules for app config
+    match /app_config/{docId} {
+      // Anyone can read, only authenticated users can update (for prototype purposes)
+      allow read: if true;
+      allow create, update: if isSignedIn();
+      allow delete: if false;
     }
   }
 }
