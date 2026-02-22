@@ -144,7 +144,7 @@
         "priceType": { "type": "string", "enum": ["free", "paid"] },
         "sellerId": { "type": "string" }
       },
-      "required": ["name", "iconUrl", "platform", "description", "appFileUrl", "developerEmail", "price", "priceType", "sellerId"]
+      "required": ["name", "iconUrl", "platform", "description", "appFileUrl", "price", "priceType", "sellerId"]
     },
     "MarketProduct": {
       "title": "Marketplace Product",

@@ -61,7 +61,6 @@ function AppUploadForm() {
     // Form State
     const [appName, setAppName] = useState('');
     const [description, setDescription] = useState('');
-    const [developerEmail, setDeveloperEmail] = useState('');
     const [platform, setPlatform] = useState('');
     const [priceType, setPriceType] = useState('free');
     const [price, setPrice] = useState('');
@@ -121,7 +120,7 @@ function AppUploadForm() {
             return;
         }
 
-        if (!appName || !appIcon || screenshots.length < 3 || !appFile || !platform || !description || !developerEmail || (priceType === 'paid' && !price)) {
+        if (!appName || !appIcon || screenshots.length < 3 || !appFile || !platform || !description || (priceType === 'paid' && !price)) {
             toast({ variant: 'destructive', title: 'Please fill all required fields and upload all files.' });
             return;
         }
@@ -147,7 +146,7 @@ function AppUploadForm() {
                 platform: platform,
                 description: description,
                 appFileUrl: getAppwriteStorageUrl(appFileUpload.$id),
-                developerEmail: developerEmail,
+                developerEmail: user.email,
                 price: priceType === 'paid' ? Number(price) : 0,
                 priceType: priceType,
                 sellerId: user.$id,
@@ -276,10 +275,7 @@ function AppUploadForm() {
                         }
                     />
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="email">Your Email Address</Label>
-                    <Input id="email" type="email" value={developerEmail} onChange={(e) => setDeveloperEmail(e.target.value)} placeholder="you@example.com" required/>
-                </div>
+                
                 <div className="space-y-3">
                     <Label>Pricing</Label>
                      <RadioGroup defaultValue="free" value={priceType} onValueChange={setPriceType} className="flex gap-4">

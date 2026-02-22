@@ -210,18 +210,18 @@ export default function AppDetailsPage() {
 
             {/* Contact */}
             <div id="contact">
-                 <h3 className="font-semibold mb-2 text-lg">Contact Developer</h3>
-                 <a href={`mailto:${app.developerEmail}`} className="block">
+                 <h3 className="font-semibold mb-2 text-lg">Contact Seller</h3>
+                 <Link href={`/dashboard/chat/${app.sellerId}`} className="block">
                     <Card className="hover:bg-muted/50 transition-colors">
                         <CardContent className="p-4 flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <Mail className="h-5 w-5" />
-                                <span className="font-medium">Send Email</span>
+                                <MessageCircle className="h-5 w-5" />
+                                <span className="font-medium">Chat with Seller</span>
                             </div>
                             <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         </CardContent>
                     </Card>
-                </a>
+                </Link>
             </div>
 
         </CardContent>
