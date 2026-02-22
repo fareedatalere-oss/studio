@@ -107,7 +107,7 @@ export default function UploadReelsPage() {
                 </Button>
                 <Button asChild variant="outline" className="w-full justify-start gap-2">
                     <Link href="/dashboard/media/editor?back=/dashboard/media/upload/reels">
-                        <Library className="h-5 w-5" /> Use Library (CapCut)
+                        <Library className="h-5 w-5" /> Use Library (VN Editor)
                     </Link>
                 </Button>
                  <p className="text-xs text-muted-foreground text-center pt-2">MP4, MOV, etc. up to 200MB</p>

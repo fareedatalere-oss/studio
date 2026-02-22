@@ -13,7 +13,7 @@ function EditorContent() {
   return (
     <div className="relative h-screen">
       <header className="absolute top-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-sm flex justify-between items-center z-10">
-        <h1 className="text-lg font-semibold">CapCut Video Editor</h1>
+        <h1 className="text-lg font-semibold">VN Video Editor</h1>
         <Button asChild variant="ghost" size="icon">
           <Link href={backUrl}>
             <X />
@@ -22,10 +22,9 @@ function EditorContent() {
         </Button>
       </header>
       <iframe
-        src="https://www.capcut.com/"
+        src="https://vlognow.me/"
         className="w-full h-full border-0 pt-16"
-        title="CapCut Video Editor"
-        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+        title="VN Video Editor"
       />
     </div>
   );
