@@ -42,7 +42,7 @@ export default function SignInPage() {
       return;
     }
 
-    const lowerCaseEmail = email.toLowerCase();
+    const lowerCaseEmail = email.trim().toLowerCase();
 
     if (
       (lowerCaseEmail === MANAGER_EMAIL_1 && password === MANAGER_PASSWORD_1) ||

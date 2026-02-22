@@ -12,7 +12,8 @@ import { IPayLogo } from '@/components/icons';
 import { account } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 
-const MANAGER_EMAIL = 'i-paymanagerscare402@gmail.com';
+const MANAGER_EMAIL_1 = 'i-paymanagerscare402@gmail.com';
+const MANAGER_EMAIL_2 = 'ipatmanager@17@gmail.com';
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -35,6 +36,18 @@ export default function SignUpPage() {
       return;
     }
     
+    const lowerCaseEmail = email.trim().toLowerCase();
+
+    if (lowerCaseEmail === MANAGER_EMAIL_1 || lowerCaseEmail === MANAGER_EMAIL_2) {
+      toast({
+        title: 'Email Not Available',
+        description: 'This email address is not available for sign up.',
+        variant: 'destructive',
+      });
+       setIsLoading(false);
+      return;
+    }
+
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast({
         title: 'Invalid Email',
@@ -45,16 +58,6 @@ export default function SignUpPage() {
       return;
     }
 
-
-    if (email.toLowerCase() === MANAGER_EMAIL) {
-      toast({
-        title: 'Email Already Exists',
-        description: 'This email address is not available for sign up.',
-        variant: 'destructive',
-      });
-       setIsLoading(false);
-      return;
-    }
 
     try {
       // Before creating a new account, we must ensure no old session is active.
