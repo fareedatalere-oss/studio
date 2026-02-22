@@ -11,8 +11,6 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
-import { ID } from 'appwrite';
 
 type Bank = {
     id: number;
@@ -48,7 +46,9 @@ export default function TransferPage() {
             setBanksLoading(true);
             const result = await getBankList();
             if (result.success) {
-                setBanks(result.data);
+                // Deduplicate banks by code to prevent React key errors and confusion
+                const uniqueBanks = Array.from(new Map(result.data.map((bank: Bank) => [bank.code, bank])).values());
+                setBanks(uniqueBanks);
             } else {
                 toast({
                     variant: 'destructive',
@@ -96,84 +96,40 @@ export default function TransferPage() {
             return;
         }
 
+        const selectedBank = banks.find(b => b.code === bankCode);
+        if (!selectedBank) {
+            toast({ variant: 'destructive', title: 'Error', description: 'A valid bank was not selected.'});
+            return;
+        }
+
         setIsLoading(true);
 
-        try {
-            // 1. Fetch user profile
-            const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
+        const result = await makeBankTransfer({
+            userId: user.$id,
+            pin,
+            bankCode,
+            accountNumber,
+            amount: Number(amount),
+            narration,
+            recipientName: resolvedName,
+            bankName: selectedBank.name
+        });
 
-            // 2. Check PIN
-            if (userProfile.pin !== pin) {
-                throw new Error('Incorrect transaction PIN.');
-            }
-            
-            const transferAmount = Number(amount);
-            if (isNaN(transferAmount) || transferAmount <= 0) {
-                throw new Error('Invalid transfer amount.');
-            }
-            
-            // 3. Check balance
-            if (userProfile.nairaBalance < transferAmount) {
-                throw new Error('Insufficient balance to complete this transaction.');
-            }
-
-            // 4. Call the Flutterwave transfer API
-            const transferResult = await makeBankTransfer({
-                bankCode,
-                accountNumber,
-                amount: transferAmount,
-                narration,
-            });
-
-            if (transferResult.success) {
-                // 5. Deduct balance from user profile
-                const newNairaBalance = userProfile.nairaBalance - transferAmount;
-                await databases.updateDocument(
-                    DATABASE_ID,
-                    COLLECTION_ID_PROFILES,
-                    user.$id,
-                    { nairaBalance: newNairaBalance }
-                );
-
-                // 6. Save the transaction record
-                const transactionData = {
-                    userId: user.$id,
-                    type: 'transfer',
-                    amount: transferAmount,
-                    status: 'completed',
-                    recipientName: resolvedName,
-                    recipientDetails: `${accountNumber} - ${banks.find(b => b.code === bankCode)?.name}`,
-                    narration: narration,
-                    sessionId: `ipay-tx-${Date.now()}`
-                };
-
-                await databases.createDocument(
-                    DATABASE_ID,
-                    COLLECTION_ID_TRANSACTIONS,
-                    ID.unique(),
-                    transactionData
-                );
-                
-                toast({
-                    title: 'Transfer Successful',
-                    description: `₦${transferAmount.toLocaleString()} has been sent to ${resolvedName}.`
-                });
-                router.push('/dashboard');
-            } else {
-                // If the API transfer failed
-                throw new Error(transferResult.message || 'The transfer could not be processed by the bank.');
-            }
-
-        } catch (error: any) {
-            console.error("Transfer error:", error);
+        if (result.success) {
             toast({
-                title: 'Transfer Failed',
-                description: error.message || 'An unexpected error occurred.',
-                variant: 'destructive',
+                title: 'Transfer Successful',
+                description: result.message || `Your transfer to ${resolvedName} was successful.`
             });
-        } finally {
-            setIsLoading(false);
+            router.push('/dashboard');
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Transfer Failed',
+                description: result.message || 'An unexpected error occurred during the transfer.'
+            });
         }
+
+        setIsLoading(false);
     };
 
 
