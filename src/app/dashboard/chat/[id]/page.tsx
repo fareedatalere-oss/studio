@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, getAppwriteStorageUrl } from '@/lib/appwrite';
-import { ID, Query } from 'appwrite';
+import { ID, Query, Permission, Role } from 'appwrite';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import { useParams } from 'next/navigation';
 
@@ -195,12 +195,12 @@ export default function ChatThreadPage() {
       let currentChatId = chatId;
       if (!currentChatId) {
         const sortedParticipants = [currentUser.$id, otherUser.$id].sort();
-        // Manually construct permission strings in the exact format Appwrite requires.
+        // Use the Appwrite SDK to create permissions correctly.
         const permissions = [
-            `read("user:${currentUser.$id}")`,
-            `read("user:${otherUser.$id}")`,
-            `update("user:${currentUser.$id}")`,
-            `update("user:${otherUser.$id}")`,
+            Permission.read(Role.user(currentUser.$id)),
+            Permission.read(Role.user(otherUser.$id)),
+            Permission.update(Role.user(currentUser.$id)),
+            Permission.update(Role.user(otherUser.$id)),
         ];
         const newChatDoc = await databases.createDocument(
             DATABASE_ID,
@@ -229,12 +229,12 @@ export default function ChatThreadPage() {
           mediaType: type || 'text'
       };
 
-      // Manually construct permission strings for the message document.
+      // Use the Appwrite SDK to create permissions for the message document.
       const messagePermissions = [
-        `read("user:${currentUser.$id}")`,
-        `read("user:${otherUser.$id}")`,
-        `update("user:${currentUser.$id}")`,
-        `delete("user:${currentUser.$id}")`,
+        Permission.read(Role.user(currentUser.$id)),
+        Permission.read(Role.user(otherUser.$id)),
+        Permission.update(Role.user(currentUser.$id)),
+        Permission.delete(Role.user(currentUser.$id)),
       ];
 
       await databases.createDocument(
