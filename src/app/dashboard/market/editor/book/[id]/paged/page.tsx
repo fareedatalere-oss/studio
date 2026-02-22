@@ -6,6 +6,7 @@ import { Loader2, Save, Send, Trash2, Upload, Camera, Image as ImageIcon, ArrowL
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { databases, storage, DATABASE_ID, COLLECTION_ID_BOOKS, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
+import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   AlertDialog,
@@ -19,17 +20,28 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
-import Image from 'next/image';
 import { ID } from 'appwrite';
-import { cn } from '@/lib/utils';
+
+function dataURLtoFile(dataurl: string, filename: string): File {
+    const arr = dataurl.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    if (!mimeMatch) throw new Error('Invalid data URL');
+    const mime = mimeMatch[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+}
 
 export default function PagedBookEditorPage() {
-    const params = useParams();
     const router = useRouter();
     const { toast } = useToast();
-    const bookId = params.id as string;
+    const { user } = useUser();
 
-    const [book, setBook] = useState<any>(null);
+    const [draft, setDraft] = useState<any>(null);
     const [pages, setPages] = useState<string[]>(['']);
     const [currentPage, setCurrentPage] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
@@ -37,35 +49,25 @@ export default function PagedBookEditorPage() {
 
     const contentEditableRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    useEffect(() => {
+        const localDraft = localStorage.getItem('bookDraft');
+        if (!localDraft) {
+            toast({ variant: 'destructive', title: 'No draft found', description: 'Please start a new book.' });
+            router.push('/dashboard/market/upload/book');
+            return;
+        }
+        const parsedDraft = JSON.parse(localDraft);
+        setDraft(parsedDraft);
+        setPages(parsedDraft.content.length > 0 ? parsedDraft.content : ['']);
+        setIsLoading(false);
+    }, [router, toast]);
 
     useEffect(() => {
-        if (!bookId) return;
-        const fetchBook = async () => {
-            setIsLoading(true);
-            try {
-                const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_BOOKS, bookId);
-                setBook(doc);
-                if (doc.content && doc.content.length > 0) {
-                    setPages(doc.content);
-                } else {
-                    setPages(['']);
-                }
-            } catch (error) {
-                console.error(error);
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not load book data.' });
-                router.push('/dashboard/market');
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchBook();
-    }, [bookId, router, toast]);
-
-    useEffect(() => {
-        if (contentEditableRef.current) {
+        if (contentEditableRef.current && !isLoading) {
             contentEditableRef.current.innerHTML = pages[currentPage] || '';
         }
-    }, [currentPage, pages]);
+    }, [currentPage, pages, isLoading]);
 
     const handleContentChange = () => {
         if (contentEditableRef.current) {
@@ -74,17 +76,17 @@ export default function PagedBookEditorPage() {
             setPages(newPages);
         }
     };
-
-    const saveDraft = async () => {
-        if (!book) return false;
+    
+    const saveDraft = () => {
+        if (!draft) return false;
+        handleContentChange(); // Ensure current page content is captured
         setIsSaving(true);
         toast({ title: 'Saving draft...' });
         try {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_BOOKS, bookId, {
-                content: pages,
-                status: 'draft',
-            });
-            toast({ title: 'Draft Saved!', description: 'Your changes have been saved.' });
+            const updatedDraft = { ...draft, content: pages };
+            localStorage.setItem('bookDraft', JSON.stringify(updatedDraft));
+            setDraft(updatedDraft); // update state
+            toast({ title: 'Draft Saved!', description: 'Your changes have been saved to your browser.' });
             return true;
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error', description: `Could not save draft: ${error.message}` });
@@ -94,21 +96,37 @@ export default function PagedBookEditorPage() {
         }
     };
 
-    const handleDiscard = async () => {
-        if (!book) return;
-        try {
-            await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_BOOKS, bookId);
-            toast({ title: 'Book Discarded', description: 'The draft has been permanently deleted.' });
-            router.push('/dashboard/market?tab=bookstore');
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: `Could not discard book: ${error.message}` });
-        }
+    const handleDiscard = () => {
+        localStorage.removeItem('bookDraft');
+        toast({ title: 'Book Discarded' });
+        router.push('/dashboard/market?tab=bookstore');
     };
     
-    const handleGoToPreview = async () => {
-        const success = await saveDraft();
-        if (success) {
-            router.push(`/dashboard/market/editor/book/${bookId}/preview`);
+    const handlePost = async () => {
+        if (!draft || !user) return;
+        saveDraft(); // Save current state before posting
+        setIsSaving(true);
+        toast({ title: 'Submitting draft...' });
+
+        try {
+            const coverFile = dataURLtoFile(draft.coverUrl, 'cover.png');
+            const coverUpload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), coverFile);
+            
+            const finalDraft = {
+                ...draft,
+                coverUrl: getAppwriteStorageUrl(coverUpload.$id),
+                sellerId: user.$id,
+            };
+
+            const document = await databases.createDocument(DATABASE_ID, COLLECTION_ID_BOOKS, ID.unique(), finalDraft);
+            
+            localStorage.removeItem('bookDraft');
+            toast({ title: 'Draft Sent to Preview!' });
+            router.push(`/dashboard/market/editor/book/${document.$id}/preview`);
+
+        } catch (error: any) {
+             toast({ variant: 'destructive', title: 'Error posting book', description: error.message });
+             setIsSaving(false);
         }
     };
 
@@ -145,26 +163,26 @@ export default function PagedBookEditorPage() {
             setCurrentPage(prev => prev - 1);
         }
     };
-
+    
     if (isLoading) {
         return <div className="container py-8"><Card><CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader><CardContent className="space-y-4"><Skeleton className="h-96 w-full" /></CardContent></Card></div>;
     }
-
+    
     return (
         <div className="flex flex-col h-screen">
             <header className="sticky top-0 bg-background border-b p-4 z-10">
                 <div className="container flex items-center justify-between">
                      <div>
-                        <h1 className="text-xl font-bold">{book?.name || 'Book Editor'}</h1>
+                        <h1 className="text-xl font-bold">{draft?.name || 'Book Editor'}</h1>
                         <p className="text-sm text-muted-foreground">Page {currentPage + 1}</p>
                     </div>
                     <div className="flex items-center gap-2">
                         <AlertDialog>
                             <AlertDialogTrigger asChild><Button variant="destructive-outline" size="sm" disabled={isSaving}><Trash2 className="mr-2 h-4 w-4" /> Discard</Button></AlertDialogTrigger>
-                            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete this book draft.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDiscard} className="bg-destructive hover:bg-destructive/90">Discard Draft</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete this draft.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDiscard} className="bg-destructive hover:bg-destructive/90">Discard Draft</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
                         </AlertDialog>
                         <Button variant="outline" size="sm" onClick={saveDraft} disabled={isSaving}>{isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}Save Draft</Button>
-                        <Button size="sm" onClick={handleGoToPreview} disabled={isSaving}>{isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />}Post</Button>
+                        <Button size="sm" onClick={handlePost} disabled={isSaving}>{isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />}Post</Button>
                     </div>
                 </div>
             </header>
@@ -175,7 +193,6 @@ export default function PagedBookEditorPage() {
                     onInput={handleContentChange}
                     suppressContentEditableWarning={true}
                     className="h-full w-full p-4 prose dark:prose-invert max-w-none focus:outline-none"
-                    dangerouslySetInnerHTML={{ __html: pages[currentPage] }}
                 />
             </main>
             <footer className="sticky bottom-0 bg-background border-t p-2 flex items-center justify-between">

@@ -1,22 +1,22 @@
 'use client';
 
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Book, FileText } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { databases, DATABASE_ID, COLLECTION_ID_BOOKS } from '@/lib/appwrite';
 
 export default function SelectBookEditorModePage() {
     const router = useRouter();
-    const params = useParams();
-    const bookId = params.id as string;
 
-    const handleSelectMode = async (mode: 'paged' | 'full') => {
-        if (mode === 'paged') {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_BOOKS, bookId, { pageByPage: true });
-            router.push(`/dashboard/market/editor/book/${bookId}/paged`);
+    const handleSelectMode = (mode: 'paged' | 'full') => {
+        const localDraft = localStorage.getItem('bookDraft');
+        if (localDraft) {
+            const draft = JSON.parse(localDraft);
+            draft.pageByPage = mode === 'paged';
+            localStorage.setItem('bookDraft', JSON.stringify(draft));
+            router.push(`/dashboard/market/editor/book/draft/${mode}`);
         } else {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_BOOKS, bookId, { pageByPage: false });
-            router.push(`/dashboard/market/editor/book/${bookId}/full`);
+            // Handle case where draft is lost
+            router.push('/dashboard/market/upload/book');
         }
     };
 

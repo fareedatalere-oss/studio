@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowLeft, Loader2, ImageIcon } from 'lucide-react';
@@ -12,14 +12,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/hooks/use-appwrite';
-import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_BOOKS, getAppwriteStorageUrl } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
+
+function toBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+    });
+}
 
 export default function UploadBookPage() {
     const { toast } = useToast();
     const router = useRouter();
-    const { user } = useUser();
 
     // Form state
     const [bookName, setBookName] = useState('');
@@ -33,8 +48,27 @@ export default function UploadBookPage() {
     
     // Control state
     const [isLoading, setIsLoading] = useState(false);
+    const [showDraftDialog, setShowDraftDialog] = useState(false);
     
     const bookCoverInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        const draft = localStorage.getItem('bookDraft');
+        if (draft) {
+            setShowDraftDialog(true);
+        }
+    }, []);
+
+    const handleContinueDraft = () => {
+        const draft = JSON.parse(localStorage.getItem('bookDraft') || '{}');
+        const editorPath = draft.pageByPage ? 'paged' : 'full';
+        router.push(`/dashboard/market/editor/book/draft/${editorPath}`);
+    }
+
+    const handleStartNew = () => {
+        localStorage.removeItem('bookDraft');
+        setShowDraftDialog(false);
+    }
 
     const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -46,11 +80,6 @@ export default function UploadBookPage() {
     
     const handleContinueToEditor = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        if (!user) {
-            toast({ variant: 'destructive', title: 'You must be logged in.' });
-            return;
-        }
 
         if (!bookName || !bookCover || !description || (priceType === 'paid' && !price)) {
             toast({ variant: 'destructive', title: 'Please fill all fields and upload a cover.' });
@@ -58,37 +87,49 @@ export default function UploadBookPage() {
         }
 
         setIsLoading(true);
-        toast({ title: 'Creating book draft...' });
 
         try {
-            const coverUpload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), bookCover);
-
-            const newBookDraft = {
+            const coverBase64 = await toBase64(bookCover);
+            
+            const bookDraft = {
                 name: bookName,
                 description: description,
-                content: [], // Content will be added in the editor
-                coverUrl: getAppwriteStorageUrl(coverUpload.$id),
+                coverUrl: coverBase64, // Store base64 preview for now
                 price: priceType === 'paid' ? Number(price) : 0,
                 priceType: priceType,
-                sellerId: user.$id,
                 status: 'draft',
-                pageByPage: false,
+                pageByPage: false, // will be set in next step
+                content: ['']
             };
 
-            const document = await databases.createDocument(DATABASE_ID, COLLECTION_ID_BOOKS, ID.unique(), newBookDraft);
+            localStorage.setItem('bookDraft', JSON.stringify(bookDraft));
 
-            toast({ title: "Draft Created!", description: "Next, choose your editing mode." });
-            router.push(`/dashboard/market/editor/book/${document.$id}/select-mode`);
+            toast({ title: "Draft Saved Locally!", description: "Next, choose your editing mode." });
+            router.push(`/dashboard/market/editor/book/draft/select-mode`);
 
         } catch (error: any) {
             console.error(error);
             toast({ variant: 'destructive', title: 'Submission Failed', description: error.message });
+        } finally {
             setIsLoading(false);
         }
     }
 
   return (
      <div className="container py-8">
+        <AlertDialog open={showDraftDialog} onOpenChange={setShowDraftDialog}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Unsaved Draft Found</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        You have an unsaved book draft. Would you like to continue editing it or start a new one?
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogAction onClick={handleContinueDraft}>Continue with Draft</AlertDialogAction>
+                <AlertDialogCancel onClick={handleStartNew}>Start New</AlertDialogCancel>
+            </AlertDialogContent>
+        </AlertDialog>
+
         <Link href="/dashboard/market?tab=bookstore" className="flex items-center gap-2 mb-4 text-sm">
             <ArrowLeft className="h-4 w-4" />
             Back to Market
@@ -153,7 +194,7 @@ export default function UploadBookPage() {
                     </div>
 
                     <Button type="submit" className="w-full" disabled={isLoading}>
-                        {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating Draft...</> : "Continue to Editor"}
+                        {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving Draft...</> : "Continue to Editor"}
                     </Button>
                 </form>
             </CardContent>

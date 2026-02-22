@@ -319,7 +319,7 @@ const PostCard = ({ post }: { post: any }) => {
           <Image src={post.mediaUrl} alt={post.description || 'Post image'} fill className="object-contain" />
         )}
         {(post.type === 'reels' || post.type === 'film') && post.mediaUrl && (
-           <video src={post.mediaUrl} controls autoPlay muted loop className="w-full h-full object-contain" />
+           <video src={post.mediaUrl} controls autoPlay muted loop className={cn("w-full h-full object-contain", isRotated && "object-cover")} />
         )}
         {post.type === 'music' && (
             <div className="flex flex-col items-center justify-center p-8 text-center">
