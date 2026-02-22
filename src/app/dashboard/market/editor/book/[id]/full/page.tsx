@@ -17,6 +17,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ID } from 'appwrite';
@@ -95,7 +96,7 @@ export default function FullBookEditorPage() {
             toast({ title: 'Draft Saved!', description: 'Your changes have been saved to your browser.' });
             return true;
         } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: `Could not save draft: ${'\'\'\''}error.message` });
+            toast({ variant: 'destructive', title: 'Error', description: `Could not save draft: ${error.message}` });
             return false;
         } finally {
             setIsSaving(false);
@@ -123,7 +124,7 @@ export default function FullBookEditorPage() {
             
             const uploadPromises = Array.from(imageWrappers).map(wrapper => {
                 const base64Data = wrapper.dataset.base64 || '';
-                const imageFile = dataURLtoFile(base64Data, `book-image-${'\'\'\''}Date.now()}.png`);
+                const imageFile = dataURLtoFile(base64Data, `book-image-${Date.now()}.png`);
                 return storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), imageFile);
             });
 
@@ -157,10 +158,10 @@ export default function FullBookEditorPage() {
             
             localStorage.removeItem('bookDraft');
             toast({ title: 'Draft Sent to Preview!', description: 'Review your book before publishing.' });
-            router.push(`/dashboard/market/editor/book/${'\'\'\''}document.$id}/preview`);
+            router.push(`/dashboard/market/editor/book/${document.$id}/preview`);
 
         } catch (error: any) {
-             toast({ variant: 'destructive', title: 'Error', description: `Could not post book: ${'\'\'\''}error.message}` });
+             toast({ variant: 'destructive', title: 'Error', description: `Could not post book: ${error.message}` });
              setIsSaving(false);
         }
     };
@@ -170,18 +171,17 @@ export default function FullBookEditorPage() {
         toast({ title: 'Uploading image...' });
         try {
             const base64Data = await toBase64(file);
-            const uniqueId = `img-wrapper-${'\'\'\''}ID.unique()}`;
             
             const imgHtml = `
-                <div id="${'\'\'\''}uniqueId}" contenteditable="false" data-base64="${'\'\'\''}base64Data}" style="position: relative; display: inline-block; max-width: 200px; margin: 8px; vertical-align: middle;">
+                <div contenteditable="false" data-base64="${base64Data}" style="position: relative; display: inline-block; max-width: 200px; margin: 8px; vertical-align: middle;">
                     <img 
-                        src="${'\'\'\''}base64Data}" 
+                        src="${base64Data}" 
                         alt="User content" 
                         style="max-width: 100%; height: auto; border-radius: 0.5rem; display: block; cursor: pointer;"
                         onclick="
                             const dialog = document.createElement('dialog');
                             dialog.style.cssText = 'padding: 0; border: none; background: transparent; max-width: 90vw; max-height: 90vh;';
-                            dialog.innerHTML = '<img src=\\'${'\'\'\''}base64Data}\\' style=\\'max-width: 100%; max-height: 100%; object-fit: contain;\\' />';
+                            dialog.innerHTML = '<img src=\\'${base64Data}\\' style=\\'max-width: 100%; max-height: 100%; object-fit: contain;\\' />';
                             dialog.addEventListener('click', () => dialog.close());
                             document.body.appendChild(dialog);
                             dialog.showModal();
@@ -230,7 +230,7 @@ export default function FullBookEditorPage() {
                             <DialogTrigger asChild>
                                 <Button variant="outline" size="sm"><Upload className="mr-2 h-4 w-4"/> Upload Image</Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-[425px]">
+                             <DialogContent className="sm:max-w-[425px]">
                                 <DialogHeader>
                                     <DialogTitle>Upload an Image</DialogTitle>
                                 </DialogHeader>
@@ -251,13 +251,11 @@ export default function FullBookEditorPage() {
             </header>
             <main className="flex-1 overflow-y-auto">
                 <div
-                    dir="ltr"
                     ref={contentEditableRef}
                     contentEditable={true}
                     onInput={handleContentChange}
                     suppressContentEditableWarning={true}
-                    className="h-full w-full p-4 prose dark:prose-invert max-w-none focus:outline-none"
-                    style={{ direction: 'ltr', textAlign: 'left' }}
+                    className="h-full w-full p-4 prose dark:prose-invert max-w-none focus:outline-none book-editor-content"
                 />
             </main>
              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleImageUpload(e.target.files[0])}/>
