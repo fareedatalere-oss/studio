@@ -160,11 +160,11 @@ export default function FullBookEditorPage() {
                 sellerId: user.$id,
             };
 
-            const document = await databases.createDocument(DATABASE_ID, COLLECTION_ID_BOOKS, ID.unique(), finalDraftPayload);
+            const bookDocument = await databases.createDocument(DATABASE_ID, COLLECTION_ID_BOOKS, ID.unique(), finalDraftPayload);
             
             localStorage.removeItem('bookDraft');
             toast({ title: 'Draft Sent to Preview!', description: 'Review your book before publishing.' });
-            router.push(`/dashboard/market/editor/book/${document.$id}/preview`);
+            router.push(`/dashboard/market/editor/book/${bookDocument.$id}/preview`);
 
         } catch (error: any) {
              toast({ variant: 'destructive', title: 'Error Posting Book', description: `Could not post book: ${error.message}` });
@@ -307,7 +307,7 @@ export default function FullBookEditorPage() {
                     onInput={handleContentChange}
                     suppressContentEditableWarning={true}
                     dir="ltr"
-                    className="h-full w-full p-4 prose dark:prose-invert max-w-none focus:outline-none"
+                    className="h-full w-full p-4 max-w-none focus:outline-none text-foreground bg-background"
                     style={{ direction: 'ltr', textAlign: 'left' }}
                 />
             </main>
