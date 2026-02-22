@@ -164,7 +164,7 @@ const PostCard = ({ post }: { post: any }) => {
     }
   };
   
-   const handleFollowToggle = async () => {
+  const handleFollowToggle = async () => {
     if (!currentUser || !currentUserProfile || !post || isLoadingFollow) return;
     if (currentUser.$id === post.userId) return;
     
@@ -176,8 +176,15 @@ const PostCard = ({ post }: { post: any }) => {
         const myCurrentFollowing = currentUserProfile.following || [];
         const theirCurrentFollowers = otherUserProfile.followers || [];
 
-        const newMyFollowing = isFollowing ? myCurrentFollowing.filter((id: string) => id !== post.userId) : [...myCurrentFollowing, post.userId];
-        const newTheirFollowers = isFollowing ? theirCurrentFollowers.filter((id: string) => id !== currentUser.$id) : [...theirCurrentFollowers, currentUser.$id];
+        const isCurrentlyFollowing = myCurrentFollowing.includes(post.userId);
+
+        const newMyFollowing = isCurrentlyFollowing 
+            ? myCurrentFollowing.filter((id: string) => id !== post.userId) 
+            : [...myCurrentFollowing, post.userId];
+            
+        const newTheirFollowers = isCurrentlyFollowing 
+            ? theirCurrentFollowers.filter((id: string) => id !== currentUser.$id) 
+            : [...theirCurrentFollowers, currentUser.$id];
           
         await Promise.all([
              databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id, {
@@ -188,8 +195,12 @@ const PostCard = ({ post }: { post: any }) => {
              })
         ]);
         
-        setIsFollowing(!isFollowing);
-        recheckUser();
+        await recheckUser();
+
+        toast({
+            title: isCurrentlyFollowing ? 'Unfollowed' : 'Followed',
+            description: isCurrentlyFollowing ? `You are no longer following ${post.username}.` : `You are now following ${post.username}.`
+        });
 
     } catch (error: any) {
         console.error("Failed to follow/unfollow user:", error);
@@ -256,7 +267,7 @@ const PostCard = ({ post }: { post: any }) => {
                         onClick={handleFollowToggle}
                         disabled={isLoadingFollow || !currentUser}
                     >
-                        {isLoadingFollow ? '...' : isFollowing ? 'Following' : 'Follow'}
+                        {isLoadingFollow ? '...' : isFollowing ? 'Unfollow' : 'Follow'}
                     </Button>
                  )}
             </div>
