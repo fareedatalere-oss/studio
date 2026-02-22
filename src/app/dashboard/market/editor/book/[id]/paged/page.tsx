@@ -19,7 +19,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ID } from 'appwrite';
 
 function dataURLtoFile(dataurl: string, filename: string): File {
@@ -178,7 +178,7 @@ export default function PagedBookEditorPage() {
             const uniqueId = `img-wrapper-${ID.unique()}`;
             
             const imgHtml = `
-                <div id="${uniqueId}" contenteditable="false" style="position: relative; display: inline-block; max-width: 200px; margin: 8px; vertical-align: middle;">
+                <div id="${uniqueId}" contenteditable="false" data-base64="${base64Data}" style="position: relative; display: inline-block; max-width: 200px; margin: 8px; vertical-align: middle;">
                     <img 
                         src="${base64Data}" 
                         alt="User content" 
@@ -253,7 +253,10 @@ export default function PagedBookEditorPage() {
                                 <Button variant="outline" size="sm"><Upload className="mr-2 h-4 w-4"/> Image</Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-[425px]">
-                                <div className="p-4 space-y-2">
+                                <DialogHeader>
+                                  <DialogTitle>Upload an Image</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-2">
                                     <Button className="w-full justify-start gap-2" onClick={() => toast({ title: 'Camera coming soon!' })}><Camera className="h-5 w-5" /> Use Camera</Button>
                                     <Button className="w-full justify-start gap-2" onClick={() => fileInputRef.current?.click()}><ImageIcon className="h-5 w-5" /> From Device</Button>
                                 </div>
