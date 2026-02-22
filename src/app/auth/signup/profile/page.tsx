@@ -63,9 +63,10 @@ export default function CompleteProfilePage() {
     try {
         await account.updateName(username);
 
-        // Prepare only the essential data for the new profile, as requested.
+        // Prepare the profile data, including the email for recovery purposes.
         const profileData = {
             username: username,
+            email: user.email, // This is required for the PIN recovery feature
             country: country,
             pin: pin,
             avatar: '',
@@ -89,7 +90,9 @@ export default function CompleteProfilePage() {
     } catch (error: any) {
         console.error("Profile setup error:", error);
         let errorMessage = `A critical error occurred while creating your profile: ${error.message}`;
-        if (error.type === 'document_already_exists') {
+        if (error.code === 404 && error.message.includes('Collection not found')) {
+            errorMessage = 'The profiles collection has not been created in your Appwrite database. Please check your setup.';
+        } else if (error.type === 'document_already_exists' || error.code === 409) {
              errorMessage = 'A profile for this user already exists. Redirecting to dashboard.';
              router.push('/dashboard');
         }
