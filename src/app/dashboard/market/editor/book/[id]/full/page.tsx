@@ -162,6 +162,17 @@ export default function FullBookEditorPage() {
                         <p className="text-sm text-muted-foreground">Full Page Mode</p>
                     </div>
                     <div className="flex items-center gap-2">
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" size="sm"><Upload className="mr-2 h-4 w-4"/> Upload Image</Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[425px]">
+                                <div className="p-4 space-y-2">
+                                    <Button className="w-full justify-start gap-2" onClick={() => toast({ title: 'Camera coming soon!' })}><Camera className="h-5 w-5" /> Use Camera</Button>
+                                    <Button className="w-full justify-start gap-2" onClick={() => fileInputRef.current?.click()}><ImageIcon className="h-5 w-5" /> From Device</Button>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
                         <AlertDialog>
                             <AlertDialogTrigger asChild><Button variant="destructive-outline" size="sm" disabled={isSaving}><Trash2 className="mr-2 h-4 w-4" /> Discard</Button></AlertDialogTrigger>
                             <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete this book draft from your browser. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDiscard} className="bg-destructive hover:bg-destructive/90">Discard Draft</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
@@ -180,20 +191,7 @@ export default function FullBookEditorPage() {
                     className="h-full w-full p-4 prose dark:prose-invert max-w-none focus:outline-none"
                 />
             </main>
-            <footer className="sticky bottom-0 bg-background border-t p-2">
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleImageUpload(e.target.files[0])}/>
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <Button variant="outline" size="sm"><Upload className="mr-2 h-4 w-4"/> Upload Image</Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[425px]">
-                        <div className="p-4 space-y-2">
-                            <Button className="w-full justify-start gap-2" onClick={() => toast({ title: 'Camera coming soon!' })}><Camera className="h-5 w-5" /> Use Camera</Button>
-                            <Button className="w-full justify-start gap-2" onClick={() => fileInputRef.current?.click()}><ImageIcon className="h-5 w-5" /> From Device</Button>
-                        </div>
-                    </DialogContent>
-                </Dialog>
-            </footer>
+             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleImageUpload(e.target.files[0])}/>
         </div>
     );
 }
