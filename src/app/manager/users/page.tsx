@@ -11,6 +11,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import {
   Table,
   TableBody,
   TableCell,
@@ -18,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { MoreVertical, Search } from 'lucide-react';
+import { MoreVertical, Search, ShieldAlert, KeyRound } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 import { Query } from 'appwrite';
@@ -30,6 +41,7 @@ export default function ManagerUsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedUser, setSelectedUser] = useState<any>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -56,7 +68,6 @@ export default function ManagerUsersPage() {
       title: 'Action Triggered',
       description: `${action} clicked for user ${userName}. (This is a placeholder).`,
     });
-    // In a real app, this would perform the action.
   };
 
   const filteredUsers = useMemo(() => {
@@ -117,7 +128,7 @@ export default function ManagerUsersPage() {
                         <span className="font-medium">{user.username || 'N/A'}</span>
                         </div>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">{user.email}</TableCell>
+                    <TableCell className="hidden md:table-cell">{user.email || 'N/A'}</TableCell>
                     <TableCell className="hidden sm:table-cell font-mono text-xs">{user.$id}</TableCell>
                     <TableCell className="text-right">
                         <DropdownMenu>
@@ -127,14 +138,14 @@ export default function ManagerUsersPage() {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleAction('View User', user.username)}>
-                            View User
+                            <DropdownMenuItem onSelect={() => setSelectedUser(user)}>
+                                View User Credentials
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleAction('Suspend User', user.username)}>
-                            Suspend User
+                                Suspend User
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleAction('Delete User', user.username)} className="text-destructive">
-                            Delete User
+                                Delete User
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                         </DropdownMenu>
@@ -150,6 +161,38 @@ export default function ManagerUsersPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Dialog for viewing user credentials */}
+      <AlertDialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>User Credentials for @{selectedUser?.username}</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This information is highly sensitive. Do not share it.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-4">
+                <Alert variant="destructive">
+                    <ShieldAlert className="h-4 w-4" />
+                    <AlertTitle>Security Warning</AlertTitle>
+                    <AlertDescription>
+                        Passwords are encrypted and cannot be displayed. This is a critical security feature of the application.
+                    </AlertDescription>
+                </Alert>
+                <div className="space-y-2">
+                    <Label>Transaction PIN</Label>
+                    <div className="flex items-center gap-2 font-mono text-lg p-3 bg-muted rounded-md">
+                        <KeyRound className="h-5 w-5" />
+                        <span className="font-bold">{selectedUser?.pin || 'Not Set'}</span>
+                    </div>
+                </div>
+            </div>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setSelectedUser(null)}>Close</AlertDialogCancel>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }

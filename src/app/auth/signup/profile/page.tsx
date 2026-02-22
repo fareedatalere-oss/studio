@@ -63,10 +63,9 @@ export default function CompleteProfilePage() {
     try {
         await account.updateName(username);
 
-        // Prepare the profile data, including the email for recovery purposes.
+        // Prepare the profile data.
         const profileData = {
             username: username,
-            email: user.email, // This is required for the PIN recovery feature
             country: country,
             pin: pin,
             avatar: '',
