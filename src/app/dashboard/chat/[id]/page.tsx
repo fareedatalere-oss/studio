@@ -71,13 +71,18 @@ export default function ChatThreadPage() {
   // --- Data Fetching and Realtime ---
 
   const findChatId = useCallback(async (currentUId: string, otherUId: string) => {
-    // Queries need an index on `participants`. Ensure this is created in your Appwrite console.
-    const sortedParticipants = [currentUId, otherUId].sort();
     try {
+      // Find all chats the current user is a part of
       const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
-        Query.equal('participants', sortedParticipants)
+        Query.equal('participants', currentUId),
+        Query.limit(100) // Limit to a reasonable number for performance
       ]);
-      const existingChat = response.documents[0];
+      
+      // Filter those chats to find the one with the other user
+      const existingChat = response.documents.find(chat => 
+        chat.participants.includes(otherUId) && chat.participants.length === 2
+      );
+
       if (existingChat) {
         setChatId(existingChat.$id);
         return existingChat.$id;
@@ -516,5 +521,7 @@ export default function ChatThreadPage() {
     </div>
   );
 }
+
+    
 
     
