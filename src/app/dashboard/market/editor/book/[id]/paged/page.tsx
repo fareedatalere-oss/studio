@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Loader2, Save, Send, Trash2, Upload, Camera, Image as ImageIcon, ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -17,10 +17,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ID } from 'appwrite';
 
 function dataURLtoFile(dataurl: string, filename: string): File {
@@ -35,6 +33,15 @@ function dataURLtoFile(dataurl: string, filename: string): File {
         u8arr[n] = bstr.charCodeAt(n);
     }
     return new File([u8arr], filename, { type: mime });
+}
+
+function toBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+    });
 }
 
 export default function PagedBookEditorPage() {
@@ -80,7 +87,7 @@ export default function PagedBookEditorPage() {
     
     const saveDraft = () => {
         if (!draft) return false;
-        handleContentChange(); // Ensure current page content is captured
+        handleContentChange(); // Ensure current page content is captured before saving
         setIsSaving(true);
         toast({ title: 'Saving draft...' });
         try {
@@ -110,16 +117,47 @@ export default function PagedBookEditorPage() {
         toast({ title: 'Submitting draft...' });
 
         try {
+            // Process each page for images
+            const processedPages = await Promise.all(pages.map(async (pageContent) => {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = pageContent;
+                
+                const imageWrappers = tempDiv.querySelectorAll<HTMLDivElement>('div[data-base64]');
+                
+                const uploadPromises = Array.from(imageWrappers).map(wrapper => {
+                    const base64Data = wrapper.dataset.base64 || '';
+                    const imageFile = dataURLtoFile(base64Data, `book-image-${Date.now()}.png`);
+                    return storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), imageFile);
+                });
+
+                const uploadedImages = await Promise.all(uploadPromises);
+
+                imageWrappers.forEach((wrapper, index) => {
+                    const appwriteUrl = getAppwriteStorageUrl(uploadedImages[index].$id);
+                    const finalImg = document.createElement('img');
+                    finalImg.src = appwriteUrl;
+                    finalImg.alt = 'User uploaded content';
+                    finalImg.style.maxWidth = '100%';
+                    finalImg.style.height = 'auto';
+                    finalImg.style.borderRadius = '0.5rem';
+                    wrapper.replaceWith(finalImg);
+                });
+
+                return tempDiv.innerHTML;
+            }));
+
+            // Upload cover image
             const coverFile = dataURLtoFile(draft.coverUrl, 'cover.png');
             const coverUpload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), coverFile);
             
-            const finalDraft = {
+            const finalDraftPayload = {
                 ...draft,
+                content: processedPages,
                 coverUrl: getAppwriteStorageUrl(coverUpload.$id),
                 sellerId: user.$id,
             };
 
-            const document = await databases.createDocument(DATABASE_ID, COLLECTION_ID_BOOKS, ID.unique(), finalDraft);
+            const document = await databases.createDocument(DATABASE_ID, COLLECTION_ID_BOOKS, ID.unique(), finalDraftPayload);
             
             localStorage.removeItem('bookDraft');
             toast({ title: 'Draft Sent to Preview!' });
@@ -135,10 +173,34 @@ export default function PagedBookEditorPage() {
         if (!file) return;
         toast({ title: 'Uploading image...' });
         try {
-            const uploadedFile = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
-            const url = getAppwriteStorageUrl(uploadedFile.$id);
-            const imgHtml = `<img src="${url}" alt="User content" style="max-width: 100%; height: auto; border-radius: 0.5rem;" />`;
+            const base64Data = await toBase64(file);
+            const uniqueId = `img-wrapper-${ID.unique()}`;
             
+            const imgHtml = `
+                <div id="${uniqueId}" contenteditable="false" style="position: relative; display: inline-block; max-width: 200px; margin: 8px; vertical-align: middle;">
+                    <img 
+                        src="${base64Data}" 
+                        alt="User content" 
+                        style="max-width: 100%; height: auto; border-radius: 0.5rem; display: block; cursor: pointer;"
+                        onclick="
+                            const dialog = document.createElement('dialog');
+                            dialog.style.cssText = 'padding: 0; border: none; background: transparent; max-width: 90vw; max-height: 90vh;';
+                            dialog.innerHTML = '<img src=\\'${base64Data}\\' style=\\'max-width: 100%; max-height: 100%; object-fit: contain;\\' />';
+                            dialog.addEventListener('click', () => dialog.close());
+                            document.body.appendChild(dialog);
+                            dialog.showModal();
+                            dialog.addEventListener('close', () => document.body.removeChild(dialog));
+                        "
+                    />
+                    <button
+                        onclick="this.parentElement.remove()"
+                        style="position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; line-height: 20px; text-align: center;"
+                    >
+                        &times;
+                    </button>
+                </div>
+            `;
+
             if (contentEditableRef.current) {
                 contentEditableRef.current.focus();
                 document.execCommand('insertHTML', false, imgHtml);
@@ -166,7 +228,12 @@ export default function PagedBookEditorPage() {
     };
     
     if (isLoading) {
-        return <div className="container py-8"><Card><CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader><CardContent className="space-y-4"><Skeleton className="h-96 w-full" /></CardContent></Card></div>;
+        return (
+             <div className="flex flex-col h-screen">
+                 <header className="sticky top-0 bg-background border-b p-4 z-10"><div className="container"><Skeleton className="h-8 w-1/2" /></div></header>
+                 <main className="flex-1 overflow-y-auto p-4"><Skeleton className="h-96 w-full" /></main>
+            </div>
+        );
     }
     
     return (
@@ -175,7 +242,7 @@ export default function PagedBookEditorPage() {
                 <div className="container flex items-center justify-between">
                      <div>
                         <h1 className="text-xl font-bold">{draft?.name || 'Book Editor'}</h1>
-                        <p className="text-sm text-muted-foreground">Page {currentPage + 1}</p>
+                        <p className="text-sm text-muted-foreground">Page {currentPage + 1} of {pages.length}</p>
                     </div>
                     <div className="flex items-center gap-2">
                         <Button variant="outline" size="icon" onClick={handlePrevPage} disabled={currentPage === 0}><ArrowLeft className="h-4 w-4" /></Button>
@@ -202,6 +269,7 @@ export default function PagedBookEditorPage() {
             </header>
             <main className="flex-1 p-4 overflow-y-auto">
                  <div
+                    dir="ltr"
                     ref={contentEditableRef}
                     contentEditable={true}
                     onInput={handleContentChange}

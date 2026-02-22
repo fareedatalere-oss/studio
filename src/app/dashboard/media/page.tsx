@@ -478,7 +478,8 @@ export default function MediaPage() {
         <SheetTrigger asChild>
           <Button
             size="icon"
-            className="absolute bottom-24 right-6 md:bottom-6 h-16 w-16 rounded-full z-20 shadow-lg"
+            variant="destructive"
+            className="absolute bottom-24 left-6 md:bottom-6 h-16 w-16 rounded-full z-20 shadow-lg"
           >
             <Plus className="h-8 w-8" />
             <span className="sr-only">Add Media</span>
