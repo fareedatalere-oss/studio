@@ -35,6 +35,7 @@ import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function ManagerUsersPage() {
   const { toast } = useToast();
