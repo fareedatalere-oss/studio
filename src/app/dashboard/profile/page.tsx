@@ -73,7 +73,7 @@ export default function ProfilePage() {
   const actions = [
     { label: 'Settings', icon: Settings, href: '/dashboard/profile/settings' },
     { label: 'Contact Support', icon: Headset, href: '/dashboard/profile/support' },
-    { label: 'Post', icon: PenSquare, href: '/dashboard/media' },
+    { label: 'My Posts', icon: PenSquare, href: '/dashboard/profile/posts' },
   ];
 
   return (
