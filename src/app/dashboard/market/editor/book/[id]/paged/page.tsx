@@ -20,6 +20,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ID } from 'appwrite';
 
 function dataURLtoFile(dataurl: string, filename: string): File {
