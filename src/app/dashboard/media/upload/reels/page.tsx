@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, UploadCloud } from 'lucide-react';
+import { ArrowLeft, UploadCloud, Camera, Library } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +17,7 @@ export default function UploadReelsPage() {
   const { toast } = useToast();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [description, setDescription] = useState('');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
@@ -97,17 +98,29 @@ export default function UploadReelsPage() {
                 />
             </div>
           ) : (
-            <div
-              className="aspect-video bg-muted rounded-md flex items-center justify-center cursor-pointer border-2 border-dashed"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <div className="text-center text-muted-foreground">
-                <UploadCloud className="mx-auto h-12 w-12" />
-                <p>Click to upload a video</p>
-                <p className="text-xs">MP4, MOV, etc. up to 200MB</p>
-              </div>
+            <div className="space-y-2">
+                <Button onClick={() => cameraInputRef.current?.click()} variant="outline" className="w-full justify-start gap-2">
+                    <Camera className="h-5 w-5" /> Use Camera
+                </Button>
+                 <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="w-full justify-start gap-2">
+                    <UploadCloud className="h-5 w-5" /> From Device
+                </Button>
+                <Button asChild variant="outline" className="w-full justify-start gap-2">
+                    <Link href="/dashboard/media/editor?back=/dashboard/media/upload/reels">
+                        <Library className="h-5 w-5" /> Use Library (VN Editor)
+                    </Link>
+                </Button>
+                 <p className="text-xs text-muted-foreground text-center pt-2">MP4, MOV, etc. up to 200MB</p>
             </div>
           )}
+          <input
+            type="file"
+            ref={cameraInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+            accept="video/*"
+            capture="environment"
+          />
           <input
             type="file"
             ref={fileInputRef}
