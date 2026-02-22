@@ -4,6 +4,19 @@ import { Suspense, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import {
   Bot,
   Landmark,
   Newspaper,
@@ -13,6 +26,8 @@ import {
   Wrench,
   History,
   Gift,
+  CircleDollarSign,
+  Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
@@ -22,8 +37,13 @@ import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 
 function DashboardContent() {
   const { user, loading: userLoading } = useUser();
+  const { toast } = useToast();
   const [userProfile, setUserProfile] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+
+  const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false);
+  const [refundAmount, setRefundAmount] = useState('');
+  const [isUpdatingBalance, setIsUpdatingBalance] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -44,6 +64,50 @@ function DashboardContent() {
     }
   }, [user, userLoading]);
 
+  const handleRefund = async () => {
+    if (!user || !userProfile || !refundAmount || Number(refundAmount) <= 0) {
+        toast({
+            variant: 'destructive',
+            title: 'Invalid Amount',
+            description: 'Please enter a valid amount greater than zero.',
+        });
+        return;
+    }
+
+    setIsUpdatingBalance(true);
+    try {
+        const amountToAdd = Number(refundAmount);
+        const currentBalance = Number(userProfile.nairaBalance || 0);
+        const newBalance = currentBalance + amountToAdd;
+
+        const updatedProfile = await databases.updateDocument(
+            DATABASE_ID,
+            COLLECTION_ID_PROFILES,
+            user.$id,
+            { nairaBalance: newBalance }
+        );
+
+        setUserProfile(updatedProfile);
+
+        toast({
+            title: 'Balance Updated!',
+            description: `₦${amountToAdd.toLocaleString()} has been added to your account.`,
+        });
+        
+        setIsRefundDialogOpen(false);
+        setRefundAmount('');
+
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Update Failed',
+            description: error.message || 'An unexpected error occurred.',
+        });
+    } finally {
+        setIsUpdatingBalance(false);
+    }
+  };
+
 
   const isLoading = userLoading || profileLoading;
 
@@ -63,8 +127,12 @@ function DashboardContent() {
     <div className="container py-8">
       <div className="space-y-6">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-start justify-between">
             <CardTitle>Account Details</CardTitle>
+            <Button variant="outline" size="sm" onClick={() => setIsRefundDialogOpen(true)}>
+              <CircleDollarSign className="mr-2 h-4 w-4" />
+              Refund
+            </Button>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1 min-h-[60px]">
@@ -132,6 +200,32 @@ function DashboardContent() {
           ))}
         </div>
       </div>
+      <AlertDialog open={isRefundDialogOpen} onOpenChange={setIsRefundDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Simulate Funding</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This will add the specified amount to your Naira balance for testing purposes. This is a simulation and not a real transaction.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-2">
+                <Label htmlFor="refund-amount">Amount to Add (₦)</Label>
+                <Input
+                    id="refund-amount"
+                    type="number"
+                    value={refundAmount}
+                    onChange={(e) => setRefundAmount(e.target.value)}
+                    placeholder="e.g., 50000"
+                />
+            </div>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleRefund} disabled={isUpdatingBalance || !refundAmount || Number(refundAmount) <= 0}>
+                    {isUpdatingBalance ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Updating...</> : 'Update Balance'}
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
