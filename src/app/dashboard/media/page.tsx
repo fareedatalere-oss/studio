@@ -16,6 +16,12 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Plus,
   Clapperboard,
   Music,
@@ -29,6 +35,8 @@ import {
   Download,
   Send,
   Loader2,
+  Mail,
+  Link as LinkIcon,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -165,50 +173,55 @@ const PostCard = ({ post }: { post: any }) => {
   };
   
   const handleFollowToggle = async () => {
-    if (!currentUser || !currentUserProfile || !post || isLoadingFollow) return;
-    if (currentUser.$id === post.userId) return;
+    if (!currentUser || !currentUserProfile || !post) return;
     
+    // Optimistically update the UI
+    const currentlyFollowing = currentUserProfile.following?.includes(post.userId) || false;
+    setIsFollowing(!currentlyFollowing);
     setIsLoadingFollow(true);
 
     try {
-        const otherUserProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, post.userId);
-        
-        const myCurrentFollowing = currentUserProfile.following || [];
+        // Fetch the latest profiles to avoid race conditions
+        const [myProfile, otherUserProfile] = await Promise.all([
+            databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id),
+            databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, post.userId)
+        ]);
+
+        const myCurrentFollowing = myProfile.following || [];
         const theirCurrentFollowers = otherUserProfile.followers || [];
+        const isCurrentlyFollowingNow = myCurrentFollowing.includes(post.userId);
 
-        const isCurrentlyFollowing = myCurrentFollowing.includes(post.userId);
-
-        const newMyFollowing = isCurrentlyFollowing 
-            ? myCurrentFollowing.filter((id: string) => id !== post.userId) 
+        const newMyFollowing = isCurrentlyFollowingNow
+            ? myCurrentFollowing.filter((id: string) => id !== post.userId)
             : [...myCurrentFollowing, post.userId];
-            
-        const newTheirFollowers = isCurrentlyFollowing 
-            ? theirCurrentFollowers.filter((id: string) => id !== currentUser.$id) 
+
+        const newTheirFollowers = isCurrentlyFollowingNow
+            ? theirCurrentFollowers.filter((id: string) => id !== currentUser.$id)
             : [...theirCurrentFollowers, currentUser.$id];
-          
+        
         await Promise.all([
-             databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id, {
-                following: newMyFollowing,
-             }),
-             databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, post.userId, {
-                followers: newTheirFollowers,
-             })
+            databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id, { following: newMyFollowing }),
+            databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, post.userId, { followers: newTheirFollowers })
         ]);
         
+        // Force the user hook to refetch its data to ensure all components have the latest state
         await recheckUser();
 
         toast({
-            title: isCurrentlyFollowing ? 'Unfollowed' : 'Followed',
-            description: isCurrentlyFollowing ? `You are no longer following ${post.username}.` : `You are now following ${post.username}.`
+            title: isCurrentlyFollowingNow ? 'Unfollowed' : 'Followed',
+            description: isCurrentlyFollowingNow ? `You are no longer following ${post.username}.` : `You are now following ${post.username}.`
         });
 
     } catch (error: any) {
+        // Revert optimistic update on failure
+        setIsFollowing(currentlyFollowing);
         console.error("Failed to follow/unfollow user:", error);
         toast({ title: 'Error', description: `Could not complete action: ${error.message}`, variant: 'destructive' });
     } finally {
         setIsLoadingFollow(false);
     }
   };
+
 
   const fetchComments = useCallback(async () => {
     if (!post) return;
@@ -243,6 +256,31 @@ const PostCard = ({ post }: { post: any }) => {
       setCommentCount(prev => prev + 1);
   };
 
+  const handleCopyLink = () => {
+    // This is a dummy link for demonstration purposes.
+    const link = `${window.location.origin}/dashboard/media/post/${post.$id}`;
+    navigator.clipboard.writeText(link);
+    toast({ title: 'Link Copied!' });
+  };
+
+  const handleSendEmail = () => {
+    const subject = `Check out this post from ${post.username} on I-Pay`;
+    const body = `I thought you would like this post: ${window.location.origin}/dashboard/media/post/${post.$id}`;
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+  
+  const handleDownload = (url: string, filename: string) => {
+    if (!url) return;
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = "_blank"; // Open in new tab as a fallback
+    link.download = filename || 'ipay-media-download'; // Suggest a filename
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "Download started" });
+  };
+
 
   return (
     <div className="relative h-[calc(100vh-170px)] bg-black flex flex-col justify-between text-white snap-start">
@@ -261,7 +299,7 @@ const PostCard = ({ post }: { post: any }) => {
                 </div>
                  {currentUser?.$id !== post.userId && (
                     <Button 
-                        variant="outline" 
+                        variant={isFollowing ? 'secondary' : 'outline'}
                         size="sm" 
                         className="bg-transparent text-white border-white disabled:opacity-70"
                         onClick={handleFollowToggle}
@@ -305,11 +343,25 @@ const PostCard = ({ post }: { post: any }) => {
                 <MessageCircle className="h-7 w-7" />
                 <span className="text-xs">{commentCount}</span>
             </Button>
-            <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1">
-                <Share className="h-7 w-7" />
-            </Button>
-            {post.allowDownload && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1">
+                  <Share className="h-7 w-7" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="bg-background">
+                <DropdownMenuItem onClick={handleCopyLink}>
+                  <LinkIcon className="mr-2 h-4 w-4" />
+                  <span>Copy Link</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSendEmail}>
+                  <Mail className="mr-2 h-4 w-4" />
+                  <span>Send to Email</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {post.allowDownload && post.mediaUrl && (
+                <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1" onClick={() => handleDownload(post.mediaUrl, post.description)}>
                     <Download className="h-7 w-7" />
                 </Button>
             )}
@@ -423,9 +475,8 @@ export default function MediaPage() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
           <Button
-            variant="default"
             size="icon"
-            className="absolute bottom-24 right-6 md:bottom-6 h-16 w-16 rounded-full bg-accent hover:bg-accent/90 z-20"
+            className="absolute bottom-24 right-6 md:bottom-6 h-16 w-16 rounded-full bg-black text-white hover:bg-gray-800 z-20 shadow-lg"
           >
             <Plus className="h-8 w-8" />
             <span className="sr-only">Add Media</span>
