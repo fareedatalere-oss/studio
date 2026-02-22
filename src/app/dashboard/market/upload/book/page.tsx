@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -24,7 +24,6 @@ export default function UploadBookPage() {
     // Form state
     const [bookName, setBookName] = useState('');
     const [description, setDescription] = useState('');
-    const [content, setContent] = useState('');
     const [priceType, setPriceType] = useState('free');
     const [price, setPrice] = useState('');
 
@@ -45,7 +44,7 @@ export default function UploadBookPage() {
         }
     }
     
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleContinueToEditor = async (e: React.FormEvent) => {
         e.preventDefault();
         
         if (!user) {
@@ -53,36 +52,36 @@ export default function UploadBookPage() {
             return;
         }
 
-        if (!bookName || !bookCover || !description || !content || (priceType === 'paid' && !price)) {
+        if (!bookName || !bookCover || !description || (priceType === 'paid' && !price)) {
             toast({ variant: 'destructive', title: 'Please fill all fields and upload a cover.' });
             return;
         }
 
         setIsLoading(true);
-        toast({ title: 'Publishing book...' });
+        toast({ title: 'Creating book draft...' });
 
         try {
             const coverUpload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), bookCover);
 
-            const newBook = {
+            const newBookDraft = {
                 name: bookName,
                 description: description,
-                content: content,
+                content: '', // Content will be added in the editor
                 coverUrl: getAppwriteStorageUrl(coverUpload.$id),
                 price: priceType === 'paid' ? Number(price) : 0,
                 priceType: priceType,
                 sellerId: user.$id,
+                status: 'draft', // New status field
             };
 
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_BOOKS, ID.unique(), newBook);
+            const document = await databases.createDocument(DATABASE_ID, COLLECTION_ID_BOOKS, ID.unique(), newBookDraft);
 
-            toast({ title: "Book Submitted!", description: "Your book is now live on the marketplace." });
-            router.push('/dashboard/market?tab=bookstore');
+            toast({ title: "Draft Created!", description: "Now, let's write the content." });
+            router.push(`/dashboard/market/editor/book/${document.$id}`);
 
         } catch (error: any) {
             console.error(error);
             toast({ variant: 'destructive', title: 'Submission Failed', description: error.message });
-        } finally {
             setIsLoading(false);
         }
     }
@@ -95,11 +94,11 @@ export default function UploadBookPage() {
         </Link>
         <Card className="w-full max-w-2xl mx-auto">
             <CardHeader>
-                <CardTitle>Upload Your Book</CardTitle>
-                <CardDescription>Fill in the details below to publish your book.</CardDescription>
+                <CardTitle>Upload Your Book - Step 1 of 2</CardTitle>
+                <CardDescription>Fill in the details below to create your book listing.</CardDescription>
             </CardHeader>
             <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleContinueToEditor} className="space-y-6">
                     <div className="space-y-2">
                         <Label htmlFor="bookName">Book Name</Label>
                         <Input id="bookName" value={bookName} onChange={e => setBookName(e.target.value)} placeholder="e.g., The Art of I-Pay" required/>
@@ -131,12 +130,6 @@ export default function UploadBookPage() {
                         <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe your book (up to 200 characters)..." required rows={3} maxLength={200}/>
                     </div>
 
-                     <div className="space-y-2">
-                        <Label htmlFor="content">Book Content</Label>
-                        <Textarea id="content" value={content} onChange={e => setContent(e.target.value)} placeholder="Paste the full content of your book here..." required rows={10}/>
-                        <p className="text-xs text-muted-foreground">For this prototype, page-by-page editing is disabled. Please paste the full text.</p>
-                    </div>
-
                     <div className="space-y-3">
                         <Label>Pricing</Label>
                          <RadioGroup defaultValue="free" value={priceType} onValueChange={setPriceType} className="flex gap-4">
@@ -159,7 +152,7 @@ export default function UploadBookPage() {
                     </div>
 
                     <Button type="submit" className="w-full" disabled={isLoading}>
-                        {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Posting Book...</> : "Post Book"}
+                        {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating Draft...</> : "Continue to Editor"}
                     </Button>
                 </form>
             </CardContent>

@@ -171,9 +171,10 @@
         "coverUrl": { "type": "string", "format": "uri" },
         "price": { "type": "number" },
         "priceType": { "type": "string", "enum": ["free", "paid"] },
-        "sellerId": { "type": "string" }
+        "sellerId": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "published"], "description": "The publishing status of the book." }
       },
-      "required": ["name", "content", "coverUrl", "priceType", "sellerId"]
+      "required": ["name", "coverUrl", "priceType", "sellerId", "status"]
     },
     "UpworkProfile": {
       "title": "Upwork Freelancer Profile",
