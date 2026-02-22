@@ -4,7 +4,7 @@ import { ID } from 'appwrite';
 
 const FLUTTERWAVE_API_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
 const API_KEY_ERROR_MESSAGE = 'Your API key is not configured. Please contact an administrator.';
-const REQUEST_TIMEOUT = 15000; // 15 seconds
+const REQUEST_TIMEOUT = 20000; // 20 seconds
 
 export async function getBankList() {
     if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
@@ -140,7 +140,7 @@ export async function resolveAccountNumber(payload: { accountNumber: string; ban
     }
 }
 
-export async function makeBankTransfer(payload: { bankCode: string; accountNumber: string; amount: number; narration: string; }) {
+export async function makeBankTransfer(payload: { userId: string, pin: string, bankCode: string; accountNumber: string; amount: number; narration: string; recipientName: string, bankName: string }) {
     if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
         return { success: false, message: API_KEY_ERROR_MESSAGE };
     }
@@ -366,5 +366,136 @@ export async function getUtilityPlans(billerCode: string) {
         }
         console.error(`Flutterwave Connection Error (getUtilityPlans for ${billerCode}):`, error);
         return { success: false, message: error.message || 'An unexpected error occurred.', data: [] };
+    }
+}
+
+
+export async function getCardVerificationLink(payload: {
+    userId: string;
+    email: string;
+    name: string;
+    redirectUrl: string;
+}) {
+    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
+        return { success: false, message: API_KEY_ERROR_MESSAGE };
+    }
+    try {
+        const response = await fetch('https://api.flutterwave.com/v3/payments', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tx_ref: `ipay-verify-${payload.userId}-${Date.now()}`,
+                amount: 49,
+                currency: 'NGN',
+                redirect_url: payload.redirectUrl,
+                customer: { email: payload.email, name: payload.name },
+                meta: { user_id: payload.userId },
+                customizations: { title: 'I-Pay Card Verification', logo: 'https://ipay.com/logo.png' } // Replace with your actual logo
+            })
+        });
+        const data = await response.json();
+        if (data.status === 'success') {
+            return { success: true, data: data.data }; // data contains the link
+        } else {
+            console.error("Flutterwave API Error (getCardVerificationLink):", data);
+            return { success: false, message: data.message || 'Could not initiate card verification.' };
+        }
+    } catch (error: any) {
+        console.error("Flutterwave Connection Error (getCardVerificationLink):", error);
+        return { success: false, message: error.message || 'An unexpected error occurred.' };
+    }
+}
+
+
+export async function verifyCardPayment(transactionId: string, userId: string) {
+     if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
+        return { success: false, message: API_KEY_ERROR_MESSAGE };
+    }
+    try {
+        const response = await fetch(`https://api.flutterwave.com/v3/transactions/${transactionId}/verify`, {
+            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` }
+        });
+        const data = await response.json();
+
+        if (data.status === 'success' && data.data.status === 'successful' && data.data.amount === 49) {
+            const cardToken = data.data.card?.token;
+            if (!cardToken) throw new Error("Card token not found in verification response.");
+
+            // Save the token to the user's profile
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
+                fwCardToken: cardToken
+            });
+            return { success: true, message: 'Card verified and saved successfully!' };
+        } else {
+             throw new Error(data.message || 'Card verification failed.');
+        }
+    } catch (error: any) {
+        console.error("Flutterwave Verification Error:", error);
+        return { success: false, message: error.message || 'An unexpected error occurred during verification.' };
+    }
+}
+
+export async function chargeTokenizedCard(payload: { userId: string; amount: number; pin: string }) {
+    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
+        return { success: false, message: API_KEY_ERROR_MESSAGE };
+    }
+     try {
+        const { userId, amount, pin } = payload;
+        const depositAmount = Number(amount);
+        if (isNaN(depositAmount) || depositAmount < 100) {
+            throw new Error('Minimum funding amount is ₦100.');
+        }
+
+        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
+
+        if (userProfile.pin !== pin) throw new Error('Incorrect transaction PIN.');
+        if (!userProfile.fwCardToken) throw new Error('No saved card found for this user.');
+
+        let fee = 0;
+        if (depositAmount >= 100 && depositAmount <= 1000) fee = 49;
+        else if (depositAmount > 1000) fee = 95;
+        
+        const totalCharge = depositAmount + fee;
+        
+        const response = await fetch('https://api.flutterwave.com/v3/tokenized-charges', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                token: userProfile.fwCardToken,
+                currency: "NGN",
+                country: "NG",
+                amount: totalCharge,
+                email: userProfile.email,
+                fullname: `${userProfile.firstName} ${userProfile.lastName}`,
+                tx_ref: `ipay-fund-${userId}-${Date.now()}`
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success' && data.data?.status === 'successful') {
+            const newNairaBalance = (userProfile.nairaBalance || 0) + depositAmount;
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
+                nairaBalance: newNairaBalance
+            });
+
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+                userId: userId,
+                type: 'deposit',
+                amount: depositAmount,
+                status: 'completed',
+                recipientName: 'Account Funding',
+                recipientDetails: `Card Deposit (Fee: ₦${fee})`,
+                narration: `Funded account with ₦${depositAmount.toLocaleString()}`,
+                sessionId: data.data.id,
+            });
+
+            return { success: true, message: `Your account has been funded with ₦${depositAmount.toLocaleString()}.` };
+        } else {
+            throw new Error(data.message || 'Payment failed at the provider.');
+        }
+    } catch (error: any) {
+        console.error("Flutterwave Tokenized Charge Error:", error);
+        return { success: false, message: error.message || 'An unexpected error occurred while funding.' };
     }
 }

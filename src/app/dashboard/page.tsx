@@ -16,6 +16,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { getCardVerificationLink, chargeTokenizedCard } from '@/app/actions/flutterwave';
+import { useRouter } from 'next/navigation';
 import {
   Bot,
   Landmark,
@@ -32,84 +34,70 @@ import {
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 
 
 function DashboardContent() {
-  const { user, loading: userLoading } = useUser();
+  const { user, profile: userProfile, loading: userLoading, recheckUser } = useUser();
   const { toast } = useToast();
-  const [userProfile, setUserProfile] = useState<any>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
+  const router = useRouter();
 
-  const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false);
-  const [refundAmount, setRefundAmount] = useState('');
-  const [isUpdatingBalance, setIsUpdatingBalance] = useState(false);
+  const [isFundDialogOpen, setIsFundDialogOpen] = useState(false);
+  const [fundAmount, setFundAmount] = useState('');
+  const [pin, setPin] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  const isLoading = userLoading;
 
-  useEffect(() => {
-    if (user) {
-      const fetchProfile = async () => {
-        try {
-          const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
-          setUserProfile(profile);
-        } catch (error) {
-          console.error("Failed to fetch user profile:", error);
-          setUserProfile(null); // No profile found or error
-        } finally {
-          setProfileLoading(false);
+  const handleFundAccountClick = async () => {
+    if (!user || !userProfile) return;
+    setIsProcessing(true);
+
+    if (userProfile.fwCardToken) {
+        // User has a saved card, open the dialog to enter amount
+        setIsFundDialogOpen(true);
+        setIsProcessing(false);
+    } else {
+        // No card on file, start the verification process
+        toast({ title: 'Redirecting to add card...' });
+        const redirectUrl = `${window.location.origin}/dashboard/fund/verify`;
+        const result = await getCardVerificationLink({
+            userId: user.$id,
+            email: user.email,
+            name: userProfile.username || user.name,
+            redirectUrl: redirectUrl,
+        });
+
+        if (result.success && result.data.link) {
+            router.push(result.data.link);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.message || 'Could not start card verification.' });
+            setIsProcessing(false);
         }
-      };
-      fetchProfile();
-    } else if (!userLoading) {
-      setProfileLoading(false);
-    }
-  }, [user, userLoading]);
-
-  const handleRefund = async () => {
-    if (!user || !userProfile || !refundAmount || Number(refundAmount) <= 0) {
-        toast({
-            variant: 'destructive',
-            title: 'Invalid Amount',
-            description: 'Please enter a valid amount greater than zero.',
-        });
-        return;
-    }
-
-    setIsUpdatingBalance(true);
-    try {
-        const amountToAdd = Number(refundAmount);
-        const currentBalance = Number(userProfile.nairaBalance || 0);
-        const newBalance = currentBalance + amountToAdd;
-
-        const updatedProfile = await databases.updateDocument(
-            DATABASE_ID,
-            COLLECTION_ID_PROFILES,
-            user.$id,
-            { nairaBalance: newBalance }
-        );
-
-        setUserProfile(updatedProfile);
-
-        toast({
-            title: 'Balance Updated!',
-            description: `₦${amountToAdd.toLocaleString()} has been added to your account.`,
-        });
-        
-        setIsRefundDialogOpen(false);
-        setRefundAmount('');
-
-    } catch (error: any) {
-        toast({
-            variant: 'destructive',
-            title: 'Update Failed',
-            description: error.message || 'An unexpected error occurred.',
-        });
-    } finally {
-        setIsUpdatingBalance(false);
     }
   };
 
+  const handleFundWithToken = async () => {
+      if (!user || !fundAmount || !pin) return;
+      setIsProcessing(true);
 
-  const isLoading = userLoading || profileLoading;
+      const result = await chargeTokenizedCard({
+          userId: user.$id,
+          amount: Number(fundAmount),
+          pin,
+      });
+
+      if (result.success) {
+          toast({ title: 'Success!', description: result.message });
+          await recheckUser(); // Re-fetch user profile to get updated balance
+          setIsFundDialogOpen(false);
+          setFundAmount('');
+          setPin('');
+      } else {
+          toast({ variant: 'destructive', title: 'Funding Failed', description: result.message });
+      }
+      setIsProcessing(false);
+  };
+
 
   const actions = [
     { label: 'Send', icon: Send, href: '/dashboard/transfer' },
@@ -129,9 +117,9 @@ function DashboardContent() {
         <Card>
           <CardHeader className="flex flex-row items-start justify-between">
             <CardTitle>Account Details</CardTitle>
-            <Button variant="outline" size="sm" onClick={() => setIsRefundDialogOpen(true)}>
-              <CircleDollarSign className="mr-2 h-4 w-4" />
-              Refund
+            <Button variant="outline" size="sm" onClick={handleFundAccountClick} disabled={isProcessing}>
+              {isProcessing && !isFundDialogOpen ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CircleDollarSign className="mr-2 h-4 w-4" />}
+              Fund Account
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -200,28 +188,42 @@ function DashboardContent() {
           ))}
         </div>
       </div>
-      <AlertDialog open={isRefundDialogOpen} onOpenChange={setIsRefundDialogOpen}>
+      <AlertDialog open={isFundDialogOpen} onOpenChange={setIsFundDialogOpen}>
         <AlertDialogContent>
             <AlertDialogHeader>
-                <AlertDialogTitle>Simulate Funding</AlertDialogTitle>
+                <AlertDialogTitle>Fund Your Account</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This will add the specified amount to your Naira balance for testing purposes. This is a simulation and not a real transaction.
+                    Enter the amount you wish to add and your PIN. Transaction fees may apply.
                 </AlertDialogDescription>
             </AlertDialogHeader>
-            <div className="space-y-2">
-                <Label htmlFor="refund-amount">Amount to Add (₦)</Label>
-                <Input
-                    id="refund-amount"
-                    type="number"
-                    value={refundAmount}
-                    onChange={(e) => setRefundAmount(e.target.value)}
-                    placeholder="e.g., 50000"
-                />
+            <div className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="fund-amount">Amount to Add (₦)</Label>
+                    <Input
+                        id="fund-amount"
+                        type="number"
+                        value={fundAmount}
+                        onChange={(e) => setFundAmount(e.target.value)}
+                        placeholder="e.g., 5000"
+                    />
+                </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="fund-pin">5-Digit PIN</Label>
+                    <Input
+                        id="fund-pin"
+                        type="password"
+                        inputMode='numeric'
+                        maxLength={5}
+                        value={pin}
+                        onChange={(e) => setPin(e.target.value)}
+                        placeholder="*****"
+                    />
+                </div>
             </div>
             <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleRefund} disabled={isUpdatingBalance || !refundAmount || Number(refundAmount) <= 0}>
-                    {isUpdatingBalance ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Updating...</> : 'Update Balance'}
+                <AlertDialogAction onClick={handleFundWithToken} disabled={isProcessing || !fundAmount || pin.length !== 5 || Number(fundAmount) < 100}>
+                    {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : 'Fund Account'}
                 </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>

@@ -26,7 +26,8 @@
         "blockedUsers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that this user has blocked."},
         "following": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that this user is following." },
         "followers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that follow this user." },
-        "isBanned": { "type": "boolean", "description": "Whether the user's account is banned." }
+        "isBanned": { "type": "boolean", "description": "Whether the user's account is banned." },
+        "fwCardToken": { "type": "string", "description": "Flutterwave card token for recurring payments." }
       },
       "required": ["uid", "email", "createdAt", "username", "country", "pin"]
     },
