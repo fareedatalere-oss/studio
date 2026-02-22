@@ -163,7 +163,7 @@
       "schema": { "$ref": "#/entities/Post" },
       "description": "Stores all media posts from users."
     },
-    "/comments/{commentId}": {
+    "/postComments/{commentId}": {
       "schema": { "$ref": "#/entities/PostComment" },
       "description": "Stores comments for a specific post."
     }
