@@ -25,9 +25,7 @@
         "hasReferral": { "type": "boolean", "description": "Whether the user has used a referral code." },
         "blockedUsers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that this user has blocked."},
         "following": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that this user is following." },
-        "followers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that follow this user." },
-        "followingCount": { "type": "number", "description": "The number of users this user is following." },
-        "followerCount": { "type": "number", "description": "The number of users following this user." }
+        "followers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that follow this user." }
       },
       "required": ["uid", "email", "createdAt", "username", "country", "pin"]
     },

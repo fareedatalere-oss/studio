@@ -109,11 +109,11 @@ export default function ProfilePage() {
         <Card className="w-full max-w-md">
           <CardContent className="flex justify-around p-4 text-center">
             <Link href="/dashboard/profile/connections?tab=followers" className="flex-1">
-               {isLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : <p className="font-bold text-lg">{userProfile?.followerCount || 0}</p>}
+               {isLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : <p className="font-bold text-lg">{userProfile?.followers?.length || 0}</p>}
               <p className="text-sm text-muted-foreground">Followers</p>
             </Link>
             <Link href="/dashboard/profile/connections?tab=following" className="flex-1">
-               {isLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : <p className="font-bold text-lg">{userProfile?.followingCount || 0}</p>}
+               {isLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : <p className="font-bold text-lg">{userProfile?.following?.length || 0}</p>}
               <p className="text-sm text-muted-foreground">Following</p>
             </Link>
             <div>

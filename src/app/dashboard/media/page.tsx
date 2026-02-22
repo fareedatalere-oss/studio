@@ -182,11 +182,9 @@ const PostCard = ({ post }: { post: any }) => {
         await Promise.all([
              databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id, {
                 following: newMyFollowing,
-                followingCount: newMyFollowing.length
              }),
              databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, post.userId, {
                 followers: newTheirFollowers,
-                followerCount: newTheirFollowers.length
              })
         ]);
         
@@ -272,7 +270,7 @@ const PostCard = ({ post }: { post: any }) => {
           </div>
         )}
         {post.type === 'image' && post.mediaUrl && (
-          <Image src={post.mediaUrl} alt={post.description || 'Post image'} layout="fill" objectFit="contain" />
+          <Image src={post.mediaUrl} alt={post.description || 'Post image'} fill className="object-contain" />
         )}
         {(post.type === 'reels' || post.type === 'film') && post.mediaUrl && (
            <video src={post.mediaUrl} controls autoPlay muted loop className="w-full h-full object-contain" />
