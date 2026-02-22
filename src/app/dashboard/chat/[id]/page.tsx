@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -195,7 +196,6 @@ export default function ChatThreadPage() {
       let currentChatId = chatId;
       if (!currentChatId) {
         const sortedParticipants = [currentUser.$id, otherUser.$id].sort();
-        // **FIX:** Use the official Appwrite SDK to create permissions correctly.
         const chatPermissions = [
             Permission.read(Role.user(currentUser.$id)),
             Permission.read(Role.user(otherUser.$id)),
@@ -229,7 +229,6 @@ export default function ChatThreadPage() {
           mediaType: type || 'text'
       };
 
-      // **FIX:** Use the official Appwrite SDK to create permissions for the message document.
       const messagePermissions = [
         Permission.read(Role.user(currentUser.$id)),
         Permission.read(Role.user(otherUser.$id)),
@@ -517,3 +516,5 @@ export default function ChatThreadPage() {
     </div>
   );
 }
+
+    
