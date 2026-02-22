@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft, Mic, Paperclip, Send, Check, CheckCheck, MoreVertical, Trash2, X, File as FileIcon,
-  ImageIcon, Loader2, Edit, Forward,
+  ImageIcon, Loader2, Edit, Forward, CircleDollarSign
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,9 @@ import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_PROFI
 import { ID, Query, Permission, Role } from 'appwrite';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import { useParams } from 'next/navigation';
+import { getBankList, makeBankTransfer } from '@/app/actions/flutterwave';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 type Message = {
   $id: string;
@@ -38,6 +41,104 @@ type Message = {
   deletedFor?: string[];
   $createdAt: string;
 };
+
+type Bank = {
+    id: number;
+    code: string;
+    name: string;
+};
+
+const SendMoneyDialog = ({ currentUser, otherUser }: { currentUser: any, otherUser: any }) => {
+    const { toast } = useToast();
+    const [open, setOpen] = useState(false);
+    const [amount, setAmount] = useState('');
+    const [pin, setPin] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [banks, setBanks] = useState<Bank[]>([]);
+    
+    useEffect(() => {
+        getBankList().then(result => {
+            if (result.success) setBanks(result.data);
+        });
+    }, []);
+
+    const handleSend = async () => {
+        if (!currentUser || !otherUser || !otherUser.accountNumber) return;
+        
+        const bank = banks.find(b => b.name === otherUser.bankName);
+        if (!bank) {
+            toast({ variant: 'destructive', title: 'Error', description: "Recipient's bank is not supported for transfers." });
+            return;
+        }
+
+        setIsProcessing(true);
+        const result = await makeBankTransfer({
+            userId: currentUser.$id,
+            pin,
+            bankCode: bank.code,
+            accountNumber: otherUser.accountNumber,
+            amount: Number(amount),
+            narration: `Transfer from ${currentUser.name} via I-Pay Chat`,
+            recipientName: `${otherUser.firstName} ${otherUser.lastName}`,
+            bankName: otherUser.bankName,
+        });
+
+        if (result.success) {
+            toast({ title: 'Success!', description: 'Your transfer has been initiated.' });
+            setOpen(false);
+            setAmount('');
+            setPin('');
+        } else {
+            toast({ variant: 'destructive', title: 'Transfer Failed', description: result.message });
+        }
+        setIsProcessing(false);
+    };
+
+    if (!otherUser?.accountNumber) {
+        return (
+            <DropdownMenuItem onSelect={() => toast({ variant: 'destructive', title: 'Cannot Send Money', description: `${otherUser.username} has not set up a bank account.`})}>
+                 <CircleDollarSign className="mr-2 h-4 w-4" />
+                <span>Send Money</span>
+            </DropdownMenuItem>
+        );
+    }
+
+    return (
+        <AlertDialog open={open} onOpenChange={setOpen}>
+            <AlertDialogTrigger asChild>
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                    <CircleDollarSign className="mr-2 h-4 w-4" />
+                    <span>Send Money</span>
+                </DropdownMenuItem>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Send Money to @{otherUser.username}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        You are about to send money to {otherUser.firstName} {otherUser.lastName} ({otherUser.bankName} - {otherUser.accountNumber}).
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="amount">Amount (₦)</Label>
+                        <Input id="amount" type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="e.g., 5000" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="pin">Your 5-Digit PIN</Label>
+                        <Input id="pin" type="password" value={pin} onChange={e => setPin(e.target.value)} maxLength={5} placeholder="*****" />
+                    </div>
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleSend} disabled={isProcessing || !amount || pin.length !== 5}>
+                        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                        Send
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    )
+}
 
 export default function ChatThreadPage() {
   const params = useParams();
@@ -510,6 +611,8 @@ export default function ChatThreadPage() {
                     <DropdownMenuContent>
                         <DropdownMenuItem onClick={() => openFilePicker('image')}><ImageIcon className="mr-2 h-4 w-4" /><span>Image</span></DropdownMenuItem>
                         <DropdownMenuItem onClick={() => openFilePicker('file')}><FileIcon className="mr-2 h-4 w-4" /><span>Document</span></DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <SendMoneyDialog currentUser={currentUser} otherUser={otherUser} />
                     </DropdownMenuContent>
                 </DropdownMenu>
                 <Button variant="ghost" size="icon" onClick={startRecording}><Mic /></Button>

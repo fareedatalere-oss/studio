@@ -144,27 +144,47 @@ export async function makeBankTransfer(payload: { userId: string, pin: string, b
     if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
         return { success: false, message: API_KEY_ERROR_MESSAGE };
     }
+    
+    const sessionId = `ipay-transfer-${Date.now()}`;
+    let txDbId: string | null = null;
+    const transferAmount = Number(payload.amount);
+
+    // 1. Create a pending transaction record first.
+    try {
+        const doc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+            userId: payload.userId,
+            type: 'transfer',
+            amount: transferAmount,
+            status: 'pending',
+            recipientName: payload.recipientName,
+            recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
+            narration: payload.narration,
+            sessionId: sessionId,
+        });
+        txDbId = doc.$id;
+    } catch (dbError: any) {
+        console.error("Failed to create initial transaction record:", dbError);
+        return { success: false, message: "Failed to initiate transaction log. Please contact support." };
+    }
+
 
     try {
-        // 1. Fetch user profile
+        // 2. Fetch user profile and perform validations
         const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
 
-        // 2. Check PIN
         if (userProfile.pin !== payload.pin) {
             throw new Error('Incorrect transaction PIN.');
         }
 
-        const transferAmount = Number(payload.amount);
         if (isNaN(transferAmount) || transferAmount <= 0) {
             throw new Error('Invalid transfer amount.');
         }
 
-        // 3. Check balance
         if (userProfile.nairaBalance < transferAmount) {
             throw new Error('Insufficient balance to complete this transaction.');
         }
 
-        // 4. Call the Flutterwave transfer API
+        // 3. Call the Flutterwave transfer API
         const response = await fetch('https://api.flutterwave.com/v3/transfers', {
             method: 'POST',
             headers: {
@@ -177,15 +197,15 @@ export async function makeBankTransfer(payload: { userId: string, pin: string, b
                 amount: transferAmount,
                 narration: payload.narration,
                 currency: "NGN",
-                reference: `ipay-transfer-${Date.now()}`,
-                callback_url: "https://webhook.site/b3e505b0-fe02-430e-ac2d-a00e5803831c" // Placeholder callback
+                reference: sessionId,
+                callback_url: "https://webhook.site/b3e505b0-fe02-430e-ac2d-a00e5803831c"
             })
         });
 
         const data = await response.json();
 
         if (data.status === 'success') {
-            // 5. Deduct balance from user profile
+            // 4. Success: Deduct balance & update transaction status to completed
             const newNairaBalance = userProfile.nairaBalance - transferAmount;
             await databases.updateDocument(
                 DATABASE_ID,
@@ -194,29 +214,30 @@ export async function makeBankTransfer(payload: { userId: string, pin: string, b
                 { nairaBalance: newNairaBalance }
             );
 
-            // 6. Save the transaction record
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
-                userId: payload.userId,
-                type: 'transfer',
-                amount: transferAmount,
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, {
                 status: 'completed',
-                recipientName: payload.recipientName,
-                recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
-                narration: payload.narration,
-                sessionId: data.data.id,
+                sessionId: data.data.id.toString(),
             });
 
-            return { success: true, message: data.message };
+            return { success: true, message: data.message || 'Transfer initiated successfully.' };
         } else {
             console.error("Flutterwave Transfer Error:", data);
-            throw new Error(data.message || 'The transfer could not be initiated.');
+            throw new Error(data.message || 'The transfer could not be initiated by the provider.');
         }
 
     } catch (error: any) {
-        console.error("Flutterwave Transfer Connection Error:", error);
+         // 5. Failure: Update transaction status to failed and return error
+        if (txDbId) {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, {
+                status: 'failed',
+                narration: `[Error] ${error.message}`,
+            });
+        }
+        console.error("makeBankTransfer internal error:", error);
         return { success: false, message: error.message || 'An unexpected error occurred.' };
     }
 }
+
 
 export async function makeBillPayment(payload: {
     userId: string;
