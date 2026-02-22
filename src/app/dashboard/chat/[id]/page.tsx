@@ -289,10 +289,17 @@ export default function ChatThreadPage() {
   // --- Actions ---
 
   const handleSendMessage = async (text: string, file?: File, type?: Message['mediaType']) => {
-    if ((!text.trim() && !file) || !currentUser || !otherUser) return;
+    if ((!text.trim() && !file)) return;
     setIsSending(true);
 
     try {
+      if (!currentUser || !currentUser.$id) {
+        throw new Error("You are not logged in. Please sign in to send messages.");
+      }
+      if (!otherUser || !otherUser.$id) {
+        throw new Error("Recipient user could not be found. Cannot send message.");
+      }
+
       let mediaUrl: string | undefined = undefined;
       if (file && type) {
         const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
