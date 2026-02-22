@@ -167,12 +167,13 @@
       "properties": {
         "name": { "type": "string" },
         "description": { "type": "string" },
-        "content": { "type": "string" },
+        "content": { "type": "array", "items": { "type": "string" }, "description": "The content of the book, structured as an array of pages for page-by-page editing, or a single element for full-page editing." },
         "coverUrl": { "type": "string", "format": "uri" },
         "price": { "type": "number" },
         "priceType": { "type": "string", "enum": ["free", "paid"] },
         "sellerId": { "type": "string" },
-        "status": { "type": "string", "enum": ["draft", "published"], "description": "The publishing status of the book." }
+        "status": { "type": "string", "enum": ["draft", "published"], "description": "The publishing status of the book." },
+        "pageByPage": { "type": "boolean", "description": "True if the book is meant to be read page by page." }
       },
       "required": ["name", "coverUrl", "priceType", "sellerId", "status"]
     },

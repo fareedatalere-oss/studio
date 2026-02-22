@@ -37,6 +37,7 @@ import {
   Loader2,
   Mail,
   Link as LinkIcon,
+  RotateCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -138,6 +139,7 @@ const PostCard = ({ post }: { post: any }) => {
   const [comments, setComments] = useState<any[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentCount, setCommentCount] = useState(post.commentCount || 0);
+  const [isRotated, setIsRotated] = useState(false);
 
   useEffect(() => {
     if (currentUser) {
@@ -175,13 +177,11 @@ const PostCard = ({ post }: { post: any }) => {
   const handleFollowToggle = async () => {
     if (!currentUser || !currentUserProfile || !post) return;
     
-    // Optimistically update the UI
     const currentlyFollowing = currentUserProfile.following?.includes(post.userId) || false;
     setIsFollowing(!currentlyFollowing);
     setIsLoadingFollow(true);
 
     try {
-        // Fetch the latest profiles to avoid race conditions
         const [myProfile, otherUserProfile] = await Promise.all([
             databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id),
             databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, post.userId)
@@ -204,7 +204,6 @@ const PostCard = ({ post }: { post: any }) => {
             databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, post.userId, { followers: newTheirFollowers })
         ]);
         
-        // Force the user hook to refetch its data to ensure all components have the latest state
         await recheckUser();
 
         toast({
@@ -213,7 +212,6 @@ const PostCard = ({ post }: { post: any }) => {
         });
 
     } catch (error: any) {
-        // Revert optimistic update on failure
         setIsFollowing(currentlyFollowing);
         console.error("Failed to follow/unfollow user:", error);
         toast({ title: 'Error', description: `Could not complete action: ${error.message}`, variant: 'destructive' });
@@ -257,7 +255,6 @@ const PostCard = ({ post }: { post: any }) => {
   };
 
   const handleCopyLink = () => {
-    // This is a dummy link for demonstration purposes.
     const link = `${window.location.origin}/dashboard/media/post/${post.$id}`;
     navigator.clipboard.writeText(link);
     toast({ title: 'Link Copied!' });
@@ -273,8 +270,8 @@ const PostCard = ({ post }: { post: any }) => {
     if (!url) return;
     const link = document.createElement('a');
     link.href = url;
-    link.target = "_blank"; // Open in new tab as a fallback
-    link.download = filename || 'ipay-media-download'; // Suggest a filename
+    link.target = "_blank";
+    link.download = filename || 'ipay-media-download';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -283,9 +280,9 @@ const PostCard = ({ post }: { post: any }) => {
 
 
   return (
-    <div className="relative h-[calc(100vh-170px)] bg-black flex flex-col justify-between text-white snap-start">
+    <div className={cn("relative h-[calc(100vh-170px)] bg-black flex flex-col justify-between text-white snap-start", isRotated && "fixed inset-0 z-[60] h-screen w-screen p-0")}>
       {/* Header */}
-       <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/50 to-transparent z-10">
+       <div className={cn("absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/50 to-transparent z-10", isRotated && "hidden")}>
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <Avatar>
@@ -334,7 +331,7 @@ const PostCard = ({ post }: { post: any }) => {
       </div>
       
       {/* Actions */}
-       <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-4 p-4 z-10">
+       <div className={cn("absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-4 p-4 z-10", isRotated && "hidden")}>
             <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1" onClick={handleLike}>
                 <Heart className={cn("h-7 w-7", isLiked && "fill-red-500 text-red-500")} />
                 <span className="text-xs">{likeCount}</span>
@@ -367,8 +364,15 @@ const PostCard = ({ post }: { post: any }) => {
             )}
       </div>
 
+        {/* Film-only Rotate Button */}
+        {post.type === 'film' && (
+        <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1 absolute right-4 bottom-20 z-20 bg-black/20 hover:bg-black/40" onClick={() => setIsRotated(!isRotated)}>
+            <RotateCw className="h-7 w-7" />
+        </Button>
+        )}
+
       {/* Footer */}
-      <div className="p-4 bg-gradient-to-t from-black/50 to-transparent z-10">
+      <div className={cn("p-4 bg-gradient-to-t from-black/50 to-transparent z-10", isRotated && "hidden")}>
         <p className="text-sm">{post.description}</p>
       </div>
 
@@ -419,9 +423,7 @@ const PostFeed = ({ type }: { type: string }) => {
     };
     fetchPosts();
 
-    // Appwrite real-time subscription
     const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_POSTS}.documents`, response => {
-        // Refetch or update posts list
         fetchPosts();
     });
 

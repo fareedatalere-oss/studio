@@ -66,18 +66,19 @@ export default function UploadBookPage() {
             const newBookDraft = {
                 name: bookName,
                 description: description,
-                content: '', // Content will be added in the editor
+                content: [], // Content will be added in the editor
                 coverUrl: getAppwriteStorageUrl(coverUpload.$id),
                 price: priceType === 'paid' ? Number(price) : 0,
                 priceType: priceType,
                 sellerId: user.$id,
-                status: 'draft', // New status field
+                status: 'draft',
+                pageByPage: false,
             };
 
             const document = await databases.createDocument(DATABASE_ID, COLLECTION_ID_BOOKS, ID.unique(), newBookDraft);
 
-            toast({ title: "Draft Created!", description: "Now, let's write the content." });
-            router.push(`/dashboard/market/editor/book/${document.$id}`);
+            toast({ title: "Draft Created!", description: "Next, choose your editing mode." });
+            router.push(`/dashboard/market/editor/book/${document.$id}/select-mode`);
 
         } catch (error: any) {
             console.error(error);
@@ -88,7 +89,7 @@ export default function UploadBookPage() {
 
   return (
      <div className="container py-8">
-        <Link href="/dashboard/market" className="flex items-center gap-2 mb-4 text-sm">
+        <Link href="/dashboard/market?tab=bookstore" className="flex items-center gap-2 mb-4 text-sm">
             <ArrowLeft className="h-4 w-4" />
             Back to Market
         </Link>
