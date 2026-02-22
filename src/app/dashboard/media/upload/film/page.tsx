@@ -129,7 +129,7 @@ export default function UploadFilmPage() {
                 </Button>
                 <Button asChild variant="outline" className="w-full justify-start gap-2">
                     <Link href="/dashboard/media/editor?back=/dashboard/media/upload/film">
-                        <Library className="h-5 w-5" /> Use Library (VN Editor)
+                        <Library className="h-5 w-5" /> Use Library (CapCut)
                     </Link>
                 </Button>
                 <p className="text-xs text-muted-foreground text-center pt-2">High-quality video files up to 2GB</p>
