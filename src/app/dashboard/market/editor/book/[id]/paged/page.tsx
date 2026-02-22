@@ -328,8 +328,9 @@ export default function PagedBookEditorPage() {
                     contentEditable={true}
                     onInput={handleContentChange}
                     suppressContentEditableWarning={true}
+                    dir="ltr"
                     className="h-full w-full p-4 prose dark:prose-invert max-w-none focus:outline-none"
-                    style={{ textAlign: 'left' }}
+                    style={{ textAlign: 'left', direction: 'ltr' }}
                 />
             </main>
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleImageUpload(e.target.files[0])}/>
