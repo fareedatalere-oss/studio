@@ -271,7 +271,7 @@ export default function FullBookEditorPage() {
                             <DialogTrigger asChild>
                                 <Button variant="outline" size="sm"><Upload className="mr-2 h-4 w-4"/> Upload Image</Button>
                             </DialogTrigger>
-                             <DialogContent className="sm:max-w-[425px]">
+                             <DialogContent>
                                 <DialogHeader>
                                     <DialogTitle>Upload an Image</DialogTitle>
                                 </DialogHeader>
@@ -299,7 +299,7 @@ export default function FullBookEditorPage() {
                     </div>
                 </div>
             </header>
-            <main className="flex-1 overflow-y-auto" style={{ direction: 'ltr' }}>
+            <main className="flex-1 overflow-y-auto">
                 <div
                     ref={contentEditableRef}
                     contentEditable={true}
@@ -307,7 +307,7 @@ export default function FullBookEditorPage() {
                     suppressContentEditableWarning={true}
                     dir="ltr"
                     className="h-full w-full p-4 prose dark:prose-invert max-w-none focus:outline-none"
-                    style={{ textAlign: 'left', direction: 'ltr' }}
+                    style={{ direction: 'ltr', textAlign: 'left' }}
                 />
             </main>
              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleImageUpload(e.target.files[0])}/>

@@ -1,21 +1,21 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Book, FileText } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function SelectBookEditorModePage() {
     const router = useRouter();
 
-    const handleSelectMode = (mode: 'paged' | 'full') => {
+    const handleModeClick = (mode: 'paged' | 'full') => {
         const localDraft = localStorage.getItem('bookDraft');
         if (localDraft) {
             const draft = JSON.parse(localDraft);
             draft.pageByPage = mode === 'paged';
             localStorage.setItem('bookDraft', JSON.stringify(draft));
-            router.push(`/dashboard/market/editor/book/draft/${mode}`);
         } else {
-            // Handle case where draft is lost
+             // Handle case where draft is lost, maybe redirect
             router.push('/dashboard/market/upload/book');
         }
     };
@@ -28,22 +28,24 @@ export default function SelectBookEditorModePage() {
                     <CardDescription>How would you like to write your book?</CardDescription>
                 </CardHeader>
                 <CardContent className="grid md:grid-cols-2 gap-4">
-                    <div
-                        className="p-6 border rounded-lg hover:bg-muted/50 cursor-pointer flex flex-col items-center text-center gap-2"
-                        onClick={() => handleSelectMode('full')}
-                    >
-                        <FileText className="h-10 w-10" />
-                        <h3 className="font-semibold">Full Page Editor</h3>
-                        <p className="text-sm text-muted-foreground">Write your entire book in a single, continuous document.</p>
-                    </div>
-                    <div
-                        className="p-6 border rounded-lg hover:bg-muted/50 cursor-pointer flex flex-col items-center text-center gap-2"
-                        onClick={() => handleSelectMode('paged')}
-                    >
-                        <Book className="h-10 w-10" />
-                        <h3 className="font-semibold">Page-by-Page Editor</h3>
-                        <p className="text-sm text-muted-foreground">Structure your book into individual, numbered pages.</p>
-                    </div>
+                    <Link href="/dashboard/market/editor/book/draft/full" onClick={() => handleModeClick('full')} className="block">
+                        <div
+                            className="p-6 border rounded-lg hover:bg-muted/50 cursor-pointer flex flex-col items-center text-center gap-2 h-full"
+                        >
+                            <FileText className="h-10 w-10" />
+                            <h3 className="font-semibold">Full Page Editor</h3>
+                            <p className="text-sm text-muted-foreground">Write your entire book in a single, continuous document.</p>
+                        </div>
+                    </Link>
+                    <Link href="/dashboard/market/editor/book/draft/paged" onClick={() => handleModeClick('paged')} className="block">
+                        <div
+                            className="p-6 border rounded-lg hover:bg-muted/50 cursor-pointer flex flex-col items-center text-center gap-2 h-full"
+                        >
+                            <Book className="h-10 w-10" />
+                            <h3 className="font-semibold">Page-by-Page Editor</h3>
+                            <p className="text-sm text-muted-foreground">Structure your book into individual, numbered pages.</p>
+                        </div>
+                    </Link>
                 </CardContent>
             </Card>
         </div>
