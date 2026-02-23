@@ -219,7 +219,7 @@
         "isBanned": { "type": "boolean", "default": false },
         "isHidden": { "type": "boolean", "default": false }
       },
-      "required": ["name", "title", "description", "phoneNumber", "address", "avatarUrl", "certificateUrl", "sellerId"]
+      "required": ["name", "title", "description", "phoneNumber", "address", "avatarUrl", "certificateUrl"]
     }
   },
   "auth": {
@@ -282,5 +282,3 @@
     }
   }
 }
-
-    
