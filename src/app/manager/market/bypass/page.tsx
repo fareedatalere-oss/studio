@@ -7,11 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { PlaySquare } from 'lucide-react';
+import { Store } from 'lucide-react';
 
 const CORRECT_PASSWORD = '09075464786';
 
-export default function MediaBypassPage() {
+export default function MarketBypassPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [password, setPassword] = useState('');
@@ -24,10 +24,10 @@ export default function MediaBypassPage() {
     if (password === CORRECT_PASSWORD) {
       toast({
         title: 'Access Granted',
-        description: 'Welcome to the Media Management Dashboard.',
+        description: 'Welcome to the Market Management Dashboard.',
       });
-      sessionStorage.setItem('manager-media-bypass', 'true');
-      router.push('/manager/media');
+      sessionStorage.setItem('manager-market-bypass', 'true');
+      router.push('/manager/market');
     } else {
       toast({
         title: 'Access Denied',
@@ -43,8 +43,8 @@ export default function MediaBypassPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
-            <PlaySquare className="h-6 w-6" />
-            Media Management
+            <Store className="h-6 w-6" />
+            Market Management
           </CardTitle>
           <CardDescription>Please enter the access password to continue.</CardDescription>
         </CardHeader>
