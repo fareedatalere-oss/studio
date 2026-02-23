@@ -25,9 +25,28 @@
         "hasReferral": { "type": "boolean", "description": "Whether the user has used a referral code." },
         "blockedUsers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that this user has blocked."},
         "following": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that this user is following." },
-        "followers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that follow this user." }
+        "followers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that follow this user." },
+        "isBanned": { "type": "boolean", "description": "Whether the user's account is banned." },
+        "fwCardToken": { "type": "string", "description": "Flutterwave card token for recurring payments." }
       },
       "required": ["uid", "email", "createdAt", "username", "country", "pin"]
+    },
+    "SupportInfo": {
+        "title": "Support Information",
+        "description": "Stores contact and support information for the application.",
+        "type": "object",
+        "properties": {
+            "abujaAddress": { "type": "string" },
+            "abujaContactPerson": { "type": "string" },
+            "abujaPhone": { "type": "string" },
+            "kadunaAddress": { "type": "string" },
+            "kadunaPhone": { "type": "string" },
+            "whatsapp1": { "type": "string" },
+            "whatsapp2": { "type": "string" },
+            "email1": { "type": "string" },
+            "email2": { "type": "string" },
+            "logoUrl": { "type": "string", "format": "uri" }
+        }
     },
     "Notification": {
       "title": "Notification",
@@ -189,10 +208,9 @@
         "address": { "type": "string" },
         "avatarUrl": { "type": "string", "format": "uri" },
         "certificateUrl": { "type": "string", "format": "uri" },
-        "videoUrl": { "type": "string", "format": "uri" },
         "sellerId": { "type": "string" }
       },
-      "required": ["name", "title", "description", "phoneNumber", "address", "avatarUrl", "certificateUrl", "videoUrl", "sellerId"]
+      "required": ["name", "title", "description", "phoneNumber", "address", "avatarUrl", "certificateUrl", "sellerId"]
     }
   },
   "auth": {
@@ -248,6 +266,10 @@
     "/upworkProfiles/{profileId}": {
       "schema": { "$ref": "#/entities/UpworkProfile" },
       "description": "Stores freelancer profiles for the Upwork section."
+    },
+     "/app_config/{configId}": {
+        "schema": { "$ref": "#/entities/SupportInfo" },
+        "description": "Stores application-wide configuration like support details."
     }
   }
 }

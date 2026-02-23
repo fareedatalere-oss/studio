@@ -341,11 +341,6 @@ function MarketContent() {
                     <Button variant="outline" size="icon"><MoreVertical/></Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                    <DropdownMenuItem asChild>
-                        <Link href="/dashboard/market/upwork/view-video">
-                            <Video className="mr-2 h-4 w-4" /> View Video
-                        </Link>
-                    </DropdownMenuItem>
                      <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>View Description</DropdownMenuItem>

@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, UploadCloud, ImageIcon, Film, Loader2 } from 'lucide-react';
+import { ArrowLeft, UploadCloud, ImageIcon, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,7 +21,6 @@ export default function UploadUpworkProfilePage() {
     const { user } = useUser();
     
     // Form state
-    const [name, setName] = useState('');
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [phone, setPhone] = useState('');
@@ -31,14 +30,12 @@ export default function UploadUpworkProfilePage() {
     const [avatar, setAvatar] = useState<File | null>(null);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
     const [certificate, setCertificate] = useState<File | null>(null);
-    const [introVideo, setIntroVideo] = useState<File | null>(null);
     
     // Control state
     const [isLoading, setIsLoading] = useState(false);
 
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const certificateInputRef = useRef<HTMLInputElement>(null);
-    const videoInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileChange = (
       e: React.ChangeEvent<HTMLInputElement>,
@@ -62,7 +59,7 @@ export default function UploadUpworkProfilePage() {
             return;
         }
 
-        if (!name || !title || !description || !phone || !address || !avatar || !certificate || !introVideo) {
+        if (!title || !description || !phone || !address || !avatar || !certificate) {
             toast({ variant: 'destructive', title: 'Please fill all fields and upload all required files.' });
             return;
         }
@@ -71,21 +68,19 @@ export default function UploadUpworkProfilePage() {
         toast({ title: 'Creating your profile...', description: 'This may take a moment.' });
 
         try {
-            const [avatarUpload, certificateUpload, videoUpload] = await Promise.all([
+            const [avatarUpload, certificateUpload] = await Promise.all([
                 storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), avatar),
                 storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), certificate),
-                storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), introVideo)
             ]);
 
             const newProfile = {
-                name,
+                name: user.name,
                 title,
                 description,
                 phoneNumber: phone,
                 address,
                 avatarUrl: getAppwriteStorageUrl(avatarUpload.$id),
                 certificateUrl: getAppwriteStorageUrl(certificateUpload.$id),
-                videoUrl: getAppwriteStorageUrl(videoUpload.$id),
                 sellerId: user.$id
             };
 
@@ -132,10 +127,6 @@ export default function UploadUpworkProfilePage() {
                         </div>
                         <Input id="avatar" type="file" className="hidden" ref={avatarInputRef} onChange={(e) => handleFileChange(e, setAvatar, setAvatarPreview)} accept="image/*" required/>
                     </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="name">Your Name</Label>
-                        <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., John Doe" required/>
-                    </div>
                     <div className="space-y-2">
                         <Label htmlFor="title">Professional Background</Label>
                         <Input id="title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Senior Developer, Lawyer" required/>
@@ -151,14 +142,6 @@ export default function UploadUpworkProfilePage() {
                             {certificate ? certificate.name : 'Upload Certificate'}
                         </Button>
                         <Input id="certificate" type="file" className="hidden" ref={certificateInputRef} onChange={(e) => handleFileChange(e, setCertificate)} required/>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="video">Introductory Video (max 5 mins)</Label>
-                         <Button type="button" variant="outline" className="w-full justify-start gap-2" onClick={() => videoInputRef.current?.click()}>
-                            <Film />
-                           {introVideo ? introVideo.name : 'Upload Video'}
-                        </Button>
-                        <Input id="video" type="file" className="hidden" ref={videoInputRef} onChange={(e) => handleFileChange(e, setIntroVideo)} accept="video/*" required/>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="phone">Phone Number</Label>
