@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { Skeleton } from "@/components/ui/skeleton";
 import { databases, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from "@/lib/appwrite";
 import { Query } from "appwrite";
+import { format } from 'date-fns';
 
 
 export default function HistoryPage() {
@@ -71,25 +72,25 @@ export default function HistoryPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Transaction History</CardTitle>
-                    <CardDescription>A record of your recent transactions.</CardDescription>
+                    <CardDescription>A record of all your transactions.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Transaction</TableHead>
-                                <TableHead className="hidden md:table-cell">Type</TableHead>
+                                <TableHead>Details</TableHead>
                                 <TableHead className="hidden md:table-cell">Date</TableHead>
+                                <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {(loading || userLoading) ? (
-                                Array.from({ length: 3 }).map((_, i) => (
+                                Array.from({ length: 5 }).map((_, i) => (
                                      <TableRow key={i}>
-                                        <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                                        <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
-                                        <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-24" /></TableCell>
+                                        <TableCell><div className="space-y-1"><Skeleton className="h-5 w-24" /><Skeleton className="h-4 w-32" /></div></TableCell>
+                                        <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-28" /></TableCell>
+                                        <TableCell><Skeleton className="h-6 w-20" /></TableCell>
                                         <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
                                     </TableRow>
                                 ))
@@ -97,13 +98,13 @@ export default function HistoryPage() {
                                 transactions.map((tx: any) => (
                                 <TableRow key={tx.$id}>
                                     <TableCell>
-                                        <div className="font-medium">{tx.recipientName || tx.narration}</div>
-                                        <div className="text-xs text-muted-foreground hidden md:block">{tx.sessionId}</div>
+                                        <div className="font-medium capitalize">{tx.type?.replace('_', ' ')}</div>
+                                        <div className="text-sm text-muted-foreground max-w-[200px] truncate" title={tx.recipientName || tx.narration}>{tx.recipientName || tx.narration}</div>
                                     </TableCell>
-                                     <TableCell className="hidden md:table-cell">
-                                        <Badge variant={getStatusVariant(tx.status)} className="capitalize">{tx.type?.replace('_', ' ')}</Badge>
+                                    <TableCell className="hidden md:table-cell">{format(new Date(tx.$createdAt), 'PPp')}</TableCell>
+                                    <TableCell>
+                                        <Badge variant={getStatusVariant(tx.status)} className="capitalize">{tx.status}</Badge>
                                     </TableCell>
-                                    <TableCell className="hidden md:table-cell">{new Date(tx.$createdAt).toLocaleDateString()}</TableCell>
                                     <TableCell className={`text-right font-medium ${getAmountClass(tx.type)}`}>{formatAmount(tx.amount, tx.type)}</TableCell>
                                 </TableRow>
                             ))
