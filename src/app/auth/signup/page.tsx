@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
 import { account } from '@/lib/appwrite';
 import { ID } from 'appwrite';
+import { useUser } from '@/hooks/use-appwrite';
 
 const MANAGER_EMAIL_1 = 'i-paymanagerscare402@gmail.com';
 const MANAGER_EMAIL_2 = 'ipatmanager@17@gmail.com';
@@ -18,6 +19,7 @@ const MANAGER_EMAIL_2 = 'ipatmanager@17@gmail.com';
 export default function SignUpPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { recheckUser } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -71,6 +73,9 @@ export default function SignUpPage() {
       
       // Explicitly create a session to ensure it's active before the redirect.
       await account.createEmailPasswordSession(email, password);
+
+      // Force the app-wide user state to update with the new session
+      await recheckUser();
 
       toast({
           title: 'Account Created!',

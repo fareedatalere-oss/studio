@@ -43,41 +43,39 @@ function MarketContent() {
   const isSubscribed = currentUserProfile?.isMarketplaceSubscribed === true;
   
   useEffect(() => {
-    const fetchAndSubscribe = (collectionId: string, setter: React.Dispatch<any>, loadingKey: keyof typeof dataLoading, applyVisibilityFilter = true) => {
-      setDataLoading(prev => ({...prev, [loadingKey]: true}));
-      
+    const fetchAndSubscribe = (collectionId: string, setter: React.Dispatch<React.SetStateAction<any[]>>, loadingKey: keyof typeof dataLoading, applyVisibilityFilter = true) => {
       const queries = [
         Query.orderDesc('$createdAt'),
-        Query.equal('isBanned', [false, null]),
+        Query.notEqual('isBanned', true),
       ];
       if (applyVisibilityFilter) {
-        queries.push(Query.equal('isHidden', [false, null]));
+        queries.push(Query.notEqual('isHidden', true));
       }
 
-      databases.listDocuments(DATABASE_ID, collectionId, queries)
-        .then(res => setter(res.documents))
-        .catch(err => console.error(`Failed to fetch ${collectionId}`, err))
-        .finally(() => setDataLoading(prev => ({...prev, [loadingKey]: false})));
+      const fetchData = () => {
+          databases.listDocuments(DATABASE_ID, collectionId, queries)
+            .then(res => setter(res.documents))
+            .catch(err => {
+              console.error(`Failed to fetch ${collectionId}`, err)
+              toast({
+                title: `Failed to load ${loadingKey}`,
+                description: "Please check if database indexes are set up correctly.",
+                variant: "destructive"
+              });
+            })
+            .finally(() => setDataLoading(prev => ({...prev, [loadingKey]: false})));
+      }
 
+      // Initial fetch
+      setDataLoading(prev => ({...prev, [loadingKey]: true}));
+      fetchData();
+
+      // Subscribe to changes
       const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${collectionId}.documents`, response => {
-         setter(prev => {
-            const newDoc = response.payload;
-            // Avoid duplicates on create event
-            if (response.events.some(e => e.includes('.create')) && prev.some(p => p.$id === newDoc.$id)) {
-                return prev;
-            }
-            // Update or add
-            const docExists = prev.some(p => p.$id === newDoc.$id);
-            let newArray = docExists 
-              ? prev.map(p => p.$id === newDoc.$id ? newDoc : p)
-              : [newDoc, ...prev];
-            // Handle delete
-            if (response.events.some(e => e.includes('.delete'))) {
-                newArray = newArray.filter(p => p.$id !== newDoc.$id);
-            }
-            return newArray;
-        });
+        // Re-fetch on any change to ensure data and filters are always in sync
+        fetchData();
       });
+      
       return unsubscribe;
     };
     
@@ -92,7 +90,7 @@ function MarketContent() {
         unsubBooks();
         unsubUpwork();
     };
-  }, []);
+  }, [toast]);
   
   
   const AppItem = ({ app }: { app: any}) => (
@@ -324,7 +322,7 @@ function MarketContent() {
     </Card>
   )
 
-  const UpworkProfileItem = ({ profile }: { profile: any}) => (
+  const UpworkProfileItem = ({ profile }: { profile: any }) => (
       <Card>
         <CardHeader>
             <div className="flex items-center gap-4">
