@@ -192,27 +192,6 @@ export default function ChatThreadPage() {
     return null;
   }, []);
 
-  const markMessagesAsRead = useCallback(async (chatId: string) => {
-    if (!currentUser?.$id) return;
-    try {
-      // Get all messages in this chat sent by the OTHER user that are not yet 'read'
-      const unreadMessages = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
-        Query.equal('chatId', [chatId]),
-        Query.equal('senderId', [otherUserId]),
-        Query.notEqual('status', 'read')
-      ]);
-
-      // Update them all to 'read'
-      const updatePromises = unreadMessages.documents.map(msg =>
-        databases.updateDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, msg.$id, { status: 'read' })
-      );
-      await Promise.all(updatePromises);
-
-    } catch (error) {
-      console.error("Failed to mark messages as read: ", error);
-    }
-  }, [currentUser?.$id, otherUserId]);
-
   useEffect(() => {
     if (!otherUserId || !currentUser?.$id || !currentUserProfile) return;
     
@@ -237,7 +216,6 @@ export default function ChatThreadPage() {
           Query.limit(100)
         ]).then(response => {
           setMessages(response.documents as Message[]);
-          markMessagesAsRead(foundChatId); // Mark messages as read on load
         }).catch(() => toast({ variant: 'destructive', title: 'Error loading messages' }))
           .finally(() => setMessagesLoading(false));
       } else {
@@ -245,7 +223,7 @@ export default function ChatThreadPage() {
         setMessagesLoading(false);
       }
     });
-  }, [otherUserId, currentUser, currentUserProfile, findChatId, toast, markMessagesAsRead]);
+  }, [otherUserId, currentUser, currentUserProfile, findChatId, toast]);
 
   // Realtime subscriptions
   useEffect(() => {
@@ -270,10 +248,6 @@ export default function ChatThreadPage() {
       const eventType = response.events[0];
       if (eventType.includes('.create')) {
         setMessages(prev => prev.find(m => m.$id === payload.$id) ? prev : [...prev, payload]);
-        // If the new message is from the other user, mark it as read immediately
-        if (payload.senderId === otherUserId) {
-            markMessagesAsRead(chatId);
-        }
       } else if (eventType.includes('.update')) {
         setMessages(prev => prev.map(m => m.$id === payload.$id ? payload : m));
       } else if (eventType.includes('.delete')) {
@@ -282,7 +256,7 @@ export default function ChatThreadPage() {
       }
     });
     return () => messagesUnsubscribe();
-  }, [chatId, otherUserId, markMessagesAsRead]);
+  }, [chatId]);
   
   useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -478,14 +452,6 @@ export default function ChatThreadPage() {
     await handleSendMessage('', audioFile, 'audio');
   };
   
-  const MessageStatus = ({ status, isSender }: { status: Message['status'], isSender: boolean }) => {
-    if (!isSender) return null;
-    if (status === 'read') return <CheckCheck className="h-4 w-4 text-blue-500" />;
-    if (status === 'delivered') return <CheckCheck className="h-4 w-4" />;
-    if (status === 'sent') return <Check className="h-4 w-4" />;
-    return null;
-  };
-  
   const isLoading = userLoading || !otherUser || !currentUserProfile;
   const openFilePicker = (type: 'image' | 'file') => {
       fileTypeRef.current = type;
@@ -573,7 +539,7 @@ export default function ChatThreadPage() {
                          <div className="text-muted-foreground text-xs flex items-center gap-1">
                             {msg.isEdited && <span>(edited)</span>}
                             <span>{format(new Date(msg.$createdAt), 'p')}</span>
-                            <MessageStatus status={msg.status} isSender={isSender} />
+                            {isSender && <Check className="h-4 w-4" />}
                         </div>
                     </div>
                 </div>
@@ -608,13 +574,14 @@ export default function ChatThreadPage() {
                 value={inputText} onChange={(e) => setInputText(e.target.value)} rows={1}
                 className="resize-none min-h-[40px] max-h-[120px]"
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); editingMessage ? handleEdit() : handleSendMessage(inputText); } }}
+                disabled={isLoading}
             />
              {inputText || editingMessage ? (
-                <Button size="icon" onClick={() => editingMessage ? handleEdit() : handleSendMessage(inputText)} disabled={isSending}>{isSending ? <Loader2 className="animate-spin" /> : <Send />}</Button>
+                <Button size="icon" onClick={() => editingMessage ? handleEdit() : handleSendMessage(inputText)} disabled={isLoading || isSending}>{isSending ? <Loader2 className="animate-spin" /> : <Send />}</Button>
              ) : (
                 <>
                 <DropdownMenu>
-                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><Paperclip /></Button></DropdownMenuTrigger>
+                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" disabled={isLoading}><Paperclip /></Button></DropdownMenuTrigger>
                     <DropdownMenuContent>
                         <DropdownMenuItem onClick={() => openFilePicker('image')}><ImageIcon className="mr-2 h-4 w-4" /><span>Image</span></DropdownMenuItem>
                         <DropdownMenuItem onClick={() => openFilePicker('file')}><FileIcon className="mr-2 h-4 w-4" /><span>Document</span></DropdownMenuItem>
@@ -622,7 +589,7 @@ export default function ChatThreadPage() {
                         <SendMoneyDialog currentUser={currentUser} otherUser={otherUser} />
                     </DropdownMenuContent>
                 </DropdownMenu>
-                <Button variant="ghost" size="icon" onClick={startRecording}><Mic /></Button>
+                <Button variant="ghost" size="icon" onClick={startRecording} disabled={isLoading}><Mic /></Button>
                 </>
              )}
             </div>
@@ -635,3 +602,4 @@ export default function ChatThreadPage() {
     
 
     
+
