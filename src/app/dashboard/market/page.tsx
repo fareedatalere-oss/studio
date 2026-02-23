@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -34,7 +35,7 @@ function MarketContent() {
   const [products, setProducts] = useState<any[]>([]);
   const [books, setBooks] = useState<any[]>([]);
   const [upworkProfiles, setUpworkProfiles] = useState<any[]>([]);
-  const [dataLoading, setDataLoading] = useState({ apps: true, products: true, books: true, upwork: true });
+  const [dataLoading, setDataLoading] = { apps: true, products: true, books: true, upwork: true };
 
   // Cart/Library State
   const [cart, setCart] = useState<any[]>([]);
@@ -43,14 +44,23 @@ function MarketContent() {
   const isSubscribed = currentUserProfile?.isMarketplaceSubscribed === true;
   
   useEffect(() => {
-    const fetchAndSubscribe = (collectionId: string, setter: React.Dispatch<React.SetStateAction<any[]>>, loadingKey: keyof typeof dataLoading, applyVisibilityFilter = true) => {
-      const queries = [
-        Query.orderDesc('$createdAt'),
-        Query.equal('isBanned', false),
-      ];
-      if (applyVisibilityFilter) {
-        queries.push(Query.equal('isHidden', false));
-      }
+    const fetchAndSubscribe = (
+        collectionId: string, 
+        setter: React.Dispatch<React.SetStateAction<any[]>>, 
+        loadingKey: keyof typeof dataLoading, 
+        options: { applyVisibilityFilter?: boolean; applyBanFilter?: boolean } = {}
+    ) => {
+        const { applyVisibilityFilter = true, applyBanFilter = true } = options;
+
+        const queries = [
+            Query.orderDesc('$createdAt'),
+        ];
+        if (applyBanFilter) {
+            queries.push(Query.equal('isBanned', false));
+        }
+        if (applyVisibilityFilter) {
+            queries.push(Query.equal('isHidden', false));
+        }
 
       const fetchData = () => {
           databases.listDocuments(DATABASE_ID, collectionId, queries)
@@ -82,7 +92,7 @@ function MarketContent() {
     const unsubApps = fetchAndSubscribe(COLLECTION_ID_APPS, setApps, 'apps');
     const unsubProducts = fetchAndSubscribe(COLLECTION_ID_PRODUCTS, setProducts, 'products');
     const unsubBooks = fetchAndSubscribe(COLLECTION_ID_BOOKS, setBooks, 'books');
-    const unsubUpwork = fetchAndSubscribe(COLLECTION_ID_UPWORK_PROFILES, setUpworkProfiles, 'upwork', false);
+    const unsubUpwork = fetchAndSubscribe(COLLECTION_ID_UPWORK_PROFILES, setUpworkProfiles, 'upwork', { applyVisibilityFilter: false, applyBanFilter: false });
 
     return () => {
         unsubApps();
@@ -520,3 +530,5 @@ export default function MarketPage() {
     </Suspense>
   )
 }
+
+    
