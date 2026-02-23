@@ -248,23 +248,44 @@ export async function makeBillPayment(payload: {
     type: string;
     narration: string;
 }) {
-     if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
+    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
         return { success: false, message: API_KEY_ERROR_MESSAGE };
     }
 
+    const sessionId = `ipay-bill-${Date.now()}`;
+    let txDbId: string | null = null;
+    const billAmount = Number(payload.amount);
+
+    // 1. Create a pending transaction record first.
     try {
-        // 1. Fetch user profile & validate
+        const doc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+            userId: payload.userId,
+            type: payload.type.toLowerCase().replace(' ', '_'),
+            amount: billAmount,
+            status: 'pending',
+            recipientName: payload.narration,
+            recipientDetails: payload.customer,
+            narration: payload.narration,
+            sessionId: sessionId,
+        });
+        txDbId = doc.$id;
+    } catch (dbError: any) {
+        console.error("Failed to create initial transaction record for bill payment:", dbError);
+        return { success: false, message: "Failed to initiate transaction log. Please contact support." };
+    }
+
+    try {
+        // 2. Fetch user profile & validate
         const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
 
         if (userProfile.pin !== payload.pin) {
             throw new Error('Incorrect transaction PIN.');
         }
-        if (userProfile.nairaBalance < payload.amount) {
+        if (userProfile.nairaBalance < billAmount) {
             throw new Error('Insufficient balance.');
         }
 
-        // 2. Make payment via Flutterwave
-        const reference = `ipay-bill-${Date.now()}`;
+        // 3. Make payment via Flutterwave
         const fwResponse = await fetch('https://api.flutterwave.com/v3/bills', {
             method: 'POST',
             headers: {
@@ -274,41 +295,43 @@ export async function makeBillPayment(payload: {
             body: JSON.stringify({
                 country: 'NG',
                 customer: payload.customer,
-                amount: payload.amount,
+                amount: billAmount,
                 type: payload.billerCode, // Biller code like 'BIL108' for airtime, or specific item code for data/tv
-                reference: reference,
+                reference: sessionId,
             }),
         });
         
         const fwData = await fwResponse.json();
 
+        // 4. Handle response
         // Flutterwave bill payments can sometimes be "pending" initially. We will treat 'pending' and 'successful' as success from our side.
         if (fwData.status === 'success' || fwData.status === 'pending') {
-            // 3. Deduct balance and record transaction
-            const newBalance = userProfile.nairaBalance - payload.amount;
+            // Deduct balance and update transaction to completed
+            const newBalance = userProfile.nairaBalance - billAmount;
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, {
                 nairaBalance: newBalance,
             });
 
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
-                userId: payload.userId,
-                type: payload.type.toLowerCase().replace(' ', '_'),
-                amount: payload.amount,
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, {
                 status: 'completed',
-                recipientName: payload.narration,
-                recipientDetails: payload.customer,
-                narration: payload.narration,
-                sessionId: reference,
+                sessionId: fwData.data?.flw_ref || sessionId,
             });
 
             const successMessage = fwData.data?.response_message || `${payload.narration} successful.`;
             return { success: true, message: successMessage };
         } else {
-             console.error("Flutterwave Bill Payment Error:", fwData);
+            console.error("Flutterwave Bill Payment Error:", fwData);
             throw new Error(fwData.message || 'The transaction failed at the provider.');
         }
 
     } catch (error: any) {
+        // 5. Failure: Update transaction status to failed and return error
+        if (txDbId) {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, {
+                status: 'failed',
+                narration: `[Error] ${error.message}`,
+            });
+        }
         console.error("Bill payment server action error:", error);
         return { success: false, message: error.message || 'An unexpected server error occurred.' };
     }

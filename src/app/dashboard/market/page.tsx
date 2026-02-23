@@ -46,10 +46,10 @@ function MarketContent() {
     const fetchAndSubscribe = (collectionId: string, setter: React.Dispatch<React.SetStateAction<any[]>>, loadingKey: keyof typeof dataLoading, applyVisibilityFilter = true) => {
       const queries = [
         Query.orderDesc('$createdAt'),
-        Query.notEqual('isBanned', true),
+        Query.equal('isBanned', false),
       ];
       if (applyVisibilityFilter) {
-        queries.push(Query.notEqual('isHidden', true));
+        queries.push(Query.equal('isHidden', false));
       }
 
       const fetchData = () => {
