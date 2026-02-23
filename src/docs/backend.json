@@ -27,7 +27,8 @@
         "following": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that this user is following." },
         "followers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that follow this user." },
         "isBanned": { "type": "boolean", "description": "Whether the user's account is banned." },
-        "fwCardToken": { "type": "string", "description": "Flutterwave card token for recurring payments." }
+        "fwCardToken": { "type": "string", "description": "Flutterwave card token for recurring payments." },
+        "isMarketplaceSubscribed": { "type": "boolean", "description": "True if the user has paid the one-time marketplace subscription fee." }
       },
       "required": ["uid", "email", "createdAt", "username", "country", "pin"]
     },
@@ -160,7 +161,9 @@
         "appFileUrl": { "type": "string", "format": "uri" },
         "price": { "type": "number" },
         "priceType": { "type": "string", "enum": ["free", "paid"] },
-        "sellerId": { "type": "string" }
+        "sellerId": { "type": "string" },
+        "isBanned": { "type": "boolean", "default": false },
+        "isHidden": { "type": "boolean", "default": false }
       },
       "required": ["name", "iconUrl", "platform", "description", "appFileUrl", "price", "priceType", "sellerId"]
     },
@@ -175,7 +178,9 @@
         "price": { "type": "number" },
         "contactType": { "type": "string", "enum": ["chat", "call"] },
         "contactInfo": { "type": "string", "description": "Phone number if contact type is call" },
-        "sellerId": { "type": "string" }
+        "sellerId": { "type": "string" },
+        "isBanned": { "type": "boolean", "default": false },
+        "isHidden": { "type": "boolean", "default": false }
       },
       "required": ["name", "imageUrl", "price", "contactType", "sellerId"]
     },
@@ -192,7 +197,9 @@
         "priceType": { "type": "string", "enum": ["free", "paid"] },
         "sellerId": { "type": "string" },
         "status": { "type": "string", "enum": ["draft", "published"], "description": "The publishing status of the book." },
-        "pageByPage": { "type": "boolean", "description": "True if the book is meant to be read page by page." }
+        "pageByPage": { "type": "boolean", "description": "True if the book is meant to be read page by page." },
+        "isBanned": { "type": "boolean", "default": false },
+        "isHidden": { "type": "boolean", "default": false }
       },
       "required": ["name", "coverUrl", "priceType", "sellerId", "status"]
     },
@@ -208,7 +215,9 @@
         "address": { "type": "string" },
         "avatarUrl": { "type": "string", "format": "uri" },
         "certificateUrl": { "type": "string", "format": "uri" },
-        "sellerId": { "type": "string" }
+        "sellerId": { "type": "string" },
+        "isBanned": { "type": "boolean", "default": false },
+        "isHidden": { "type": "boolean", "default": false }
       },
       "required": ["name", "title", "description", "phoneNumber", "address", "avatarUrl", "certificateUrl", "sellerId"]
     }
@@ -273,3 +282,5 @@
     }
   }
 }
+
+    

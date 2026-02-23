@@ -17,14 +17,15 @@ import { Label } from '@/components/ui/label';
 import { databases, DATABASE_ID, COLLECTION_ID_APPS, COLLECTION_ID_PRODUCTS, COLLECTION_ID_BOOKS, COLLECTION_ID_UPWORK_PROFILES } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useUser } from '@/hooks/use-appwrite';
 
 function MarketContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const { profile: currentUserProfile, loading: userLoading } = useUser();
   
   // Control State
   const [currentTab, setCurrentTab] = useState(searchParams.get('tab') || 'apps');
-  const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [pin, setPin] = useState('');
 
@@ -39,16 +40,16 @@ function MarketContent() {
   const [cart, setCart] = useState<any[]>([]);
   const [library, setLibrary] = useState<string[]>([]); // Store book IDs
 
-  useEffect(() => {
-    if (searchParams.get('subscribed') === 'true') {
-      setIsSubscribed(true);
-    }
-  }, [searchParams]);
-
+  const isSubscribed = currentUserProfile?.isMarketplaceSubscribed === true;
+  
   useEffect(() => {
     const fetchAndSubscribe = (collectionId: string, setter: React.Dispatch<any>, loadingKey: keyof typeof dataLoading) => {
       setDataLoading(prev => ({...prev, [loadingKey]: true}));
-      databases.listDocuments(DATABASE_ID, collectionId, [Query.orderDesc('$createdAt')])
+      databases.listDocuments(DATABASE_ID, collectionId, [
+        Query.orderDesc('$createdAt'),
+        Query.equal('isHidden', [false, null]),
+        Query.equal('isBanned', [false, null]),
+      ])
         .then(res => setter(res.documents))
         .catch(err => console.error(`Failed to fetch ${collectionId}`, err))
         .finally(() => setDataLoading(prev => ({...prev, [loadingKey]: false})));
@@ -361,6 +362,15 @@ function MarketContent() {
       </Card>
   )
 
+  const UploadButton = ({ href }: { href: string }) => (
+    <Button asChild>
+      <Link href={isSubscribed ? href : '/dashboard/market/subscribe'}>
+        <Upload className="mr-2 h-4 w-4" />
+        Upload {currentTab.charAt(0).toUpperCase() + currentTab.slice(1, -1)}
+      </Link>
+    </Button>
+  );
+
   return (
     <div className="container py-4">
       <div className="flex justify-between items-center mb-4">
@@ -371,7 +381,7 @@ function MarketContent() {
            </Button>
         ) : (
             <Button asChild>
-              <Link href="/dashboard/market/subscribe">Subscribe</Link>
+              <Link href="/dashboard/market/subscribe">Subscribe to Upload</Link>
             </Button>
         )}
         <Sheet>
@@ -413,16 +423,9 @@ function MarketContent() {
         </TabsList>
         
         <TabsContent value="apps" className="mt-4 space-y-4">
-           {isSubscribed && (
-            <div className="flex justify-end">
-                <Button asChild>
-                    <Link href="/dashboard/market/apps/upload">
-                        <Upload className="mr-2 h-4 w-4" />
-                        Upload App
-                    </Link>
-                </Button>
+           <div className="flex justify-end">
+                <UploadButton href="/dashboard/market/apps/upload" />
             </div>
-           )}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input placeholder="Search for apps..." className="pl-10" />
@@ -452,16 +455,9 @@ function MarketContent() {
         </TabsContent>
 
         <TabsContent value="products" className="mt-4 space-y-4">
-             {isSubscribed && (
-                <div className="flex justify-end">
-                    <Button asChild>
-                        <Link href="/dashboard/market/upload/product">
-                            <Upload className="mr-2 h-4 w-4" />
-                            Upload Product
-                        </Link>
-                    </Button>
-                </div>
-            )}
+             <div className="flex justify-end">
+                <UploadButton href="/dashboard/market/upload/product" />
+            </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input placeholder="Search for products..." className="pl-10" />
@@ -474,19 +470,12 @@ function MarketContent() {
         </TabsContent>
 
         <TabsContent value="bookstore" className="mt-4 space-y-4">
-          {isSubscribed && (
-                <div className="flex justify-between">
-                    <Button asChild variant="outline">
-                        <Link href="/dashboard/market/library"><Library className="mr-2 h-4 w-4" /> My Library</Link>
-                    </Button>
-                    <Button asChild>
-                        <Link href="/dashboard/market/upload/book">
-                            <Upload className="mr-2 h-4 w-4" />
-                            Upload Book
-                        </Link>
-                    </Button>
-                </div>
-            )}
+          <div className="flex justify-between">
+              <Button asChild variant="outline">
+                  <Link href="/dashboard/market/library"><Library className="mr-2 h-4 w-4" /> My Library</Link>
+              </Button>
+              <UploadButton href="/dashboard/market/upload/book" />
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input placeholder="Search for books..." className="pl-10" />
@@ -528,3 +517,5 @@ export default function MarketPage() {
     </Suspense>
   )
 }
+
+    

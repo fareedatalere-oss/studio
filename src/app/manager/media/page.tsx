@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Tabs,
@@ -25,147 +26,261 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { MoreVertical, ShieldAlert } from 'lucide-react';
+import { MoreVertical, ShieldAlert, Trash2, EyeOff, Eye, Loader2, UserMinus, UserCheck, ShieldCheck, ShieldX } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Image from 'next/image';
-import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
-import { databases, DATABASE_ID, COLLECTION_ID_POSTS } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_APPS, COLLECTION_ID_PRODUCTS, COLLECTION_ID_BOOKS, COLLECTION_ID_UPWORK_PROFILES, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
-const PostCard = ({ post, onBan }: { post: any, onBan: (postId: string) => void }) => {
+const marketCollections = [
+    COLLECTION_ID_APPS,
+    COLLECTION_ID_PRODUCTS,
+    COLLECTION_ID_BOOKS,
+    COLLECTION_ID_UPWORK_PROFILES,
+];
 
-  return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={post.userAvatar} />
-              <AvatarFallback>{post.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-semibold">{post.username}</p>
-              <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p>
-            </div>
-          </div>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-               <Button variant="destructive" size="sm">
-                <ShieldAlert className="mr-2 h-4 w-4" /> Ban
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        This will remove the post from public view. This action can be undone later.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => onBan(post.$id)} className="bg-destructive hover:bg-destructive/90">
-                        Confirm Ban
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+const MarketItemsManager = ({ collectionId, collectionName }: { collectionId: string, collectionName: string }) => {
+    const [items, setItems] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const { toast } = useToast();
 
-        {post.description && <p className="text-sm text-muted-foreground">{post.description}</p>}
-        
-        {post.type === 'image' && post.mediaUrl && (
-          <div className="relative aspect-video w-full">
-            <Image src={post.mediaUrl} alt={post.description || 'Post image'} fill className="object-cover rounded-md" />
-          </div>
-        )}
-        {post.type === 'text' && (
-          <div className={cn("rounded-lg p-4", post.backgroundColor || 'bg-gray-500')}>
-            <p className="text-white whitespace-pre-wrap">{post.text}</p>
-          </div>
-        )}
-        {(post.type === 'reels' || post.type === 'film' || post.type === 'music') && post.mediaUrl && (
-           <video src={post.mediaUrl} controls className="w-full rounded-md" />
-        )}
-      </CardContent>
-    </Card>
-  );
-};
-
-
-const PostFeed = ({ type }: { type: string }) => {
-  const [posts, setPosts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
-
-  useEffect(() => {
-    const fetchPosts = async () => {
+    const fetchItems = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [
-                Query.equal('type', type),
-                Query.orderDesc('$createdAt'),
-                Query.limit(50) // Limit to 50 for performance
-            ]);
-            setPosts(response.documents);
+            const response = await databases.listDocuments(DATABASE_ID, collectionId, [Query.limit(100), Query.orderDesc('$createdAt')]);
+            setItems(response.documents);
         } catch (error) {
-            console.error(`Failed to fetch ${type} posts:`, error);
+            toast({ variant: 'destructive', title: 'Error', description: `Could not load ${collectionName}.` });
         } finally {
             setLoading(false);
         }
+    }, [collectionId, collectionName, toast]);
+
+    useEffect(() => {
+        fetchItems();
+    }, [fetchItems]);
+
+    const handleUpdate = async (id: string, data: object, successMessage: string) => {
+        try {
+            await databases.updateDocument(DATABASE_ID, collectionId, id, data);
+            toast({ title: 'Success', description: successMessage });
+            fetchItems(); // Refresh data
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message });
+        }
     };
-    fetchPosts();
 
-    // No real-time subscription for now to avoid overwhelming the manager dashboard
-  }, [type]);
+    const handleDelete = async (id: string) => {
+        try {
+            await databases.deleteDocument(DATABASE_ID, collectionId, id);
+            toast({ title: 'Success', description: 'Item permanently deleted.' });
+            setItems(prev => prev.filter(item => item.$id !== id));
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message });
+        }
+    };
 
-  const handleBanPost = (postId: string) => {
-    // This is a mock action. In a real app, you'd update the post's status.
-    toast({
-        title: 'Post Banned',
-        description: `Post ID ${postId} has been hidden from public view.`
-    });
-    setPosts(prevPosts => prevPosts.filter(p => p.$id !== postId));
-  }
+    if (loading) return <Skeleton className="h-48 w-full" />;
 
-  if (loading) {
-    return <div className="space-y-4 p-4"><Skeleton className="h-48 w-full" /><Skeleton className="h-48 w-full" /></div>;
-  }
-  
-  if (!posts || posts.length === 0) {
-    return <div className="flex items-center justify-center h-48 text-muted-foreground">No {type} posts found.</div>
-  }
+    return (
+        <Card>
+            <CardContent className="p-4">
+                {items.length > 0 ? (
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Seller ID</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {items.map(item => (
+                                <TableRow key={item.$id} className={cn(item.isBanned && "bg-destructive/10", item.isHidden && "opacity-50")}>
+                                    <TableCell className="font-medium">{item.name}</TableCell>
+                                    <TableCell className="font-mono text-xs">{item.sellerId}</TableCell>
+                                    <TableCell>
+                                        <div className="flex gap-2">
+                                            {item.isBanned && <span className="text-xs font-semibold text-destructive">Banned</span>}
+                                            {item.isHidden && <span className="text-xs font-semibold text-muted-foreground">Hidden</span>}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical /></Button></DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={() => handleUpdate(item.$id, { isBanned: !item.isBanned }, `Item ${item.isBanned ? 'unbanned' : 'banned'}.`)}>
+                                                    {item.isBanned ? <ShieldCheck className="mr-2 h-4 w-4" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
+                                                    {item.isBanned ? 'Unban' : 'Ban'}
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleUpdate(item.$id, { isHidden: !item.isHidden }, `Item ${item.isHidden ? 'unhidden' : 'hidden'}.`)}>
+                                                    {item.isHidden ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
+                                                    {item.isHidden ? 'Unhide' : 'Hide'}
+                                                </DropdownMenuItem>
+                                                <AlertDialog><AlertDialogTrigger asChild><DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete "{item.name}". This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(item.$id)} className="bg-destructive hover:bg-destructive/90">Delete Permanently</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                ) : <p className="text-center text-muted-foreground p-8">No items found in {collectionName}.</p>}
+            </CardContent>
+        </Card>
+    );
+};
 
-  return (
-    <div className="space-y-4">
-      {posts.map(post => <PostCard key={post.$id} post={post} onBan={handleBanPost} />)}
-    </div>
-  )
+const SubscribersManager = () => {
+    const [subscribers, setSubscribers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const { toast } = useToast();
+
+    const fetchSubscribers = useCallback(async () => {
+        setLoading(true);
+        try {
+            const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_PROFILES, [Query.equal('isMarketplaceSubscribed', true), Query.limit(100)]);
+            setSubscribers(response.documents);
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load subscribers.' });
+        } finally {
+            setLoading(false);
+        }
+    }, [toast]);
+
+    useEffect(() => {
+        fetchSubscribers();
+    }, [fetchSubscribers]);
+
+    const handleUpdateUser = async (id: string, data: object, successMessage: string) => {
+        try {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, id, data);
+            toast({ title: 'Success', description: successMessage });
+            fetchSubscribers();
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message });
+        }
+    };
+    
+    const handleRemoveSubscription = async (user: any) => {
+        toast({ title: 'Processing...', description: `Removing subscription and all posts for ${user.username}. This may take a while.` });
+        try {
+            // First, revoke subscription
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, { isMarketplaceSubscribed: false });
+
+            // Then, delete all posts from all market collections
+            for (const collectionId of marketCollections) {
+                let hasMore = true;
+                while (hasMore) {
+                    const response = await databases.listDocuments(collectionId, [Query.equal('sellerId', user.$id), Query.limit(25)]);
+                    if (response.documents.length > 0) {
+                        await Promise.all(response.documents.map(doc => databases.deleteDocument(collectionId, doc.$id)));
+                    }
+                    hasMore = response.documents.length === 25;
+                }
+            }
+            toast({ title: 'Success', description: `${user.username}'s subscription and all their market posts have been removed.` });
+            fetchSubscribers();
+        } catch (error: any) {
+             toast({ variant: 'destructive', title: 'Error', description: `An error occurred: ${error.message}` });
+        }
+    };
+
+    if (loading) return <Skeleton className="h-48 w-full" />;
+
+    return (
+         <Card>
+            <CardContent className="p-4">
+                {subscribers.length > 0 ? (
+                    <Table>
+                        <TableHeader><TableRow><TableHead>User</TableHead><TableHead>Email</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {subscribers.map(user => (
+                                <TableRow key={user.$id} className={cn(user.isBanned && "bg-destructive/10")}>
+                                    <TableCell>
+                                        <div className="flex items-center gap-3">
+                                            <Avatar className="h-10 w-10"><AvatarImage src={user.avatar} /><AvatarFallback>{user.username?.charAt(0) || 'U'}</AvatarFallback></Avatar>
+                                            <div>
+                                                <p className="font-semibold">{user.username}</p>
+                                                <p className="text-xs font-mono text-muted-foreground">{user.$id}</p>
+                                            </div>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>{user.email}</TableCell>
+                                    <TableCell>{user.isBanned && <span className="text-xs font-semibold text-destructive">Banned</span>}</TableCell>
+                                    <TableCell className="text-right">
+                                         <DropdownMenu>
+                                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical /></Button></DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={() => handleUpdateUser(user.$id, { isMarketplaceSubscribed: false }, `${user.username}'s subscription has been revoked.`)}>
+                                                    <UserMinus className="mr-2 h-4 w-4" /> Revoke Subscription
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleUpdateUser(user.$id, { isBanned: !user.isBanned }, `User ${user.isBanned ? 'unbanned' : 'banned'}.`)}>
+                                                     {user.isBanned ? <ShieldCheck className="mr-2 h-4 w-4" /> : <ShieldX className="mr-2 h-4 w-4" />}
+                                                     {user.isBanned ? 'Unban User' : 'Ban User'}
+                                                </DropdownMenuItem>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild><DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Remove Subscription & Posts</DropdownMenuItem></AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader><AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete all of this user's market posts and revoke their subscription. They will have to pay to subscribe again. This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleRemoveSubscription(user)} className="bg-destructive hover:bg-destructive/90">Confirm Removal</AlertDialogAction></AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                ) : <p className="text-center text-muted-foreground p-8">No subscribed users found.</p>}
+            </CardContent>
+        </Card>
+    )
 }
 
-
 export default function ManagerMediaPage() {
-   const postTypes = ["text", "image", "reels", "film", "music"];
+   const router = useRouter();
+   const [loading, setLoading] = useState(true);
+
+   useEffect(() => {
+    const hasBypass = sessionStorage.getItem('manager-media-bypass') === 'true';
+    if (!hasBypass) {
+      router.replace('/manager/media/bypass');
+    } else {
+        setLoading(false);
+    }
+  }, [router]);
+
+  if (loading) {
+    return <div className="flex justify-center items-center h-screen"><Loader2 className="h-8 w-8 animate-spin" /></div>
+  }
 
   return (
     <div className="container py-8">
-      <h1 className="text-2xl font-bold mb-4">Media Management</h1>
-        <Tabs defaultValue="text" className="w-full">
+      <h1 className="text-2xl font-bold mb-4">Media & Market Management</h1>
+        <Tabs defaultValue="apps" className="w-full">
             <TabsList className="grid w-full grid-cols-5">
-                {postTypes.map(type => (
-                    <TabsTrigger key={type} value={type} className="capitalize">{type}</TabsTrigger>
-                ))}
+                <TabsTrigger value="apps">Apps</TabsTrigger>
+                <TabsTrigger value="products">Products</TabsTrigger>
+                <TabsTrigger value="bookstore">Bookstore</TabsTrigger>
+                <TabsTrigger value="upwork">Upwork</TabsTrigger>
+                <TabsTrigger value="subscribers">Subscribers</TabsTrigger>
             </TabsList>
-            {postTypes.map(type => (
-                <TabsContent key={type} value={type} className="mt-4">
-                    <PostFeed type={type} />
-                </TabsContent>
-            ))}
+            <TabsContent value="apps" className="mt-4"><MarketItemsManager collectionId={COLLECTION_ID_APPS} collectionName="Apps" /></TabsContent>
+            <TabsContent value="products" className="mt-4"><MarketItemsManager collectionId={COLLECTION_ID_PRODUCTS} collectionName="Products" /></TabsContent>
+            <TabsContent value="bookstore" className="mt-4"><MarketItemsManager collectionId={COLLECTION_ID_BOOKS} collectionName="Books" /></TabsContent>
+            <TabsContent value="upwork" className="mt-4"><MarketItemsManager collectionId={COLLECTION_ID_UPWORK_PROFILES} collectionName="Upwork Profiles" /></TabsContent>
+            <TabsContent value="subscribers" className="mt-4"><SubscribersManager /></TabsContent>
       </Tabs>
     </div>
   );
 }
+
+    

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowLeft, UploadCloud, ShieldAlert, FileText, Image as ImageIcon, X, Loader2 } from 'lucide-react';
@@ -18,40 +18,20 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_APPS, getAppwriteStorageUrl } from '@/lib/appwrite';
 import { ID } from 'appwrite';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
-function AppUploadWarning({ onAccept }: { onAccept: () => void }) {
-  return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ShieldAlert className="h-6 w-6 text-destructive" />
-          Important: App Submission Rules
-        </CardTitle>
-        <CardDescription>Please read these terms carefully before uploading your application.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Alert variant="destructive">
-          <AlertTitle>Warning!</AlertTitle>
-          <AlertDescription>
-            We take the security of our users very seriously. Uploading fake applications, malware, or any form of malicious software is strictly prohibited and will result in a permanent ban from our platform.
-          </AlertDescription>
-        </Alert>
-        <div className="text-sm text-muted-foreground space-y-2">
-            <p>By proceeding, you agree to the following:</p>
-            <ul className="list-disc pl-5 space-y-1">
-                <li>You are the rightful owner or have explicit permission to distribute the application you are uploading.</li>
-                <li>Your application does not contain any malicious code, viruses, or spyware.</li>
-                <li>All transactions made through the marketplace are subject to a service charge for both the buyer and the seller. This is to maintain the platform and ensure a secure environment.</li>
-                <li>Violating these terms will lead to immediate account suspension and potential legal action.</li>
-            </ul>
-        </div>
-      </CardContent>
-      <CardFooter>
-        <Button onClick={onAccept} className="w-full">I have read and agree to the terms</Button>
-      </CardFooter>
-    </Card>
-  );
-}
+const APP_UPLOAD_PIN = '09075464786';
+const PIN_VERIFIED_KEY = 'app-upload-pin-verified';
+
 
 function AppUploadForm() {
     const { toast } = useToast();
@@ -305,9 +285,86 @@ function AppUploadForm() {
   );
 }
 
+function PinGate({ onPinVerified }: { onPinVerified: () => void }) {
+    const [pin, setPin] = useState('');
+    const { toast } = useToast();
+
+    const handleVerify = () => {
+        if (pin === APP_UPLOAD_PIN) {
+            sessionStorage.setItem(PIN_VERIFIED_KEY, 'true');
+            toast({ title: 'PIN Verified' });
+            onPinVerified();
+        } else {
+            toast({ variant: 'destructive', title: 'Incorrect PIN' });
+        }
+    };
+    
+    return (
+        <Card className="w-full max-w-md mx-auto">
+            <CardHeader>
+                <CardTitle>Enter App Upload PIN</CardTitle>
+                <CardDescription>A one-time PIN is required to access the app upload section.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+                 <Label htmlFor="upload-pin">Upload PIN</Label>
+                 <Input id="upload-pin" type="password" value={pin} onChange={(e) => setPin(e.target.value)} />
+            </CardContent>
+            <CardFooter>
+                <Button onClick={handleVerify} className="w-full">Continue</Button>
+            </CardFooter>
+        </Card>
+    );
+}
 
 export default function UploadAppPage() {
   const [accepted, setAccepted] = useState(false);
+  const [pinVerified, setPinVerified] = useState(false);
+  
+  useEffect(() => {
+    if (sessionStorage.getItem(PIN_VERIFIED_KEY) === 'true') {
+        setPinVerified(true);
+    }
+  }, []);
+
+  const PageContent = () => {
+    if (!pinVerified) {
+        return <PinGate onPinVerified={() => setPinVerified(true)} />;
+    }
+    if (!accepted) {
+        return (
+            <Card className="w-full max-w-2xl mx-auto">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldAlert className="h-6 w-6 text-destructive" />
+                  Important: App Submission Rules
+                </CardTitle>
+                <CardDescription>Please read these terms carefully before uploading your application.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Alert variant="destructive">
+                  <AlertTitle>Warning!</AlertTitle>
+                  <AlertDescription>
+                    We take the security of our users very seriously. Uploading fake applications, malware, or any form of malicious software is strictly prohibited and will result in a permanent ban from our platform.
+                  </AlertDescription>
+                </Alert>
+                <div className="text-sm text-muted-foreground space-y-2">
+                    <p>By proceeding, you agree to the following:</p>
+                    <ul className="list-disc pl-5 space-y-1">
+                        <li>You are the rightful owner or have explicit permission to distribute the application you are uploading.</li>
+                        <li>Your application does not contain any malicious code, viruses, or spyware.</li>
+                        <li>All transactions made through the marketplace are subject to a service charge for both the buyer and the seller. This is to maintain the platform and ensure a secure environment.</li>
+                        <li>Violating these terms will lead to immediate account suspension and potential legal action.</li>
+                    </ul>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button onClick={() => setAccepted(true)} className="w-full">I have read and agree to the terms</Button>
+              </CardFooter>
+            </Card>
+        );
+    }
+    return <AppUploadForm />;
+  }
 
   return (
     <div className="container py-8">
@@ -316,11 +373,9 @@ export default function UploadAppPage() {
         Back to Market
       </Link>
       
-      {!accepted ? (
-        <AppUploadWarning onAccept={() => setAccepted(true)} />
-      ) : (
-        <AppUploadForm />
-      )}
+      <PageContent />
     </div>
   );
 }
+
+    

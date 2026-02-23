@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { ArrowLeft, Banknote, Landmark, Smartphone } from 'lucide-react';
+import { ArrowLeft, Banknote, Landmark, Smartphone, Loader2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,13 +19,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
+import { useUser } from '@/hooks/use-appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 
 export default function SubscriptionPaymentPage() {
     const { toast } = useToast();
     const router = useRouter();
+    const { user, profile, recheckUser } = useUser();
     const [pin, setPin] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    
+    const SUBSCRIPTION_FEE = 25000;
 
     const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
@@ -34,25 +39,45 @@ export default function SubscriptionPaymentPage() {
         }
     };
     
-    const handlePayWithBalance = () => {
+    const handlePayWithBalance = async () => {
+        if (!user || !profile) {
+            toast({ variant: 'destructive', title: 'Error', description: 'You must be logged in.' });
+            return;
+        }
+
         setIsLoading(true);
-        // Simulate PIN check and payment
-        setTimeout(() => {
-            if (pin === '12345') { // Mock correct PIN
-                toast({
-                    title: 'Payment Successful',
-                    description: 'Your subscription is now active.',
-                });
-                router.push('/dashboard/market?subscribed=true');
-            } else {
-                toast({
-                    title: 'Invalid PIN',
-                    description: 'The transaction PIN you entered is incorrect.',
-                    variant: 'destructive',
-                });
-                setIsLoading(false);
+
+        try {
+            if (profile.pin !== pin) {
+                throw new Error("The transaction PIN you entered is incorrect.");
             }
-        }, 1500);
+            if ((profile.nairaBalance || 0) < SUBSCRIPTION_FEE) {
+                throw new Error("Insufficient account balance to pay for the subscription.");
+            }
+
+            const newBalance = profile.nairaBalance - SUBSCRIPTION_FEE;
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, {
+                isMarketplaceSubscribed: true,
+                nairaBalance: newBalance,
+            });
+
+            await recheckUser(); // Re-sync user data from hook
+
+            toast({
+                title: 'Payment Successful',
+                description: 'Your marketplace subscription is now active.',
+            });
+            router.push('/dashboard/market?subscribed=true');
+
+        } catch (error: any) {
+            toast({
+                title: 'Payment Failed',
+                description: error.message || 'An unexpected error occurred.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleOtherPayments = (method: string) => {
@@ -63,7 +88,15 @@ export default function SubscriptionPaymentPage() {
         // Simulate redirection and successful payment
         setIsLoading(true);
         setTimeout(() => {
-            router.push('/dashboard/market?subscribed=true');
+            // In a real app, Paystack would redirect back to a verification page.
+            // We simulate that by just setting the subscription to true.
+            if(user) {
+                 databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, {
+                    isMarketplaceSubscribed: true,
+                }).then(() => {
+                    router.push('/dashboard/market?subscribed=true');
+                });
+            }
         }, 2000);
     }
 
@@ -76,7 +109,7 @@ export default function SubscriptionPaymentPage() {
             <Card className="w-full max-w-md mx-auto">
                 <CardHeader>
                     <CardTitle>Pay For Subscription</CardTitle>
-                    <CardDescription>One-time fee: ₦25,000</CardDescription>
+                    <CardDescription>One-time fee: ₦{SUBSCRIPTION_FEE.toLocaleString()}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <AlertDialog>
@@ -87,14 +120,14 @@ export default function SubscriptionPaymentPage() {
                             <AlertDialogHeader>
                             <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
                             <AlertDialogDescription>
-                                Enter your 5-digit transaction PIN to authorize payment of ₦25,000 from your account balance.
+                                Enter your 5-digit transaction PIN to authorize payment of ₦{SUBSCRIPTION_FEE.toLocaleString()} from your account balance.
                             </AlertDialogDescription>
                             </AlertDialogHeader>
                             <div className="space-y-2">
                                 <Label htmlFor="pin">5-Digit Transaction PIN</Label>
                                 <Input
                                     id="pin"
-                                    type="text"
+                                    type="password"
                                     inputMode="numeric"
                                     pattern="[0-9]*"
                                     value={pin}
@@ -107,7 +140,7 @@ export default function SubscriptionPaymentPage() {
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction onClick={handlePayWithBalance} disabled={isLoading || pin.length !== 5}>
-                                    {isLoading ? 'Processing...' : 'Confirm & Pay'}
+                                    {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Processing...</> : 'Confirm & Pay'}
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
@@ -135,3 +168,5 @@ export default function SubscriptionPaymentPage() {
         </div>
     );
 }
+
+    

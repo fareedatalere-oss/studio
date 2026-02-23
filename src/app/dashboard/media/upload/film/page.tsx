@@ -32,15 +32,24 @@ export default function UploadFilmPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      if (file.size > 2 * 1024 * 1024 * 1024) {
+      
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(video.src);
+        if (video.duration < 1800) { // 30 minutes * 60 seconds
           toast({
               variant: 'destructive',
-              title: 'File too large',
-              description: 'For this prototype, films cannot be larger than 2GB.'
+              title: 'Video Too Short',
+              description: 'Films must be at least 30 minutes long.',
           });
-          return;
-      }
-      setVideoFile(file);
+          setVideoFile(null);
+          e.target.value = ''; // Reset file input
+        } else {
+           setVideoFile(file);
+        }
+      };
+      video.src = URL.createObjectURL(file);
     }
   };
 
@@ -91,7 +100,7 @@ export default function UploadFilmPage() {
       <Card className="w-full max-w-lg mx-auto">
         <CardHeader>
           <CardTitle>Upload a Film</CardTitle>
-          <CardDescription>Share your movie (up to 5 hours).</CardDescription>
+          <CardDescription>Share your movie (30+ minutes).</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {videoFile ? (
@@ -127,7 +136,7 @@ export default function UploadFilmPage() {
                 <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="w-full justify-start gap-2">
                     <UploadCloud className="h-5 w-5" /> From Device
                 </Button>
-                <p className="text-xs text-muted-foreground text-center pt-2">High-quality video files up to 2GB</p>
+                <p className="text-xs text-muted-foreground text-center pt-2">High-quality video files of 30+ minutes.</p>
             </div>
           )}
           <input
@@ -155,3 +164,5 @@ export default function UploadFilmPage() {
     </div>
   );
 }
+
+    

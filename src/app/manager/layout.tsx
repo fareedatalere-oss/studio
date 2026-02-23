@@ -13,7 +13,7 @@ export default function ManagerLayout({
     { href: '/manager/users', label: 'Users', icon: Users },
     { href: '/manager/transactions', label: 'Transactions', icon: Landmark },
     { href: '/manager/market', label: 'Market', icon: Store },
-    { href: '/manager/media', label: 'Media', icon: PlaySquare },
+    { href: '/manager/media/bypass', label: 'Media & Market', icon: PlaySquare },
     { href: '/manager/creators/bypass', label: 'Content Creators', icon: Star },
     { href: '/manager/profile/bypass', label: 'Profile', icon: User },
   ];
@@ -42,3 +42,5 @@ export default function ManagerLayout({
     </div>
   );
 }
+
+    

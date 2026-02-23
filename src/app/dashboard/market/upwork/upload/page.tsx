@@ -81,7 +81,7 @@ export default function UploadUpworkProfilePage() {
                 address,
                 avatarUrl: getAppwriteStorageUrl(avatarUpload.$id),
                 certificateUrl: getAppwriteStorageUrl(certificateUpload.$id),
-                sellerId: user.$id
+                sellerId: user.$id // Keeping sellerId for now for potential future use or linking
             };
 
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_UPWORK_PROFILES, ID.unique(), newProfile);
@@ -161,3 +161,5 @@ export default function UploadUpworkProfilePage() {
     </div>
   );
 }
+
+    
