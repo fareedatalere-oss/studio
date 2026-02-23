@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowRight, Search, ChevronUp, Upload, ShoppingCart, Trash2, Phone, Book, Library, MoreVertical, Video, UserPlus, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useState, Suspense, useEffect } from 'react';
+import { useState, Suspense, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -43,13 +43,18 @@ function MarketContent() {
   const isSubscribed = currentUserProfile?.isMarketplaceSubscribed === true;
   
   useEffect(() => {
-    const fetchAndSubscribe = (collectionId: string, setter: React.Dispatch<any>, loadingKey: keyof typeof dataLoading) => {
+    const fetchAndSubscribe = (collectionId: string, setter: React.Dispatch<any>, loadingKey: keyof typeof dataLoading, applyVisibilityFilter = true) => {
       setDataLoading(prev => ({...prev, [loadingKey]: true}));
-      databases.listDocuments(DATABASE_ID, collectionId, [
+      
+      const queries = [
         Query.orderDesc('$createdAt'),
-        Query.equal('isHidden', [false, null]),
         Query.equal('isBanned', [false, null]),
-      ])
+      ];
+      if (applyVisibilityFilter) {
+        queries.push(Query.equal('isHidden', [false, null]));
+      }
+
+      databases.listDocuments(DATABASE_ID, collectionId, queries)
         .then(res => setter(res.documents))
         .catch(err => console.error(`Failed to fetch ${collectionId}`, err))
         .finally(() => setDataLoading(prev => ({...prev, [loadingKey]: false})));
@@ -79,7 +84,7 @@ function MarketContent() {
     const unsubApps = fetchAndSubscribe(COLLECTION_ID_APPS, setApps, 'apps');
     const unsubProducts = fetchAndSubscribe(COLLECTION_ID_PRODUCTS, setProducts, 'products');
     const unsubBooks = fetchAndSubscribe(COLLECTION_ID_BOOKS, setBooks, 'books');
-    const unsubUpwork = fetchAndSubscribe(COLLECTION_ID_UPWORK_PROFILES, setUpworkProfiles, 'upwork');
+    const unsubUpwork = fetchAndSubscribe(COLLECTION_ID_UPWORK_PROFILES, setUpworkProfiles, 'upwork', false);
 
     return () => {
         unsubApps();
@@ -188,7 +193,7 @@ function MarketContent() {
                 </Button>
             ) : (
                  <Button asChild variant="ghost" size="sm">
-                    <Link href={`/dashboard/chat/seller-${product.sellerId}`}>Chat</Link>
+                    <Link href={`/dashboard/chat/${product.sellerId}`}>Chat</Link>
                 </Button>
             )}
              <DropdownMenu>
@@ -517,5 +522,3 @@ export default function MarketPage() {
     </Suspense>
   )
 }
-
-    

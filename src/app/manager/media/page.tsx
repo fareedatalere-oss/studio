@@ -266,21 +266,17 @@ export default function ManagerMediaPage() {
     <div className="container py-8">
       <h1 className="text-2xl font-bold mb-4">Media & Market Management</h1>
         <Tabs defaultValue="apps" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="apps">Apps</TabsTrigger>
                 <TabsTrigger value="products">Products</TabsTrigger>
                 <TabsTrigger value="bookstore">Bookstore</TabsTrigger>
-                <TabsTrigger value="upwork">Upwork</TabsTrigger>
                 <TabsTrigger value="subscribers">Subscribers</TabsTrigger>
             </TabsList>
             <TabsContent value="apps" className="mt-4"><MarketItemsManager collectionId={COLLECTION_ID_APPS} collectionName="Apps" /></TabsContent>
             <TabsContent value="products" className="mt-4"><MarketItemsManager collectionId={COLLECTION_ID_PRODUCTS} collectionName="Products" /></TabsContent>
             <TabsContent value="bookstore" className="mt-4"><MarketItemsManager collectionId={COLLECTION_ID_BOOKS} collectionName="Books" /></TabsContent>
-            <TabsContent value="upwork" className="mt-4"><MarketItemsManager collectionId={COLLECTION_ID_UPWORK_PROFILES} collectionName="Upwork Profiles" /></TabsContent>
             <TabsContent value="subscribers" className="mt-4"><SubscribersManager /></TabsContent>
       </Tabs>
     </div>
   );
 }
-
-    

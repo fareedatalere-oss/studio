@@ -216,8 +216,7 @@
         "avatarUrl": { "type": "string", "format": "uri" },
         "certificateUrl": { "type": "string", "format": "uri" },
         "sellerId": { "type": "string" },
-        "isBanned": { "type": "boolean", "default": false },
-        "isHidden": { "type": "boolean", "default": false }
+        "isBanned": { "type": "boolean", "default": false }
       },
       "required": ["name", "title", "description", "phoneNumber", "address", "avatarUrl", "certificateUrl", "sellerId"]
     }
@@ -282,5 +281,3 @@
     }
   }
 }
-
-    
