@@ -335,7 +335,7 @@ function MarketContent() {
                 <a href={`tel:${profile.phoneNumber}`}><Phone className="mr-2 h-4 w-4" /> Call</a>
             </Button>
              <Button asChild variant="secondary" className="flex-1">
-                <Link href={`/dashboard/chat/upwork-${profile.sellerId}`}>Chat</Link>
+                <Link href={`/dashboard/chat/${profile.sellerId}`}>Chat</Link>
             </Button>
              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
