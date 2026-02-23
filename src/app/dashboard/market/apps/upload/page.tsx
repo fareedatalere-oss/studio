@@ -129,6 +129,8 @@ function AppUploadForm() {
                 price: priceType === 'paid' ? Number(price) : 0,
                 priceType: priceType,
                 sellerId: user.$id,
+                isBanned: false,
+                isHidden: false,
             };
 
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_APPS, ID.unique(), newApp);
@@ -368,7 +370,7 @@ export default function UploadAppPage() {
 
   return (
     <div className="container py-8">
-      <Link href="/dashboard/market" className="flex items-center gap-2 mb-4 text-sm">
+      <Link href="/dashboard/market?tab=apps" className="flex items-center gap-2 mb-4 text-sm">
         <ArrowLeft className="h-4 w-4" />
         Back to Market
       </Link>
@@ -377,5 +379,3 @@ export default function UploadAppPage() {
     </div>
   );
 }
-
-    

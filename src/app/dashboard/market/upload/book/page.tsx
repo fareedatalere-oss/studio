@@ -18,6 +18,7 @@ import {
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
@@ -99,7 +100,9 @@ export default function UploadBookPage() {
                 priceType: priceType,
                 status: 'draft',
                 pageByPage: false, // will be set in next step
-                content: ['']
+                content: [''],
+                isBanned: false,
+                isHidden: false,
             };
 
             localStorage.setItem('bookDraft', JSON.stringify(bookDraft));
@@ -125,8 +128,10 @@ export default function UploadBookPage() {
                         You have an unsaved book draft. Would you like to continue editing it or start a new one?
                     </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogAction onClick={handleContinueDraft}>Continue with Draft</AlertDialogAction>
-                <AlertDialogCancel onClick={handleStartNew}>Start New</AlertDialogCancel>
+                <AlertDialogFooter>
+                    <AlertDialogAction onClick={handleContinueDraft}>Continue with Draft</AlertDialogAction>
+                    <AlertDialogCancel onClick={handleStartNew}>Start New</AlertDialogCancel>
+                </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
 

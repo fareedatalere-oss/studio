@@ -72,6 +72,8 @@ export default function UploadProductPage() {
                 contactType: contactType,
                 contactInfo: contactType === 'call' ? phone : '',
                 sellerId: user.$id,
+                isBanned: false,
+                isHidden: false,
             };
 
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_PRODUCTS, ID.unique(), newProduct);
@@ -89,7 +91,7 @@ export default function UploadProductPage() {
 
   return (
      <div className="container py-8">
-        <Link href="/dashboard/market" className="flex items-center gap-2 mb-4 text-sm">
+        <Link href="/dashboard/market?tab=products" className="flex items-center gap-2 mb-4 text-sm">
             <ArrowLeft className="h-4 w-4" />
             Back to Market
         </Link>
