@@ -90,7 +90,7 @@ function MarketContent() {
     };
     
     const fetchUpwork = () => {
-         databases.listDocuments(DATABASE_ID, COLLECTION_ID_UPWORK_PROFILES, [Query.orderDesc('$createdAt'), Query.equal('isBanned', false)])
+         databases.listDocuments(DATABASE_ID, COLLECTION_ID_UPWORK_PROFILES, [Query.orderDesc('$createdAt')])
             .then(res => setUpworkProfiles(res.documents))
             .catch(err => console.error(`Failed to fetch upworkProfiles`, err))
             .finally(() => setDataLoading(prev => ({...prev, upwork: false})));
