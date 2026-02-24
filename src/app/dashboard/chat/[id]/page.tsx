@@ -172,26 +172,23 @@ export default function ChatThreadPage() {
 
   // --- Data Fetching and Realtime ---
 
-  const findChatId = useCallback(async (currentUId: string, otherUId: string) => {
-    try {
-      // Find all chats the current user is a part of
-      const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
-        Query.equal('participants', currentUId),
-        Query.limit(100) // Limit to a reasonable number for performance
-      ]);
-      
-      // Filter those chats to find the one with the other user
-      const existingChat = response.documents.find(chat => 
-        chat.participants.includes(otherUId) && chat.participants.length === 2
-      );
-
-      if (existingChat) {
-        setChatId(existingChat.$id);
-        return existingChat.$id;
-      }
-    } catch (error) { console.error("Error finding chat:", error); }
-    return null;
-  }, []);
+    const findChatId = useCallback(async (currentUId: string, otherUId: string) => {
+        const sortedParticipants = [currentUId, otherUId].sort();
+        try {
+            const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
+                Query.equal('participants', sortedParticipants),
+                Query.limit(1)
+            ]);
+            if (response.documents.length > 0) {
+                const foundChatId = response.documents[0].$id;
+                setChatId(foundChatId);
+                return foundChatId;
+            }
+        } catch (error) {
+            console.error("Error finding chat:", error);
+        }
+        return null;
+    }, []);
 
   useEffect(() => {
     if (!otherUserId || !currentUser?.$id || !currentUserProfile) return;
@@ -265,79 +262,82 @@ export default function ChatThreadPage() {
 
   const handleSendMessage = async (text: string, file?: File, type?: Message['mediaType']) => {
     if ((!text.trim() && !file)) return;
+    
+    if (!currentUser?.$id || !otherUser?.$id) {
+        toast({ variant: 'destructive', title: 'Error', description: "Cannot send message. User or recipient not found." });
+        return;
+    }
+
     setIsSending(true);
 
     try {
-      if (!currentUser || !currentUser.$id) {
-        throw new Error("You are not logged in. Please sign in to send messages.");
-      }
-      if (!otherUser || !otherUser.$id) {
-        throw new Error("Recipient user could not be found. Cannot send message.");
-      }
+        let currentChatId = chatId;
 
-      let mediaUrl: string | undefined = undefined;
-      if (file && type) {
-        const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
-        mediaUrl = getAppwriteStorageUrl(uploadResult.$id);
-      }
+        // If chat doesn't exist, create it first.
+        if (!currentChatId) {
+            const sortedParticipants = [currentUser.$id, otherUser.$id].sort();
+            const chatPermissions = [
+                Permission.read(Role.user(currentUser.$id)),
+                Permission.read(Role.user(otherUser.$id)),
+                Permission.update(Role.user(currentUser.$id)),
+                Permission.update(Role.user(otherUser.$id)),
+            ];
+            const newChatDoc = await databases.createDocument(
+                DATABASE_ID,
+                COLLECTION_ID_CHATS,
+                ID.unique(),
+                { participants: sortedParticipants },
+                chatPermissions
+            );
+            currentChatId = newChatDoc.$id;
+            setChatId(currentChatId);
+        }
+        
+        if (!currentChatId) throw new Error("Failed to create or find chat.");
 
-      let currentChatId = chatId;
-      if (!currentChatId) {
-        const sortedParticipants = [currentUser.$id, otherUser.$id].sort();
-        const chatPermissions = [
+        let mediaUrl: string | undefined = undefined;
+        if (file && type) {
+            const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
+            mediaUrl = getAppwriteStorageUrl(uploadResult.$id);
+        }
+        
+        const messagePayload: any = {
+            chatId: currentChatId,
+            senderId: currentUser.$id,
+            status: 'sent',
+            text: text.trim(),
+            mediaUrl: mediaUrl,
+            mediaType: type || 'text'
+        };
+
+        const messagePermissions = [
             Permission.read(Role.user(currentUser.$id)),
             Permission.read(Role.user(otherUser.$id)),
             Permission.update(Role.user(currentUser.$id)),
-            Permission.update(Role.user(otherUser.$id)),
+            Permission.delete(Role.user(currentUser.$id)),
         ];
-        const newChatDoc = await databases.createDocument(
+
+        // Create the message document
+        await databases.createDocument(
             DATABASE_ID,
-            COLLECTION_ID_CHATS,
+            COLLECTION_ID_MESSAGES,
             ID.unique(),
-            {
-                participants: sortedParticipants,
-                lastMessage: text.trim() || `Sent a ${type}`,
-                lastMessageAt: new Date().toISOString()
-            },
-            chatPermissions
+            messagePayload,
+            messagePermissions
         );
-        currentChatId = newChatDoc.$id;
-        setChatId(currentChatId);
-      } else {
-         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, currentChatId, { lastMessage: text.trim() || `Sent a ${type}`, lastMessageAt: new Date().toISOString() });
-      }
-      if (!currentChatId) throw new Error("Failed to create or find chat.");
 
-      const messagePayload: any = { 
-          chatId: currentChatId, 
-          senderId: currentUser.$id, 
-          status: 'sent',
-          text: text.trim(),
-          mediaUrl: mediaUrl,
-          mediaType: type || 'text'
-      };
+        // Update the last message on the chat document
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, currentChatId, {
+            lastMessage: text.trim() || `Sent a ${type}`,
+            lastMessageAt: new Date().toISOString()
+        });
 
-      const messagePermissions = [
-        Permission.read(Role.user(currentUser.$id)),
-        Permission.read(Role.user(otherUser.$id)),
-        Permission.update(Role.user(currentUser.$id)),
-        Permission.delete(Role.user(currentUser.$id)),
-      ];
-
-      await databases.createDocument(
-          DATABASE_ID, 
-          COLLECTION_ID_MESSAGES, 
-          ID.unique(), 
-          messagePayload,
-          messagePermissions
-      );
-      
-      setInputText('');
-      setAudioPreview(null);
+        setInputText('');
+        setAudioPreview(null);
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Failed to send message', description: error.message });
+        toast({ variant: 'destructive', title: 'Failed to send message', description: error.message });
     } finally {
-      setIsSending(false);
+        setIsSending(false);
     }
   };
   
@@ -608,3 +608,4 @@ export default function ChatThreadPage() {
 
 
     
+
