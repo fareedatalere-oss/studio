@@ -56,15 +56,19 @@ function MarketContent() {
         setter: React.Dispatch<React.SetStateAction<any[]>>, 
         loadingKey: keyof typeof dataLoading
     ) => {
+        // Remove 'isBanned' and 'isHidden' from query to prevent crash if attributes are missing.
         const queries = [
             Query.orderDesc('$createdAt'),
-            Query.equal('isBanned', false),
-            Query.equal('isHidden', false),
         ];
 
       const fetchData = () => {
           databases.listDocuments(DATABASE_ID, collectionId, queries)
-            .then(res => setter(res.documents))
+            .then(res => {
+              // Filter on the client-side for safety.
+              // This will work even if the attributes don't exist (they'll be undefined -> false).
+              const visibleItems = res.documents.filter(doc => !doc.isBanned && !doc.isHidden);
+              setter(visibleItems);
+            })
             .catch(err => {
               console.error(`Failed to fetch ${collectionId}`, err)
               toast({
