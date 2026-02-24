@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -29,28 +29,27 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { MoreVertical, Search, ShieldAlert, KeyRound } from 'lucide-react';
+import { MoreVertical, Search, ShieldAlert, UserX, Trash2, Eye, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
+import { databases, storage, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_POSTS, COLLECTION_ID_POST_COMMENTS, COLLECTION_ID_TRANSACTIONS, BUCKET_ID_UPLOADS } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 export default function ManagerUsersPage() {
   const { toast } = useToast();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-
-  useEffect(() => {
+  
+  const fetchUsers = useCallback(() => {
     setLoading(true);
     databases.listDocuments(
         DATABASE_ID,
         COLLECTION_ID_PROFILES,
-        [Query.limit(100), Query.orderDesc('$createdAt')] // Get latest 100 users
+        [Query.limit(100), Query.orderDesc('$createdAt')]
     ).then(response => {
         setUsers(response.documents);
     }).catch(error => {
@@ -64,13 +63,68 @@ export default function ManagerUsersPage() {
         setLoading(false);
     });
   }, [toast]);
+  
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
-  const handleAction = (action: string, userName: string) => {
-    toast({
-      title: 'Action Triggered',
-      description: `${action} clicked for user ${userName}. (This is a placeholder).`,
-    });
+  const handleSuspendToggle = async (user: any) => {
+    const isCurrentlyBanned = user.isBanned || false;
+    const action = isCurrentlyBanned ? 'Unsuspend' : 'Suspend';
+    toast({ title: `${action}ing user...` });
+
+    try {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, { isBanned: !isCurrentlyBanned });
+        toast({ title: `User ${action}ed`, description: `${user.username} has been ${action.toLowerCase()}ed.` });
+        fetchUsers(); // Refresh the list
+    } catch (error: any) {
+        toast({ title: 'Action Failed', description: error.message, variant: 'destructive' });
+    }
   };
+
+  const getFileIdFromUrl = (url: string) => {
+    try {
+        const urlParts = url.split('/files/');
+        if (urlParts.length < 2) return null;
+        return urlParts[1].split('/view')[0];
+    } catch (e) {
+        return null;
+    }
+  };
+
+  const handleDeleteUser = async (user: any) => {
+    toast({ title: 'Deleting user and all their data...', description: 'This may take a moment.' });
+    try {
+        // Delete all posts (and associated media/comments) by the user
+        const userPosts = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [Query.equal('userId', user.$id)]);
+        for (const post of userPosts.documents) {
+            if (post.mediaUrl) {
+                const fileId = getFileIdFromUrl(post.mediaUrl);
+                if (fileId) await storage.deleteFile(BUCKET_ID_UPLOADS, fileId);
+            }
+            const postComments = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POST_COMMENTS, [Query.equal('postId', post.$id)]);
+            for (const comment of postComments.documents) {
+                await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_POST_COMMENTS, comment.$id);
+            }
+            await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_POSTS, post.$id);
+        }
+
+        // Delete all transactions by the user
+        const userTransactions = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, [Query.equal('userId', user.$id)]);
+        for (const tx of userTransactions.documents) {
+            await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, tx.$id);
+        }
+
+        // Finally, delete the user profile document
+        await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
+
+        toast({ title: 'User Deleted', description: `${user.username} and all their data have been permanently removed.` });
+        fetchUsers(); // Refresh the list
+    } catch (error: any) {
+         toast({ title: 'Deletion Failed', description: error.message, variant: 'destructive' });
+    }
+  };
+
 
   const filteredUsers = useMemo(() => {
     if (!searchQuery) return users;
@@ -120,7 +174,7 @@ export default function ManagerUsersPage() {
                 ))
               ) : filteredUsers.length > 0 ? (
                 filteredUsers.map((user) => (
-                    <TableRow key={user.$id}>
+                    <TableRow key={user.$id} className={cn(user.isBanned && "bg-destructive/10 text-destructive")}>
                     <TableCell>
                         <div className="flex items-center gap-3">
                         <Avatar>
@@ -140,15 +194,31 @@ export default function ManagerUsersPage() {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => setSelectedUser(user)}>
-                                View User Credentials
+                            <DropdownMenuItem asChild>
+                                <Link href={`/manager/users/view/${user.$id}`}><Eye className="mr-2 h-4 w-4" />View & Edit User</Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleAction('Suspend User', user.username)}>
-                                Suspend User
+                             <DropdownMenuItem onClick={() => handleSuspendToggle(user)}>
+                                {user.isBanned ? <UserX className="mr-2 h-4 w-4"/> : <ShieldAlert className="mr-2 h-4 w-4"/> }
+                                {user.isBanned ? 'Unsuspend User' : 'Suspend User'}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleAction('Delete User', user.username)} className="text-destructive">
-                                Delete User
-                            </DropdownMenuItem>
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Delete User
+                                    </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>This will permanently delete {user.username} and all of their data, including posts, comments, and transactions. This action cannot be undone.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction className="bg-destructive hover:bg-destructive/80" onClick={() => handleDeleteUser(user)}>Delete Permanently</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                             </AlertDialog>
                         </DropdownMenuContent>
                         </DropdownMenu>
                     </TableCell>
@@ -163,38 +233,6 @@ export default function ManagerUsersPage() {
           </Table>
         </CardContent>
       </Card>
-
-      {/* Dialog for viewing user credentials */}
-      <AlertDialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>User Credentials for @{selectedUser?.username}</AlertDialogTitle>
-                <AlertDialogDescription>
-                    This information is highly sensitive. Do not share it.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="space-y-4">
-                <Alert variant="destructive">
-                    <ShieldAlert className="h-4 w-4" />
-                    <AlertTitle>Security Warning</AlertTitle>
-                    <AlertDescription>
-                        Passwords are encrypted and cannot be displayed. This is a critical security feature of the application.
-                    </AlertDescription>
-                </Alert>
-                <div className="space-y-2">
-                    <Label>Transaction PIN</Label>
-                    <div className="flex items-center gap-2 font-mono text-lg p-3 bg-muted rounded-md">
-                        <KeyRound className="h-5 w-5" />
-                        <span className="font-bold">{selectedUser?.pin || 'Not Set'}</span>
-                    </div>
-                </div>
-            </div>
-            <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setSelectedUser(null)}>Close</AlertDialogCancel>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
     </div>
   );
 }

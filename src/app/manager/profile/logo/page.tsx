@@ -63,9 +63,20 @@ export default function EditLogoPage() {
       const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), logoFile);
       const newLogoUrl = getAppwriteStorageUrl(upload.$id);
 
-      await databases.updateDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG, {
-        logoUrl: newLogoUrl
-      });
+      // Try to update, if it fails, create it.
+      try {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG, {
+          logoUrl: newLogoUrl
+        });
+      } catch (error: any) {
+        if (error.code === 404) { // Not found, so create it
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG, {
+                logoUrl: newLogoUrl
+            });
+        } else {
+            throw error; // Re-throw other errors
+        }
+      }
       
       toast({ title: 'Success!', description: 'App logo updated. Changes may take a moment to appear everywhere.' });
       setCurrentLogo(newLogoUrl);

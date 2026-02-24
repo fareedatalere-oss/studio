@@ -7,18 +7,37 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useUser } from '@/hooks/use-appwrite';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
+import { account } from '@/lib/appwrite';
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user, profile, loading } = useUser();
+  const router = useRouter();
+  const { toast } = useToast();
+  const { user, profile, loading, recheckUser } = useUser();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+  
+  useEffect(() => {
+    if (!loading && profile && profile.isBanned) {
+      toast({
+        title: 'Account Suspended',
+        description: 'Your account has been suspended by an administrator.',
+        variant: 'destructive',
+        duration: 7000
+      });
+      account.deleteSession('current');
+      recheckUser();
+      router.replace('/auth/signin');
+    }
+  }, [profile, loading, router, toast, recheckUser]);
   
   // TODO: Re-implement notifications with Appwrite
   const unreadNotifications: any[] = [];

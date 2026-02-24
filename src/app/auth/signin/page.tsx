@@ -65,36 +65,43 @@ export default function SignInPage() {
 
       const session = await account.createEmailPasswordSession(email, password);
       
+      // Check if user is banned before proceeding
+      const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, session.userId);
+      if (profile.isBanned) {
+        // Immediately delete the session and show error
+        await account.deleteSession('current');
+        toast({
+          title: 'Account Suspended',
+          description: 'Sorry, your account is currently suspended. Please contact support.',
+          variant: 'destructive',
+          duration: 7000,
+        });
+        setIsLoading(false);
+        return;
+      }
+      
       // Force the provider to update its state with the new user
       await recheckUser();
       
-      // Check if a profile document exists for this user.
-      try {
-        await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, session.userId);
-        
-        // Profile exists, so we can go to the dashboard.
-        toast({
-          title: 'Success',
-          description: 'Signed in successfully!',
-        });
-        router.push('/dashboard');
-      } catch (profileError: any) {
-        // A 404 error means the profile document was not found.
-        if (profileError.code === 404) {
-          toast({
-            title: 'Welcome!',
-            description: "Please complete your profile to continue.",
-          });
-          router.push('/auth/signup/profile');
-        } else {
-          // For any other error, we should show it.
-          throw profileError;
-        }
-      }
+      // Profile exists, so we can go to the dashboard.
+      toast({
+        title: 'Success',
+        description: 'Signed in successfully!',
+      });
+      router.push('/dashboard');
 
     } catch (error: any) {
         console.error("Sign in error:", error);
         let errorMessage = "An unexpected error occurred. Please try again.";
+        // Check for profile not found, which means they need to complete signup
+        if (error.code === 404 && error.message.includes('document')) {
+           toast({
+            title: 'Welcome!',
+            description: "Please complete your profile to continue.",
+          });
+          router.push('/auth/signup/profile');
+          return;
+        }
         if (error.type === 'user_invalid_credentials' || error.code === 401) {
             errorMessage = "Invalid email or password.";
         } else if (error.message) {
