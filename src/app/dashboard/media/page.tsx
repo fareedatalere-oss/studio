@@ -324,12 +324,12 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
   
   const handleDownload = async (url: string, filename: string, postType: string) => {
     if (!url) return;
-    toast({ title: "Preparing download..." });
 
     try {
         if (postType === 'image') {
+            toast({ title: "Adding watermark and preparing download..." });
             const image = new window.Image();
-            image.crossOrigin = 'anonymous';
+            image.crossOrigin = 'anonymous'; // This is important for fetching images from other domains
             image.onload = () => {
                 const canvas = document.createElement('canvas');
                 canvas.width = image.width;
@@ -340,23 +340,17 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
                     return;
                 }
                 
-                // Draw the image
                 ctx.drawImage(image, 0, 0);
 
-                // Add watermark
                 const watermarkText = "From I-pay online business and transaction";
                 const fontSize = Math.max(20, image.width / 40);
                 ctx.font = `bold ${fontSize}px Arial`;
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
                 ctx.textAlign = 'center';
 
-                // Top watermark
                 ctx.fillText(watermarkText, canvas.width / 2, fontSize + 20);
-
-                // Bottom watermark
                 ctx.fillText(watermarkText, canvas.width / 2, canvas.height - 20);
                 
-                // Trigger download
                 const link = document.createElement('a');
                 link.href = canvas.toDataURL('image/png');
                 link.download = `watermarked-${filename || 'ipay-media'}.png`;
@@ -366,7 +360,7 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
                 toast({ title: "Download started" });
             };
             image.onerror = () => {
-                 toast({ title: "Error", description: "Could not load image for watermarking. Downloading original instead.", variant: "destructive" });
+                 toast({ title: "Error", description: "Could not load image. Preparing direct download instead.", variant: "destructive" });
                  const link = document.createElement('a');
                  link.href = url;
                  link.target = "_blank";
@@ -375,12 +369,12 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
                  link.click();
                  document.body.removeChild(link);
             }
-            // Fetch the image via a proxy if CORS is an issue, but for now, direct fetch
+            
             const response = await fetch(url);
             const blob = await response.blob();
             image.src = URL.createObjectURL(blob);
         } else {
-            // For video/music, just download directly
+            toast({ title: "Preparing direct download...", description: "Watermarking is not available for video or audio files." });
             const link = document.createElement('a');
             link.href = url;
             link.target = "_blank";
@@ -388,7 +382,6 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            toast({ title: "Download started" });
         }
     } catch (error) {
         console.error("Download error:", error);
@@ -520,7 +513,7 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
 };
 
 
-const PostFeed = ({ type, isMuted, onMuteChange }: { type: string, isMuted: boolean, onMuteChange: (muted: boolean) => void }) => {
+const PostFeed = ({ type, isMuted, onMuteChange, onPostUpdate }: { type: string, isMuted: boolean, onMuteChange: (muted: boolean) => void, onPostUpdate: (updatedPost: any) => void }) => {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -530,6 +523,7 @@ const PostFeed = ({ type, isMuted, onMuteChange }: { type: string, isMuted: bool
         try {
             const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [
                 Query.equal('type', type),
+                Query.equal('isBanned', false), // Ensure banned posts are not shown
                 Query.orderDesc('$createdAt'),
             ]);
             setPosts(response.documents);
@@ -545,12 +539,17 @@ const PostFeed = ({ type, isMuted, onMuteChange }: { type: string, isMuted: bool
       const eventType = response.events[0];
       const payload = response.payload as any;
 
-      if (eventType.includes('.create')) {
-          if (payload.type === type) {
-              setPosts(prev => [payload, ...prev.filter(p => p.$id !== payload.$id)]);
+      if (payload.type !== type || payload.isBanned) {
+          if(payload.isBanned) {
+              setPosts(prev => prev.filter(p => p.$id !== payload.$id));
           }
+          return;
+      }
+      
+      if (eventType.includes('.create')) {
+          setPosts(prev => [payload, ...prev.filter(p => p.$id !== payload.$id)]);
       } else if (eventType.includes('.update')) {
-          setPosts(prev => prev.map(p => p.$id === payload.$id ? payload : p));
+          onPostUpdate(payload);
       } else if (eventType.includes('.delete')) {
           setPosts(prev => prev.filter(p => p.$id !== payload.$id));
       }
@@ -560,7 +559,7 @@ const PostFeed = ({ type, isMuted, onMuteChange }: { type: string, isMuted: bool
         unsubscribe();
     };
 
-  }, [type]);
+  }, [type, onPostUpdate]);
 
   if (loading) {
     return <div className="p-4"><Skeleton className="h-[calc(100vh-200px)] w-full" /></div>;
@@ -581,6 +580,72 @@ export default function MediaPage() {
   const [open, setOpen] = useState(false);
   const [isFeedMuted, setIsFeedMuted] = useState(true);
 
+  // This state will hold all posts, and we pass filtered lists to the feeds
+  const [allPosts, setAllPosts] = useState<any[]>([]);
+
+  // This function is called by the subscription to update a single post without refetching everything
+  const handlePostUpdate = (updatedPost: any) => {
+      setAllPosts(prevPosts => {
+          const index = prevPosts.findIndex(p => p.$id === updatedPost.$id);
+          if (index === -1) return prevPosts; // Should not happen
+          const newPosts = [...prevPosts];
+          newPosts[index] = updatedPost;
+          return newPosts;
+      });
+  };
+
+  const getPostsForType = (type: string) => allPosts.filter(p => p.type === type);
+
+  // Fetch all posts initially
+   useEffect(() => {
+        const fetchAllPosts = async () => {
+            try {
+                const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [
+                    Query.equal('isBanned', false),
+                    Query.orderDesc('$createdAt'),
+                    Query.limit(100) // Fetch a reasonable number of initial posts
+                ]);
+                setAllPosts(response.documents);
+            } catch (error) {
+                console.error("Failed to fetch posts:", error);
+            }
+        };
+        fetchAllPosts();
+        
+        const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_POSTS}.documents`, response => {
+            const eventType = response.events[0];
+            const payload = response.payload as any;
+
+            if (eventType.includes('.create') && !payload.isBanned) {
+                 setAllPosts(prev => [payload, ...prev]);
+            } else if (eventType.includes('.delete') || (eventType.includes('.update') && payload.isBanned)) {
+                setAllPosts(prev => prev.filter(p => p.$id !== payload.$id));
+            } else if (eventType.includes('.update')) {
+                handlePostUpdate(payload);
+            }
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+  const PostFeedMemo = useMemo(() => {
+      const Feed = ({type, ...props}: any) => {
+          const posts = getPostsForType(type);
+           if (!posts || posts.length === 0) {
+                return <div className="flex items-center justify-center h-[calc(100vh-200px)] text-muted-foreground">No {type} posts yet.</div>
+            }
+           return (
+            <div className="h-full">
+              {posts.map(post => <PostCard key={post.$id} post={post} {...props} />)}
+            </div>
+          )
+      }
+      Feed.displayName = 'PostFeed';
+      return Feed;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allPosts]);
+
+
   return (
     <div className="relative h-full">
       <Tabs defaultValue="text" className="h-full flex flex-col">
@@ -596,20 +661,20 @@ export default function MediaPage() {
           </div>
         </header>
         <div className="flex-1 overflow-y-auto snap-y snap-mandatory">
-          <TabsContent value="text" className="m-0 h-full"><PostFeed type="text" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
-          <TabsContent value="image" className="m-0 h-full"><PostFeed type="image" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
-          <TabsContent value="reels" className="m-0 h-full"><PostFeed type="reels" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
-          <TabsContent value="film" className="m-0 h-full"><PostFeed type="film" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
-          <TabsContent value="music" className="m-0 h-full"><PostFeed type="music" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+          <TabsContent value="text" className="m-0 h-full"><PostFeedMemo type="text" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+          <TabsContent value="image" className="m-0 h-full"><PostFeedMemo type="image" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+          <TabsContent value="reels" className="m-0 h-full"><PostFeedMemo type="reels" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+          <TabsContent value="film" className="m-0 h-full"><PostFeedMemo type="film" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+          <TabsContent value="music" className="m-0 h-full"><PostFeedMemo type="music" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
         </div>
       </Tabs>
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
-          <Button
+           <Button
             size="icon"
             variant="destructive"
-            className="fixed bottom-24 left-6 md:bottom-6 h-16 w-16 rounded-full z-30 shadow-lg"
+            className="fixed bottom-24 right-6 md:bottom-6 md:right-8 h-16 w-16 rounded-full z-30 shadow-lg"
           >
             <Plus className="h-8 w-8" />
             <span className="sr-only">Add Media</span>
