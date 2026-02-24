@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -13,6 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const PostManagerCard = ({ post, onDelete }: { post: any, onDelete: (postId: string) => void }) => {
     const { toast } = useToast();
@@ -54,7 +56,7 @@ const PostManagerCard = ({ post, onDelete }: { post: any, onDelete: (postId: str
     return (
         <Card>
             <CardContent className="p-4 flex justify-between items-start gap-4">
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-4 flex-1 min-w-0">
                      {post.mediaUrl && post.type !== 'text' ? (
                         <Image src={post.mediaUrl} alt="media" width={64} height={64} className="rounded-md object-cover aspect-square" />
                      ) : (
@@ -62,14 +64,14 @@ const PostManagerCard = ({ post, onDelete }: { post: any, onDelete: (postId: str
                             <p className="text-xs text-center p-1 truncate text-white">{post.text}</p>
                         </div>
                      )}
-                    <div>
+                    <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold line-clamp-2">{post.description || post.text || 'No Description'}</p>
                         <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
                             <Avatar className="h-5 w-5">
                                 <AvatarImage src={post.userAvatar} />
                                 <AvatarFallback>{post.username?.charAt(0) || 'U'}</AvatarFallback>
                             </Avatar>
-                             <span>@{post.username}</span>
+                             <span className="truncate">@{post.username}</span>
                              <span>&bull;</span>
                             <span>{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</span>
                         </div>
@@ -106,31 +108,61 @@ const PostManagerCard = ({ post, onDelete }: { post: any, onDelete: (postId: str
     );
 };
 
+const PostManagerList = ({ type }: { type?: string }) => {
+    const [posts, setPosts] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetchPosts = useCallback(() => {
+        setLoading(true);
+        const queries = [Query.orderDesc('$createdAt'), Query.limit(100)];
+        if (type) {
+            queries.push(Query.equal('type', type));
+        }
+
+        databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, queries)
+            .then(response => setPosts(response.documents))
+            .catch(err => console.error("Failed to fetch posts", err))
+            .finally(() => setLoading(false));
+    }, [type]);
+
+    useEffect(() => {
+        fetchPosts();
+    }, [fetchPosts]);
+
+    const handlePostDeleted = (postId: string) => {
+        setPosts(prev => prev.filter(p => p.$id !== postId));
+    };
+
+    if (loading) {
+        return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+    }
+    
+    return (
+        <div className="space-y-4">
+            {posts.length > 0 ? posts.map(post => (
+                <PostManagerCard key={post.$id} post={post} onDelete={handlePostDeleted} />
+            )) : (
+                <p className="text-center text-muted-foreground py-10">No posts found for this category.</p>
+            )}
+        </div>
+    );
+};
+
 
 export default function ManagerMediaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [posts, setPosts] = useState<any[]>([]);
+  
+  const postTypes = ["text", "image", "reels", "film", "music"];
 
   useEffect(() => {
     const hasBypass = sessionStorage.getItem('manager-media-bypass') === 'true';
     if (!hasBypass) {
       router.replace('/manager/media/bypass');
-      return;
+    } else {
+        setLoading(false);
     }
-    
-    setLoading(true);
-    databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [Query.orderDesc('$createdAt'), Query.limit(100)])
-        .then(response => setPosts(response.documents))
-        .catch(err => console.error("Failed to fetch posts", err))
-        .finally(() => setLoading(false));
-
   }, [router]);
-
-  const handlePostDeleted = (postId: string) => {
-    setPosts(prev => prev.filter(p => p.$id !== postId));
-  };
-
 
   if (loading) {
     return <div className="flex justify-center items-center h-screen"><Loader2 className="h-8 w-8 animate-spin" /></div>
@@ -143,12 +175,23 @@ export default function ManagerMediaPage() {
           <CardTitle>Media Management</CardTitle>
           <CardDescription>Oversee and delete all media posts on the platform.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-            {posts.length > 0 ? posts.map(post => (
-                <PostManagerCard key={post.$id} post={post} onDelete={handlePostDeleted} />
-            )) : (
-                <p className="text-center text-muted-foreground py-10">No posts found.</p>
-            )}
+        <CardContent>
+            <Tabs defaultValue="all" className="w-full">
+                <TabsList className="grid w-full grid-cols-6">
+                    <TabsTrigger value="all">All</TabsTrigger>
+                    {postTypes.map(type => (
+                        <TabsTrigger key={type} value={type} className="capitalize">{type}</TabsTrigger>
+                    ))}
+                </TabsList>
+                <TabsContent value="all" className="mt-4">
+                    <PostManagerList />
+                </TabsContent>
+                {postTypes.map(type => (
+                    <TabsContent key={type} value={type} className="mt-4">
+                        <PostManagerList type={type} />
+                    </TabsContent>
+                ))}
+            </Tabs>
         </CardContent>
       </Card>
     </div>

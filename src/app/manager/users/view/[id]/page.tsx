@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -115,7 +116,6 @@ export default function ViewUserPage() {
                         <div>
                             <CardTitle>{profile.username}</CardTitle>
                             <CardDescription>{profile.email}</CardDescription>
-                             {profile.isBanned && <Badge variant="destructive" className="mt-2">Suspended</Badge>}
                         </div>
                     </div>
                 </CardHeader>

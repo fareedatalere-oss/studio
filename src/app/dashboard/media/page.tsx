@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -130,6 +130,10 @@ const PostCard = ({ post }: { post: any }) => {
   const { user: currentUser, profile: currentUserProfile, recheckUser } = useUser();
   const { toast } = useToast();
 
+  const postRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likes?.length || 0);
 
@@ -141,6 +145,35 @@ const PostCard = ({ post }: { post: any }) => {
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentCount, setCommentCount] = useState(post.commentCount || 0);
   const [isRotated, setIsRotated] = useState(false);
+  
+  // Intersection Observer for video autoplay
+  useEffect(() => {
+    if (!videoRef.current) return;
+    
+    const observer = new IntersectionObserver(
+        ([entry]) => {
+            if (entry.isIntersecting) {
+                videoRef.current?.play().catch(error => console.error("Video autoplay failed:", error));
+            } else {
+                videoRef.current?.pause();
+            }
+        },
+        { threshold: 0.5 } // Play when 50% of the video is visible
+    );
+
+    observer.observe(postRef.current!);
+
+    return () => observer.disconnect();
+  }, []);
+
+  const handleAudioPlay = () => {
+    // Find all other audio elements and pause them
+    document.querySelectorAll('audio').forEach(audioEl => {
+      if (audioEl !== audioRef.current) {
+        audioEl.pause();
+      }
+    });
+  };
 
   useEffect(() => {
     if (currentUser) {
@@ -337,7 +370,7 @@ const PostCard = ({ post }: { post: any }) => {
 
 
   return (
-    <div className={cn("relative h-[calc(100vh-170px)] bg-black flex flex-col justify-between text-white snap-start", isRotated && "fixed inset-0 z-[60] h-screen w-screen p-0")}>
+    <div ref={postRef} className={cn("relative h-[calc(100vh-170px)] bg-black flex flex-col justify-between text-white snap-start", isRotated && "fixed inset-0 z-[60] h-screen w-screen p-0")}>
       {/* Header */}
        <div className={cn("absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/50 to-transparent z-10", isRotated && "hidden")}>
             <div className="flex items-center justify-between">
@@ -376,13 +409,13 @@ const PostCard = ({ post }: { post: any }) => {
           <Image src={post.mediaUrl} alt={post.description || 'Post image'} fill className="object-contain" />
         )}
         {(post.type === 'reels' || post.type === 'film') && post.mediaUrl && (
-           <video src={post.mediaUrl} controls autoPlay muted loop className={cn("w-full h-full object-contain", isRotated && "object-cover")} />
+           <video ref={videoRef} src={post.mediaUrl} controls autoPlay muted loop className={cn("w-full h-full object-contain", isRotated && "object-cover")} />
         )}
         {post.type === 'music' && (
             <div className="flex flex-col items-center justify-center p-8 text-center">
                 <Music className="h-32 w-32 mb-4"/>
                 <h2 className="text-2xl font-bold">{post.description || 'Untitled Track'}</h2>
-                {post.mediaUrl && <audio controls src={post.mediaUrl} className="mt-8 w-full max-w-sm"></audio>}
+                {post.mediaUrl && <audio ref={audioRef} onPlay={handleAudioPlay} controls src={post.mediaUrl} className="mt-8 w-full max-w-sm"></audio>}
             </div>
         )}
       </div>
@@ -499,7 +532,7 @@ const PostFeed = ({ type }: { type: string }) => {
   }
 
   return (
-    <div className="h-full overflow-y-auto snap-y snap-mandatory">
+    <div className="h-full">
       {posts.map(post => <PostCard key={post.$id} post={post} />)}
     </div>
   )
@@ -522,12 +555,12 @@ export default function MediaPage() {
             </TabsList>
           </div>
         </header>
-        <div className="flex-1 overflow-y-auto">
-          <TabsContent value="text" className="m-0"><PostFeed type="text" /></TabsContent>
-          <TabsContent value="image" className="m-0"><PostFeed type="image" /></TabsContent>
-          <TabsContent value="reels" className="m-0"><PostFeed type="reels" /></TabsContent>
-          <TabsContent value="film" className="m-0"><PostFeed type="film" /></TabsContent>
-          <TabsContent value="music" className="m-0"><PostFeed type="music" /></TabsContent>
+        <div className="flex-1 overflow-y-auto snap-y snap-mandatory">
+          <TabsContent value="text" className="m-0 h-full"><PostFeed type="text" /></TabsContent>
+          <TabsContent value="image" className="m-0 h-full"><PostFeed type="image" /></TabsContent>
+          <TabsContent value="reels" className="m-0 h-full"><PostFeed type="reels" /></TabsContent>
+          <TabsContent value="film" className="m-0 h-full"><PostFeed type="film" /></TabsContent>
+          <TabsContent value="music" className="m-0 h-full"><PostFeed type="music" /></TabsContent>
         </div>
       </Tabs>
 
@@ -536,7 +569,7 @@ export default function MediaPage() {
           <Button
             size="icon"
             variant="destructive"
-            className="absolute bottom-24 left-6 md:bottom-6 h-16 w-16 rounded-full z-20 shadow-lg"
+            className="absolute bottom-24 left-6 md:bottom-6 h-16 w-16 rounded-full z-30 shadow-lg"
           >
             <Plus className="h-8 w-8" />
             <span className="sr-only">Add Media</span>
