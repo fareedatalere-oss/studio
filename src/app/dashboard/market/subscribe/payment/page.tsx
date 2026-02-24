@@ -33,8 +33,8 @@ export default function SubscriptionPaymentPage() {
     const SUBSCRIPTION_FEE = 25000;
 
     const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        if (/^\d{0,5}$/.test(value)) {
+        const value = e.target.value.replace(/\D/g, '');
+        if (value.length <= 5) {
             setPin(value);
         }
     };
@@ -61,7 +61,7 @@ export default function SubscriptionPaymentPage() {
                 nairaBalance: newBalance,
             });
 
-            await recheckUser(); // Re-sync user data from hook
+            await recheckUser();
 
             toast({
                 title: 'Payment Successful',
@@ -82,22 +82,22 @@ export default function SubscriptionPaymentPage() {
 
     const handleOtherPayments = (method: string) => {
         toast({
-            title: 'Redirecting to Paystack',
-            description: `Processing payment via ${method}.`,
+            title: 'Redirecting to Payment Page',
+            description: `Please wait as we redirect you to complete your payment via ${method}.`,
         });
-        // Simulate redirection and successful payment
-        setIsLoading(true);
-        setTimeout(() => {
-            // In a real app, Paystack would redirect back to a verification page.
-            // We simulate that by just setting the subscription to true.
-            if(user) {
-                 databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, {
-                    isMarketplaceSubscribed: true,
-                }).then(() => {
-                    router.push('/dashboard/market?subscribed=true');
-                });
-            }
-        }, 2000);
+        
+        const paystackPaymentPageUrl = 'https://paystack.com/pay/REPLACE_WITH_YOUR_PAGE_LINK';
+
+        if (paystackPaymentPageUrl.includes('REPLACE_WITH_YOUR_PAGE_LINK')) {
+            toast({
+                variant: 'destructive',
+                title: 'Configuration Needed',
+                description: 'A developer must replace the placeholder Paystack URL in the code.',
+                duration: 8000,
+            });
+        }
+        
+        window.location.href = paystackPaymentPageUrl;
     }
 
     return (
@@ -133,7 +133,7 @@ export default function SubscriptionPaymentPage() {
                                     value={pin}
                                     onChange={handlePinChange}
                                     maxLength={5}
-                                    placeholder="e.g. 12345"
+                                    placeholder="*****"
                                     required
                                 />
                             </div>
@@ -168,5 +168,3 @@ export default function SubscriptionPaymentPage() {
         </div>
     );
 }
-
-    

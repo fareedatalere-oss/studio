@@ -141,9 +141,9 @@ export default function AppDetailsPage() {
                         inputMode="numeric"
                         pattern="[0-9]*"
                         value={pin}
-                        onChange={(e) => setPin(e.target.value)}
+                        onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                         maxLength={5}
-                        placeholder="e.g. 12345"
+                        placeholder="*****"
                     />
                 </div>
                 <AlertDialogFooter>

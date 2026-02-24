@@ -1,6 +1,31 @@
+'use client';
+
 import type { SVGProps } from "react";
+import Image from "next/image";
+import { useUser } from "@/hooks/use-appwrite";
+import { Skeleton } from "./ui/skeleton";
 
 export function IPayLogo(props: SVGProps<SVGSVGElement>) {
+  const { config, loading } = useUser();
+
+  if (loading) {
+    return <Skeleton className="h-8 w-8 rounded-md" {...props} />;
+  }
+
+  if (config?.logoUrl) {
+    const width = props.width || 24;
+    const height = props.height || 24;
+    return (
+      <Image
+        src={config.logoUrl}
+        alt="I-Pay Logo"
+        width={Number(width)}
+        height={Number(height)}
+        className={props.className?.toString()}
+      />
+    );
+  }
+
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"

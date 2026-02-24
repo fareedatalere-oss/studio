@@ -126,7 +126,7 @@ const SendMoneyDialog = ({ currentUser, otherUser }: { currentUser: any, otherUs
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="pin">Your 5-Digit PIN</Label>
-                        <Input id="pin" type="password" inputMode="numeric" value={pin} onChange={e => setPin(e.target.value)} maxLength={5} placeholder="*****" />
+                        <Input id="pin" type="password" inputMode="numeric" pattern="[0-9]*" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} placeholder="*****" />
                     </div>
                 </div>
                 <AlertDialogFooter>
