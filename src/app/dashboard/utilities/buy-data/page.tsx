@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -176,7 +177,7 @@ export default function BuyDataPage() {
                             </AlertDialogHeader>
                             <div className="space-y-2">
                                 <Label htmlFor="pin">5-Digit Transaction PIN</Label>
-                                <Input id="pin" type="password" value={pin} onChange={(e) => setPin(e.target.value)} maxLength={5} />
+                                <Input id="pin" type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} maxLength={5} />
                             </div>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -191,3 +192,5 @@ export default function BuyDataPage() {
         </div>
     );
 }
+
+    

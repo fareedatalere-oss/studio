@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_APP_CONFIG, getAppwriteStorageUrl } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { ID, Permission, Role } from 'appwrite';
 
 const DOCUMENT_ID_MAIN_CONFIG = 'main';
 
@@ -72,9 +72,18 @@ export default function EditLogoPage() {
         });
       } catch (error: any) {
         if (error.code === 404) { // Document not found, so create it
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG, {
-                logoUrl: newLogoUrl
-            });
+            // Grant read access to anyone and update access to any authenticated user
+            const permissions = [
+                Permission.read(Role.any()),
+                Permission.update(Role.users()),
+            ];
+            await databases.createDocument(
+                DATABASE_ID,
+                COLLECTION_ID_APP_CONFIG,
+                DOCUMENT_ID_MAIN_CONFIG,
+                { logoUrl: newLogoUrl },
+                permissions
+            );
         } else {
             throw error; // Re-throw other errors (like collection not found)
         }
@@ -138,3 +147,5 @@ export default function EditLogoPage() {
     </div>
   );
 }
+
+    

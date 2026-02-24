@@ -110,6 +110,7 @@ export default function SettingsPage() {
                   <Input
                     id="current-pin"
                     type="password"
+                    inputMode="numeric"
                     maxLength={5}
                     value={pinData.current}
                     onChange={(e) => setPinData({ ...pinData, current: e.target.value.replace(/\D/g, '') })}
@@ -209,3 +210,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+    
