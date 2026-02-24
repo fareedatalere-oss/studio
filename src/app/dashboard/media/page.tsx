@@ -127,23 +127,22 @@ const CommentInput = ({ postId, onCommentPosted }: { postId: string, onCommentPo
 
 
 const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean; onMuteChange: (muted: boolean) => void; }) => {
-  const { user: currentUser, profile: currentUserProfile, recheckUser } = useUser();
+  const { user: currentUser, profile: currentUserProfile } = useUser();
   const { toast } = useToast();
 
   const postRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(post.likes?.length || 0);
-
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [isLoadingFollow, setIsLoadingFollow] = useState(false);
+  const [isLiked, setIsLiked] = useState(() => post.likes?.includes(currentUser?.$id));
+  const [likeCount, setLikeCount] = useState(() => post.likes?.length || 0);
+  const [isFollowing, setIsFollowing] = useState(() => currentUserProfile?.following?.includes(post.userId) || false);
+  const [commentCount, setCommentCount] = useState(() => post.commentCount || 0);
   
+  const [isLoadingFollow, setIsLoadingFollow] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<any[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
-  const [commentCount, setCommentCount] = useState(post.commentCount || 0);
   const [isRotated, setIsRotated] = useState(false);
   
   // Intersection Observer for video autoplay
@@ -198,18 +197,20 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
     });
   };
 
+  // This effect synchronizes the card's state with the props from the parent feed.
   useEffect(() => {
-    if (currentUser) {
-        setIsLiked(post.likes?.includes(currentUser.$id));
-    }
-    if (currentUserProfile && post) {
+    setIsLiked(post.likes?.includes(currentUser?.$id));
+    setLikeCount(post.likes?.length || 0);
+    setCommentCount(post.commentCount || 0);
+    if (currentUserProfile) {
       setIsFollowing(currentUserProfile.following?.includes(post.userId) || false);
     }
-  }, [currentUser, currentUserProfile, post]);
+  }, [post.likes, post.commentCount, post.userId, currentUser, currentUserProfile]);
 
   const handleLike = async () => {
     if (!currentUser) return;
     
+    // Optimistic update
     const newIsLiked = !isLiked;
     const newLikeCount = newIsLiked ? likeCount + 1 : likeCount - 1;
     setIsLiked(newIsLiked);
@@ -225,9 +226,10 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
             likes: newLikes
         });
     } catch (error) {
-        console.error("Failed to update likes:", error);
+        // Revert on error
         setIsLiked(!newIsLiked);
         setLikeCount(likeCount);
+        console.error("Failed to update likes:", error);
     }
   };
   
@@ -260,8 +262,6 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
             databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, post.userId, { followers: newTheirFollowers })
         ]);
         
-        // No need to call recheckUser(), as it can cause a full layout shift.
-        // The local state update is sufficient for a good UX.
         toast({
             title: !currentlyFollowing ? 'Followed' : 'Unfollowed',
             description: !currentlyFollowing ? `You are now following ${post.username}.` : `You are no longer following ${post.username}.`
@@ -345,10 +345,16 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
 
                 // Add watermark
                 const watermarkText = "From I-pay online business and transaction";
-                ctx.font = `bold ${Math.max(20, image.width / 30)}px Arial`;
+                const fontSize = Math.max(20, image.width / 40);
+                ctx.font = `bold ${fontSize}px Arial`;
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
                 ctx.textAlign = 'center';
-                ctx.fillText(watermarkText, canvas.width / 2, canvas.height - 30);
+
+                // Top watermark
+                ctx.fillText(watermarkText, canvas.width / 2, fontSize + 20);
+
+                // Bottom watermark
+                ctx.fillText(watermarkText, canvas.width / 2, canvas.height - 20);
                 
                 // Trigger download
                 const link = document.createElement('a');
@@ -361,7 +367,6 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
             };
             image.onerror = () => {
                  toast({ title: "Error", description: "Could not load image for watermarking. Downloading original instead.", variant: "destructive" });
-                 // Fallback to direct download
                  const link = document.createElement('a');
                  link.href = url;
                  link.target = "_blank";
@@ -370,6 +375,7 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
                  link.click();
                  document.body.removeChild(link);
             }
+            // Fetch the image via a proxy if CORS is an issue, but for now, direct fetch
             const response = await fetch(url);
             const blob = await response.blob();
             image.src = URL.createObjectURL(blob);
@@ -540,15 +546,12 @@ const PostFeed = ({ type, isMuted, onMuteChange }: { type: string, isMuted: bool
       const payload = response.payload as any;
 
       if (eventType.includes('.create')) {
-          // Only add if it matches the current feed's type
           if (payload.type === type) {
               setPosts(prev => [payload, ...prev.filter(p => p.$id !== payload.$id)]);
           }
       } else if (eventType.includes('.update')) {
-          // Update the specific post in place
           setPosts(prev => prev.map(p => p.$id === payload.$id ? payload : p));
       } else if (eventType.includes('.delete')) {
-          // Remove the deleted post from any feed it might be in
           setPosts(prev => prev.filter(p => p.$id !== payload.$id));
       }
     });
