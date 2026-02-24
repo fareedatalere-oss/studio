@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -16,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -259,10 +257,40 @@ export default function ChatThreadPage() {
   useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   // --- Actions ---
+    const getOrCreateChat = useCallback(async (currentUserId: string, otherUserId: string): Promise<string> => {
+        // 1. Try to find existing chat
+        const sortedParticipants = [currentUserId, otherUserId].sort();
+        try {
+            const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
+                Query.equal('participants', sortedParticipants),
+                Query.limit(1)
+            ]);
+            if (response.documents.length > 0) {
+                return response.documents[0].$id;
+            }
+        } catch (e) {
+            console.error("Error finding chat, will try to create.", e);
+        }
+
+        // 2. If not found, create it
+        const chatPermissions = [
+            Permission.read(Role.user(currentUserId)),
+            Permission.read(Role.user(otherUserId)),
+            Permission.update(Role.user(currentUserId)),
+            Permission.update(Role.user(otherUserId)),
+        ];
+        const newChatDoc = await databases.createDocument(
+            DATABASE_ID,
+            COLLECTION_ID_CHATS,
+            ID.unique(),
+            { participants: sortedParticipants, lastMessage: '', lastMessageAt: new Date().toISOString() },
+            chatPermissions
+        );
+        return newChatDoc.$id;
+    }, []);
 
   const handleSendMessage = async (text: string, file?: File, type?: Message['mediaType']) => {
-    if ((!text.trim() && !file)) return;
-    
+    if (!text.trim() && !file) return;
     if (!currentUser?.$id || !otherUser?.$id) {
         toast({ variant: 'destructive', title: 'Error', description: "Cannot send message. User or recipient not found." });
         return;
@@ -271,30 +299,11 @@ export default function ChatThreadPage() {
     setIsSending(true);
 
     try {
-        let currentChatId = chatId;
-
-        // If chat doesn't exist, create it first.
-        if (!currentChatId) {
-            const sortedParticipants = [currentUser.$id, otherUser.$id].sort();
-            const chatPermissions = [
-                Permission.read(Role.user(currentUser.$id)),
-                Permission.read(Role.user(otherUser.$id)),
-                Permission.update(Role.user(currentUser.$id)),
-                Permission.update(Role.user(otherUser.$id)),
-            ];
-            const newChatDoc = await databases.createDocument(
-                DATABASE_ID,
-                COLLECTION_ID_CHATS,
-                ID.unique(),
-                { participants: sortedParticipants },
-                chatPermissions
-            );
-            currentChatId = newChatDoc.$id;
-            setChatId(currentChatId);
+        const currentChatId = await getOrCreateChat(currentUser.$id, otherUser.$id);
+        if (!chatId) {
+            setChatId(currentChatId); // Set it for the first time to trigger subscriptions
         }
         
-        if (!currentChatId) throw new Error("Failed to create or find chat.");
-
         let mediaUrl: string | undefined = undefined;
         if (file && type) {
             const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
@@ -599,13 +608,3 @@ export default function ChatThreadPage() {
     </div>
   );
 }
-
-    
-
-    
-
-
-
-
-    
-
