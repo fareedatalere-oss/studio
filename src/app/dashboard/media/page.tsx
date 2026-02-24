@@ -536,7 +536,21 @@ const PostFeed = ({ type, isMuted, onMuteChange }: { type: string, isMuted: bool
     fetchPosts();
 
     const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_POSTS}.documents`, response => {
-        fetchPosts();
+      const eventType = response.events[0];
+      const payload = response.payload as any;
+
+      if (eventType.includes('.create')) {
+          // Only add if it matches the current feed's type
+          if (payload.type === type) {
+              setPosts(prev => [payload, ...prev.filter(p => p.$id !== payload.$id)]);
+          }
+      } else if (eventType.includes('.update')) {
+          // Update the specific post in place
+          setPosts(prev => prev.map(p => p.$id === payload.$id ? payload : p));
+      } else if (eventType.includes('.delete')) {
+          // Remove the deleted post from any feed it might be in
+          setPosts(prev => prev.filter(p => p.$id !== payload.$id));
+      }
     });
 
     return () => {
