@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -74,7 +75,9 @@ export default function LibraryPage() {
                                             <p className="font-semibold">{book.name}</p>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <Button variant="outline" size="sm">Preview</Button>
+                                            <Button asChild variant="outline" size="sm">
+                                                <Link href={`/dashboard/market/book/${book.id}/read`}>Read</Link>
+                                            </Button>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
                                                     <Button variant="ghost" size="icon" className="text-destructive">

@@ -193,7 +193,7 @@ export default function PagedBookEditorPage() {
                         onclick="
                             const dialog = document.createElement('dialog');
                             dialog.style.cssText = 'padding: 0; border: none; background: transparent; max-width: 90vw; max-height: 90vh;';
-                            dialog.innerHTML = '<img src=\'${base64Data}\' style=\'max-width: 100%; max-height: 100%; object-fit: contain;\' />';
+                            dialog.innerHTML = '<img src=\\'${base64Data}\\' style=\\'max-width: 100%; max-height: 100%; object-fit: contain;\\' />';
                             dialog.addEventListener('click', () => dialog.close());
                             document.body.appendChild(dialog);
                             dialog.showModal();
@@ -259,7 +259,7 @@ export default function PagedBookEditorPage() {
     }
     
     return (
-        <div className="flex flex-col h-screen" style={{ direction: 'ltr' }}>
+        <div className="flex flex-col h-screen">
             <header className="sticky top-0 bg-background border-b p-4 z-10">
                 <div className="container flex items-center justify-between">
                      <div>
@@ -323,15 +323,14 @@ export default function PagedBookEditorPage() {
                     </div>
                 </div>
             </header>
-            <main className="flex-1 p-4 overflow-y-auto" style={{ direction: 'ltr' }}>
+            <main className="flex-1 p-4 overflow-y-auto">
                  <div
                     ref={contentEditableRef}
                     contentEditable={true}
                     onInput={handleContentChange}
                     suppressContentEditableWarning={true}
                     dir="ltr"
-                    className="h-full w-full p-4 max-w-none focus:outline-none text-foreground bg-background"
-                    style={{ direction: 'ltr', textAlign: 'left' }}
+                    className="h-full w-full p-4 max-w-none focus:outline-none text-foreground bg-background text-left"
                 />
             </main>
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleImageUpload(e.target.files[0])}/>

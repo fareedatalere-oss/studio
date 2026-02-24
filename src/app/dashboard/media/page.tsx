@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -266,17 +267,73 @@ const PostCard = ({ post }: { post: any }) => {
     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
   
-  const handleDownload = (url: string, filename: string) => {
+  const handleDownload = async (url: string, filename: string, postType: string) => {
     if (!url) return;
-    const link = document.createElement('a');
-    link.href = url;
-    link.target = "_blank";
-    link.download = filename || 'ipay-media-download';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast({ title: "Download started" });
-  };
+    toast({ title: "Preparing download..." });
+
+    try {
+        if (postType === 'image') {
+            const image = new window.Image();
+            image.crossOrigin = 'anonymous';
+            image.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = image.width;
+                canvas.height = image.height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    toast({ title: "Error", description: "Could not create canvas for watermarking.", variant: "destructive" });
+                    return;
+                }
+                
+                // Draw the image
+                ctx.drawImage(image, 0, 0);
+
+                // Add watermark
+                const watermarkText = "From I-pay online business and transaction";
+                ctx.font = `bold ${Math.max(20, image.width / 30)}px Arial`;
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.textAlign = 'center';
+                ctx.fillText(watermarkText, canvas.width / 2, canvas.height - 30);
+                
+                // Trigger download
+                const link = document.createElement('a');
+                link.href = canvas.toDataURL('image/png');
+                link.download = `watermarked-${filename || 'ipay-media'}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                toast({ title: "Download started" });
+            };
+            image.onerror = () => {
+                 toast({ title: "Error", description: "Could not load image for watermarking. Downloading original instead.", variant: "destructive" });
+                 // Fallback to direct download
+                 const link = document.createElement('a');
+                 link.href = url;
+                 link.target = "_blank";
+                 link.download = filename || 'ipay-media-download';
+                 document.body.appendChild(link);
+                 link.click();
+                 document.body.removeChild(link);
+            }
+            const response = await fetch(url);
+            const blob = await response.blob();
+            image.src = URL.createObjectURL(blob);
+        } else {
+            // For video/music, just download directly
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = "_blank";
+            link.download = filename || 'ipay-media-download';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast({ title: "Download started" });
+        }
+    } catch (error) {
+        console.error("Download error:", error);
+        toast({ title: "Download Failed", description: "An error occurred while preparing the file.", variant: "destructive" });
+    }
+};
 
 
   return (
@@ -358,7 +415,7 @@ const PostCard = ({ post }: { post: any }) => {
               </DropdownMenuContent>
             </DropdownMenu>
             {post.allowDownload && post.mediaUrl && (
-                <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1" onClick={() => handleDownload(post.mediaUrl, post.description)}>
+                <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1" onClick={() => handleDownload(post.mediaUrl, post.description, post.type)}>
                     <Download className="h-7 w-7" />
                 </Button>
             )}

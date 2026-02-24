@@ -58,7 +58,7 @@ function MarketContent() {
         if (applyBanFilter && collectionId !== COLLECTION_ID_UPWORK_PROFILES) {
             queries.push(Query.equal('isBanned', false));
         }
-        if (applyVisibilityFilter) {
+        if (applyVisibilityFilter && collectionId !== COLLECTION_ID_UPWORK_PROFILES) {
             queries.push(Query.equal('isHidden', false));
         }
 
@@ -92,7 +92,7 @@ function MarketContent() {
     const unsubApps = fetchAndSubscribe(COLLECTION_ID_APPS, setApps, 'apps');
     const unsubProducts = fetchAndSubscribe(COLLECTION_ID_PRODUCTS, setProducts, 'products');
     const unsubBooks = fetchAndSubscribe(COLLECTION_ID_BOOKS, setBooks, 'books');
-    const unsubUpwork = fetchAndSubscribe(COLLECTION_ID_UPWORK_PROFILES, setUpworkProfiles, 'upwork', { applyVisibilityFilter: false });
+    const unsubUpwork = fetchAndSubscribe(COLLECTION_ID_UPWORK_PROFILES, setUpworkProfiles, 'upwork', { applyVisibilityFilter: false, applyBanFilter: false });
 
     return () => {
         unsubApps();
@@ -277,16 +277,9 @@ function MarketContent() {
                     <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical /></Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                     <AlertDialog>
-                        <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()}>Review Book</DropdownMenuItem></AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>{book.name}</AlertDialogTitle>
-                                <AlertDialogDescription>{book.description}</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter><AlertDialogCancel>Close</AlertDialogCancel></AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                    <DropdownMenuItem asChild>
+                        <Link href={`/dashboard/market/book/${book.$id}/read`}>Read Book</Link>
+                    </DropdownMenuItem>
                     {library.includes(book.$id) ? (
                         <DropdownMenuItem asChild>
                             <Link href="/dashboard/market/library">Go to Library</Link>

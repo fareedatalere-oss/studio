@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -85,16 +86,67 @@ const PostCard = ({ post, onDelete }: { post: any, onDelete: (postId: string) =>
         }
     };
     
-    const handleDownload = (url: string, filename: string) => {
+    const handleDownload = async (url: string, filename: string, postType: string) => {
         if (!url) return;
-        const link = document.createElement('a');
-        link.href = url;
-        link.target = "_blank";
-        link.download = filename || 'ipay-media-download';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        toast({ title: "Download started" });
+        toast({ title: "Preparing download..." });
+    
+        try {
+            if (postType === 'image') {
+                const image = new window.Image();
+                image.crossOrigin = 'anonymous';
+                image.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = image.width;
+                    canvas.height = image.height;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        toast({ title: "Error", description: "Could not create canvas for watermarking.", variant: "destructive" });
+                        return;
+                    }
+                    
+                    ctx.drawImage(image, 0, 0);
+    
+                    const watermarkText = "From I-pay online business and transaction";
+                    ctx.font = `bold ${Math.max(20, image.width / 30)}px Arial`;
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(watermarkText, canvas.width / 2, canvas.height - 30);
+                    
+                    const link = document.createElement('a');
+                    link.href = canvas.toDataURL('image/png');
+                    link.download = `watermarked-${filename || 'ipay-media'}.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    toast({ title: "Download started" });
+                };
+                image.onerror = () => {
+                     toast({ title: "Error", description: "Could not load image for watermarking. Downloading original instead.", variant: "destructive" });
+                     const link = document.createElement('a');
+                     link.href = url;
+                     link.target = "_blank";
+                     link.download = filename || 'ipay-media-download';
+                     document.body.appendChild(link);
+                     link.click();
+                     document.body.removeChild(link);
+                }
+                const response = await fetch(url);
+                const blob = await response.blob();
+                image.src = URL.createObjectURL(blob);
+            } else {
+                const link = document.createElement('a');
+                link.href = url;
+                link.target = "_blank";
+                link.download = filename || 'ipay-media-download';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                toast({ title: "Download started" });
+            }
+        } catch (error) {
+            console.error("Download error:", error);
+            toast({ title: "Download Failed", description: "An error occurred while preparing the file.", variant: "destructive" });
+        }
     };
 
     return (
@@ -111,7 +163,7 @@ const PostCard = ({ post, onDelete }: { post: any, onDelete: (postId: string) =>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                            {post.allowDownload && post.mediaUrl && (
-                                <DropdownMenuItem onClick={() => handleDownload(post.mediaUrl, post.description)}>
+                                <DropdownMenuItem onClick={() => handleDownload(post.mediaUrl, post.description, post.type)}>
                                     <Download className="mr-2 h-4 w-4" /> Download
                                 </DropdownMenuItem>
                            )}
