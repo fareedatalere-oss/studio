@@ -20,64 +20,42 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_BOOKS, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function LibraryPage() {
-    const { profile, loading: userLoading, recheckUser } = useUser();
     const { toast } = useToast();
     const [books, setBooks] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
-        if (userLoading) return;
-        if (!profile) {
+        setLoading(true);
+        try {
+            const localLibraryStr = localStorage.getItem('ipay-library');
+            const libraryBooks = localLibraryStr ? JSON.parse(localLibraryStr) : [];
+            setBooks(libraryBooks);
+        } catch (error) {
+            toast({ title: 'Error', description: 'Could not load your local library.', variant: 'destructive' });
+            setBooks([]);
+        } finally {
             setLoading(false);
-            return;
         }
-
-        const fetchBooks = async () => {
-            setLoading(true);
-            const bookIds = profile.purchasedBookIds || [];
-            if (bookIds.length === 0) {
-                setBooks([]);
-                setLoading(false);
-                return;
-            }
-
-            try {
-                const bookPromises = bookIds.map((id: string) => databases.getDocument(DATABASE_ID, COLLECTION_ID_BOOKS, id));
-                const purchasedBooks = await Promise.all(bookPromises);
-                setBooks(purchasedBooks.filter(Boolean)); // filter out any nulls if a book was deleted
-            } catch (error) {
-                toast({ title: 'Error', description: 'Could not load your library.', variant: 'destructive' });
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchBooks();
-    }, [profile, userLoading, toast]);
+    }, [toast]);
 
 
     const handleDelete = async (bookId: string) => {
-        if (!profile) return;
-        
         const originalBooks = books;
         setBooks(prev => prev.filter(b => b.$id !== bookId));
         
         try {
-            const currentBooks = profile.purchasedBookIds || [];
-            const newBooks = currentBooks.filter((id: string) => id !== bookId);
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, profile.$id, {
-                purchasedBookIds: newBooks,
-            });
-            await recheckUser();
+            const localLibraryStr = localStorage.getItem('ipay-library');
+            let localLibrary = localLibraryStr ? JSON.parse(localLibraryStr) : [];
+            localLibrary = localLibrary.filter((b: any) => b.$id !== bookId);
+            localStorage.setItem('ipay-library', JSON.stringify(localLibrary));
             toast({ title: "Book Removed", description: "The book has been removed from your library." });
         } catch(e) {
             setBooks(originalBooks);
-            toast({ title: 'Error', description: 'Could not remove the book.', variant: 'destructive' });
+            toast({ title: 'Error', description: 'Could not remove the book from your local library.', variant: 'destructive' });
         }
     };
 
@@ -125,7 +103,7 @@ export default function LibraryPage() {
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
-                    {loading || userLoading ? <LoadingSkeleton /> : filteredBooks.length > 0 ? (
+                    {loading ? <LoadingSkeleton /> : filteredBooks.length > 0 ? (
                         <div className="space-y-4">
                             {filteredBooks.map(book => (
                                 <Card key={book.$id}>

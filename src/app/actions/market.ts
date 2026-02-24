@@ -118,14 +118,8 @@ export async function purchaseBook(payload: {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, buyerId, { nairaBalance: newBuyerBalance });
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, book.sellerId, { nairaBalance: newSellerBalance });
         }
-
-        const currentBooks = buyerProfile.purchasedBookIds || [];
-        if (!currentBooks.includes(bookId)) {
-            const newBooks = [...currentBooks, bookId];
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, buyerId, { purchasedBookIds: newBooks });
-        }
-
-        return { success: true, message: `"${book.name}" has been added to your library.` };
+        
+        return { success: true, message: `Payment for "${book.name}" was successful.` };
 
     } catch (error: any) {
         console.error("Book Purchase Error:", error);

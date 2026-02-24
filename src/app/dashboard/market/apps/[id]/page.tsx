@@ -139,6 +139,7 @@ export default function AppDetailsPage() {
                         id="pin"
                         type="password"
                         inputMode="numeric"
+                        pattern="[0-9]*"
                         value={pin}
                         onChange={(e) => setPin(e.target.value)}
                         maxLength={5}

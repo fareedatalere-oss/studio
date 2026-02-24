@@ -45,10 +45,14 @@ function MarketContent() {
   const isSubscribed = currentUserProfile?.isMarketplaceSubscribed === true;
   
   useEffect(() => {
-    if (currentUserProfile?.purchasedBookIds) {
-        setLibrary(currentUserProfile.purchasedBookIds);
+    try {
+        const localLibraryStr = localStorage.getItem('ipay-library');
+        const localLibrary = localLibraryStr ? JSON.parse(localLibraryStr) : [];
+        setLibrary(localLibrary.map((b: any) => b.$id));
+    } catch (e) {
+        console.error("Could not load library from local storage", e);
     }
-  }, [currentUserProfile]);
+  }, []);
   
   useEffect(() => {
     const fetchAndSubscribe = (
@@ -59,7 +63,6 @@ function MarketContent() {
       const fetchData = () => {
           databases.listDocuments(DATABASE_ID, collectionId, [Query.orderDesc('$createdAt')])
             .then(res => {
-              // Filter on the client-side for safety.
               const visibleItems = res.documents.filter(doc => !doc.isBanned && !doc.isHidden);
               setter(visibleItems);
             })
@@ -80,7 +83,6 @@ function MarketContent() {
 
       // Subscribe to changes
       const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${collectionId}.documents`, response => {
-        // Re-fetch on any change to ensure data and filters are always in sync
         fetchData();
       });
       
@@ -167,30 +169,50 @@ function MarketContent() {
     setPin('');
   };
   
-  const handleGetBook = async (book: any) => {
-     if (!currentUser) {
-        toast({ variant: 'destructive', title: 'Please sign in to get books.' });
-        return;
-    }
-    
-    setIsLoading(true);
+    const handleGetBook = async (book: any) => {
+        if (!currentUser) {
+            toast({ variant: 'destructive', title: 'Please sign in to get books.' });
+            return;
+        }
+        
+        setIsLoading(true);
 
-    const result = await purchaseBook({
-        buyerId: currentUser.$id,
-        bookId: book.$id,
-        pin, // Action will handle if PIN is needed or not
-    });
+        if (book.priceType === 'paid') {
+            const result = await purchaseBook({
+                buyerId: currentUser.$id,
+                bookId: book.$id,
+                pin,
+            });
 
-    if (result.success) {
-        toast({ title: 'Success!', description: result.message });
-        await recheckUser(); // To update balance and profile
-    } else {
-        toast({ variant: 'destructive', title: 'Action Failed', description: result.message });
-    }
+            if (!result.success) {
+                toast({ variant: 'destructive', title: 'Payment Failed', description: result.message });
+                setIsLoading(false);
+                setPin('');
+                return;
+            }
+            await recheckUser();
+        }
+        
+        try {
+            const localLibraryStr = localStorage.getItem('ipay-library');
+            let localLibrary = localLibraryStr ? JSON.parse(localLibraryStr) : [];
+            
+            if (!localLibrary.find((b: any) => b.$id === book.$id)) {
+                localLibrary.push(book);
+                localStorage.setItem('ipay-library', JSON.stringify(localLibrary));
+            }
+            
+            setLibrary(prev => [...new Set([...prev, book.$id])]);
+            toast({ title: 'Success!', description: `"${book.name}" has been added to your local library.` });
 
-    setIsLoading(false);
-    setPin('');
-  };
+        } catch (e) {
+            console.error("Failed to save book to local storage", e);
+            toast({ variant: 'destructive', title: 'Save Failed', description: 'Could not save the book to your device.'});
+        }
+
+        setIsLoading(false);
+        setPin('');
+    };
 
   const ProductItem = ({ product }: { product: any}) => (
     <Card className="flex flex-col">
@@ -241,6 +263,7 @@ function MarketContent() {
                                     id="pin-product"
                                     type="password"
                                     inputMode="numeric"
+                                    pattern="[0-9]*"
                                     value={pin}
                                     onChange={(e) => setPin(e.target.value)}
                                     maxLength={5}
@@ -305,6 +328,7 @@ function MarketContent() {
                                         id={`pin-book-${book.$id}`}
                                         type="password"
                                         inputMode="numeric"
+                                        pattern="[0-9]*"
                                         value={pin}
                                         onChange={(e) => setPin(e.target.value)}
                                         maxLength={5}
