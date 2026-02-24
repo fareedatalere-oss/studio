@@ -126,9 +126,11 @@ const CommentInput = ({ postId, onCommentPosted }: { postId: string, onCommentPo
 }
 
 
-const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean; onMuteChange: (muted: boolean) => void; }) => {
+const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isMuted: boolean; onMuteChange: (muted: boolean) => void; }) => {
   const { user: currentUser, profile: currentUserProfile, recheckUser } = useUser();
   const { toast } = useToast();
+  
+  const [post, setPost] = useState(initialPost);
 
   const postRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -209,7 +211,7 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
     if (currentUserProfile) {
       setIsFollowing(currentUserProfile.following?.includes(post.userId) || false);
     }
-  }, [post.likes, post.commentCount, post.userId, currentUser, currentUserProfile]);
+  }, [post, currentUser, currentUserProfile]);
 
   const handleLike = async () => {
     if (!currentUser) return;
@@ -228,6 +230,7 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_POSTS, post.$id, {
             likes: newLikes
         });
+        setPost({...post, likes: newLikes});
     } catch (error) {
         setIsLiked(!newIsLiked);
         setLikeCount(likeCount);
@@ -534,7 +537,6 @@ export default function MediaPage() {
         const fetchAllPosts = async () => {
             try {
                 const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [
-                    Query.equal('isBanned', false),
                     Query.orderDesc('$createdAt'),
                     Query.limit(100)
                 ]);
@@ -551,18 +553,10 @@ export default function MediaPage() {
             const eventType = response.events[0];
             const payload = response.payload as any;
 
-            if (eventType.includes('.create') && !payload.isBanned) {
+            if (eventType.includes('.create')) {
                  setAllPosts(prev => [payload, ...prev.filter(p => p.$id !== payload.$id)]);
-            } else if (eventType.includes('.delete') || (eventType.includes('.update') && payload.isBanned)) {
+            } else if (eventType.includes('.delete')) {
                 setAllPosts(prev => prev.filter(p => p.$id !== payload.$id));
-            } else if (eventType.includes('.update')) {
-                setAllPosts(prevPosts => {
-                  const index = prevPosts.findIndex(p => p.$id === payload.$id);
-                  if (index === -1) return prevPosts;
-                  const newPosts = [...prevPosts];
-                  newPosts[index] = payload;
-                  return newPosts;
-              });
             }
         });
 

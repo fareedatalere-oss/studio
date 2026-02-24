@@ -56,16 +56,10 @@ function MarketContent() {
         setter: React.Dispatch<React.SetStateAction<any[]>>, 
         loadingKey: keyof typeof dataLoading
     ) => {
-        // Remove 'isBanned' and 'isHidden' from query to prevent crash if attributes are missing.
-        const queries = [
-            Query.orderDesc('$createdAt'),
-        ];
-
       const fetchData = () => {
-          databases.listDocuments(DATABASE_ID, collectionId, queries)
+          databases.listDocuments(DATABASE_ID, collectionId, [Query.orderDesc('$createdAt')])
             .then(res => {
               // Filter on the client-side for safety.
-              // This will work even if the attributes don't exist (they'll be undefined -> false).
               const visibleItems = res.documents.filter(doc => !doc.isBanned && !doc.isHidden);
               setter(visibleItems);
             })
@@ -73,7 +67,7 @@ function MarketContent() {
               console.error(`Failed to fetch ${collectionId}`, err)
               toast({
                 title: `Failed to load ${loadingKey}`,
-                description: "Please check if database indexes are set up correctly.",
+                description: "There was an error fetching market items.",
                 variant: "destructive"
               });
             })
@@ -440,7 +434,7 @@ function MarketContent() {
         </TabsList>
         
         <TabsContent value="apps" className="mt-4 space-y-4">
-           <div className="flex justify-end">
+           <div className="flex w-full justify-end">
                 <UploadButton href="/dashboard/market/apps/upload" />
             </div>
           <div className="relative">
@@ -472,7 +466,7 @@ function MarketContent() {
         </TabsContent>
 
         <TabsContent value="products" className="mt-4 space-y-4">
-             <div className="flex justify-end">
+             <div className="flex w-full justify-end">
                 <UploadButton href="/dashboard/market/upload/product" />
             </div>
           <div className="relative">
@@ -505,7 +499,7 @@ function MarketContent() {
         </TabsContent>
 
         <TabsContent value="upwork" className="mt-4 space-y-4">
-            <div className="flex justify-end">
+            <div className="flex w-full justify-end">
                  <Button asChild>
                     <Link href="/dashboard/market/upwork/warning">
                         <UserPlus className="mr-2 h-4 w-4" /> Create Your Profile
