@@ -127,7 +127,7 @@ const CommentInput = ({ postId, onCommentPosted }: { postId: string, onCommentPo
 
 
 const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean; onMuteChange: (muted: boolean) => void; }) => {
-  const { user: currentUser, profile: currentUserProfile } = useUser();
+  const { user: currentUser, profile: currentUserProfile, recheckUser } = useUser();
   const { toast } = useToast();
 
   const postRef = useRef<HTMLDivElement>(null);
@@ -145,27 +145,33 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [isRotated, setIsRotated] = useState(false);
   
-  // Intersection Observer for video autoplay
   useEffect(() => {
-    if (!videoRef.current) return;
-    
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
+
+    const postElement = postRef.current;
+    if (!postElement) return;
+
     const observer = new IntersectionObserver(
         ([entry]) => {
             if (entry.isIntersecting) {
-                videoRef.current?.play().catch(error => console.error("Video autoplay failed:", error));
+                videoElement.play().catch(error => console.error("Video autoplay failed:", error));
             } else {
-                videoRef.current?.pause();
+                videoElement.pause();
             }
         },
-        { threshold: 0.5 } // Play when 50% of the video is visible
+        { threshold: 0.5 }
     );
 
-    observer.observe(postRef.current!);
+    observer.observe(postElement);
 
-    return () => observer.disconnect();
+    return () => {
+        if (postElement) {
+            observer.unobserve(postElement);
+        }
+    };
   }, []);
 
-  // Mute/unmute logic for videos
   useEffect(() => {
     if (post.type !== 'reels' && post.type !== 'film') return;
 
@@ -189,7 +195,6 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
   }, [isMuted, onMuteChange, post.type]);
 
   const handleAudioPlay = () => {
-    // Find all other audio elements and pause them
     document.querySelectorAll('audio').forEach(audioEl => {
       if (audioEl !== audioRef.current) {
         audioEl.pause();
@@ -197,7 +202,6 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
     });
   };
 
-  // This effect synchronizes the card's state with the props from the parent feed.
   useEffect(() => {
     setIsLiked(post.likes?.includes(currentUser?.$id));
     setLikeCount(post.likes?.length || 0);
@@ -210,7 +214,6 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
   const handleLike = async () => {
     if (!currentUser) return;
     
-    // Optimistic update
     const newIsLiked = !isLiked;
     const newLikeCount = newIsLiked ? likeCount + 1 : likeCount - 1;
     setIsLiked(newIsLiked);
@@ -226,7 +229,6 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
             likes: newLikes
         });
     } catch (error) {
-        // Revert on error
         setIsLiked(!newIsLiked);
         setLikeCount(likeCount);
         console.error("Failed to update likes:", error);
@@ -238,13 +240,12 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
     
     const currentlyFollowing = isFollowing;
     setIsLoadingFollow(true);
-    setIsFollowing(!currentlyFollowing); // Optimistic update
+    setIsFollowing(!currentlyFollowing);
 
     try {
-        const [myProfile, otherUserProfile] = await Promise.all([
-            databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id),
-            databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, post.userId)
-        ]);
+        const myProfilePromise = databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id);
+        const otherUserProfilePromise = databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, post.userId);
+        const [myProfile, otherUserProfile] = await Promise.all([myProfilePromise, otherUserProfilePromise]);
 
         const myCurrentFollowing = myProfile.following || [];
         const theirCurrentFollowers = otherUserProfile.followers || [];
@@ -262,20 +263,16 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
             databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, post.userId, { followers: newTheirFollowers })
         ]);
         
-        toast({
-            title: !currentlyFollowing ? 'Followed' : 'Unfollowed',
-            description: !currentlyFollowing ? `You are now following ${post.username}.` : `You are no longer following ${post.username}.`
-        });
+        await recheckUser();
 
     } catch (error: any) {
-        setIsFollowing(currentlyFollowing); // Revert on error
+        setIsFollowing(currentlyFollowing);
         console.error("Failed to follow/unfollow user:", error);
         toast({ title: 'Error', description: `Could not complete action: ${error.message}`, variant: 'destructive' });
     } finally {
         setIsLoadingFollow(false);
     }
   };
-
 
   const fetchComments = useCallback(async () => {
     if (!post) return;
@@ -329,7 +326,7 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
         if (postType === 'image') {
             toast({ title: "Adding watermark and preparing download..." });
             const image = new window.Image();
-            image.crossOrigin = 'anonymous'; // This is important for fetching images from other domains
+            image.crossOrigin = 'anonymous';
             image.onload = () => {
                 const canvas = document.createElement('canvas');
                 canvas.width = image.width;
@@ -391,7 +388,7 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
 
 
   return (
-    <div ref={postRef} className={cn("relative h-[calc(100vh-170px)] bg-black flex flex-col justify-between text-white snap-start", isRotated && "fixed inset-0 z-[60] h-screen w-screen p-0")}>
+    <div ref={postRef} className={cn("relative h-[calc(100vh-170px)] bg-black flex flex-col justify-between text-white snap-start", isRotated && "fixed inset-0 z-40 h-screen w-screen p-0")}>
       {/* Header */}
        <div className={cn("absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/50 to-transparent z-10", isRotated && "hidden")}>
             <div className="flex items-center justify-between">
@@ -475,7 +472,6 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
             )}
       </div>
 
-        {/* Film-only Rotate Button */}
         {post.type === 'film' && (
         <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1 absolute right-4 bottom-20 z-20 bg-black/20 hover:bg-black/40" onClick={() => setIsRotated(!isRotated)}>
             <RotateCw className="h-7 w-7" />
@@ -513,60 +509,9 @@ const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean
 };
 
 
-const PostFeed = ({ type, isMuted, onMuteChange, onPostUpdate }: { type: string, isMuted: boolean, onMuteChange: (muted: boolean) => void, onPostUpdate: (updatedPost: any) => void }) => {
-  const [posts, setPosts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchPosts = async () => {
-        setLoading(true);
-        try {
-            const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [
-                Query.equal('type', type),
-                Query.equal('isBanned', false), // Ensure banned posts are not shown
-                Query.orderDesc('$createdAt'),
-            ]);
-            setPosts(response.documents);
-        } catch (error) {
-            console.error("Failed to fetch posts:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-    fetchPosts();
-
-    const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_POSTS}.documents`, response => {
-      const eventType = response.events[0];
-      const payload = response.payload as any;
-
-      if (payload.type !== type || payload.isBanned) {
-          if(payload.isBanned) {
-              setPosts(prev => prev.filter(p => p.$id !== payload.$id));
-          }
-          return;
-      }
-      
-      if (eventType.includes('.create')) {
-          setPosts(prev => [payload, ...prev.filter(p => p.$id !== payload.$id)]);
-      } else if (eventType.includes('.update')) {
-          onPostUpdate(payload);
-      } else if (eventType.includes('.delete')) {
-          setPosts(prev => prev.filter(p => p.$id !== payload.$id));
-      }
-    });
-
-    return () => {
-        unsubscribe();
-    };
-
-  }, [type, onPostUpdate]);
-
-  if (loading) {
-    return <div className="p-4"><Skeleton className="h-[calc(100vh-200px)] w-full" /></div>;
-  }
-  
+const PostFeed = ({ posts, isMuted, onMuteChange }: { posts: any[]; isMuted: boolean; onMuteChange: (muted: boolean) => void; }) => {
   if (!posts || posts.length === 0) {
-    return <div className="flex items-center justify-center h-[calc(100vh-200px)] text-muted-foreground">No {type} posts yet.</div>
+    return <div className="flex items-center justify-center h-[calc(100vh-200px)] text-muted-foreground">No posts yet.</div>
   }
 
   return (
@@ -579,35 +524,25 @@ const PostFeed = ({ type, isMuted, onMuteChange, onPostUpdate }: { type: string,
 export default function MediaPage() {
   const [open, setOpen] = useState(false);
   const [isFeedMuted, setIsFeedMuted] = useState(true);
-
-  // This state will hold all posts, and we pass filtered lists to the feeds
   const [allPosts, setAllPosts] = useState<any[]>([]);
-
-  // This function is called by the subscription to update a single post without refetching everything
-  const handlePostUpdate = (updatedPost: any) => {
-      setAllPosts(prevPosts => {
-          const index = prevPosts.findIndex(p => p.$id === updatedPost.$id);
-          if (index === -1) return prevPosts; // Should not happen
-          const newPosts = [...prevPosts];
-          newPosts[index] = updatedPost;
-          return newPosts;
-      });
-  };
+  const [loading, setLoading] = useState(true);
 
   const getPostsForType = (type: string) => allPosts.filter(p => p.type === type);
 
-  // Fetch all posts initially
    useEffect(() => {
+        setLoading(true);
         const fetchAllPosts = async () => {
             try {
                 const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [
                     Query.equal('isBanned', false),
                     Query.orderDesc('$createdAt'),
-                    Query.limit(100) // Fetch a reasonable number of initial posts
+                    Query.limit(100)
                 ]);
                 setAllPosts(response.documents);
             } catch (error) {
                 console.error("Failed to fetch posts:", error);
+            } finally {
+              setLoading(false);
             }
         };
         fetchAllPosts();
@@ -617,34 +552,22 @@ export default function MediaPage() {
             const payload = response.payload as any;
 
             if (eventType.includes('.create') && !payload.isBanned) {
-                 setAllPosts(prev => [payload, ...prev]);
+                 setAllPosts(prev => [payload, ...prev.filter(p => p.$id !== payload.$id)]);
             } else if (eventType.includes('.delete') || (eventType.includes('.update') && payload.isBanned)) {
                 setAllPosts(prev => prev.filter(p => p.$id !== payload.$id));
             } else if (eventType.includes('.update')) {
-                handlePostUpdate(payload);
+                setAllPosts(prevPosts => {
+                  const index = prevPosts.findIndex(p => p.$id === payload.$id);
+                  if (index === -1) return prevPosts;
+                  const newPosts = [...prevPosts];
+                  newPosts[index] = payload;
+                  return newPosts;
+              });
             }
         });
 
         return () => unsubscribe();
     }, []);
-
-  const PostFeedMemo = useMemo(() => {
-      const Feed = ({type, ...props}: any) => {
-          const posts = getPostsForType(type);
-           if (!posts || posts.length === 0) {
-                return <div className="flex items-center justify-center h-[calc(100vh-200px)] text-muted-foreground">No {type} posts yet.</div>
-            }
-           return (
-            <div className="h-full">
-              {posts.map(post => <PostCard key={post.$id} post={post} {...props} />)}
-            </div>
-          )
-      }
-      Feed.displayName = 'PostFeed';
-      return Feed;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allPosts]);
-
 
   return (
     <div className="relative h-full">
@@ -661,11 +584,17 @@ export default function MediaPage() {
           </div>
         </header>
         <div className="flex-1 overflow-y-auto snap-y snap-mandatory">
-          <TabsContent value="text" className="m-0 h-full"><PostFeedMemo type="text" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
-          <TabsContent value="image" className="m-0 h-full"><PostFeedMemo type="image" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
-          <TabsContent value="reels" className="m-0 h-full"><PostFeedMemo type="reels" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
-          <TabsContent value="film" className="m-0 h-full"><PostFeedMemo type="film" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
-          <TabsContent value="music" className="m-0 h-full"><PostFeedMemo type="music" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+          {loading ? (
+             <div className="p-4"><Skeleton className="h-[calc(100vh-200px)] w-full" /></div>
+          ) : (
+            <>
+              <TabsContent value="text" className="m-0 h-full"><PostFeed posts={getPostsForType('text')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+              <TabsContent value="image" className="m-0 h-full"><PostFeed posts={getPostsForType('image')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+              <TabsContent value="reels" className="m-0 h-full"><PostFeed posts={getPostsForType('reels')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+              <TabsContent value="film" className="m-0 h-full"><PostFeed posts={getPostsForType('film')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+              <TabsContent value="music" className="m-0 h-full"><PostFeed posts={getPostsForType('music')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+            </>
+          )}
         </div>
       </Tabs>
 
@@ -674,7 +603,7 @@ export default function MediaPage() {
            <Button
             size="icon"
             variant="destructive"
-            className="fixed bottom-24 right-6 md:bottom-6 md:right-8 h-16 w-16 rounded-full z-30 shadow-lg"
+            className="fixed bottom-24 right-6 md:bottom-6 md:right-8 h-16 w-16 rounded-full z-50 shadow-lg"
           >
             <Plus className="h-8 w-8" />
             <span className="sr-only">Add Media</span>
