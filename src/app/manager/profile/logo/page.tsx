@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_APP_CONFIG, getAppwriteStorageUrl } from '@/lib/appwrite';
-import { ID, Permission, Role } from 'appwrite';
+import { ID } from 'appwrite';
 
 const DOCUMENT_ID_MAIN_CONFIG = 'main';
 
@@ -72,20 +72,16 @@ export default function EditLogoPage() {
         });
       } catch (error: any) {
         if (error.code === 404) { // Document not found, so create it
-            // Grant read access to anyone and update access to any authenticated user
-            const permissions = [
-                Permission.read(Role.any()),
-                Permission.update(Role.users()),
-            ];
+            // Let the document inherit permissions from the collection.
+            // The user should have already set collection permissions for Role:Users to Create/Read/Update.
             await databases.createDocument(
                 DATABASE_ID,
                 COLLECTION_ID_APP_CONFIG,
                 DOCUMENT_ID_MAIN_CONFIG,
-                { logoUrl: newLogoUrl },
-                permissions
+                { logoUrl: newLogoUrl }
             );
         } else {
-            throw error; // Re-throw other errors (like collection not found)
+            throw error; // Re-throw other errors
         }
       }
       
@@ -148,4 +144,3 @@ export default function EditLogoPage() {
   );
 }
 
-    
