@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -62,8 +63,8 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     try {
         await account.deleteSession('current');
-        await recheckUser();
         toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
+        // No need to call recheckUser, the router push will trigger a re-render and the hook will detect the logged out state.
         router.push('/auth/signin');
     } catch (error) {
         toast({ title: 'Logout Failed', description: 'Could not log you out. Please try again.', variant: 'destructive' });

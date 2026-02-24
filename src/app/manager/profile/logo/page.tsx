@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -36,7 +37,8 @@ export default function EditLogoPage() {
                 setCurrentLogo(config.logoUrl);
             }
         } catch (error) {
-            console.log("No current logo set.");
+            // This is expected if the collection or document doesn't exist yet.
+            console.log("No current logo set or app_config collection not found.");
         }
     };
     fetchCurrentLogo();
@@ -63,18 +65,18 @@ export default function EditLogoPage() {
       const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), logoFile);
       const newLogoUrl = getAppwriteStorageUrl(upload.$id);
 
-      // Try to update, if it fails, create it.
+      // Try to update, if it fails with 404 (document not found), create it.
       try {
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG, {
           logoUrl: newLogoUrl
         });
       } catch (error: any) {
-        if (error.code === 404) { // Not found, so create it
+        if (error.code === 404) { // Document not found, so create it
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG, {
                 logoUrl: newLogoUrl
             });
         } else {
-            throw error; // Re-throw other errors
+            throw error; // Re-throw other errors (like collection not found)
         }
       }
       

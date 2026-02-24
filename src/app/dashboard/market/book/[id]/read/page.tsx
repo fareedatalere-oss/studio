@@ -24,20 +24,49 @@ export default function ReadBookPage() {
 
     useEffect(() => {
         if (bookId) {
-            databases.getDocument(DATABASE_ID, COLLECTION_ID_BOOKS, bookId)
-                .then(doc => {
+            const fetchBook = async () => {
+                setIsLoading(true);
+                // 1. Try to load from localStorage first
+                const cachedBook = localStorage.getItem(`book-${bookId}`);
+                if (cachedBook) {
+                    const parsedBook = JSON.parse(cachedBook);
+                    // Use cached version if it seems valid (e.g., has content)
+                    if (parsedBook && parsedBook.content) {
+                        setBook(parsedBook);
+                        setIsLoading(false);
+                        // Still fetch from network in background to get updates, but don't block UI
+                        databases.getDocument(DATABASE_ID, COLLECTION_ID_BOOKS, bookId).then(networkDoc => {
+                            if (networkDoc.status === 'published' && JSON.stringify(networkDoc) !== JSON.stringify(parsedBook)) {
+                                setBook(networkDoc);
+                                localStorage.setItem(`book-${bookId}`, JSON.stringify(networkDoc));
+                            }
+                        }).catch(err => {
+                           // If network fails, we just keep the cached version.
+                           console.log("Couldn't refresh book from network, using cached version.", err.message);
+                        });
+                        return;
+                    }
+                }
+                
+                // 2. If not in cache or invalid, fetch from network
+                try {
+                    const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_BOOKS, bookId);
                     if (doc.status !== 'published') {
                         toast({ variant: 'destructive', title: 'Not Available', description: 'This book is not yet published.' });
                         router.back();
                     } else {
                         setBook(doc);
+                        // 3. Save to localStorage for offline access
+                        localStorage.setItem(`book-${bookId}`, JSON.stringify(doc));
                     }
-                })
-                .catch(() => {
-                    toast({ variant: 'destructive', title: 'Error', description: 'Failed to load book.' });
+                } catch (error) {
+                    toast({ variant: 'destructive', title: 'Error', description: 'Failed to load book. Please check your connection.' });
                     router.back();
-                })
-                .finally(() => setIsLoading(false));
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            fetchBook();
         }
     }, [bookId, toast, router]);
 

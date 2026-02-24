@@ -28,7 +28,8 @@
         "followers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that follow this user." },
         "isBanned": { "type": "boolean", "description": "Whether the user's account is banned." },
         "fwCardToken": { "type": "string", "description": "Flutterwave card token for recurring payments." },
-        "isMarketplaceSubscribed": { "type": "boolean", "description": "True if the user has paid the one-time marketplace subscription fee." }
+        "isMarketplaceSubscribed": { "type": "boolean", "description": "True if the user has paid the one-time marketplace subscription fee." },
+        "purchasedBookIds": { "type": "array", "items": { "type": "string" }, "description": "An array of book IDs that the user has purchased or saved." }
       },
       "required": ["uid", "email", "createdAt", "username", "country", "pin"]
     },
@@ -71,7 +72,7 @@
         "type": {
           "type": "string",
           "description": "The type of transaction.",
-          "enum": ["transfer", "airtime", "data", "electricity", "tv_subscription", "deposit", "reward_withdrawal", "school_payment"]
+          "enum": ["transfer", "airtime", "data", "electricity", "tv_subscription", "deposit", "reward_withdrawal", "school_payment", "product_purchase", "product_sale"]
         },
         "amount": { "type": "number" },
         "status": {

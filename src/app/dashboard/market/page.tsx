@@ -19,11 +19,12 @@ import { databases, DATABASE_ID, COLLECTION_ID_APPS, COLLECTION_ID_PRODUCTS, COL
 import { Query } from 'appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUser } from '@/hooks/use-appwrite';
+import { purchaseProduct, purchaseBook } from '@/app/actions/market';
 
 function MarketContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const { profile: currentUserProfile, loading: userLoading } = useUser();
+  const { user: currentUser, profile: currentUserProfile, loading: userLoading, recheckUser } = useUser();
   
   // Control State
   const [currentTab, setCurrentTab] = useState(searchParams.get('tab') || 'apps');
@@ -44,23 +45,22 @@ function MarketContent() {
   const isSubscribed = currentUserProfile?.isMarketplaceSubscribed === true;
   
   useEffect(() => {
+    if (currentUserProfile?.purchasedBookIds) {
+        setLibrary(currentUserProfile.purchasedBookIds);
+    }
+  }, [currentUserProfile]);
+  
+  useEffect(() => {
     const fetchAndSubscribe = (
         collectionId: string, 
         setter: React.Dispatch<React.SetStateAction<any[]>>, 
-        loadingKey: keyof typeof dataLoading, 
-        options: { applyVisibilityFilter?: boolean; applyBanFilter?: boolean } = {}
+        loadingKey: keyof typeof dataLoading
     ) => {
-        const { applyVisibilityFilter = true, applyBanFilter = true } = options;
-
-        const queries: string[] = [
+        const queries = [
             Query.orderDesc('$createdAt'),
+            Query.equal('isBanned', false),
+            Query.equal('isHidden', false),
         ];
-        if (applyBanFilter && collectionId !== COLLECTION_ID_UPWORK_PROFILES) {
-            queries.push(Query.equal('isBanned', false));
-        }
-        if (applyVisibilityFilter && collectionId !== COLLECTION_ID_UPWORK_PROFILES) {
-            queries.push(Query.equal('isHidden', false));
-        }
 
       const fetchData = () => {
           databases.listDocuments(DATABASE_ID, collectionId, queries)
@@ -89,10 +89,21 @@ function MarketContent() {
       return unsubscribe;
     };
     
+    const fetchUpwork = () => {
+         databases.listDocuments(DATABASE_ID, COLLECTION_ID_UPWORK_PROFILES, [Query.orderDesc('$createdAt'), Query.equal('isBanned', false)])
+            .then(res => setUpworkProfiles(res.documents))
+            .catch(err => console.error(`Failed to fetch upworkProfiles`, err))
+            .finally(() => setDataLoading(prev => ({...prev, upwork: false})));
+    }
+
+    setDataLoading(prev => ({...prev, upwork: true}));
+    fetchUpwork();
+    
     const unsubApps = fetchAndSubscribe(COLLECTION_ID_APPS, setApps, 'apps');
     const unsubProducts = fetchAndSubscribe(COLLECTION_ID_PRODUCTS, setProducts, 'products');
     const unsubBooks = fetchAndSubscribe(COLLECTION_ID_BOOKS, setBooks, 'books');
-    const unsubUpwork = fetchAndSubscribe(COLLECTION_ID_UPWORK_PROFILES, setUpworkProfiles, 'upwork', { applyVisibilityFilter: false, applyBanFilter: false });
+    const unsubUpwork = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_UPWORK_PROFILES}.documents`, fetchUpwork);
+
 
     return () => {
         unsubApps();
@@ -129,62 +140,58 @@ function MarketContent() {
     </div>
   );
 
-  const handleBuyProduct = (product: any) => {
+  const handleBuyProduct = async (product: any) => {
+    if (!currentUser) {
+        toast({ variant: 'destructive', title: 'Please sign in to make a purchase.' });
+        return;
+    }
+    if (!pin) {
+        toast({ variant: 'destructive', title: 'PIN is required.' });
+        return;
+    }
     setIsLoading(true);
-    // Simulate PIN check, payment, and notifications
-    setTimeout(() => {
-        if (pin === '12345') {
-            toast({
-                title: 'Payment Successful',
-                description: `You have purchased ${product.name}.`
-            });
-             toast({
-                title: 'Sale Notification Sent',
-                description: `Seller has been notified of your purchase.`
-            });
-             // Remove from cart if it was there
-            setCart(currentCart => currentCart.filter(item => item.id !== product.id));
-        } else {
-            toast({
-                title: 'Invalid PIN',
-                description: 'The transaction PIN is incorrect.',
-                variant: 'destructive',
-            });
-        }
-        setIsLoading(false);
-        setPin('');
-    }, 1500);
+
+    const result = await purchaseProduct({
+        buyerId: currentUser.$id,
+        productId: product.$id,
+        pin,
+    });
+
+    if (result.success) {
+        toast({ title: 'Purchase Successful!', description: `You have purchased ${product.name}.` });
+        setCart(currentCart => currentCart.filter(item => item.$id !== product.$id));
+        await recheckUser(); // Update user's balance in the UI
+    } else {
+        toast({ title: 'Purchase Failed', description: result.message, variant: 'destructive' });
+    }
+
+    setIsLoading(false);
+    setPin('');
   };
   
-  const handleGetBook = (book: any) => {
+  const handleGetBook = async (book: any) => {
+     if (!currentUser) {
+        toast({ variant: 'destructive', title: 'Please sign in to get books.' });
+        return;
+    }
+    
     setIsLoading(true);
-    setTimeout(() => {
-        if (book.price > 0 && pin !== '12345') {
-            toast({
-                title: 'Invalid PIN',
-                description: 'The transaction PIN is incorrect.',
-                variant: 'destructive',
-            });
-        } else {
-            if (book.price > 0) {
-                 toast({
-                    title: 'Payment Successful',
-                    description: `You have purchased ${book.name}.`
-                });
-                toast({
-                    title: 'Sale Notification Sent',
-                    description: `Seller has been notified of your purchase.`
-                });
-            }
-            toast({
-                title: 'Book Saved!',
-                description: `${book.name} has been added to your library.`,
-            });
-            setLibrary(prev => [...prev, book.id]);
-        }
-        setIsLoading(false);
-        setPin('');
-    }, 1500);
+
+    const result = await purchaseBook({
+        buyerId: currentUser.$id,
+        bookId: book.$id,
+        pin, // Action will handle if PIN is needed or not
+    });
+
+    if (result.success) {
+        toast({ title: 'Success!', description: result.message });
+        await recheckUser(); // To update balance and profile
+    } else {
+        toast({ variant: 'destructive', title: 'Action Failed', description: result.message });
+    }
+
+    setIsLoading(false);
+    setPin('');
   };
 
   const ProductItem = ({ product }: { product: any}) => (
@@ -284,7 +291,7 @@ function MarketContent() {
                         <DropdownMenuItem asChild>
                             <Link href="/dashboard/market/library">Go to Library</Link>
                         </DropdownMenuItem>
-                    ) : book.price > 0 ? (
+                    ) : book.priceType === 'paid' ? (
                         <AlertDialog>
                             <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()}>Get Book</DropdownMenuItem></AlertDialogTrigger>
                             <AlertDialogContent>

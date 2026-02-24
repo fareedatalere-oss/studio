@@ -203,7 +203,7 @@ const PostCard = ({ post }: { post: any }) => {
         });
     } catch (error) {
         console.error("Failed to update likes:", error);
-        setIsLiked(isLiked);
+        setIsLiked(!newIsLiked);
         setLikeCount(likeCount);
     }
   };
@@ -211,9 +211,9 @@ const PostCard = ({ post }: { post: any }) => {
   const handleFollowToggle = async () => {
     if (!currentUser || !currentUserProfile || !post) return;
     
-    const currentlyFollowing = currentUserProfile.following?.includes(post.userId) || false;
-    setIsFollowing(!currentlyFollowing);
+    const currentlyFollowing = isFollowing;
     setIsLoadingFollow(true);
+    setIsFollowing(!currentlyFollowing); // Optimistic update
 
     try {
         const [myProfile, otherUserProfile] = await Promise.all([
@@ -223,30 +223,29 @@ const PostCard = ({ post }: { post: any }) => {
 
         const myCurrentFollowing = myProfile.following || [];
         const theirCurrentFollowers = otherUserProfile.followers || [];
-        const isCurrentlyFollowingNow = myCurrentFollowing.includes(post.userId);
+        
+        const newMyFollowing = !currentlyFollowing
+            ? [...myCurrentFollowing, post.userId]
+            : myCurrentFollowing.filter((id: string) => id !== post.userId);
 
-        const newMyFollowing = isCurrentlyFollowingNow
-            ? myCurrentFollowing.filter((id: string) => id !== post.userId)
-            : [...myCurrentFollowing, post.userId];
-
-        const newTheirFollowers = isCurrentlyFollowingNow
-            ? theirCurrentFollowers.filter((id: string) => id !== currentUser.$id)
-            : [...theirCurrentFollowers, currentUser.$id];
+        const newTheirFollowers = !currentlyFollowing
+            ? [...theirCurrentFollowers, currentUser.$id]
+            : theirCurrentFollowers.filter((id: string) => id !== currentUser.$id);
         
         await Promise.all([
             databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id, { following: newMyFollowing }),
             databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, post.userId, { followers: newTheirFollowers })
         ]);
         
-        await recheckUser();
-
+        // No need to call recheckUser(), as it can cause a full layout shift.
+        // The local state update is sufficient for a good UX.
         toast({
-            title: isCurrentlyFollowingNow ? 'Unfollowed' : 'Followed',
-            description: isCurrentlyFollowingNow ? `You are no longer following ${post.username}.` : `You are now following ${post.username}.`
+            title: !currentlyFollowing ? 'Followed' : 'Unfollowed',
+            description: !currentlyFollowing ? `You are now following ${post.username}.` : `You are no longer following ${post.username}.`
         });
 
     } catch (error: any) {
-        setIsFollowing(currentlyFollowing);
+        setIsFollowing(currentlyFollowing); // Revert on error
         console.error("Failed to follow/unfollow user:", error);
         toast({ title: 'Error', description: `Could not complete action: ${error.message}`, variant: 'destructive' });
     } finally {
@@ -392,7 +391,7 @@ const PostCard = ({ post }: { post: any }) => {
                         onClick={handleFollowToggle}
                         disabled={isLoadingFollow || !currentUser}
                     >
-                        {isLoadingFollow ? '...' : isFollowing ? 'Unfollow' : 'Follow'}
+                        {isLoadingFollow ? <Loader2 className="animate-spin" /> : isFollowing ? 'Unfollow' : 'Follow'}
                     </Button>
                  )}
             </div>
@@ -569,7 +568,7 @@ export default function MediaPage() {
           <Button
             size="icon"
             variant="destructive"
-            className="absolute bottom-24 left-6 md:bottom-6 h-16 w-16 rounded-full z-30 shadow-lg"
+            className="fixed bottom-24 left-6 md:bottom-6 h-16 w-16 rounded-full z-30 shadow-lg"
           >
             <Plus className="h-8 w-8" />
             <span className="sr-only">Add Media</span>
