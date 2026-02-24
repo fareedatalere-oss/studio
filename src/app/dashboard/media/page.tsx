@@ -126,7 +126,7 @@ const CommentInput = ({ postId, onCommentPosted }: { postId: string, onCommentPo
 }
 
 
-const PostCard = ({ post }: { post: any }) => {
+const PostCard = ({ post, isMuted, onMuteChange }: { post: any; isMuted: boolean; onMuteChange: (muted: boolean) => void; }) => {
   const { user: currentUser, profile: currentUserProfile, recheckUser } = useUser();
   const { toast } = useToast();
 
@@ -165,6 +165,29 @@ const PostCard = ({ post }: { post: any }) => {
 
     return () => observer.disconnect();
   }, []);
+
+  // Mute/unmute logic for videos
+  useEffect(() => {
+    if (post.type !== 'reels' && post.type !== 'film') return;
+
+    const videoElement = videoRef.current;
+    if (videoElement) {
+      videoElement.muted = isMuted;
+      
+      const handleVolumeChange = () => {
+        if (videoElement.muted !== isMuted) {
+          onMuteChange(videoElement.muted);
+        }
+      };
+
+      videoElement.addEventListener('volumechange', handleVolumeChange);
+      return () => {
+        if (videoElement) {
+          videoElement.removeEventListener('volumechange', handleVolumeChange);
+        }
+      };
+    }
+  }, [isMuted, onMuteChange, post.type]);
 
   const handleAudioPlay = () => {
     // Find all other audio elements and pause them
@@ -408,7 +431,7 @@ const PostCard = ({ post }: { post: any }) => {
           <Image src={post.mediaUrl} alt={post.description || 'Post image'} fill className="object-contain" />
         )}
         {(post.type === 'reels' || post.type === 'film') && post.mediaUrl && (
-           <video ref={videoRef} src={post.mediaUrl} controls autoPlay muted loop className={cn("w-full h-full object-contain", isRotated && "object-cover")} />
+           <video ref={videoRef} src={post.mediaUrl} controls loop playsInline className={cn("w-full h-full object-contain", isRotated && "object-cover")} />
         )}
         {post.type === 'music' && (
             <div className="flex flex-col items-center justify-center p-8 text-center">
@@ -491,7 +514,7 @@ const PostCard = ({ post }: { post: any }) => {
 };
 
 
-const PostFeed = ({ type }: { type: string }) => {
+const PostFeed = ({ type, isMuted, onMuteChange }: { type: string, isMuted: boolean, onMuteChange: (muted: boolean) => void }) => {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -532,13 +555,14 @@ const PostFeed = ({ type }: { type: string }) => {
 
   return (
     <div className="h-full">
-      {posts.map(post => <PostCard key={post.$id} post={post} />)}
+      {posts.map(post => <PostCard key={post.$id} post={post} isMuted={isMuted} onMuteChange={onMuteChange} />)}
     </div>
   )
 }
 
 export default function MediaPage() {
   const [open, setOpen] = useState(false);
+  const [isFeedMuted, setIsFeedMuted] = useState(true);
 
   return (
     <div className="relative h-full">
@@ -555,11 +579,11 @@ export default function MediaPage() {
           </div>
         </header>
         <div className="flex-1 overflow-y-auto snap-y snap-mandatory">
-          <TabsContent value="text" className="m-0 h-full"><PostFeed type="text" /></TabsContent>
-          <TabsContent value="image" className="m-0 h-full"><PostFeed type="image" /></TabsContent>
-          <TabsContent value="reels" className="m-0 h-full"><PostFeed type="reels" /></TabsContent>
-          <TabsContent value="film" className="m-0 h-full"><PostFeed type="film" /></TabsContent>
-          <TabsContent value="music" className="m-0 h-full"><PostFeed type="music" /></TabsContent>
+          <TabsContent value="text" className="m-0 h-full"><PostFeed type="text" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+          <TabsContent value="image" className="m-0 h-full"><PostFeed type="image" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+          <TabsContent value="reels" className="m-0 h-full"><PostFeed type="reels" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+          <TabsContent value="film" className="m-0 h-full"><PostFeed type="film" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+          <TabsContent value="music" className="m-0 h-full"><PostFeed type="music" isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
         </div>
       </Tabs>
 
