@@ -18,10 +18,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
+import { initializeTransaction } from '@/app/actions/paystack';
 
 export default function SubscriptionPaymentPage() {
     const { toast } = useToast();
@@ -29,6 +29,7 @@ export default function SubscriptionPaymentPage() {
     const { user, profile, recheckUser } = useUser();
     const [pin, setPin] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isRedirecting, setIsRedirecting] = useState(false);
     
     const SUBSCRIPTION_FEE = 25000;
 
@@ -80,24 +81,31 @@ export default function SubscriptionPaymentPage() {
         }
     };
 
-    const handleOtherPayments = (method: string) => {
-        toast({
-            title: 'Redirecting to Payment Page',
-            description: `Please wait as we redirect you to complete your payment via ${method}.`,
-        });
-        
-        const paystackPaymentPageUrl = 'https://paystack.com/pay/REPLACE_WITH_YOUR_PAGE_LINK';
+    const handleOtherPayments = async (method: string) => {
+        if (!user) {
+            toast({ variant: 'destructive', title: 'Error', description: 'You must be logged in.' });
+            return;
+        }
 
-        if (paystackPaymentPageUrl.includes('REPLACE_WITH_YOUR_PAGE_LINK')) {
+        setIsRedirecting(true);
+        toast({
+            title: 'Initializing Payment...',
+            description: `Please wait as we redirect you to pay with ${method}.`,
+        });
+
+        const result = await initializeTransaction({ email: user.email, userId: user.$id });
+        
+        if (result.success && result.data.authorization_url) {
+            window.location.href = result.data.authorization_url;
+        } else {
             toast({
                 variant: 'destructive',
-                title: 'Configuration Needed',
-                description: 'A developer must replace the placeholder Paystack URL in the code.',
+                title: 'Initialization Failed',
+                description: result.message || 'Could not start the payment process. Please try again.',
                 duration: 8000,
             });
+            setIsRedirecting(false);
         }
-        
-        window.location.href = paystackPaymentPageUrl;
     }
 
     return (
@@ -149,17 +157,17 @@ export default function SubscriptionPaymentPage() {
                     <Card>
                         <CardHeader className="pb-2">
                            <CardTitle className="text-base">Other Payment Methods</CardTitle>
-                           <CardDescription className="text-xs">Powered by Paystack (+ ₦100 fee)</CardDescription>
+                           <CardDescription className="text-xs">Powered by Paystack</CardDescription>
                         </CardHeader>
                         <CardContent className="flex flex-col gap-2">
-                            <Button variant="outline" className="justify-start" onClick={() => handleOtherPayments('Bank Transfer')}>
-                                <Landmark className="mr-2 h-4 w-4" /> Bank Transfer
+                            <Button variant="outline" className="justify-start" onClick={() => handleOtherPayments('Bank Transfer')} disabled={isRedirecting}>
+                                {isRedirecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Landmark className="mr-2 h-4 w-4" />} Bank Transfer
                             </Button>
-                             <Button variant="outline" className="justify-start" onClick={() => handleOtherPayments('USSD')}>
-                                <Smartphone className="mr-2 h-4 w-4" /> USSD
+                             <Button variant="outline" className="justify-start" onClick={() => handleOtherPayments('USSD')} disabled={isRedirecting}>
+                                 {isRedirecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Smartphone className="mr-2 h-4 w-4" />} USSD
                             </Button>
-                             <Button variant="outline" className="justify-start" onClick={() => handleOtherPayments('Bank Card')}>
-                                <Banknote className="mr-2 h-4 w-4" /> Card / Bank
+                             <Button variant="outline" className="justify-start" onClick={() => handleOtherPayments('Bank Card')} disabled={isRedirecting}>
+                                 {isRedirecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Banknote className="mr-2 h-4 w-4" />} Card / Bank
                             </Button>
                         </CardContent>
                     </Card>
