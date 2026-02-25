@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, getAppwriteStorageUrl, storage, BUCKET_ID_UPLOADS } from '@/lib/appwrite';
 import { Models, ID, Query } from 'appwrite';
-import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, ImageIcon, PlayCircle, FileAudio, Trash2, Play, Pause } from 'lucide-react';
+import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, ImageIcon, PlayCircle, FileAudio, Trash2, Play, Pause, Forward, MessageSquare } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,10 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+
 
 const getChatId = (userId1: string, userId2: string) => {
     const sortedIds = [userId1, userId2].sort();
@@ -67,6 +71,79 @@ const PresenceIndicator = ({ userId }: { userId: string }) => {
     return <p className="text-xs text-muted-foreground">Offline</p>;
 };
 
+const VoiceNotePlayer = ({ src }: { src: string }) => {
+    const audioRef = useRef<HTMLAudioElement>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const [duration, setDuration] = useState(0);
+
+    const handleTimeUpdate = () => {
+        if (audioRef.current) {
+            setProgress(audioRef.current.currentTime / audioRef.current.duration);
+        }
+    };
+    
+    const handleLoadedMetadata = () => {
+        if (audioRef.current) {
+            setDuration(audioRef.current.duration);
+        }
+    };
+    
+    const togglePlay = () => {
+        if (audioRef.current) {
+            if (isPlaying) {
+                audioRef.current.pause();
+            } else {
+                audioRef.current.play();
+            }
+            setIsPlaying(!isPlaying);
+        }
+    };
+
+    const handleScrub = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (audioRef.current) {
+            const scrubTime = (e.nativeEvent.offsetX / e.currentTarget.offsetWidth) * duration;
+            audioRef.current.currentTime = scrubTime;
+        }
+    };
+
+    useEffect(() => {
+        const audio = audioRef.current;
+        const handleEnded = () => setIsPlaying(false);
+
+        audio?.addEventListener('ended', handleEnded);
+        return () => {
+            audio?.removeEventListener('ended', handleEnded);
+        }
+    }, []);
+
+    return (
+        <div className="flex items-center gap-2 w-full max-w-[250px]">
+            <audio 
+                ref={audioRef} 
+                src={src}
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
+                className="hidden"
+            />
+            <Button variant="ghost" size="icon" className="h-10 w-10" onClick={togglePlay}>
+                {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+            </Button>
+            <div className="flex-1 flex items-center gap-2">
+                 <div className="relative w-full h-1.5 bg-muted rounded-full cursor-pointer" onClick={handleScrub}>
+                    <div 
+                        className="absolute top-0 left-0 h-full bg-primary rounded-full"
+                        style={{ width: `${progress * 100}%`}}
+                    />
+                     <div 
+                        className="absolute top-1/2 -translate-y-1/2 h-3 w-3 bg-primary rounded-full"
+                        style={{ left: `calc(${progress * 100}% - 6px)`}}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default function ChatThreadPage() {
     const params = useParams();
@@ -84,14 +161,19 @@ export default function ChatThreadPage() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const mediaInputRef = useRef<HTMLInputElement>(null);
 
-    // --- Voice Recording State ---
     const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'preview'>('idle');
     const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
     const [recordingTime, setRecordingTime] = useState(0);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
-    // --- End Voice Recording State ---
+    
+    // --- Forwarding State ---
+    const [messageToForward, setMessageToForward] = useState<Models.Document | null>(null);
+    const [recentChats, setRecentChats] = useState<any[]>([]);
+    const [loadingRecentChats, setLoadingRecentChats] = useState(false);
+    // --- End Forwarding State ---
+
 
     const chatId = currentUser ? getChatId(currentUser.$id, otherUserId) : null;
     
@@ -104,12 +186,14 @@ export default function ChatThreadPage() {
             
             if (response.events.includes('databases.*.collections.*.documents.*.create') && createdMessage.chatId === chatId) {
                  setMessages((prevMessages) => {
-                    // Check if message already exists to prevent duplicates
                     if (prevMessages.some(msg => msg.$id === createdMessage.$id)) {
                         return prevMessages;
                     }
                     return [...prevMessages, createdMessage];
                 });
+            }
+            if (response.events.includes('databases.*.collections.*.documents.*.delete')) {
+                setMessages((prevMessages) => prevMessages.filter(msg => msg.$id !== createdMessage.$id));
             }
         });
 
@@ -158,7 +242,6 @@ export default function ChatThreadPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // --- Voice Recording Timer Effect ---
     useEffect(() => {
         let interval: NodeJS.Timeout;
         if (recordingStatus === 'recording') {
@@ -170,7 +253,6 @@ export default function ChatThreadPage() {
         }
         return () => clearInterval(interval);
     }, [recordingStatus]);
-    // --- End Voice Recording Timer Effect ---
 
     const updateChatList = async (lastMessage: string) => {
         if (!currentUser || !chatId) return;
@@ -272,7 +354,6 @@ export default function ChatThreadPage() {
         e.target.value = '';
     };
 
-    // --- Voice Recording Functions ---
     const formatTime = (seconds: number) => {
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
@@ -335,7 +416,94 @@ export default function ChatThreadPage() {
         setAudioBlob(null);
     };
 
-    // --- End Voice Recording Functions ---
+    // --- Message Actions ---
+    const handleDeleteMessage = async (messageId: string) => {
+        toast({title: 'Deleting message...'});
+        try {
+            await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, messageId);
+            setMessages(prev => prev.filter(msg => msg.$id !== messageId));
+            toast({title: 'Message deleted'});
+        } catch (error) {
+            console.error("Failed to delete message", error);
+            toast({title: "Error", description: "Could not delete message.", variant: 'destructive'});
+        }
+    };
+
+    const handleForwardClick = (message: Models.Document) => {
+        setMessageToForward(message);
+    };
+
+    const handleSendForward = async (targetChatId: string) => {
+        if (!messageToForward || !currentUser) return;
+
+        toast({ title: 'Forwarding message...' });
+
+        try {
+            const { text, mediaUrl } = messageToForward;
+
+            await databases.createDocument(
+                DATABASE_ID,
+                COLLECTION_ID_MESSAGES,
+                ID.unique(),
+                {
+                    chatId: targetChatId,
+                    senderId: currentUser.$id,
+                    text: `[Forwarded] ${text}`,
+                    mediaUrl: mediaUrl || null,
+                    status: 'sent',
+                }
+            );
+
+            // Update last message on the target chat
+            const participants = targetChatId.split('_');
+            const targetOtherUserId = participants.find(id => id !== currentUser.$id.substring(0, 15)) || ''; // This is a bit weak
+             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, targetChatId, {
+                lastMessage: `[Forwarded] ${text || 'Media'}`,
+                lastMessageAt: new Date().toISOString(),
+            });
+
+            toast({ title: 'Message Forwarded' });
+        } catch (error) {
+            console.error("Failed to forward message:", error);
+            toast({ title: "Error", description: "Could not forward message.", variant: 'destructive' });
+        } finally {
+            setMessageToForward(null);
+        }
+    };
+
+    useEffect(() => {
+        if (!messageToForward || !currentUser) return;
+        
+        const fetchRecent = async () => {
+            setLoadingRecentChats(true);
+            try {
+                const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
+                    Query.equal('participants', currentUser.$id),
+                    Query.orderDesc('lastMessageAt')
+                ]);
+
+                const chatsWithData = await Promise.all(response.documents.map(async (chat) => {
+                    const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
+                    if (!otherUserId) return null;
+                    try {
+                        const otherUser = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
+                        return { ...chat, otherUser };
+                    } catch {
+                        return null; // Ignore chats where the other user profile is deleted
+                    }
+                }));
+
+                setRecentChats(chatsWithData.filter(Boolean));
+            } catch (e) {
+                console.error("Could not load recent chats for forwarding", e);
+            } finally {
+                setLoadingRecentChats(false);
+            }
+        };
+        
+        fetchRecent();
+    }, [messageToForward, currentUser]);
+    // --- End Message Actions ---
 
     const renderMessageContent = (message: Models.Document) => {
         let mediaType: string | null = null;
@@ -351,7 +519,7 @@ export default function ChatThreadPage() {
                     <Dialog>
                         <DialogTrigger asChild>
                              <div className="relative w-full max-w-[250px] aspect-square cursor-pointer bg-muted rounded-lg flex items-center justify-center">
-                                 <Image src={message.mediaUrl} alt="chat image" layout="fill" className="rounded-lg object-cover" />
+                                 <ImageIcon className="h-16 w-16 text-muted-foreground" />
                              </div>
                         </DialogTrigger>
                         <DialogContent className="p-0 border-0 bg-black/80 w-screen h-screen max-w-none max-h-none flex items-center justify-center">
@@ -375,13 +543,10 @@ export default function ChatThreadPage() {
                 );
             }
             if (mediaType.startsWith('audio/')) {
-                 return (
-                     <audio src={message.mediaUrl} controls className="w-full max-w-[250px]" />
-                );
+                return <VoiceNotePlayer src={message.mediaUrl} />;
             }
         }
         
-        // Only render text if it's a normal text message
         if (text && !text.startsWith('[media:')) {
              return <p className="text-sm whitespace-pre-wrap">{text}</p>;
         }
@@ -413,12 +578,9 @@ export default function ChatThreadPage() {
                         <span>Loading...</span>
                     </div>
                 )}
-                <Button variant="ghost" size="icon" className="ml-auto">
-                    <MoreVertical />
-                </Button>
             </header>
 
-            <main className="flex-1 overflow-y-auto p-4 space-y-4">
+            <main className="flex-1 overflow-y-auto p-4 space-y-2">
                 {loading ? (
                      <div className="flex justify-center items-center h-full">
                         <Loader2 className="h-8 w-8 animate-spin" />
@@ -427,19 +589,50 @@ export default function ChatThreadPage() {
                     <div
                         key={message.$id}
                         className={cn(
-                            "flex items-end gap-2 max-w-xs md:max-w-md",
+                            "group flex items-end gap-2 max-w-xs md:max-w-md",
                             message.senderId === currentUser?.$id ? "ml-auto flex-row-reverse" : "mr-auto"
                         )}
                     >
                         <div
                             className={cn(
-                                "p-3 rounded-lg",
+                                "p-2 rounded-lg",
                                 message.senderId === currentUser?.$id
                                     ? "bg-primary text-primary-foreground rounded-br-none"
                                     : "bg-muted rounded-bl-none"
                             )}
                         >
                             {renderMessageContent(message)}
+                        </div>
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                    <DropdownMenuItem onClick={() => handleForwardClick(message)}>
+                                        <Forward className="mr-2 h-4 w-4" /> Forward
+                                    </DropdownMenuItem>
+                                    {message.senderId === currentUser?.$id && (
+                                         <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive">
+                                                     <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                                </DropdownMenuItem>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Delete message?</AlertDialogTitle>
+                                                    <AlertDialogDescription>This message will be deleted for everyone. This action cannot be undone.</AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteMessage(message.$id)} className="bg-destructive hover:bg-destructive/90">Delete for everyone</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
                     </div>
                 ))}
@@ -463,8 +656,8 @@ export default function ChatThreadPage() {
                             <span className="text-sm font-mono text-muted-foreground">{formatTime(recordingTime)}</span>
                         </div>
                         <Button type="button" size="icon" onClick={stopRecording}>
-                            <Pause className="h-5 w-5" />
-                            <span className="sr-only">Stop Recording</span>
+                            <Send className="h-5 w-5" />
+                            <span className="sr-only">Stop and Send Recording</span>
                         </Button>
                     </div>
                 )}
@@ -512,6 +705,30 @@ export default function ChatThreadPage() {
                 className="hidden"
                 accept="image/*,video/*"
             />
+            <Sheet open={!!messageToForward} onOpenChange={(isOpen) => !isOpen && setMessageToForward(null)}>
+                <SheetContent>
+                    <SheetHeader>
+                        <SheetTitle>Forward message to...</SheetTitle>
+                    </SheetHeader>
+                    <div className="py-4 space-y-2">
+                        {loadingRecentChats ? <Loader2 className="animate-spin mx-auto" /> : recentChats.map(chat => (
+                            <div key={chat.$id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted">
+                                <div className="flex items-center gap-3">
+                                    <Avatar>
+                                        <AvatarImage src={chat.otherUser.avatar} />
+                                        <AvatarFallback>{chat.otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                                    </Avatar>
+                                    <p className="font-semibold">{chat.otherUser.username}</p>
+                                </div>
+                                <Button size="sm" onClick={() => handleSendForward(chat.$id)}>
+                                    <Send className="h-4 w-4 mr-2" />
+                                    Send
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }
