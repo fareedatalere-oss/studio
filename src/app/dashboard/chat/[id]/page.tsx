@@ -22,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, getAppwriteStorageUrl } from '@/lib/appwrite';
 import { ID, Query } from 'appwrite';
-import { format, formatDistanceToNowStrict } from 'date-fns';
+import { format } from 'date-fns';
 import { useParams } from 'next/navigation';
 import { getBankList, makeBankTransfer, resolveAccountNumber } from '@/app/actions/flutterwave';
 import { Input } from '@/components/ui/input';
@@ -183,97 +183,68 @@ export default function ChatThreadPage() {
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  // --- Data Fetching and Realtime ---
 
-    // Effect 1: Fetch the other user's profile and determine block status
-    useEffect(() => {
-        if (!otherUserId || !currentUser?.$id) return;
+  // This single, robust useEffect handles all data fetching and subscriptions for a given chat.
+  // It ensures that when the `otherUserId` changes, all previous subscriptions are torn down
+  // before new ones are established, preventing the "message bleed" bug.
+  useEffect(() => {
+    if (!currentUser?.$id || !otherUserId) {
+        setMessagesLoading(false);
+        return;
+    }
+    
+    // Reset state for the new chat
+    setMessagesLoading(true);
+    setOtherUser(null);
+    setMessages([]);
+    setChatId(null);
+    
+    let messageUnsubscribe: (() => void) | undefined;
+    let profileUnsubscribe: (() => void) | undefined;
+    
+    const setupAndSubscribe = async () => {
+        try {
+            // 1. Fetch profiles and determine block status
+            const [otherUserProfile, myProfile] = await Promise.all([
+                databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId),
+                databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id),
+            ]);
+            
+            setOtherUser(otherUserProfile);
+            setIsBlockedByMe(myProfile.blockedUsers?.includes(otherUserId) || false);
+            setAmIBlocked(otherUserProfile.blockedUsers?.includes(currentUser.$id) || false);
 
-        let profileUnsubscribe: (() => void) | null = null;
+            // Subscribe to the current user's profile for real-time block status updates
+            profileUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${currentUser.$id}`, response => {
+                const updatedMyProfile = response.payload as any;
+                setIsBlockedByMe(updatedMyProfile.blockedUsers?.includes(otherUserId) || false);
+            });
 
-        const fetchOtherUser = async () => {
-            try {
-                const otherUserProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
-                setOtherUser(otherUserProfile);
-                setIsBlockedByMe(currentUserProfile.blockedUsers?.includes(otherUserId) || false);
-                setAmIBlocked(otherUserProfile.blockedUsers?.includes(currentUser.$id) || false);
-                
-                // Subscribe to changes in the current user's profile (for block status)
-                profileUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${currentUser.$id}`, response => {
-                    const myProfile = response.payload as any;
-                    setIsBlockedByMe(myProfile.blockedUsers?.includes(otherUserId) || false);
-                });
-            } catch (error) {
-                console.error("Error fetching other user:", error);
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not load user details.' });
-            }
-        };
-
-        fetchOtherUser();
-
-        return () => {
-            if (profileUnsubscribe) profileUnsubscribe();
-        };
-    }, [otherUserId, currentUser, currentUserProfile, toast]);
-
-    // Effect 2: Determine the chatId based on participants
-    useEffect(() => {
-        if (!currentUser?.$id || !otherUserId) return;
-        
-        // Reset chat state when participants change
-        setChatId(null);
-        setMessages([]);
-        setMessagesLoading(true);
-
-        const findChat = async () => {
+            // 2. Find the chat between the two users
             const sortedParticipants = [currentUser.$id, otherUserId].sort();
-            try {
-                const chatResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
-                    Query.equal('participants', sortedParticipants),
-                    Query.limit(1)
-                ]);
-                
-                if (chatResponse.documents[0]) {
-                    setChatId(chatResponse.documents[0].$id);
-                } else {
-                    setChatId(null); // No existing chat, will be created on first message
-                }
-            } catch (error) {
-                console.error("Error finding chat:", error);
-            } finally {
-                setMessagesLoading(false);
-            }
-        };
-        
-        findChat();
-    }, [currentUser, otherUserId]);
+            const chatResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
+                Query.equal('participants', sortedParticipants),
+                Query.limit(1)
+            ]);
+            
+            const foundChatId = chatResponse.documents[0]?.$id;
 
-    // Effect 3: Fetch messages and subscribe to real-time updates for the determined chatId
-    useEffect(() => {
-        // If there's no chat ID yet, there's nothing to fetch or subscribe to.
-        if (!chatId) {
-            return;
-        }
+            if (foundChatId) {
+                setChatId(foundChatId);
 
-        let unsubscribe: (() => void) | undefined;
-
-        const fetchAndSubscribe = async () => {
-            setMessagesLoading(true);
-            try {
-                // Fetch initial messages for this chat
+                // 3. Fetch initial messages for this chat
                 const messagesResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
-                    Query.equal('chatId', chatId),
+                    Query.equal('chatId', foundChatId),
                     Query.orderAsc('$createdAt'),
                     Query.limit(100)
                 ]);
                 setMessages(messagesResponse.documents as Message[]);
 
-                // Subscribe ONLY to this specific chat
-                unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`, response => {
+                // 4. Subscribe to new messages for THIS CHAT ONLY
+                messageUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`, response => {
                     const payload = response.payload as Message;
-                    
-                    // IMPORTANT: Only process the event if it belongs to the currently active chat
-                    if (payload.chatId === chatId) {
+                    // Critical check: Only process events for the currently active chat
+                    if (payload.chatId === foundChatId) {
                         const eventType = response.events[0];
                          if (eventType.includes('.create')) {
                             setMessages(prev => prev.find(m => m.$id === payload.$id) ? prev : [...prev, payload]);
@@ -284,33 +255,37 @@ export default function ChatThreadPage() {
                         }
                     }
                 });
-
-            } catch (error) {
-                console.error("Error fetching/subscribing to messages:", error);
-            } finally {
-                setMessagesLoading(false);
             }
-        };
+        } catch (error) {
+            console.error("Error setting up chat:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load chat details.' });
+        } finally {
+            setMessagesLoading(false);
+        }
+    };
+    
+    setupAndSubscribe();
+    
+    // The single, powerful cleanup function
+    return () => {
+        if (messageUnsubscribe) {
+            messageUnsubscribe();
+        }
+        if (profileUnsubscribe) {
+            profileUnsubscribe();
+        }
+    };
+  }, [currentUser?.$id, otherUserId, toast]);
 
-        fetchAndSubscribe();
-
-        // The cleanup function: This is GUARANTEED to run when chatId changes or the component unmounts.
-        return () => {
-            if (unsubscribe) {
-                unsubscribe();
-            }
-        };
-    }, [chatId]); // This effect ONLY depends on chatId, ensuring a clean separation of concerns.
 
   useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-  // --- Actions ---
     const getOrCreateChat = useCallback(async (currentUserId: string, otherUserId: string): Promise<string> => {
+        // If we already found the chat ID in the main effect, return it
         if (chatId) return chatId;
 
+        // If not, perform a check-and-create operation
         const sortedParticipants = [currentUserId, otherUserId].sort();
-        
-        // Double-check if chat exists, as it might have been created between render cycles
         const existingChats = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
             Query.equal('participants', sortedParticipants),
             Query.limit(1)
@@ -318,7 +293,7 @@ export default function ChatThreadPage() {
 
         if (existingChats.documents.length > 0) {
             const foundChatId = existingChats.documents[0].$id;
-            setChatId(foundChatId); // Update state with the found ID
+            setChatId(foundChatId); // Update state
             return foundChatId;
         }
 
@@ -329,7 +304,7 @@ export default function ChatThreadPage() {
             ID.unique(),
             { participants: sortedParticipants, lastMessage: '', lastMessageAt: new Date().toISOString() }
         );
-        setChatId(newChatDoc.$id); // Update state with the new ID
+        setChatId(newChatDoc.$id); // Update state
         return newChatDoc.$id;
     }, [chatId]);
 
@@ -351,6 +326,7 @@ export default function ChatThreadPage() {
             mediaUrl = getAppwriteStorageUrl(uploadResult.$id);
         }
         
+        // No client-side permissions needed, the database rules handle it.
         const messagePayload: any = {
             chatId: currentChatId,
             senderId: currentUser.$id,
@@ -359,8 +335,8 @@ export default function ChatThreadPage() {
             mediaUrl: mediaUrl,
             mediaType: type || 'text'
         };
-
-        // Let the real-time listener handle the UI update
+        
+        // The real-time listener will handle the UI update.
         await databases.createDocument(
             DATABASE_ID,
             COLLECTION_ID_MESSAGES,
@@ -387,7 +363,6 @@ export default function ChatThreadPage() {
       if (!editingMessage || !inputText.trim()) return;
       setIsSending(true);
       try {
-          // The real-time listener will handle the UI update
           await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, editingMessage.$id, { text: inputText.trim(), isEdited: true });
           setEditingMessage(null);
           setInputText('');
@@ -401,7 +376,6 @@ export default function ChatThreadPage() {
   const handleDeleteForEveryone = async (messageId: string) => {
     if (!currentUser) return;
     try {
-        // The real-time listener will handle UI update
         await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, messageId);
         toast({ title: 'Message deleted' });
     } catch(error: any) { 
@@ -430,7 +404,7 @@ export default function ChatThreadPage() {
     }
 
     try {
-        // Let the real-time listener on the profile update the state
+        // The real-time listener on the profile will update the block status state
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUserProfile.$id, {
             blockedUsers: newBlockedUsers
         });
@@ -488,7 +462,7 @@ export default function ChatThreadPage() {
     await handleSendMessage('', audioFile, 'audio');
   };
   
-  const isLoading = userLoading || !otherUser || !currentUserProfile;
+  const isLoading = userLoading || messagesLoading;
   const openFilePicker = (type: 'image' | 'file') => {
       fileTypeRef.current = type;
       fileInputRef.current?.click();
@@ -519,7 +493,7 @@ export default function ChatThreadPage() {
       </header>
 
       <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-        {isLoading || messagesLoading ? <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>
+        {isLoading ? <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>
         : chatId === null && messages.length === 0 ? <p className='text-center text-muted-foreground'>No messages yet. Say hello!</p>
         : (
             visibleMessages.map((msg) => {

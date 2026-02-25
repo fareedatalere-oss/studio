@@ -139,8 +139,16 @@ export default function SupportPage() {
                 const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG);
                 setSupportInfo(doc);
             } catch (error) {
-                console.log("Could not fetch support info. It may not be set up yet.");
-                setSupportInfo(null);
+                console.log("Could not fetch support info. Using defaults.", error);
+                // Set default/fallback values if the database fetch fails
+                setSupportInfo({
+                    abujaAddress: 'Not available',
+                    kadunaAddress: 'Not available',
+                    whatsapp1: '2348162810155',
+                    whatsapp2: '2347048468458',
+                    email1: 'Ipayapp166@gmail.com',
+                    email2: 'i-paymanagerscare402@gmail.com'
+                });
             } finally {
                 setLoading(false);
             }
