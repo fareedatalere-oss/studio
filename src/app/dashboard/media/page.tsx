@@ -39,6 +39,7 @@ import {
   Mail,
   Link as LinkIcon,
   RotateCw,
+  Search,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -391,7 +392,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
 
 
   return (
-    <div ref={postRef} className={cn("relative h-[calc(100vh-170px)] bg-black flex flex-col justify-between text-white snap-start", isRotated && "fixed inset-0 z-40 h-screen w-screen p-0")}>
+    <div ref={postRef} className={cn("relative h-[calc(100vh-230px)] bg-black flex flex-col justify-between text-white snap-start", isRotated && "fixed inset-0 z-40 h-screen w-screen p-0")}>
       {/* Header */}
        <div className={cn("absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/50 to-transparent z-10", isRotated && "hidden")}>
             <div className="flex items-center justify-between">
@@ -529,10 +530,9 @@ export default function MediaPage() {
   const [isFeedMuted, setIsFeedMuted] = useState(true);
   const [allPosts, setAllPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const getPostsForType = (type: string) => allPosts.filter(p => p.type === type);
-
-   useEffect(() => {
+  useEffect(() => {
         setLoading(true);
         const fetchAllPosts = async () => {
             try {
@@ -557,17 +557,34 @@ export default function MediaPage() {
                  setAllPosts(prev => [payload, ...prev.filter(p => p.$id !== payload.$id)]);
             } else if (eventType.includes('.delete')) {
                 setAllPosts(prev => prev.filter(p => p.$id !== payload.$id));
+            } else if (eventType.includes('.update')) {
+                 setAllPosts(prev => prev.map(p => p.$id === payload.$id ? payload : p));
             }
         });
 
         return () => unsubscribe();
     }, []);
 
+    const filteredPosts = useMemo(() => {
+        if (!searchQuery) {
+        return allPosts;
+        }
+        const lowercasedQuery = searchQuery.toLowerCase();
+        return allPosts.filter(post =>
+            (post.description?.toLowerCase().includes(lowercasedQuery)) ||
+            (post.text?.toLowerCase().includes(lowercasedQuery)) ||
+            (post.username?.toLowerCase().includes(lowercasedQuery))
+        );
+    }, [allPosts, searchQuery]);
+
+    const getPostsForType = (type: string) => filteredPosts.filter(p => p.type === type);
+
+
   return (
     <div className="relative h-full">
       <Tabs defaultValue="text" className="h-full flex flex-col">
         <header className="sticky top-16 md:top-0 bg-background border-b z-20">
-          <div className="container">
+          <div className="container px-0 sm:px-4">
             <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="text">Text</TabsTrigger>
               <TabsTrigger value="image">Image</TabsTrigger>
@@ -575,6 +592,15 @@ export default function MediaPage() {
               <TabsTrigger value="film">Film</TabsTrigger>
               <TabsTrigger value="music">Music</TabsTrigger>
             </TabsList>
+             <div className="relative p-2">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Input
+                    placeholder="Search posts by caption, text, or user..."
+                    className="pl-10 w-full"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
+            </div>
           </div>
         </header>
         <div className="flex-1 overflow-y-auto snap-y snap-mandatory">
@@ -634,3 +660,5 @@ export default function MediaPage() {
     </div>
   );
 }
+
+    
