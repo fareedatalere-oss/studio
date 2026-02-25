@@ -186,84 +186,77 @@ export default function ChatThreadPage() {
   // --- Data Fetching and Realtime ---
   useEffect(() => {
     if (!otherUserId || !currentUser?.$id) {
-      return;
+        return;
     }
 
-    let isMounted = true;
     let messageUnsubscribe: (() => void) | null = null;
     let profileUnsubscribe: (() => void) | null = null;
 
     const setupChat = async () => {
-      setMessagesLoading(true);
-      try {
-        const otherUserProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
-        if (!isMounted) return;
-        setOtherUser(otherUserProfile);
-        setIsBlockedByMe(currentUserProfile.blockedUsers?.includes(otherUserId) || false);
-        setAmIBlocked(otherUserProfile.blockedUsers?.includes(currentUser.$id) || false);
-        
-        profileUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${currentUser.$id}`, response => {
-          const myProfile = response.payload as any;
-          setIsBlockedByMe(myProfile.blockedUsers?.includes(otherUserId) || false);
-        });
+        setMessagesLoading(true);
+        setMessages([]); // Clear previous messages
 
-        const sortedParticipants = [currentUser.$id, otherUserId].sort();
-        const chatResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
-            Query.equal('participants', sortedParticipants),
-            Query.limit(1)
-        ]);
-        
-        if (!isMounted) return;
+        try {
+            const otherUserProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
+            setOtherUser(otherUserProfile);
+            setIsBlockedByMe(currentUserProfile.blockedUsers?.includes(otherUserId) || false);
+            setAmIBlocked(otherUserProfile.blockedUsers?.includes(currentUser.$id) || false);
 
-        const chat = chatResponse.documents[0];
-        if (chat) {
-          const currentChatId = chat.$id;
-          setChatId(currentChatId);
+            profileUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${currentUser.$id}`, response => {
+                const myProfile = response.payload as any;
+                setIsBlockedByMe(myProfile.blockedUsers?.includes(otherUserId) || false);
+            });
 
-          const messagesResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
-              Query.equal('chatId', currentChatId),
-              Query.orderAsc('$createdAt'),
-              Query.limit(100)
-          ]);
-          if (!isMounted) return;
-          setMessages(messagesResponse.documents as Message[]);
+            const sortedParticipants = [currentUser.$id, otherUserId].sort();
+            const chatResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
+                Query.equal('participants', sortedParticipants),
+                Query.limit(1)
+            ]);
 
-          messageUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`, response => {
-              const payload = response.payload as Message;
-              const eventType = response.events[0];
-              
-              setChatId(currentChatIdState => {
-                  if (payload.chatId === currentChatIdState) {
-                      if (eventType.includes('.create')) {
-                          setMessages(prev => prev.find(m => m.$id === payload.$id) ? prev : [...prev, payload]);
-                      } else if (eventType.includes('.update')) {
-                          setMessages(prev => prev.map(m => m.$id === payload.$id ? payload : m));
-                      } else if (eventType.includes('.delete')) {
-                          setMessages(prev => prev.filter(m => m.$id !== payload.$id));
-                      }
-                  }
-                  return currentChatIdState;
-              });
-          });
-        } else {
-          setMessages([]); // No chat history yet
+            const chat = chatResponse.documents[0];
+            if (chat) {
+                const currentChatId = chat.$id;
+                setChatId(currentChatId);
+
+                const messagesResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
+                    Query.equal('chatId', currentChatId),
+                    Query.orderAsc('$createdAt'),
+                    Query.limit(100)
+                ]);
+                setMessages(messagesResponse.documents as Message[]);
+
+                messageUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`, response => {
+                    const payload = response.payload as Message;
+                    
+                    if (payload.chatId === currentChatId) {
+                        const eventType = response.events[0];
+                        if (eventType.includes('.create')) {
+                            setMessages(prev => prev.find(m => m.$id === payload.$id) ? prev : [...prev, payload]);
+                        } else if (eventType.includes('.update')) {
+                            setMessages(prev => prev.map(m => m.$id === payload.$id ? payload : m));
+                        } else if (eventType.includes('.delete')) {
+                            setMessages(prev => prev.filter(m => m.$id !== payload.$id));
+                        }
+                    }
+                });
+            } else {
+                setMessages([]);
+            }
+        } catch (error) {
+            console.error("Error setting up chat:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load chat session.' });
+        } finally {
+            setMessagesLoading(false);
         }
-      } catch (error) {
-        console.error("Error setting up chat:", error);
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not load chat session.' });
-      } finally {
-        if(isMounted) setMessagesLoading(false);
-      }
     };
 
     setupChat();
 
     return () => {
-      isMounted = false;
-      if (messageUnsubscribe) messageUnsubscribe();
-      if (profileUnsubscribe) profileUnsubscribe();
+        if (messageUnsubscribe) messageUnsubscribe();
+        if (profileUnsubscribe) profileUnsubscribe();
     };
-  }, [otherUserId, currentUser, currentUserProfile, toast]);
+}, [otherUserId, currentUser, currentUserProfile, toast]);
 
   useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
