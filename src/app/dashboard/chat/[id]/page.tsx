@@ -6,10 +6,11 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, getAppwriteStorageUrl, storage, BUCKET_ID_UPLOADS } from '@/lib/appwrite';
 import { Models, ID, Query } from 'appwrite';
-import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic } from 'lucide-react';
+import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, ImageIcon, PlayCircle, FileAudio } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -96,6 +97,7 @@ export default function ChatThreadPage() {
             
             if (response.events.includes('databases.*.collections.*.documents.*.create') && createdMessage.chatId === chatId) {
                  setMessages((prevMessages) => {
+                    // Check if message already exists to prevent duplicates
                     if (prevMessages.some(msg => msg.$id === createdMessage.$id)) {
                         return prevMessages;
                     }
@@ -244,23 +246,47 @@ export default function ChatThreadPage() {
         e.target.value = '';
     };
 
+    const handleVoiceClick = () => {
+        toast({ title: 'Coming Soon', description: 'Voice recording functionality is under development.' });
+    };
+
     const renderMessageContent = (message: Models.Document) => {
         if (message.mediaUrl && message.contentType) {
             if (message.contentType.startsWith('image/')) {
                 return (
-                    <div className="relative w-full max-w-[250px] aspect-square">
-                        <Image src={message.mediaUrl} alt="chat image" layout="fill" className="rounded-lg object-cover" />
-                    </div>
+                    <Dialog>
+                        <DialogTrigger asChild>
+                             <div className="relative w-full max-w-[250px] aspect-square cursor-pointer bg-muted rounded-lg flex items-center justify-center">
+                                 <Image src={message.mediaUrl} alt="chat image" layout="fill" className="rounded-lg object-cover" />
+                             </div>
+                        </DialogTrigger>
+                        <DialogContent className="p-0 border-0 bg-black/80 w-screen h-screen max-w-none max-h-none flex items-center justify-center">
+                            <Image src={message.mediaUrl} alt="chat image preview" layout="fill" className="object-contain" />
+                        </DialogContent>
+                    </Dialog>
                 );
             }
             if (message.contentType.startsWith('video/')) {
-                return <video src={message.mediaUrl} controls className="max-w-xs rounded-lg" />;
+                 return (
+                    <Dialog>
+                        <DialogTrigger asChild>
+                             <div className="relative w-full max-w-[250px] aspect-square cursor-pointer bg-black rounded-lg flex items-center justify-center">
+                                <PlayCircle className="h-16 w-16 text-white" />
+                             </div>
+                        </DialogTrigger>
+                        <DialogContent className="p-0 border-0 bg-black/90 w-screen h-screen max-w-none max-h-none flex items-center justify-center">
+                            <video src={message.mediaUrl} controls autoPlay className="max-w-full max-h-full" />
+                        </DialogContent>
+                    </Dialog>
+                );
             }
             if (message.contentType.startsWith('audio/')) {
-                return <audio src={message.mediaUrl} controls className="w-full" />;
+                 return (
+                     <audio src={message.mediaUrl} controls className="w-full max-w-[250px]" />
+                );
             }
         }
-        return <p className="text-sm">{message.text}</p>;
+        return <p className="text-sm whitespace-pre-wrap">{message.text}</p>;
     };
 
 
@@ -332,7 +358,7 @@ export default function ChatThreadPage() {
                      <Button type="button" variant="ghost" size="icon" onClick={() => mediaInputRef.current?.click()} disabled={sending}>
                         <Paperclip />
                     </Button>
-                    <Button type="button" variant="ghost" size="icon" onClick={() => audioInputRef.current?.click()} disabled={sending}>
+                    <Button type="button" variant="ghost" size="icon" onClick={handleVoiceClick} disabled={sending}>
                         <Mic />
                     </Button>
                     <Button type="submit" size="icon" disabled={sending || !newMessage.trim()}>

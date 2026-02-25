@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -9,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, Loader2, MoreVertical, Trash2, UserX } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
-import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS } from '@/lib/appwrite';
+import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -41,14 +42,42 @@ const RecentChatItem = ({ chat, currentUser, onAction }: { chat: any, currentUse
          toast({ title: "Feature coming soon", description: `Blocking for ${username} will be available shortly.` });
     };
 
-    const handleDeleteChat = async (chatId: string, username: string) => {
-        toast({ title: 'Deleting Chat...', description: `Removing conversation with ${username}.` });
+    const handleDeleteForMe = async (chatId: string) => {
+        toast({ title: 'Deleting Chat...', description: `Removing chat from your list.` });
         try {
             await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId);
-            toast({ title: 'Success', description: 'Chat has been deleted.' });
+            toast({ title: 'Success', description: 'Chat has been removed from your list.' });
             onAction(); // Trigger a refetch in the parent component
         } catch (error: any) {
             toast({ title: 'Error', description: `Could not delete chat: ${error.message}`, variant: 'destructive' });
+        }
+    };
+    
+    const handleDeleteForEveryone = async (chatId: string, username: string) => {
+        toast({ title: 'Deleting Chat for Everyone...', description: `This may take a moment.` });
+        try {
+            // First, delete all messages in the chat
+            let hasMore = true;
+            while(hasMore) {
+                const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
+                    Query.equal('chatId', chatId),
+                    Query.limit(25) // Delete in batches
+                ]);
+                
+                if (response.documents.length > 0) {
+                    await Promise.all(response.documents.map(doc => databases.deleteDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, doc.$id)));
+                }
+                
+                hasMore = response.documents.length === 25;
+            }
+
+            // Then, delete the chat document itself
+            await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId);
+            
+            toast({ title: 'Success', description: `Chat with ${username} has been deleted for everyone.` });
+            onAction(); // Refetch
+        } catch (error: any) {
+            toast({ title: 'Error', description: `Could not delete chat for everyone: ${error.message}`, variant: 'destructive' });
         }
     };
 
@@ -85,12 +114,13 @@ const RecentChatItem = ({ chat, currentUser, onAction }: { chat: any, currentUse
                 </DropdownMenu>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>This will permanently delete your chat history with {displayName}. This action cannot be undone.</AlertDialogDescription>
+                        <AlertDialogTitle>Delete Chat with {displayName}?</AlertDialogTitle>
+                        <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter>
+                    <AlertDialogFooter className="sm:flex-col sm:space-x-0 sm:gap-2">
+                        <AlertDialogAction onClick={() => handleDeleteForEveryone(chat.$id, displayName)} className="bg-destructive hover:bg-destructive/90">Delete for Everyone</AlertDialogAction>
+                        <AlertDialogAction onClick={() => handleDeleteForMe(chat.$id)} variant="secondary">Delete for Me</AlertDialogAction>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDeleteChat(chat.$id, displayName)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
@@ -210,10 +240,10 @@ export default function ChatPage() {
     };
 
     return (
-        <div className="flex flex-col h-full bg-background text-foreground">
+        <div className="flex flex-col h-full bg-white text-gray-900">
             <Tabs defaultValue="recent" className="flex flex-col h-full">
-                <header className="sticky top-16 md:top-0 bg-background border-b p-3 z-10">
-                    <TabsList className="grid w-full grid-cols-2 bg-muted">
+                <header className="sticky top-16 md:top-0 bg-white border-b p-3 z-10">
+                    <TabsList className="grid w-full grid-cols-2 bg-muted text-gray-600">
                         <TabsTrigger value="recent">Recent</TabsTrigger>
                         <TabsTrigger value="all">All Users</TabsTrigger>
                     </TabsList>
@@ -221,7 +251,7 @@ export default function ChatPage() {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                         <Input
                             placeholder="Search chats or users..."
-                            className="pl-10"
+                            className="pl-10 text-gray-900"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
