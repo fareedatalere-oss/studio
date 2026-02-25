@@ -158,7 +158,7 @@ export default function TransferPage() {
                         </div>
                          <div className="space-y-2">
                             <Label htmlFor="pin">Your 5-Digit PIN</Label>
-                            <Input id="pin" type="password" inputMode="numeric" pattern="[0-9]*" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} required/>
+                            <Input id="pin" type="tel" inputMode="numeric" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} required/>
                         </div>
 
                         <Button onClick={handleSendMoney} className="w-full" disabled={isLoading || !amount || pin.length !== 5}>

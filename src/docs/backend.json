@@ -102,16 +102,12 @@
         "description": "Represents a single message within a chat session.",
         "type": "object",
         "properties": {
+            "chatId": { "type": "string", "description": "The ID of the chat this message belongs to."},
             "senderId": { "type": "string", "description": "The UID of the message sender." },
             "text": { "type": "string", "description": "The text content of the message." },
-            "mediaUrl": { "type": "string", "format": "uri", "description": "URL of any attached media." },
-            "mediaType": { "type": "string", "enum": ["image", "video", "audio", "file"] },
-            "createdAt": { "type": "string", "format": "date-time" },
-            "status": { "type": "string", "enum": ["sent", "delivered", "read"] },
-            "isEdited": { "type": "boolean", "description": "True if the message has been edited." },
-            "deletedFor": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs for whom this message is deleted."}
+            "createdAt": { "type": "string", "format": "date-time" }
         },
-        "required": ["senderId", "createdAt"]
+        "required": ["chatId", "senderId", "text", "createdAt"]
     },
     "Post": {
       "title": "Media Post",
@@ -176,7 +172,7 @@
         "description": { "type": "string" },
         "imageUrl": { "type": "string", "format": "uri" },
         "price": { "type": "number" },
-        "contactType": { "type": "string", "enum": ["chat", "call"] },
+        "contactType": { "type": "string", "enum": ["call"] },
         "contactInfo": { "type": "string", "description": "Phone number if contact type is call" },
         "sellerId": { "type": "string" },
         "isBanned": { "type": "boolean", "default": false },
@@ -247,9 +243,9 @@
       "schema": { "$ref": "#/entities/Chat" },
       "description": "Stores metadata for a single chat session between users."
     },
-    "/chats/{chatId}/messages/{messageId}": {
+    "/messages/{messageId}": {
       "schema": { "$ref": "#/entities/ChatMessage" },
-      "description": "Stores all messages for a specific chat session."
+      "description": "Stores all messages from all chats in a single collection for querying."
     },
     "/posts/{postId}": {
       "schema": { "$ref": "#/entities/Post" },

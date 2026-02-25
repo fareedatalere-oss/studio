@@ -150,9 +150,8 @@ export default function BuyAirtimePage() {
                                 <Label htmlFor="pin">5-Digit Transaction PIN</Label>
                                 <Input
                                     id="pin"
-                                    type="password"
+                                    type="tel"
                                     inputMode="numeric"
-                                    pattern="[0-9]*"
                                     value={pin}
                                     onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                                     maxLength={5}

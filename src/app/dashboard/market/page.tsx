@@ -257,9 +257,8 @@ function MarketContent() {
                                 <Label htmlFor="pin-product">5-Digit Transaction PIN</Label>
                                 <Input
                                     id="pin-product"
-                                    type="password"
+                                    type="tel"
                                     inputMode="numeric"
-                                    pattern="[0-9]*"
                                     value={pin}
                                     onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                                     maxLength={5}
@@ -322,9 +321,8 @@ function MarketContent() {
                                     <Label htmlFor={`pin-book-${book.$id}`}>5-Digit Transaction PIN</Label>
                                     <Input
                                         id={`pin-book-${book.$id}`}
-                                        type="password"
+                                        type="tel"
                                         inputMode="numeric"
-                                        pattern="[0-9]*"
                                         value={pin}
                                         onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                                         maxLength={5}

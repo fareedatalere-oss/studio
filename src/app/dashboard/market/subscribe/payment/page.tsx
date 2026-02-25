@@ -136,9 +136,8 @@ export default function SubscriptionPaymentPage() {
                                 <Label htmlFor="pin">5-Digit Transaction PIN</Label>
                                 <Input
                                     id="pin"
-                                    type="password"
+                                    type="tel"
                                     inputMode="numeric"
-                                    pattern="[0-9]*"
                                     value={pin}
                                     onChange={handlePinChange}
                                     maxLength={5}

@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Bot, Bell, Home, PlaySquare, Store, User } from 'lucide-react';
+import { Bot, Bell, Home, PlaySquare, Store, User, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -85,10 +85,14 @@ export default function DashboardLayout({
 
       {/* Bottom Navigation */}
       <footer className="fixed bottom-0 z-40 w-full border-t bg-background md:hidden">
-        <div className="container grid h-16 grid-cols-4 items-center justify-around text-center">
+        <div className="container grid h-16 grid-cols-5 items-center justify-around text-center">
           <Link href="/dashboard" className="flex flex-col items-center gap-1 text-primary">
             <Home className="h-6 w-6" />
             <span className="text-xs">Home</span>
+          </Link>
+          <Link href="/dashboard/chat" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary">
+            <MessageSquare className="h-6 w-6" />
+            <span className="text-xs">Chat</span>
           </Link>
           <Link href="/dashboard/media" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary">
             <PlaySquare className="h-6 w-6" />
