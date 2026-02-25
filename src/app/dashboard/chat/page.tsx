@@ -19,7 +19,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -34,7 +33,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 
 export default function ChatPage() {
-  const { user: currentUser, profile: currentUserProfile, loading: userLoading } = useUser();
+  const { user: currentUser, profile: currentUserProfile, loading: userLoading, recheckUser } = useUser();
   const { toast } = useToast();
   
   const [allUsers, setAllUsers] = useState<any[]>([]);
@@ -52,8 +51,9 @@ export default function ChatPage() {
     setUsersLoading(true);
     databases.listDocuments(DATABASE_ID, COLLECTION_ID_PROFILES, [Query.limit(100)])
       .then(response => {
-        // Exclude current user from the list of all users
-        setAllUsers(response.documents.filter(doc => doc.$id !== currentUser.$id));
+        // Exclude current user from the list of all users and any users who have blocked the current user.
+        const unblockedUsers = response.documents.filter(doc => doc.$id !== currentUser.$id && !doc.blockedUsers?.includes(currentUser.$id));
+        setAllUsers(unblockedUsers);
       })
       .catch(error => console.error("Failed to fetch users:", error))
       .finally(() => setUsersLoading(false));
@@ -67,7 +67,7 @@ export default function ChatPage() {
             DATABASE_ID,
             COLLECTION_ID_CHATS,
             [
-                Query.equal('participants', currentUser.$id),
+                Query.search('participants', currentUser.$id),
                 Query.orderDesc('lastMessageAt')
             ]
         );
@@ -79,11 +79,16 @@ export default function ChatPage() {
             try {
                 const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
                 
+                // Don't show chats with users who have blocked the current user
+                if (userProfile.blockedUsers?.includes(currentUser.$id)) {
+                    return null;
+                }
+
                 // Get unread messages count
                 const unreadResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
                     Query.equal('chatId', [chat.$id]),
                     Query.equal('senderId', [otherUserId]),
-                    Query.equal('status', ['sent', 'delivered'])
+                    Query.notEqual('status', ['read']),
                 ]);
 
                 return { ...chat, otherUser: userProfile, unreadCount: unreadResponse.total };
@@ -117,13 +122,24 @@ export default function ChatPage() {
     const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_CHATS}.documents`, response => {
       // Check if the current user is a participant in the changed chat document
       if ((response.payload as any).participants?.includes(currentUser.$id)) {
-        // Refetch the entire list to ensure order and content is correct
         fetchRecentChats();
       }
     });
 
     return () => unsubscribe();
   }, [currentUser, fetchRecentChats]);
+  
+  // Refetch all users if block list changes
+  useEffect(() => {
+      if (currentUserProfile?.blockedUsers) {
+           if (!currentUser) return;
+            databases.listDocuments(DATABASE_ID, COLLECTION_ID_PROFILES, [Query.limit(100)])
+            .then(response => {
+                const unblockedUsers = response.documents.filter(doc => doc.$id !== currentUser.$id && !doc.blockedUsers?.includes(currentUser.$id));
+                setAllUsers(unblockedUsers);
+            });
+      }
+  }, [currentUser, currentUserProfile?.blockedUsers]);
 
     const handleBlockUser = async (otherUserId: string, otherUserName: string) => {
         if (!currentUserProfile) return;
@@ -138,6 +154,7 @@ export default function ChatPage() {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUserProfile.$id, {
                 blockedUsers: [...currentBlocked, otherUserId]
             });
+            await recheckUser();
             toast({ title: 'User Blocked', description: `You have blocked ${otherUserName}.` });
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to block user.' });
