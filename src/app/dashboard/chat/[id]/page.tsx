@@ -60,9 +60,15 @@ export default function ChatThreadPage() {
                 // Subscribe to new messages for THIS CHAT ONLY
                 unsubscribe = account.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`, (response) => {
                     const createdMessage = response.payload as Models.Document;
-                    // Only add the message if it belongs to the current chat
+                    
                     if (response.events.includes('databases.*.collections.*.documents.*.create') && createdMessage.chatId === chatId) {
-                        setMessages((prevMessages) => [...prevMessages, createdMessage]);
+                        // THIS IS THE FIX: Make the state update idempotent to prevent duplicate keys.
+                        setMessages((prevMessages) => {
+                            if (prevMessages.some(msg => msg.$id === createdMessage.$id)) {
+                                return prevMessages;
+                            }
+                            return [...prevMessages, createdMessage];
+                        });
                     }
                 });
 
@@ -77,9 +83,6 @@ export default function ChatThreadPage() {
         setupChat();
 
         // **THE CRITICAL CLEANUP FUNCTION**
-        // This function is called automatically when the component unmounts
-        // (e.g., user navigates back) or when the dependencies (chatId) change.
-        // It guarantees the listener for the old chat is destroyed.
         return () => {
             if (unsubscribe) {
                 unsubscribe();
@@ -100,22 +103,7 @@ export default function ChatThreadPage() {
         setNewMessage('');
 
         try {
-            // Optimistic update for instant feedback
-            const optimisticMessage: Models.Document = {
-                $id: ID.unique(),
-                $collectionId: COLLECTION_ID_MESSAGES,
-                $databaseId: DATABASE_ID,
-                $createdAt: new Date().toISOString(),
-                $updatedAt: new Date().toISOString(),
-                $permissions: [],
-                chatId: chatId,
-                senderId: currentUser.$id,
-                text: messageText,
-                status: 'sent',
-            };
-            setMessages(prev => [...prev, optimisticMessage]);
-
-            // Create the message document
+            // REMOVED OPTIMISTIC UPDATE. The subscription is now the single source of truth for new messages.
             await databases.createDocument(
                 DATABASE_ID,
                 COLLECTION_ID_MESSAGES,
@@ -149,8 +137,7 @@ export default function ChatThreadPage() {
         } catch (error: any) {
             console.error('Failed to send message:', error);
             toast({ title: 'Error', description: 'Failed to send message.', variant: 'destructive' });
-            // Revert optimistic update
-            setMessages(prev => prev.filter(m => m.$id !== optimisticMessage.$id));
+            // Restore text input on failure
             setNewMessage(messageText);
         } finally {
             setSending(false);
