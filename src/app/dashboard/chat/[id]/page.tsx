@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } from '@/lib/appwrite';
 import { Models, ID, Query } from 'appwrite';
-import { ArrowLeft, Send, MoreVertical, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,6 @@ import { useToast } from '@/hooks/use-toast';
 const getChatId = (userId1: string, userId2: string) => {
     const sortedIds = [userId1, userId2].sort();
     // Appwrite document IDs must be max 36 chars.
-    // Joining two full user IDs (~20 chars each) exceeds this.
     // We create a deterministic ID by taking parts of both.
     return `${sortedIds[0].substring(0, 15)}_${sortedIds[1].substring(0, 15)}`;
 };
@@ -38,12 +37,32 @@ export default function ChatThreadPage() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatId = currentUser ? getChatId(currentUser.$id, otherUserId) : null;
     
-    useEffect(() => {
+    const setupRealtimeSubscription = useCallback(() => {
         if (!chatId) return;
 
-        let unsubscribe: (() => void) | undefined;
+        const realtimeTopic = `databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`;
+        const unsubscribe = account.client.subscribe(realtimeTopic, (response) => {
+            const createdMessage = response.payload as Models.Document;
+            
+            if (response.events.includes('databases.*.collections.*.documents.*.create') && createdMessage.chatId === chatId) {
+                setMessages((prevMessages) => {
+                    // Prevent duplicates
+                    if (prevMessages.some(msg => msg.$id === createdMessage.$id)) {
+                        return prevMessages;
+                    }
+                    return [...prevMessages, createdMessage];
+                });
+            }
+        });
 
+        return unsubscribe;
+    }, [chatId]);
+
+    useEffect(() => {
+        let unsubscribe: (() => void) | undefined;
+        
         const setupChat = async () => {
+            if (!chatId) return;
             setLoading(true);
             try {
                 // Fetch other user's profile
@@ -57,20 +76,9 @@ export default function ChatThreadPage() {
                     Query.limit(100) 
                 ]);
                 setMessages(response.documents);
-
-                // Subscribe to new messages for THIS CHAT ONLY
-                unsubscribe = account.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`, (response) => {
-                    const createdMessage = response.payload as Models.Document;
-                    
-                    if (response.events.includes('databases.*.collections.*.documents.*.create') && createdMessage.chatId === chatId) {
-                        setMessages((prevMessages) => {
-                            if (prevMessages.some(msg => msg.$id === createdMessage.$id)) {
-                                return prevMessages;
-                            }
-                            return [...prevMessages, createdMessage];
-                        });
-                    }
-                });
+                
+                // Set up the realtime listener
+                unsubscribe = setupRealtimeSubscription();
 
             } catch (error: any) {
                 console.error('Failed to set up chat:', error);
@@ -82,13 +90,12 @@ export default function ChatThreadPage() {
 
         setupChat();
 
-        // **THE CRITICAL CLEANUP FUNCTION**
         return () => {
             if (unsubscribe) {
                 unsubscribe();
             }
         };
-    }, [chatId, otherUserId, toast]);
+    }, [chatId, otherUserId, toast, setupRealtimeSubscription]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -144,8 +151,8 @@ export default function ChatThreadPage() {
 
 
     return (
-        <div className="flex flex-col h-full bg-background text-foreground">
-            <header className="sticky top-16 md:top-0 bg-background border-b flex items-center p-3 gap-3 z-10">
+        <div className="flex flex-col h-full bg-white text-gray-900">
+            <header className="sticky top-16 md:top-0 bg-white border-b flex items-center p-3 gap-3 z-10">
                 <Button variant="ghost" size="icon" onClick={() => router.back()}>
                     <ArrowLeft />
                 </Button>
@@ -199,7 +206,7 @@ export default function ChatThreadPage() {
                  <div ref={messagesEndRef} />
             </main>
 
-            <footer className="sticky bottom-16 md:bottom-0 bg-background border-t p-3">
+            <footer className="sticky bottom-16 md:bottom-0 bg-white border-t p-3">
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2">
                     <Input
                         type="text"
@@ -208,6 +215,12 @@ export default function ChatThreadPage() {
                         onChange={(e) => setNewMessage(e.target.value)}
                         disabled={sending}
                     />
+                    <Button type="button" variant="ghost" size="icon" onClick={() => toast({ title: 'Coming Soon', description: 'Attaching files will be available shortly.' })}>
+                        <Paperclip />
+                    </Button>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => toast({ title: 'Coming Soon', description: 'Voice messages will be available shortly.' })}>
+                        <Mic />
+                    </Button>
                     <Button type="submit" size="icon" disabled={sending || !newMessage.trim()}>
                         {sending ? <Loader2 className="animate-spin" /> : <Send />}
                     </Button>
