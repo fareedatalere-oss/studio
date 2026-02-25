@@ -105,9 +105,10 @@
             "chatId": { "type": "string", "description": "The ID of the chat this message belongs to."},
             "senderId": { "type": "string", "description": "The UID of the message sender." },
             "text": { "type": "string", "description": "The text content of the message." },
+            "status": { "type": "string", "enum": ["sent", "delivered", "read"], "description": "The delivery status of the message." },
             "createdAt": { "type": "string", "format": "date-time" }
         },
-        "required": ["chatId", "senderId", "text", "createdAt"]
+        "required": ["chatId", "senderId", "text", "createdAt", "status"]
     },
     "Post": {
       "title": "Media Post",

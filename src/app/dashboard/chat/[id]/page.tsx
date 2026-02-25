@@ -111,6 +111,7 @@ export default function ChatThreadPage() {
                 chatId: chatId,
                 senderId: currentUser.$id,
                 text: messageText,
+                status: 'sent',
             };
             setMessages(prev => [...prev, optimisticMessage]);
 
@@ -123,6 +124,7 @@ export default function ChatThreadPage() {
                     chatId: chatId,
                     senderId: currentUser.$id,
                     text: messageText,
+                    status: 'sent',
                 }
             );
 
