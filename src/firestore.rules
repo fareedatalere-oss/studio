@@ -50,7 +50,6 @@ service cloud.firestore {
       // Any signed-in user can create a message. Security is handled by chat participation.
       allow create: if isSignedIn();
       // Allow participants of the chat to read messages.
-      // THIS IS A SIMPLIFIED RULE. In production, you would check against the chat document.
       // Appwrite's client-side query will filter messages by `chatId`, providing security by obscurity.
       allow read: if isSignedIn();
       // Users can only update/delete their own messages.
@@ -70,6 +69,31 @@ service cloud.firestore {
         allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
         allow delete: if false;
       }
+    }
+
+    // Rules for marketplace items
+    match /apps/{appId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
+        allow update, delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
+    }
+
+    match /products/{productId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
+        allow update, delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
+    }
+
+    match /books/{bookId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
+        allow update, delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
+    }
+
+    match /upworkProfiles/{profileId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
+        allow update, delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
     }
     
     // Rules for app config

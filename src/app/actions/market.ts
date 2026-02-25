@@ -1,3 +1,4 @@
+
 'use server';
 
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_PRODUCTS, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_BOOKS } from '@/lib/appwrite';
@@ -23,9 +24,11 @@ export async function purchaseProduct(payload: {
             databases.getDocument(DATABASE_ID, COLLECTION_ID_PRODUCTS, productId),
         ]);
 
-        const sellerProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, product.sellerId);
-
         // 2. Perform validations
+        if (buyerId === product.sellerId) {
+            throw new Error("You cannot purchase your own product.");
+        }
+
         if (buyerProfile.pin !== pin) {
             throw new Error('Incorrect transaction PIN.');
         }
@@ -35,6 +38,8 @@ export async function purchaseProduct(payload: {
         if (buyerProfile.nairaBalance < totalCost) {
             throw new Error('Insufficient balance to complete this purchase.');
         }
+
+        const sellerProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, product.sellerId);
 
         // 3. Create pending transaction logs for audit trail
         const buyerTxPromise = databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
@@ -107,6 +112,11 @@ export async function purchaseBook(payload: {
         if (book.priceType === 'paid') {
             if (!pin || pin.length !== 5) throw new Error("A valid 5-digit PIN is required for paid books.");
             if (buyerProfile.pin !== pin) throw new Error("Incorrect transaction PIN.");
+            
+            if (buyerId === book.sellerId) {
+                throw new Error("You cannot purchase your own book.");
+            }
+
             const totalCost = book.price + BOOK_COMMISSION;
             if (buyerProfile.nairaBalance < totalCost) throw new Error("Insufficient balance.");
             
