@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -258,22 +259,19 @@ export default function ChatThreadPage() {
 
   // --- Actions ---
     const getOrCreateChat = useCallback(async (currentUserId: string, otherUserId: string): Promise<string> => {
-        // 1. Try to find existing chat
         const sortedParticipants = [currentUserId, otherUserId].sort();
-        try {
-            const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
-                Query.equal('participants', sortedParticipants),
-                Query.limit(1)
-            ]);
-            if (response.documents.length > 0) {
-                return response.documents[0].$id;
-            }
-        } catch (e) {
-            console.error("Error finding chat, will try to create.", e);
+        
+        // 1. Try to find existing chat
+        const existingChats = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
+            Query.equal('participants', sortedParticipants),
+            Query.limit(1)
+        ]);
+
+        if (existingChats.documents.length > 0) {
+            return existingChats.documents[0].$id;
         }
 
-        // 2. If not found, create it without document-level permissions.
-        // This relies on the collection-level permissions being set correctly (Role:Users with CRUD).
+        // 2. If not found, create it
         const newChatDoc = await databases.createDocument(
             DATABASE_ID,
             COLLECTION_ID_CHATS,
@@ -284,7 +282,7 @@ export default function ChatThreadPage() {
     }, []);
 
   const handleSendMessage = async (text: string, file?: File, type?: Message['mediaType']) => {
-    if (!text.trim() && !file) return;
+    if ((!text || !text.trim()) && !file) return;
     if (!currentUser?.$id || !otherUser?.$id) {
         toast({ variant: 'destructive', title: 'Error', description: "Cannot send message. User or recipient not found." });
         return;
@@ -294,9 +292,7 @@ export default function ChatThreadPage() {
 
     try {
         const currentChatId = await getOrCreateChat(currentUser.$id, otherUser.$id);
-        if (!chatId) {
-            setChatId(currentChatId); // Set it for the first time to trigger subscriptions
-        }
+        if (!chatId) setChatId(currentChatId);
         
         let mediaUrl: string | undefined = undefined;
         if (file && type) {
@@ -313,26 +309,13 @@ export default function ChatThreadPage() {
             mediaType: type || 'text'
         };
 
-        // Message-level permissions are crucial for privacy.
-        // Any logged-in user can CREATE a message (from collection permissions),
-        // but these permissions lock down who can READ it.
-        const messagePermissions = [
-            Permission.read(Role.user(currentUser.$id)),
-            Permission.read(Role.user(otherUser.$id)),
-            Permission.update(Role.user(currentUser.$id)),
-            Permission.delete(Role.user(currentUser.$id)),
-        ];
-
-        // Create the message document
         await databases.createDocument(
             DATABASE_ID,
             COLLECTION_ID_MESSAGES,
             ID.unique(),
-            messagePayload,
-            messagePermissions
+            messagePayload
         );
 
-        // Update the last message on the chat document
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, currentChatId, {
             lastMessage: text.trim() || `Sent a ${type}`,
             lastMessageAt: new Date().toISOString()
@@ -341,6 +324,7 @@ export default function ChatThreadPage() {
         setInputText('');
         setAudioPreview(null);
     } catch (error: any) {
+        console.error("Send message error:", error);
         toast({ variant: 'destructive', title: 'Failed to send message', description: error.message });
     } finally {
         setIsSending(false);
@@ -605,3 +589,5 @@ export default function ChatThreadPage() {
     </div>
   );
 }
+
+    
