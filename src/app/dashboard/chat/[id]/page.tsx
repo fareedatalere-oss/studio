@@ -15,7 +15,11 @@ import { useToast } from '@/hooks/use-toast';
 
 // Helper to create a consistent chat ID between two users
 const getChatId = (userId1: string, userId2: string) => {
-    return [userId1, userId2].sort().join('_');
+    const sortedIds = [userId1, userId2].sort();
+    // Appwrite document IDs must be max 36 chars.
+    // Joining two full user IDs (~20 chars each) exceeds this.
+    // We create a deterministic ID by taking parts of both.
+    return `${sortedIds[0].substring(0, 15)}_${sortedIds[1].substring(0, 15)}`;
 };
 
 export default function ChatThreadPage() {
@@ -34,9 +38,6 @@ export default function ChatThreadPage() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatId = currentUser ? getChatId(currentUser.$id, otherUserId) : null;
     
-    // This effect is the core of the fix. It ensures that the Appwrite
-    // subscription is properly created and, most importantly, destroyed
-    // when the user navigates away or the chat changes.
     useEffect(() => {
         if (!chatId) return;
 
@@ -62,7 +63,6 @@ export default function ChatThreadPage() {
                     const createdMessage = response.payload as Models.Document;
                     
                     if (response.events.includes('databases.*.collections.*.documents.*.create') && createdMessage.chatId === chatId) {
-                        // THIS IS THE FIX: Make the state update idempotent to prevent duplicate keys.
                         setMessages((prevMessages) => {
                             if (prevMessages.some(msg => msg.$id === createdMessage.$id)) {
                                 return prevMessages;
@@ -103,7 +103,6 @@ export default function ChatThreadPage() {
         setNewMessage('');
 
         try {
-            // REMOVED OPTIMISTIC UPDATE. The subscription is now the single source of truth for new messages.
             await databases.createDocument(
                 DATABASE_ID,
                 COLLECTION_ID_MESSAGES,
@@ -137,7 +136,6 @@ export default function ChatThreadPage() {
         } catch (error: any) {
             console.error('Failed to send message:', error);
             toast({ title: 'Error', description: 'Failed to send message.', variant: 'destructive' });
-            // Restore text input on failure
             setNewMessage(messageText);
         } finally {
             setSending(false);
