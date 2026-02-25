@@ -9,7 +9,7 @@ import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, ImageIcon, Play
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
 import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -503,7 +503,7 @@ export default function ChatThreadPage() {
         
         fetchRecent();
     }, [messageToForward, currentUser]);
-    // --- End Message Actions ---
+    // --- End Forwarding State ---
 
     const renderMessageContent = (message: Models.Document) => {
         let mediaType: string | null = null;
@@ -523,6 +523,7 @@ export default function ChatThreadPage() {
                              </div>
                         </DialogTrigger>
                         <DialogContent className="p-0 border-0 bg-black/80 w-screen h-screen max-w-none max-h-none flex items-center justify-center">
+                            <DialogTitle className="sr-only">Image Preview</DialogTitle>
                             <Image src={message.mediaUrl} alt="chat image preview" layout="fill" className="object-contain" />
                         </DialogContent>
                     </Dialog>
@@ -537,6 +538,7 @@ export default function ChatThreadPage() {
                              </div>
                         </DialogTrigger>
                         <DialogContent className="p-0 border-0 bg-black/90 w-screen h-screen max-w-none max-h-none flex items-center justify-center">
+                            <DialogTitle className="sr-only">Video Preview</DialogTitle>
                             <video src={message.mediaUrl} controls autoPlay className="max-w-full max-h-full" />
                         </DialogContent>
                     </Dialog>
