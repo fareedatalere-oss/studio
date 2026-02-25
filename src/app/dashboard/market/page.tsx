@@ -19,7 +19,7 @@ import { databases, DATABASE_ID, COLLECTION_ID_APPS, COLLECTION_ID_PRODUCTS, COL
 import { Query } from 'appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUser } from '@/hooks/use-appwrite';
-import { purchaseProduct, purchaseBook } from '@/app/actions/market';
+import { purchaseBook } from '@/app/actions/market';
 
 function MarketContent() {
   const { toast } = useToast();
@@ -140,35 +140,6 @@ function MarketContent() {
     </div>
   );
 
-  const handleBuyProduct = async (product: any) => {
-    if (!currentUser) {
-        toast({ variant: 'destructive', title: 'Please sign in to make a purchase.' });
-        return;
-    }
-    if (!pin) {
-        toast({ variant: 'destructive', title: 'PIN is required.' });
-        return;
-    }
-    setIsLoading(true);
-
-    const result = await purchaseProduct({
-        buyerId: currentUser.$id,
-        productId: product.$id,
-        pin,
-    });
-
-    if (result.success) {
-        toast({ title: 'Purchase Successful!', description: `You have purchased ${product.name}.` });
-        setCart(currentCart => currentCart.filter(item => item.$id !== product.$id));
-        await recheckUser(); // Update user's balance in the UI
-    } else {
-        toast({ title: 'Purchase Failed', description: result.message, variant: 'destructive' });
-    }
-
-    setIsLoading(false);
-    setPin('');
-  };
-  
     const handleGetBook = async (book: any) => {
         if (!currentUser) {
             toast({ variant: 'destructive', title: 'Please sign in to get books.' });
@@ -244,35 +215,9 @@ function MarketContent() {
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()}>Buy Product</DropdownMenuItem></AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    Enter your 5-digit PIN to purchase {product.name} for ₦{(product.price + 80).toLocaleString()}.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                             <div className="space-y-2">
-                                <Label htmlFor="pin-product">5-Digit Transaction PIN</Label>
-                                <Input
-                                    id="pin-product"
-                                    type="tel"
-                                    inputMode="numeric"
-                                    value={pin}
-                                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                                    maxLength={5}
-                                    placeholder="*****"
-                                />
-                            </div>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleBuyProduct(product)} disabled={isLoading || pin.length !== 5}>
-                                    {isLoading ? 'Processing...' : 'Confirm & Pay'}
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                    <DropdownMenuItem asChild>
+                        <Link href={`/dashboard/market/purchase/${product.$id}`}>Buy Product</Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => {
                         if (!cart.find(item => item.$id === product.$id)) {
                             setCart(prev => [...prev, product]);
@@ -321,8 +266,9 @@ function MarketContent() {
                                     <Label htmlFor={`pin-book-${book.$id}`}>5-Digit Transaction PIN</Label>
                                     <Input
                                         id={`pin-book-${book.$id}`}
-                                        type="tel"
+                                        type="password"
                                         inputMode="numeric"
+                                        pattern="[0-9]*"
                                         value={pin}
                                         onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                                         maxLength={5}

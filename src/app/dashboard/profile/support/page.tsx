@@ -9,11 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 const supportInfo = {
-    abujaAddress: 'Plot 451, Aminu Kano Crescent, Wuse 2, Abuja',
-    abujaContactPerson: 'Mr. Abdullahi',
-    abujaPhone: '+234 812 345 6789',
-    kadunaAddress: 'No. 17, Ahmadu Bello Way, Kaduna',
-    kadunaPhone: '+234 901 234 5678',
+    abujaAddress: 'kobi Sarki Asokoro Extension FCT Abuja Okada Junction Sadiq Phone sales',
+    abujaContactPerson: '',
+    abujaPhone: '08169503595',
+    kadunaAddress: 'Lere Local Government Kaduna State, Kwarfada',
+    kadunaPhone: '07086556098',
     whatsapp1: '2348162810155',
     whatsapp2: '2347048468458',
     email1: 'Ipayapp166@gmail.com',
