@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -185,7 +186,6 @@ export default function ChatThreadPage() {
                     senderId: currentUser.$id,
                     text: messageText,
                     status: 'sent',
-                    type: 'text'
                 }
             );
             await updateChatList(messageText);
@@ -207,10 +207,6 @@ export default function ChatThreadPage() {
         try {
             const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
             const mediaUrl = getAppwriteStorageUrl(uploadResult.$id);
-            
-            let messageType = 'image';
-            if (file.type.startsWith('video/')) messageType = 'video';
-            if (file.type.startsWith('audio/')) messageType = 'audio';
     
             await databases.createDocument(
                 DATABASE_ID,
@@ -221,11 +217,15 @@ export default function ChatThreadPage() {
                     senderId: currentUser.$id,
                     mediaUrl: mediaUrl,
                     status: 'sent',
-                    type: messageType,
+                    contentType: file.type,
                 }
             );
     
-            const lastMessageText = `[${messageType.charAt(0).toUpperCase() + messageType.slice(1)}]`;
+            let fileTypeLabel = 'Media';
+            if (file.type.startsWith('image/')) fileTypeLabel = 'Image';
+            if (file.type.startsWith('video/')) fileTypeLabel = 'Video';
+            if (file.type.startsWith('audio/')) fileTypeLabel = 'Audio';
+            const lastMessageText = `[${fileTypeLabel}]`;
             await updateChatList(lastMessageText);
     
             toast({ title: 'Media sent!' });
@@ -245,20 +245,22 @@ export default function ChatThreadPage() {
     };
 
     const renderMessageContent = (message: Models.Document) => {
-        switch (message.type) {
-            case 'image':
+        if (message.mediaUrl && message.contentType) {
+            if (message.contentType.startsWith('image/')) {
                 return (
                     <div className="relative w-full max-w-[250px] aspect-square">
                         <Image src={message.mediaUrl} alt="chat image" layout="fill" className="rounded-lg object-cover" />
                     </div>
                 );
-            case 'video':
+            }
+            if (message.contentType.startsWith('video/')) {
                 return <video src={message.mediaUrl} controls className="max-w-xs rounded-lg" />;
-            case 'audio':
+            }
+            if (message.contentType.startsWith('audio/')) {
                 return <audio src={message.mediaUrl} controls className="w-full" />;
-            default:
-                return <p className="text-sm">{message.text}</p>;
+            }
         }
+        return <p className="text-sm">{message.text}</p>;
     };
 
 
