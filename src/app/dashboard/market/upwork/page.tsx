@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -222,14 +221,14 @@ function MarketContent() {
             <p className="text-sm font-bold">₦{(product.price + 80).toLocaleString()}</p>
         </CardContent>
         <div className="border-t p-2 flex items-center justify-between">
-            {product.contactType === 'call' && (
+             {product.contactType === 'call' ? (
                 <Button asChild variant="ghost" size="sm">
                     <a href={`tel:${product.contactInfo}`}><Phone className="h-4 w-4 mr-1" /> Call</a>
                 </Button>
-            )}
+            ) : null}
              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 ml-auto"><MoreVertical /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical /></Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                      <AlertDialog>

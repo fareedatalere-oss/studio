@@ -1,16 +1,25 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, BookOpen, Building, Mail, Phone, MessageCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, Building, Mail, Phone, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { databases, DATABASE_ID, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
-import { Skeleton } from '@/components/ui/skeleton';
 
-const DOCUMENT_ID_MAIN_CONFIG = 'main';
+const supportInfo = {
+    abujaAddress: 'Not available',
+    abujaContactPerson: 'Not available',
+    abujaPhone: 'Not available',
+    kadunaAddress: 'Not available',
+    kadunaPhone: 'Not available',
+    whatsapp1: '2348162810155',
+    whatsapp2: '2347048468458',
+    email1: 'Ipayapp166@gmail.com',
+    email2: 'i-paymanagerscare402@gmail.com'
+};
+
 
 const DocumentationContent = () => (
     <Accordion type="single" collapsible className="w-full">
@@ -54,21 +63,7 @@ const DocumentationContent = () => (
     </Accordion>
 );
 
-const ContactContent = ({ supportInfo, loading }: { supportInfo: any, loading: boolean }) => {
-    if (loading) {
-        return (
-            <div className="space-y-6">
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-32 w-full" />
-            </div>
-        );
-    }
-
-    if (!supportInfo) {
-        return <p className="text-center text-muted-foreground">Contact information is not available at the moment.</p>
-    }
-
+const ContactContent = ({ supportInfo }: { supportInfo: any }) => {
     return (
         <div className="space-y-6">
             {supportInfo.abujaAddress && (
@@ -129,32 +124,6 @@ const ContactContent = ({ supportInfo, loading }: { supportInfo: any, loading: b
 
 export default function SupportPage() {
     const [view, setView] = useState<'docs' | 'contact'>('docs');
-    const [supportInfo, setSupportInfo] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchSupportInfo = async () => {
-            setLoading(true);
-            try {
-                const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG);
-                setSupportInfo(doc);
-            } catch (error) {
-                console.log("Could not fetch support info. Using defaults.", error);
-                // Set default/fallback values if the database fetch fails
-                setSupportInfo({
-                    abujaAddress: 'Not available',
-                    kadunaAddress: 'Not available',
-                    whatsapp1: '2348162810155',
-                    whatsapp2: '2347048468458',
-                    email1: 'Ipayapp166@gmail.com',
-                    email2: 'i-paymanagerscare402@gmail.com'
-                });
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchSupportInfo();
-    }, []);
 
   return (
     <div className="container py-8">
@@ -179,7 +148,7 @@ export default function SupportPage() {
                 </Button>
             </div>
             
-            {view === 'docs' ? <DocumentationContent /> : <ContactContent supportInfo={supportInfo} loading={loading} />}
+            {view === 'docs' ? <DocumentationContent /> : <ContactContent supportInfo={supportInfo} />}
 
         </CardContent>
       </Card>

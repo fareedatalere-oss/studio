@@ -27,7 +27,8 @@
         "following": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that this user is following." },
         "followers": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs that follow this user." },
         "isBanned": { "type": "boolean", "description": "Whether the user's account is banned." },
-        "fwCardToken": { "type": "string", "description": "Flutterwave card token for recurring payments." }
+        "fwCardToken": { "type": "string", "description": "Flutterwave card token for recurring payments." },
+        "isMarketplaceSubscribed": { "type": "boolean", "description": "True if the user has paid the one-time marketplace subscription fee." }
       },
       "required": ["uid", "email", "createdAt", "username", "country", "pin"]
     },
@@ -70,7 +71,7 @@
         "type": {
           "type": "string",
           "description": "The type of transaction.",
-          "enum": ["transfer", "airtime", "data", "electricity", "tv_subscription", "deposit", "reward_withdrawal", "school_payment"]
+          "enum": ["transfer", "airtime", "data", "electricity", "tv_subscription", "deposit", "reward_withdrawal", "school_payment", "product_purchase", "product_sale"]
         },
         "amount": { "type": "number" },
         "status": {
@@ -84,33 +85,6 @@
         "sessionId": { "type": "string", "description": "A unique ID for the transaction." }
       },
       "required": ["type", "amount", "status", "createdAt", "sessionId"]
-    },
-    "Chat": {
-        "title": "Chat Session",
-        "description": "Represents a chat session between two or more users.",
-        "type": "object",
-        "properties": {
-            "participants": { "type": "array", "items": { "type": "string" }, "description": "Array of user UIDs participating in the chat." },
-            "lastMessage": { "type": "string", "description": "The text of the last message sent." },
-            "lastMessageAt": { "type": "string", "format": "date-time" }
-        },
-        "required": ["participants", "lastMessageAt"]
-    },
-    "ChatMessage": {
-        "title": "Chat Message",
-        "description": "Represents a single message within a chat session.",
-        "type": "object",
-        "properties": {
-            "senderId": { "type": "string", "description": "The UID of the message sender." },
-            "text": { "type": "string", "description": "The text content of the message." },
-            "mediaUrl": { "type": "string", "format": "uri", "description": "URL of any attached media." },
-            "mediaType": { "type": "string", "enum": ["image", "video", "audio", "file"] },
-            "createdAt": { "type": "string", "format": "date-time" },
-            "status": { "type": "string", "enum": ["sent", "delivered", "read"] },
-            "isEdited": { "type": "boolean", "description": "True if the message has been edited." },
-            "deletedFor": { "type": "array", "items": { "type": "string" }, "description": "An array of user UIDs for whom this message is deleted."}
-        },
-        "required": ["senderId", "createdAt"]
     },
     "Post": {
       "title": "Media Post",
@@ -160,7 +134,9 @@
         "appFileUrl": { "type": "string", "format": "uri" },
         "price": { "type": "number" },
         "priceType": { "type": "string", "enum": ["free", "paid"] },
-        "sellerId": { "type": "string" }
+        "sellerId": { "type": "string" },
+        "isBanned": { "type": "boolean", "default": false },
+        "isHidden": { "type": "boolean", "default": false }
       },
       "required": ["name", "iconUrl", "platform", "description", "appFileUrl", "price", "priceType", "sellerId"]
     },
@@ -173,9 +149,11 @@
         "description": { "type": "string" },
         "imageUrl": { "type": "string", "format": "uri" },
         "price": { "type": "number" },
-        "contactType": { "type": "string", "enum": ["chat", "call"] },
+        "contactType": { "type": "string", "enum": ["call"] },
         "contactInfo": { "type": "string", "description": "Phone number if contact type is call" },
-        "sellerId": { "type": "string" }
+        "sellerId": { "type": "string" },
+        "isBanned": { "type": "boolean", "default": false },
+        "isHidden": { "type": "boolean", "default": false }
       },
       "required": ["name", "imageUrl", "price", "contactType", "sellerId"]
     },
@@ -192,7 +170,9 @@
         "priceType": { "type": "string", "enum": ["free", "paid"] },
         "sellerId": { "type": "string" },
         "status": { "type": "string", "enum": ["draft", "published"], "description": "The publishing status of the book." },
-        "pageByPage": { "type": "boolean", "description": "True if the book is meant to be read page by page." }
+        "pageByPage": { "type": "boolean", "description": "True if the book is meant to be read page by page." },
+        "isBanned": { "type": "boolean", "default": false },
+        "isHidden": { "type": "boolean", "default": false }
       },
       "required": ["name", "coverUrl", "priceType", "sellerId", "status"]
     },
@@ -208,10 +188,10 @@
         "address": { "type": "string" },
         "avatarUrl": { "type": "string", "format": "uri" },
         "certificateUrl": { "type": "string", "format": "uri" },
-        "videoUrl": { "type": "string", "format": "uri" },
-        "sellerId": { "type": "string" }
+        "sellerId": { "type": "string" },
+        "isBanned": { "type": "boolean", "default": false }
       },
-      "required": ["name", "title", "description", "phoneNumber", "address", "avatarUrl", "certificateUrl", "videoUrl", "sellerId"]
+      "required": ["name", "title", "description", "phoneNumber", "address", "avatarUrl", "certificateUrl", "sellerId"]
     }
   },
   "auth": {
@@ -235,14 +215,6 @@
         "$ref": "#/entities/Transaction"
       },
       "description": "Stores a user's transaction history."
-    },
-    "/chats/{chatId}": {
-      "schema": { "$ref": "#/entities/Chat" },
-      "description": "Stores metadata for a single chat session between users."
-    },
-    "/chats/{chatId}/messages/{messageId}": {
-      "schema": { "$ref": "#/entities/ChatMessage" },
-      "description": "Stores all messages for a specific chat session."
     },
     "/posts/{postId}": {
       "schema": { "$ref": "#/entities/Post" },

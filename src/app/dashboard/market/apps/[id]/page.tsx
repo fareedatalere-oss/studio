@@ -6,17 +6,13 @@ import Image from 'next/image';
 import {
   ArrowLeft,
   Download,
-  MessageCircle,
-  Mail,
   ChevronRight,
   Star,
-  FileText,
   Camera,
   Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -207,22 +203,6 @@ export default function AppDetailsPage() {
                     <Textarea placeholder="Drop a comment..." />
                     <Button className="mt-2">Send</Button>
                 </div>
-            </div>
-
-            {/* Contact */}
-            <div id="contact">
-                 <h3 className="font-semibold mb-2 text-lg">Contact Seller</h3>
-                 <Link href={`/dashboard/chat/${app.sellerId}`} className="block">
-                    <Card className="hover:bg-muted/50 transition-colors">
-                        <CardContent className="p-4 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <MessageCircle className="h-5 w-5" />
-                                <span className="font-medium">Chat with Seller</span>
-                            </div>
-                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                        </CardContent>
-                    </Card>
-                </Link>
             </div>
 
         </CardContent>

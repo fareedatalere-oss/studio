@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
@@ -24,7 +23,6 @@ export default function UploadProductPage() {
     // Form State
     const [productName, setProductName] = useState('');
     const [description, setDescription] = useState('');
-    const [contactType, setContactType] = useState('chat');
     const [phone, setPhone] = useState('');
     const [price, setPrice] = useState('');
     
@@ -53,7 +51,7 @@ export default function UploadProductPage() {
             return;
         }
 
-        if (!productName || !productImage || !description || !price || (contactType === 'call' && !phone)) {
+        if (!productName || !productImage || !description || !price || !phone) {
             toast({ variant: 'destructive', title: 'Please fill all fields and upload an image.' });
             return;
         }
@@ -69,8 +67,8 @@ export default function UploadProductPage() {
                 description: description,
                 imageUrl: getAppwriteStorageUrl(imageUpload.$id),
                 price: Number(price),
-                contactType: contactType,
-                contactInfo: contactType === 'call' ? phone : '',
+                contactType: 'call',
+                contactInfo: phone,
                 sellerId: user.$id,
                 isBanned: false,
                 isHidden: false,
@@ -134,25 +132,9 @@ export default function UploadProductPage() {
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Preferred Contact Method</Label>
-                        <RadioGroup value={contactType} onValueChange={setContactType} className="flex gap-4">
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="chat" id="chat" />
-                                <Label htmlFor="chat">Chat</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="call" id="call" />
-                                <Label htmlFor="call">Phone Call</Label>
-                            </div>
-                        </RadioGroup>
+                        <Label htmlFor="phone">Your Phone Number for Contact</Label>
+                        <Input id="phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="e.g., 08012345678" required/>
                     </div>
-
-                    {contactType === 'call' && (
-                        <div className="space-y-2">
-                            <Label htmlFor="phone">Your Phone Number</Label>
-                            <Input id="phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="e.g., 08012345678" required/>
-                        </div>
-                    )}
 
                     <div className='space-y-2'>
                         <Label htmlFor="price">Price (₦)</Label>
