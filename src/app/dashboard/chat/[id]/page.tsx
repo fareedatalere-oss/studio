@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -16,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -26,7 +24,7 @@ import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_PROFI
 import { ID, Query } from 'appwrite';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import { useParams } from 'next/navigation';
-import { getBankList, makeBankTransfer } from '@/app/actions/flutterwave';
+import { getBankList, makeBankTransfer, resolveAccountNumber } from '@/app/actions/flutterwave';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -58,17 +56,32 @@ const SendMoneyDialog = ({ currentUser, otherUser }: { currentUser: any, otherUs
     const [banks, setBanks] = useState<Bank[]>([]);
     
     useEffect(() => {
-        getBankList().then(result => {
-            if (result.success) setBanks(result.data);
-        });
-    }, []);
+        if (open) {
+            getBankList().then(result => {
+                if (result.success) setBanks(result.data);
+            });
+        }
+    }, [open]);
 
     const handleSend = async () => {
         if (!currentUser || !otherUser || !otherUser.accountNumber) return;
         
-        const bank = banks.find(b => b.name === otherUser.bankName);
+        let bank;
+        // First try to find by bank name if available
+        if (otherUser.bankName) {
+            bank = banks.find(b => b.name === otherUser.bankName);
+        }
+        
+        // If not found by name, try to resolve account to get the code
         if (!bank) {
-            toast({ variant: 'destructive', title: 'Error', description: "Recipient's bank is not supported for transfers." });
+            const resolveResult = await resolveAccountNumber({ accountNumber: otherUser.accountNumber, bankCode: '' });
+            if (resolveResult.success && resolveResult.data.bank_code) {
+                 bank = banks.find(b => b.code === resolveResult.data.bank_code);
+            }
+        }
+        
+        if (!bank) {
+            toast({ variant: 'destructive', title: 'Error', description: "Recipient's bank could not be verified for transfers." });
             return;
         }
 
@@ -81,7 +94,7 @@ const SendMoneyDialog = ({ currentUser, otherUser }: { currentUser: any, otherUs
             amount: Number(amount),
             narration: `Transfer from ${currentUser.name} via I-Pay Chat`,
             recipientName: `${otherUser.firstName} ${otherUser.lastName}`,
-            bankName: otherUser.bankName,
+            bankName: bank.name,
         });
 
         if (result.success) {
@@ -97,7 +110,7 @@ const SendMoneyDialog = ({ currentUser, otherUser }: { currentUser: any, otherUs
 
     if (!otherUser?.accountNumber) {
         return (
-            <DropdownMenuItem onSelect={() => toast({ variant: 'destructive', title: 'Cannot Send Money', description: `${otherUser.username} has not set up a bank account.`})}>
+            <DropdownMenuItem onSelect={() => toast({ variant: 'destructive', title: 'Cannot Send Money', description: `${otherUser.username} has not set up a virtual bank account.`})}>
                  <CircleDollarSign className="mr-2 h-4 w-4" />
                 <span>Send Money</span>
             </DropdownMenuItem>
@@ -116,7 +129,7 @@ const SendMoneyDialog = ({ currentUser, otherUser }: { currentUser: any, otherUs
                 <AlertDialogHeader>
                     <AlertDialogTitle>Send Money to @{otherUser.username}</AlertDialogTitle>
                     <AlertDialogDescription>
-                        You are about to send money to {otherUser.firstName} {otherUser.lastName} ({otherUser.bankName} - {otherUser.accountNumber}).
+                        You are about to send money to {otherUser.firstName || ''} {otherUser.lastName || ''} ({otherUser.bankName} - {otherUser.accountNumber}).
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="space-y-4">
@@ -172,82 +185,81 @@ export default function ChatThreadPage() {
 
   // --- Data Fetching and Realtime ---
   useEffect(() => {
-    if (!otherUserId || !currentUser?.$id || !currentUserProfile) {
-      setMessagesLoading(true);
+    if (!otherUserId || !currentUser?.$id) {
       return;
     }
 
+    let isMounted = true;
     let messageUnsubscribe: (() => void) | null = null;
     let profileUnsubscribe: (() => void) | null = null;
 
     const setupChat = async () => {
-      // 1. Reset state for the new chat
       setMessagesLoading(true);
-      setMessages([]);
-      setChatId(null);
-      setOtherUser(null);
-
       try {
-        // 2. Fetch other user's profile and check block status
         const otherUserProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
+        if (!isMounted) return;
         setOtherUser(otherUserProfile);
         setIsBlockedByMe(currentUserProfile.blockedUsers?.includes(otherUserId) || false);
         setAmIBlocked(otherUserProfile.blockedUsers?.includes(currentUser.$id) || false);
         
-        // Subscribe to own profile for real-time block status changes
         profileUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${currentUser.$id}`, response => {
           const myProfile = response.payload as any;
           setIsBlockedByMe(myProfile.blockedUsers?.includes(otherUserId) || false);
         });
 
-        // 3. Find the chat to get the Chat ID
         const sortedParticipants = [currentUser.$id, otherUserId].sort();
         const chatResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
             Query.equal('participants', sortedParticipants),
             Query.limit(1)
         ]);
+        
+        if (!isMounted) return;
 
         const chat = chatResponse.documents[0];
-        
         if (chat) {
           const currentChatId = chat.$id;
           setChatId(currentChatId);
 
-          // 4. Fetch initial messages
           const messagesResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
               Query.equal('chatId', currentChatId),
               Query.orderAsc('$createdAt'),
               Query.limit(100)
           ]);
+          if (!isMounted) return;
           setMessages(messagesResponse.documents as Message[]);
 
-          // 5. Subscribe to new messages FOR THIS CHAT ONLY
           messageUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`, response => {
               const payload = response.payload as Message;
-              if (payload.chatId !== currentChatId) return; // Ignore messages from other chats
-
               const eventType = response.events[0];
-              if (eventType.includes('.create')) {
-                  setMessages(prev => prev.find(m => m.$id === payload.$id) ? prev : [...prev, payload]);
-              } else if (eventType.includes('.update')) {
-                  setMessages(prev => prev.map(m => m.$id === payload.$id ? payload : m));
-              } else if (eventType.includes('.delete')) {
-                  setMessages(prev => prev.filter(m => m.$id !== payload.$id));
-              }
+              
+              setChatId(currentChatIdState => {
+                  if (payload.chatId === currentChatIdState) {
+                      if (eventType.includes('.create')) {
+                          setMessages(prev => prev.find(m => m.$id === payload.$id) ? prev : [...prev, payload]);
+                      } else if (eventType.includes('.update')) {
+                          setMessages(prev => prev.map(m => m.$id === payload.$id ? payload : m));
+                      } else if (eventType.includes('.delete')) {
+                          setMessages(prev => prev.filter(m => m.$id !== payload.$id));
+                      }
+                  }
+                  return currentChatIdState;
+              });
           });
+        } else {
+          setMessages([]); // No chat history yet
         }
       } catch (error) {
         console.error("Error setting up chat:", error);
         toast({ variant: 'destructive', title: 'Error', description: 'Could not load chat session.' });
       } finally {
-        setMessagesLoading(false);
+        if(isMounted) setMessagesLoading(false);
       }
     };
 
     setupChat();
 
-    // 6. Cleanup function: This is crucial to prevent leaks and race conditions.
     return () => {
+      isMounted = false;
       if (messageUnsubscribe) messageUnsubscribe();
       if (profileUnsubscribe) profileUnsubscribe();
     };

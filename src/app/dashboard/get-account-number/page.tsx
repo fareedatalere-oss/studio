@@ -16,7 +16,7 @@ import { useRouter } from 'next/navigation';
 export default function GetAccountNumberPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const { user, loading: userLoading } = useUser();
+  const { user, loading: userLoading, recheckUser } = useUser();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -131,6 +131,9 @@ export default function GetAccountNumberPage() {
                     username: `${formData.firstName.toLowerCase()}${formData.lastName.toLowerCase()}`, // Update username to something more meaningful
                 }
             );
+
+            // Force a refetch of the user profile data across the app
+            await recheckUser();
 
             setGeneratedAccount(accountInfo);
              toast({
