@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, getAppwriteStorageUrl, storage, BUCKET_ID_UPLOADS } from '@/lib/appwrite';
 import { Models, ID, Query } from 'appwrite';
-import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, ImageIcon, PlayCircle, FileAudio, Trash2 } from 'lucide-react';
+import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, ImageIcon, PlayCircle, FileAudio, Trash2, Play, Pause } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,7 @@ const PresenceIndicator = ({ userId }: { userId: string }) => {
         const fetchInitialPresence = async () => {
              try {
                 const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
-                if (isMounted) {
+                if (isMounted && doc) {
                     setPresence({ isOnline: doc.isOnline, lastSeen: doc.lastSeen });
                 }
             } catch (error) {
@@ -86,11 +86,12 @@ export default function ChatThreadPage() {
     const mediaInputRef = useRef<HTMLInputElement>(null);
 
     // --- Voice Recording State ---
-    const [isRecording, setIsRecording] = useState(false);
+    const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'preview'>('idle');
     const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
     const [recordingTime, setRecordingTime] = useState(0);
+    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+    const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
-    const isCancellingRef = useRef(false);
     // --- End Voice Recording State ---
 
     const chatId = currentUser ? getChatId(currentUser.$id, otherUserId) : null;
@@ -143,7 +144,9 @@ export default function ChatThreadPage() {
             }
         };
 
-        setupChat();
+        if (chatId && otherUserId) {
+            setupChat();
+        }
 
         return () => {
             if (unsubscribe) {
@@ -159,7 +162,7 @@ export default function ChatThreadPage() {
     // --- Voice Recording Timer Effect ---
     useEffect(() => {
         let interval: NodeJS.Timeout;
-        if (isRecording) {
+        if (recordingStatus === 'recording') {
             interval = setInterval(() => {
                 setRecordingTime(prevTime => prevTime + 1);
             }, 1000);
@@ -167,7 +170,7 @@ export default function ChatThreadPage() {
             setRecordingTime(0);
         }
         return () => clearInterval(interval);
-    }, [isRecording]);
+    }, [recordingStatus]);
     // --- End Voice Recording Timer Effect ---
 
     const updateChatList = async (lastMessage: string) => {
@@ -232,7 +235,14 @@ export default function ChatThreadPage() {
         try {
             const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
             const mediaUrl = getAppwriteStorageUrl(uploadResult.$id);
-    
+            
+            let fileTypeLabel = 'Media';
+            if (file.type.startsWith('image/')) fileTypeLabel = 'Image';
+            if (file.type.startsWith('video/')) fileTypeLabel = 'Video';
+            if (file.type.startsWith('audio/')) fileTypeLabel = 'Audio';
+            
+            const specialText = `[media:${file.type}]`;
+
             await databases.createDocument(
                 DATABASE_ID,
                 COLLECTION_ID_MESSAGES,
@@ -241,22 +251,18 @@ export default function ChatThreadPage() {
                     chatId: chatId,
                     senderId: currentUser.$id,
                     mediaUrl: mediaUrl,
+                    text: specialText,
                     status: 'sent',
-                    contentType: file.type,
                 }
             );
     
-            let fileTypeLabel = 'Media';
-            if (file.type.startsWith('image/')) fileTypeLabel = 'Image';
-            if (file.type.startsWith('video/')) fileTypeLabel = 'Video';
-            if (file.type.startsWith('audio/')) fileTypeLabel = 'Audio';
             const lastMessageText = `[${fileTypeLabel}]`;
             await updateChatList(lastMessageText);
     
             toast({ title: 'Media sent!' });
         } catch (error: any) {
             console.error('Failed to send media message:', error);
-            toast({ title: 'Error', description: 'Failed to send media.', variant: 'destructive' });
+            toast({ title: 'Error', description: `Failed to send media: ${error.message}`, variant: 'destructive' });
         } finally {
             setSending(false);
         }
@@ -282,25 +288,19 @@ export default function ChatThreadPage() {
             const recorder = new MediaRecorder(stream);
             setMediaRecorder(recorder);
             audioChunksRef.current = [];
-    
-            recorder.ondataavailable = (event) => {
-                audioChunksRef.current.push(event.data);
-            };
+            
+            recorder.ondataavailable = (event) => audioChunksRef.current.push(event.data);
     
             recorder.onstop = () => {
-                if (isCancellingRef.current) {
-                    isCancellingRef.current = false;
-                    stream.getTracks().forEach(track => track.stop());
-                    return;
-                }
                 const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                const audioFile = new File([audioBlob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
-                handleSendMediaMessage(audioFile);
+                setAudioBlob(audioBlob);
+                setAudioPreviewUrl(URL.createObjectURL(audioBlob));
+                setRecordingStatus('preview');
                 stream.getTracks().forEach(track => track.stop());
             };
     
             recorder.start();
-            setIsRecording(true);
+            setRecordingStatus('recording');
         } catch (error) {
             console.error("Failed to start recording:", error);
             toast({
@@ -312,24 +312,45 @@ export default function ChatThreadPage() {
     };
 
     const stopRecording = () => {
-        if (mediaRecorder) {
-            mediaRecorder.stop();
-            setIsRecording(false);
-        }
+        mediaRecorder?.stop();
     };
 
     const cancelRecording = () => {
         if (mediaRecorder) {
-            isCancellingRef.current = true;
-            mediaRecorder.stop();
-            setIsRecording(false);
+            mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        }
+        setRecordingStatus('idle');
+    };
+    
+    const handleSendAudio = () => {
+        if (audioBlob) {
+            const audioFile = new File([audioBlob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
+            handleSendMediaMessage(audioFile);
+            setRecordingStatus('idle');
+            setAudioPreviewUrl(null);
+            setAudioBlob(null);
         }
     };
+
+    const handleDeletePreview = () => {
+        setRecordingStatus('idle');
+        setAudioPreviewUrl(null);
+        setAudioBlob(null);
+    };
+
     // --- End Voice Recording Functions ---
 
     const renderMessageContent = (message: Models.Document) => {
-        if (message.mediaUrl && message.contentType) {
-            if (message.contentType.startsWith('image/')) {
+        let mediaType: string | null = null;
+
+        if (message.text?.startsWith('[media:')) {
+            mediaType = message.text.slice(7, -1);
+        } else if (message.contentType) { // For backward compatibility
+            mediaType = message.contentType;
+        }
+
+        if (message.mediaUrl && mediaType) {
+            if (mediaType.startsWith('image/')) {
                 return (
                     <Dialog>
                         <DialogTrigger asChild>
@@ -343,11 +364,11 @@ export default function ChatThreadPage() {
                     </Dialog>
                 );
             }
-            if (message.contentType.startsWith('video/')) {
+            if (mediaType.startsWith('video/')) {
                  return (
                     <Dialog>
                         <DialogTrigger asChild>
-                             <div className="relative w-full max-w-[250px] aspect-square cursor-pointer bg-black rounded-lg flex items-center justify-center">
+                             <div className="relative w-full max-w-[250px] aspect-video cursor-pointer bg-black rounded-lg flex items-center justify-center">
                                 <PlayCircle className="h-16 w-16 text-white" />
                              </div>
                         </DialogTrigger>
@@ -357,13 +378,19 @@ export default function ChatThreadPage() {
                     </Dialog>
                 );
             }
-            if (message.contentType.startsWith('audio/')) {
+            if (mediaType.startsWith('audio/')) {
                  return (
                      <audio src={message.mediaUrl} controls className="w-full max-w-[250px]" />
                 );
             }
         }
-        return <p className="text-sm whitespace-pre-wrap">{message.text}</p>;
+        
+        // Only render text if it's a normal text message
+        if (message.text && !message.text.startsWith('[media:')) {
+             return <p className="text-sm whitespace-pre-wrap">{message.text}</p>;
+        }
+
+        return null;
     };
 
 
@@ -424,7 +451,7 @@ export default function ChatThreadPage() {
             </main>
 
             <footer className="sticky bottom-16 md:bottom-0 bg-white border-t p-3">
-                {isRecording ? (
+                {recordingStatus === 'recording' && (
                     <div className="flex items-center w-full gap-2">
                         <Button
                             type="button"
@@ -440,11 +467,28 @@ export default function ChatThreadPage() {
                             <span className="text-sm font-mono text-muted-foreground">{formatTime(recordingTime)}</span>
                         </div>
                         <Button type="button" size="icon" onClick={stopRecording}>
-                            <Send className="h-5 w-5" />
-                            <span className="sr-only">Send Recording</span>
+                            <Pause className="h-5 w-5" />
+                            <span className="sr-only">Stop Recording</span>
                         </Button>
                     </div>
-                ) : (
+                )}
+                {recordingStatus === 'preview' && audioPreviewUrl && (
+                     <div className="flex items-center w-full gap-2">
+                         <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleDeletePreview}
+                        >
+                            <Trash2 className="h-5 w-5 text-destructive" />
+                        </Button>
+                        <audio src={audioPreviewUrl} controls className="flex-1" />
+                        <Button type="button" size="icon" onClick={handleSendAudio} disabled={sending}>
+                             {sending ? <Loader2 className="animate-spin" /> : <Send />}
+                        </Button>
+                    </div>
+                )}
+                {recordingStatus === 'idle' && (
                     <form onSubmit={handleSendTextMessage} className="flex items-center gap-2">
                         <Input
                             type="text"

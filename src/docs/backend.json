@@ -109,7 +109,6 @@
             "senderId": { "type": "string", "description": "The UID of the message sender." },
             "text": { "type": "string", "description": "The text content of the message (optional if media is present)." },
             "mediaUrl": { "type": "string", "format": "uri", "description": "URL to the attached media file." },
-            "contentType": { "type": "string", "description": "The MIME type of the media file, e.g., 'image/png' or 'video/mp4'." },
             "status": { "type": "string", "enum": ["sent", "delivered", "read"], "description": "The delivery status of the message." },
             "createdAt": { "type": "string", "format": "date-time" }
         },
