@@ -15,14 +15,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, getAppwriteStorageUrl } from '@/lib/appwrite';
-import { ID, Query, Permission, Role } from 'appwrite';
+import { ID, Query } from 'appwrite';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import { useParams } from 'next/navigation';
 import { getBankList, makeBankTransfer } from '@/app/actions/flutterwave';
@@ -171,64 +171,69 @@ export default function ChatThreadPage() {
 
   // --- Data Fetching and Realtime ---
   useEffect(() => {
-    if (!otherUserId || !currentUser?.$id || !currentUserProfile) return;
+    if (!otherUserId || !currentUser?.$id || !currentUserProfile) {
+      setMessagesLoading(true);
+      return;
+    }
 
-    let unsubscribeMessages: (() => void) | null = null;
-    let unsubscribeProfile: (() => void) | null = null;
+    let messageUnsubscribe: (() => void) | null = null;
+    let profileUnsubscribe: (() => void) | null = null;
 
-    const setupAndSubscribe = async () => {
+    const setupChat = async () => {
       // 1. Reset state for the new chat
+      setMessagesLoading(true);
       setMessages([]);
       setChatId(null);
       setOtherUser(null);
-      setMessagesLoading(true);
 
       try {
-        // 2. Fetch other user's profile
-        const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
-        setOtherUser(profile);
+        // 2. Fetch other user's profile and check block status
+        const otherUserProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
+        setOtherUser(otherUserProfile);
         setIsBlockedByMe(currentUserProfile.blockedUsers?.includes(otherUserId) || false);
-        setAmIBlocked(profile.blockedUsers?.includes(currentUser.$id) || false);
+        setAmIBlocked(otherUserProfile.blockedUsers?.includes(currentUser.$id) || false);
         
-        // Subscribe to your own profile for block status changes
-        unsubscribeProfile = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${currentUser.$id}`, response => {
+        // Subscribe to own profile for real-time block status changes
+        profileUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${currentUser.$id}`, response => {
           const myProfile = response.payload as any;
           setIsBlockedByMe(myProfile.blockedUsers?.includes(otherUserId) || false);
         });
 
-        // 3. Find the chat between the two users
+        // 3. Find the chat to get the Chat ID
         const sortedParticipants = [currentUser.$id, otherUserId].sort();
         const chatResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
             Query.equal('participants', sortedParticipants),
             Query.limit(1)
         ]);
 
-        if (chatResponse.documents.length > 0) {
-            const foundChatId = chatResponse.documents[0].$id;
-            setChatId(foundChatId);
+        const chat = chatResponse.documents[0];
+        
+        if (chat) {
+          const currentChatId = chat.$id;
+          setChatId(currentChatId);
 
-            // 4. Fetch initial messages for the found chat
-            const messagesResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
-                Query.equal('chatId', foundChatId),
-                Query.orderAsc('$createdAt'),
-                Query.limit(100)
-            ]);
-            setMessages(messagesResponse.documents as Message[]);
+          // 4. Fetch initial messages
+          const messagesResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
+              Query.equal('chatId', currentChatId),
+              Query.orderAsc('$createdAt'),
+              Query.limit(100)
+          ]);
+          setMessages(messagesResponse.documents as Message[]);
 
-            // 5. Subscribe to new messages for this specific chat
-            unsubscribeMessages = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`, response => {
-                const payload = response.payload as Message;
-                if (payload.chatId !== foundChatId) return;
+          // 5. Subscribe to new messages FOR THIS CHAT ONLY
+          messageUnsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`, response => {
+              const payload = response.payload as Message;
+              if (payload.chatId !== currentChatId) return; // Ignore messages from other chats
 
-                const eventType = response.events[0];
-                if (eventType.includes('.create')) {
-                    setMessages(prev => prev.find(m => m.$id === payload.$id) ? prev : [...prev, payload]);
-                } else if (eventType.includes('.update')) {
-                    setMessages(prev => prev.map(m => m.$id === payload.$id ? payload : m));
-                } else if (eventType.includes('.delete')) {
-                    setMessages(prev => prev.filter(m => m.$id !== payload.$id));
-                }
-            });
+              const eventType = response.events[0];
+              if (eventType.includes('.create')) {
+                  setMessages(prev => prev.find(m => m.$id === payload.$id) ? prev : [...prev, payload]);
+              } else if (eventType.includes('.update')) {
+                  setMessages(prev => prev.map(m => m.$id === payload.$id ? payload : m));
+              } else if (eventType.includes('.delete')) {
+                  setMessages(prev => prev.filter(m => m.$id !== payload.$id));
+              }
+          });
         }
       } catch (error) {
         console.error("Error setting up chat:", error);
@@ -238,12 +243,12 @@ export default function ChatThreadPage() {
       }
     };
 
-    setupAndSubscribe();
+    setupChat();
 
     // 6. Cleanup function: This is crucial to prevent leaks and race conditions.
     return () => {
-      if (unsubscribeMessages) unsubscribeMessages();
-      if (unsubscribeProfile) unsubscribeProfile();
+      if (messageUnsubscribe) messageUnsubscribe();
+      if (profileUnsubscribe) profileUnsubscribe();
     };
   }, [otherUserId, currentUser, currentUserProfile, toast]);
 
@@ -270,13 +275,7 @@ export default function ChatThreadPage() {
             DATABASE_ID,
             COLLECTION_ID_CHATS,
             ID.unique(),
-            { participants: sortedParticipants, lastMessage: '', lastMessageAt: new Date().toISOString() },
-            [
-                Permission.read(Role.user(currentUserId)),
-                Permission.write(Role.user(currentUserId)),
-                Permission.read(Role.user(otherUserId)),
-                Permission.write(Role.user(otherUserId)),
-            ]
+            { participants: sortedParticipants, lastMessage: '', lastMessageAt: new Date().toISOString() }
         );
         setChatId(newChatDoc.$id);
         return newChatDoc.$id;
@@ -313,12 +312,7 @@ export default function ChatThreadPage() {
             DATABASE_ID,
             COLLECTION_ID_MESSAGES,
             ID.unique(),
-            messagePayload,
-            [
-                Permission.read(Role.user(currentUser.$id)),
-                Permission.write(Role.user(currentUser.$id)),
-                Permission.read(Role.user(otherUser.$id)),
-            ]
+            messagePayload
         );
 
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, currentChatId, {
