@@ -14,6 +14,7 @@ export async function purchaseProduct(payload: {
 }) {
     let buyerTxId: string | null = null;
     let sellerTxId: string | null = null;
+    const sessionId = `ipay-product-${payload.productId}-${Date.now()}`;
 
     try {
         const { buyerId, productId, pin } = payload;
@@ -25,10 +26,6 @@ export async function purchaseProduct(payload: {
         ]);
 
         // 2. Perform validations
-        if (buyerId === product.sellerId) {
-            throw new Error("You cannot purchase your own product.");
-        }
-
         if (buyerProfile.pin !== pin) {
             throw new Error('Incorrect transaction PIN.');
         }
@@ -50,6 +47,7 @@ export async function purchaseProduct(payload: {
             recipientName: `Purchase: ${product.name}`,
             recipientDetails: `Seller: @${sellerProfile.username}`,
             narration: `Purchase of ${product.name}`,
+            sessionId: `${sessionId}-buyer`,
         });
         const sellerTxPromise = databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
             userId: product.sellerId,
@@ -59,6 +57,7 @@ export async function purchaseProduct(payload: {
             recipientName: `Sale: ${product.name}`,
             recipientDetails: `Buyer: @${buyerProfile.username}`,
             narration: `Sale of ${product.name}`,
+            sessionId: `${sessionId}-seller`,
         });
 
         const [buyerTxDoc, sellerTxDoc] = await Promise.all([buyerTxPromise, sellerTxPromise]);
@@ -113,10 +112,6 @@ export async function purchaseBook(payload: {
             if (!pin || pin.length !== 5) throw new Error("A valid 5-digit PIN is required for paid books.");
             if (buyerProfile.pin !== pin) throw new Error("Incorrect transaction PIN.");
             
-            if (buyerId === book.sellerId) {
-                throw new Error("You cannot purchase your own book.");
-            }
-
             const totalCost = book.price + BOOK_COMMISSION;
             if (buyerProfile.nairaBalance < totalCost) throw new Error("Insufficient balance.");
             
