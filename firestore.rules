@@ -51,18 +51,15 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
       // Allow read/update if the user is one of the participants
       allow read, update: if isSignedIn() && request.auth.uid in resource.data.participants;
-    }
 
-    // Rules for the 'messages' collection (top-level)
-    match /messages/{messageId} {
-      // Allow create if user is a participant of the chat the message belongs to
-      allow create: if isSignedIn() && get(/databases/$(database)/documents/chats/$(request.resource.data.chatId)).data.participants.includes(request.auth.uid);
-      
-      // Allow read if user is a participant of the chat the message belongs to
-      allow read: if isSignedIn() && get(/databases/$(database)/documents/chats/$(resource.data.chatId)).data.participants.includes(request.auth.uid);
+      // Rules for the 'messages' sub-collection
+      match /messages/{messageId} {
+        // Allow create/read if user is a participant of this chat
+        allow read, create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
 
-      // Allow sender to update/delete their own message
-      allow update, delete: if isSignedIn() && resource.data.senderId == request.auth.uid;
+        // Allow sender to update/delete their own message
+        allow update, delete: if isSignedIn() && resource.data.senderId == request.auth.uid;
+      }
     }
 
     // Rules for media posts
@@ -89,5 +86,3 @@ service cloud.firestore {
     }
   }
 }
-
-    
