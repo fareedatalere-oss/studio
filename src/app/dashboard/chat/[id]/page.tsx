@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -211,12 +210,13 @@ export default function ChatThreadPage() {
                     chatId: chatId,
                     senderId: currentUser.$id,
                     text: messageText,
+                    status: 'sent',
                 }
             );
             await updateChatList(messageText);
         } catch (error: any) {
             console.error('Failed to send message:', error);
-            toast({ title: 'Error', description: 'Failed to send message.', variant: 'destructive' });
+            toast({ title: 'Error', description: `Failed to send message: ${error.message}`, variant: 'destructive' });
             setNewMessage(messageText);
         } finally {
             setSending(false);
@@ -249,6 +249,7 @@ export default function ChatThreadPage() {
                     senderId: currentUser.$id,
                     mediaUrl: mediaUrl,
                     text: specialText,
+                    status: 'sent',
                 }
             );
     
