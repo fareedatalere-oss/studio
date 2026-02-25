@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, getAppwriteStorageUrl, storage, BUCKET_ID_UPLOADS } from '@/lib/appwrite';
 import { Models, ID, Query } from 'appwrite';
-import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, ImageIcon, PlayCircle, FileAudio } from 'lucide-react';
+import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, ImageIcon, PlayCircle, FileAudio, Trash2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -84,7 +84,14 @@ export default function ChatThreadPage() {
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const mediaInputRef = useRef<HTMLInputElement>(null);
-    const audioInputRef = useRef<HTMLInputElement>(null);
+
+    // --- Voice Recording State ---
+    const [isRecording, setIsRecording] = useState(false);
+    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+    const [recordingTime, setRecordingTime] = useState(0);
+    const audioChunksRef = useRef<Blob[]>([]);
+    const isCancellingRef = useRef(false);
+    // --- End Voice Recording State ---
 
     const chatId = currentUser ? getChatId(currentUser.$id, otherUserId) : null;
     
@@ -149,6 +156,20 @@ export default function ChatThreadPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
+    // --- Voice Recording Timer Effect ---
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (isRecording) {
+            interval = setInterval(() => {
+                setRecordingTime(prevTime => prevTime + 1);
+            }, 1000);
+        } else {
+            setRecordingTime(0);
+        }
+        return () => clearInterval(interval);
+    }, [isRecording]);
+    // --- End Voice Recording Timer Effect ---
+
     const updateChatList = async (lastMessage: string) => {
         if (!currentUser || !chatId) return;
         try {
@@ -156,6 +177,7 @@ export default function ChatThreadPage() {
                 participants: [currentUser.$id, otherUserId],
                 lastMessage,
                 lastMessageAt: new Date().toISOString(),
+                status: 'sent',
             });
         } catch (error: any) {
             if (error.code === 404) {
@@ -163,6 +185,7 @@ export default function ChatThreadPage() {
                     participants: [currentUser.$id, otherUserId],
                     lastMessage,
                     lastMessageAt: new Date().toISOString(),
+                    status: 'sent',
                 });
             } else {
                 throw error;
@@ -246,9 +269,63 @@ export default function ChatThreadPage() {
         e.target.value = '';
     };
 
-    const handleVoiceClick = () => {
-        toast({ title: 'Coming Soon', description: 'Voice recording functionality is under development.' });
+    // --- Voice Recording Functions ---
+    const formatTime = (seconds: number) => {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
     };
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            setMediaRecorder(recorder);
+            audioChunksRef.current = [];
+    
+            recorder.ondataavailable = (event) => {
+                audioChunksRef.current.push(event.data);
+            };
+    
+            recorder.onstop = () => {
+                if (isCancellingRef.current) {
+                    isCancellingRef.current = false;
+                    stream.getTracks().forEach(track => track.stop());
+                    return;
+                }
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const audioFile = new File([audioBlob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
+                handleSendMediaMessage(audioFile);
+                stream.getTracks().forEach(track => track.stop());
+            };
+    
+            recorder.start();
+            setIsRecording(true);
+        } catch (error) {
+            console.error("Failed to start recording:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Microphone Access Denied',
+                description: 'Please enable microphone permissions in your browser settings to record voice notes.',
+            });
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorder) {
+            mediaRecorder.stop();
+            setIsRecording(false);
+        }
+    };
+
+    const cancelRecording = () => {
+        if (mediaRecorder) {
+            isCancellingRef.current = true;
+            mediaRecorder.stop();
+            setIsRecording(false);
+        }
+    };
+    // --- End Voice Recording Functions ---
 
     const renderMessageContent = (message: Models.Document) => {
         if (message.mediaUrl && message.contentType) {
@@ -347,24 +424,46 @@ export default function ChatThreadPage() {
             </main>
 
             <footer className="sticky bottom-16 md:bottom-0 bg-white border-t p-3">
-                <form onSubmit={handleSendTextMessage} className="flex items-center gap-2">
-                    <Input
-                        type="text"
-                        placeholder="Type a message..."
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        disabled={sending}
-                    />
-                     <Button type="button" variant="ghost" size="icon" onClick={() => mediaInputRef.current?.click()} disabled={sending}>
-                        <Paperclip />
-                    </Button>
-                    <Button type="button" variant="ghost" size="icon" onClick={handleVoiceClick} disabled={sending}>
-                        <Mic />
-                    </Button>
-                    <Button type="submit" size="icon" disabled={sending || !newMessage.trim()}>
-                        {sending ? <Loader2 className="animate-spin" /> : <Send />}
-                    </Button>
-                </form>
+                {isRecording ? (
+                    <div className="flex items-center w-full gap-2">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={cancelRecording}
+                        >
+                            <Trash2 className="h-5 w-5 text-destructive" />
+                            <span className="sr-only">Cancel Recording</span>
+                        </Button>
+                        <div className="flex-1 bg-muted rounded-full h-10 flex items-center px-4">
+                            <div className="bg-red-500 h-2.5 w-2.5 rounded-full animate-pulse mr-2"></div>
+                            <span className="text-sm font-mono text-muted-foreground">{formatTime(recordingTime)}</span>
+                        </div>
+                        <Button type="button" size="icon" onClick={stopRecording}>
+                            <Send className="h-5 w-5" />
+                            <span className="sr-only">Send Recording</span>
+                        </Button>
+                    </div>
+                ) : (
+                    <form onSubmit={handleSendTextMessage} className="flex items-center gap-2">
+                        <Input
+                            type="text"
+                            placeholder="Type a message..."
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            disabled={sending}
+                        />
+                        <Button type="button" variant="ghost" size="icon" onClick={() => mediaInputRef.current?.click()} disabled={sending}>
+                            <Paperclip />
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" onClick={startRecording} disabled={sending}>
+                            <Mic />
+                        </Button>
+                        <Button type="submit" size="icon" disabled={sending || !newMessage.trim()}>
+                            {sending ? <Loader2 className="animate-spin" /> : <Send />}
+                        </Button>
+                    </form>
+                )}
             </footer>
              <input
                 type="file"
@@ -372,13 +471,6 @@ export default function ChatThreadPage() {
                 onChange={handleMediaInputChange}
                 className="hidden"
                 accept="image/*,video/*"
-            />
-            <input
-                type="file"
-                ref={audioInputRef}
-                onChange={handleMediaInputChange}
-                className="hidden"
-                accept="audio/*"
             />
         </div>
     );
