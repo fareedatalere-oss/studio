@@ -180,7 +180,6 @@ export default function ChatThreadPage() {
                 participants: [currentUser.$id, otherUserId],
                 lastMessage,
                 lastMessageAt: new Date().toISOString(),
-                status: 'sent',
             });
         } catch (error: any) {
             if (error.code === 404) {
@@ -188,7 +187,6 @@ export default function ChatThreadPage() {
                     participants: [currentUser.$id, otherUserId],
                     lastMessage,
                     lastMessageAt: new Date().toISOString(),
-                    status: 'sent',
                 });
             } else {
                 throw error;
@@ -213,7 +211,6 @@ export default function ChatThreadPage() {
                     chatId: chatId,
                     senderId: currentUser.$id,
                     text: messageText,
-                    status: 'sent',
                 }
             );
             await updateChatList(messageText);
@@ -252,7 +249,6 @@ export default function ChatThreadPage() {
                     senderId: currentUser.$id,
                     mediaUrl: mediaUrl,
                     text: specialText,
-                    status: 'sent',
                 }
             );
     
@@ -342,11 +338,10 @@ export default function ChatThreadPage() {
 
     const renderMessageContent = (message: Models.Document) => {
         let mediaType: string | null = null;
+        const text = message.text || '';
 
-        if (message.text?.startsWith('[media:')) {
-            mediaType = message.text.slice(7, -1);
-        } else if (message.contentType) { // For backward compatibility
-            mediaType = message.contentType;
+        if (text.startsWith('[media:')) {
+            mediaType = text.slice(7, -1);
         }
 
         if (message.mediaUrl && mediaType) {
@@ -386,8 +381,8 @@ export default function ChatThreadPage() {
         }
         
         // Only render text if it's a normal text message
-        if (message.text && !message.text.startsWith('[media:')) {
-             return <p className="text-sm whitespace-pre-wrap">{message.text}</p>;
+        if (text && !text.startsWith('[media:')) {
+             return <p className="text-sm whitespace-pre-wrap">{text}</p>;
         }
 
         return null;
