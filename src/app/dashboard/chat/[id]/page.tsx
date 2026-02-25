@@ -272,19 +272,13 @@ export default function ChatThreadPage() {
             console.error("Error finding chat, will try to create.", e);
         }
 
-        // 2. If not found, create it
-        const chatPermissions = [
-            Permission.read(Role.user(currentUserId)),
-            Permission.read(Role.user(otherUserId)),
-            Permission.update(Role.user(currentUserId)),
-            Permission.update(Role.user(otherUserId)),
-        ];
+        // 2. If not found, create it without document-level permissions.
+        // This relies on the collection-level permissions being set correctly (Role:Users with CRUD).
         const newChatDoc = await databases.createDocument(
             DATABASE_ID,
             COLLECTION_ID_CHATS,
             ID.unique(),
-            { participants: sortedParticipants, lastMessage: '', lastMessageAt: new Date().toISOString() },
-            chatPermissions
+            { participants: sortedParticipants, lastMessage: '', lastMessageAt: new Date().toISOString() }
         );
         return newChatDoc.$id;
     }, []);
@@ -319,6 +313,9 @@ export default function ChatThreadPage() {
             mediaType: type || 'text'
         };
 
+        // Message-level permissions are crucial for privacy.
+        // Any logged-in user can CREATE a message (from collection permissions),
+        // but these permissions lock down who can READ it.
         const messagePermissions = [
             Permission.read(Role.user(currentUser.$id)),
             Permission.read(Role.user(otherUser.$id)),
