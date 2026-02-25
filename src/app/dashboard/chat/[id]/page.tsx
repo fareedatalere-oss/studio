@@ -157,8 +157,8 @@ export default function ChatThreadPage() {
 
 
     return (
-        <div className="flex flex-col h-full bg-black text-white">
-            <header className="sticky top-16 md:top-0 bg-gray-900 border-b border-gray-700 flex items-center p-3 gap-3 z-10">
+        <div className="flex flex-col h-full bg-background text-foreground">
+            <header className="sticky top-16 md:top-0 bg-background border-b flex items-center p-3 gap-3 z-10">
                 <Button variant="ghost" size="icon" onClick={() => router.back()}>
                     <ArrowLeft />
                 </Button>
@@ -170,7 +170,7 @@ export default function ChatThreadPage() {
                         </Avatar>
                         <div>
                             <h2 className="font-semibold">{otherUser.username}</h2>
-                            <p className="text-xs text-green-400">Online</p>
+                            <p className="text-xs text-green-500">Online</p>
                         </div>
                     </>
                 ) : (
@@ -201,8 +201,8 @@ export default function ChatThreadPage() {
                             className={cn(
                                 "p-3 rounded-lg",
                                 message.senderId === currentUser?.$id
-                                    ? "bg-blue-600 rounded-br-none"
-                                    : "bg-gray-700 rounded-bl-none"
+                                    ? "bg-primary text-primary-foreground rounded-br-none"
+                                    : "bg-muted rounded-bl-none"
                             )}
                         >
                             <p className="text-sm">{message.text}</p>
@@ -212,12 +212,11 @@ export default function ChatThreadPage() {
                  <div ref={messagesEndRef} />
             </main>
 
-            <footer className="sticky bottom-16 md:bottom-0 bg-gray-900 border-t border-gray-700 p-3">
+            <footer className="sticky bottom-16 md:bottom-0 bg-background border-t p-3">
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2">
                     <Input
                         type="text"
                         placeholder="Type a message..."
-                        className="bg-gray-800 border-gray-700 text-white"
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         disabled={sending}

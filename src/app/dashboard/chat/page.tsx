@@ -55,7 +55,7 @@ const RecentChatItem = ({ chat, currentUser, onAction }: { chat: any, currentUse
     if (!chat.otherUser) return null;
 
     return (
-        <div className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-800 transition-colors">
+        <div className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted transition-colors">
             <Link href={`/dashboard/chat/${chat.otherUser.$id}`} className="flex-1 flex items-center gap-4">
                 <Avatar className="h-12 w-12">
                     <AvatarImage src={chat.otherUser.avatar} />
@@ -64,11 +64,11 @@ const RecentChatItem = ({ chat, currentUser, onAction }: { chat: any, currentUse
                 <div className="flex-1 overflow-hidden">
                     <div className="flex justify-between items-center">
                         <p className="font-semibold truncate">{displayName}</p>
-                        <p className="text-xs text-gray-400 whitespace-nowrap">
+                        <p className="text-xs text-muted-foreground whitespace-nowrap">
                             {formatDistanceToNow(new Date(chat.lastMessageAt), { addSuffix: true })}
                         </p>
                     </div>
-                    <p className="text-sm text-gray-400 truncate">{chat.lastMessage}</p>
+                    <p className="text-sm text-muted-foreground truncate">{chat.lastMessage}</p>
                 </div>
             </Link>
             <AlertDialog>
@@ -100,14 +100,14 @@ const RecentChatItem = ({ chat, currentUser, onAction }: { chat: any, currentUse
 
 // All User Item Component
 const AllUserItem = ({ user }: { user: any }) => (
-    <Link href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-800 transition-colors">
+    <Link href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted transition-colors">
         <Avatar className="h-12 w-12">
             <AvatarImage src={user.avatar} />
             <AvatarFallback>{user.username.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
         <div className="flex-1">
             <p className="font-semibold">{user.username}</p>
-            <p className="text-sm text-gray-400">{user.name}</p>
+            <p className="text-sm text-muted-foreground">{user.name}</p>
         </div>
     </Link>
 );
@@ -191,7 +191,7 @@ export default function ChatPage() {
 
     const renderAllUsers = () => {
         if (loading.all) return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
-        if (filteredAllUsers.length === 0) return <p className="text-center text-gray-400 p-8">No users found.</p>;
+        if (filteredAllUsers.length === 0) return <p className="text-center text-muted-foreground p-8">No users found.</p>;
         return (
             <div className="space-y-2">
                 {filteredAllUsers.map(user => <AllUserItem key={user.$id} user={user} />)}
@@ -201,7 +201,7 @@ export default function ChatPage() {
     
     const renderRecentChats = () => {
         if (loading.recent) return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
-        if (filteredRecentChats.length === 0) return <p className="text-center text-gray-400 p-8">You have no recent conversations.</p>;
+        if (filteredRecentChats.length === 0) return <p className="text-center text-muted-foreground p-8">You have no recent conversations.</p>;
         return (
             <div className="space-y-2">
                 {filteredRecentChats.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} onAction={fetchRecentChats} />)}
@@ -210,18 +210,18 @@ export default function ChatPage() {
     };
 
     return (
-        <div className="flex flex-col h-full bg-black text-white">
+        <div className="flex flex-col h-full bg-background text-foreground">
             <Tabs defaultValue="recent" className="flex flex-col h-full">
-                <header className="sticky top-16 md:top-0 bg-gray-900 border-b border-gray-700 p-3 z-10">
-                    <TabsList className="grid w-full grid-cols-2 bg-gray-800">
+                <header className="sticky top-16 md:top-0 bg-background border-b p-3 z-10">
+                    <TabsList className="grid w-full grid-cols-2 bg-muted">
                         <TabsTrigger value="recent">Recent</TabsTrigger>
                         <TabsTrigger value="all">All Users</TabsTrigger>
                     </TabsList>
                     <div className="relative mt-3">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                         <Input
                             placeholder="Search chats or users..."
-                            className="pl-10 bg-gray-800 border-gray-700"
+                            className="pl-10"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />

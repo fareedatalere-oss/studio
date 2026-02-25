@@ -41,7 +41,7 @@ export default function PurchaseProductPage() {
     }, [productId, router, toast]);
 
     const handlePurchase = async () => {
-        if (!currentUser) {
+        if (!currentUser || !product) {
             toast({ variant: 'destructive', title: 'Please sign in to make a purchase.' });
             return;
         }
@@ -54,7 +54,7 @@ export default function PurchaseProductPage() {
 
         const result = await purchaseProduct({
             buyerId: currentUser.$id,
-            productId: product.$id,
+            product: product, // Pass the whole product object
             pin,
         });
 
@@ -134,4 +134,3 @@ export default function PurchaseProductPage() {
         </div>
     );
 }
-

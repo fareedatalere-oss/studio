@@ -9,36 +9,33 @@ const BOOK_COMMISSION = 50;
 
 export async function purchaseProduct(payload: {
     buyerId: string;
-    productId: string;
+    product: any;
     pin: string;
 }) {
     let buyerTxId: string | null = null;
     let sellerTxId: string | null = null;
-    const sessionId = `ipay-product-${payload.productId}-${Date.now()}`;
+    const { buyerId, product, pin } = payload;
+    const sessionId = `ipay-product-${product.$id}-${Date.now()}`;
 
     try {
-        const { buyerId, productId, pin } = payload;
-        
-        // 1. Fetch all necessary documents
-        const [buyerProfile, product] = await Promise.all([
-            databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, buyerId),
-            databases.getDocument(DATABASE_ID, COLLECTION_ID_PRODUCTS, productId),
-        ]);
+        // 1. Fetch buyer's profile first
+        const buyerProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, buyerId);
 
-        // 2. Perform validations
-        if (buyerProfile.pin !== pin) {
-            throw new Error('Incorrect transaction PIN.');
-        }
-
+        // 2. Perform validations as requested
         const totalCost = product.price + PRODUCT_COMMISSION;
 
         if (buyerProfile.nairaBalance < totalCost) {
             throw new Error('Insufficient balance to complete this purchase.');
         }
 
+        if (buyerProfile.pin !== pin) {
+            throw new Error('Incorrect transaction PIN.');
+        }
+
+        // 3. All checks passed, now get seller and proceed
         const sellerProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, product.sellerId);
 
-        // 3. Create pending transaction logs for audit trail
+        // 4. Create pending transaction logs for audit trail
         const buyerTxPromise = databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
             userId: buyerId,
             type: 'product_purchase',
@@ -64,7 +61,7 @@ export async function purchaseProduct(payload: {
         buyerTxId = buyerTxDoc.$id;
         sellerTxId = sellerTxDoc.$id;
 
-        // 4. Perform balance updates
+        // 5. Perform balance updates
         const newBuyerBalance = buyerProfile.nairaBalance - totalCost;
         const newSellerBalance = sellerProfile.nairaBalance + product.price;
 
@@ -73,7 +70,7 @@ export async function purchaseProduct(payload: {
         
         await Promise.all([buyerUpdatePromise, sellerUpdatePromise]);
 
-        // 5. Update transactions to 'completed'
+        // 6. Update transactions to 'completed'
         const buyerTxUpdatePromise = databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, buyerTxId, { status: 'completed' });
         const sellerTxUpdatePromise = databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, sellerTxId, { status: 'completed' });
 
@@ -82,7 +79,7 @@ export async function purchaseProduct(payload: {
         return { success: true, message: 'Purchase successful!' };
 
     } catch (error: any) {
-        // 6. If anything fails, mark transactions as failed
+        // 7. If anything fails, mark transactions as failed
         const failureMessage = `[Error] ${error.message}`;
         if (buyerTxId) {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, buyerTxId, { status: 'failed', narration: failureMessage });
@@ -110,10 +107,11 @@ export async function purchaseBook(payload: {
 
         if (book.priceType === 'paid') {
             if (!pin || pin.length !== 5) throw new Error("A valid 5-digit PIN is required for paid books.");
-            if (buyerProfile.pin !== pin) throw new Error("Incorrect transaction PIN.");
             
             const totalCost = book.price + BOOK_COMMISSION;
             if (buyerProfile.nairaBalance < totalCost) throw new Error("Insufficient balance.");
+            
+            if (buyerProfile.pin !== pin) throw new Error("Incorrect transaction PIN.");
             
             const sellerProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, book.sellerId);
             
