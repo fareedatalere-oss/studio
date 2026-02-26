@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Search } from 'lucide-react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { getPaystackProviders, initiatePaystackTransfer } from '@/app/actions/paystack';
+import { getPaystackProviders, getUtilityPlansPaystack, initiatePaystackTransfer } from '@/app/actions/paystack';
 
 export default function BuyDataPage() {
     const router = useRouter();
@@ -21,17 +22,20 @@ export default function BuyDataPage() {
 
     const [providers, setProviders] = useState<any[]>([]);
     const [providersLoading, setProvidersLoading] = useState(true);
+    
+    const [plans, setPlans] = useState<any[]>([]);
+    const [plansLoading, setPlansLoading] = useState(false);
+    const [planSearch, setSearchQuery] = useState('');
 
     const [networkCode, setNetworkCode] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
-    const [amount, setAmount] = useState('');
+    const [selectedPlan, setSelectedPlan] = useState<any>(null);
     const [pin, setPin] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         getPaystackProviders().then(res => {
             if (res.success) {
-                // Strictly filter for real Telcos and clean their names
                 const telcos = res.data
                     .filter((b: any) => 
                         (b.name.toUpperCase().includes('MTN') || 
@@ -54,25 +58,39 @@ export default function BuyDataPage() {
         });
     }, []);
 
-    const selectedProvider = providers.find(p => p.code === networkCode);
+    useEffect(() => {
+        if (!networkCode) return;
+        const provider = providers.find(p => p.code === networkCode);
+        if (!provider) return;
+
+        setPlansLoading(true);
+        setSelectedPlan(null);
+        getUtilityPlansPaystack(provider.name).then(res => {
+            if (res.success) setPlans(res.data);
+            setPlansLoading(false);
+        });
+    }, [networkCode, providers]);
+
+    const filteredPlans = plans.filter(p => p.name.toLowerCase().includes(planSearch.toLowerCase()));
 
     const handlePurchase = async () => {
-        if (!user || !selectedProvider) return;
+        if (!user || !selectedPlan || !networkCode) return;
         setIsLoading(true);
 
+        const provider = providers.find(p => p.code === networkCode);
         const result = await initiatePaystackTransfer({
             userId: user.$id,
             pin,
-            bankCode: selectedProvider.code,
+            bankCode: networkCode,
             accountNumber: phoneNumber,
-            name: `${selectedProvider.name} Data Bundle`,
-            amount: Number(amount),
+            name: `${provider?.name} Data: ${selectedPlan.name}`,
+            amount: selectedPlan.amount,
         });
 
         setIsLoading(false);
 
         if (result.success) {
-            toast({ title: "Data Bundle Processed" });
+            toast({ title: "Purchase Successful" });
             router.push('/dashboard');
         } else {
             toast({ variant: 'destructive', title: "Failed", description: result.message });
@@ -87,7 +105,7 @@ export default function BuyDataPage() {
             <Card className="w-full max-w-md mx-auto">
                 <CardHeader>
                     <CardTitle>Buy Data</CardTitle>
-                    <CardDescription>Instant activation for all networks</CardDescription>
+                    <CardDescription>Select network and choose a plan</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -105,28 +123,47 @@ export default function BuyDataPage() {
                         <Label>Phone Number</Label>
                         <Input value={phoneNumber} onChange={e => setPhoneNumber(e.target.value.replace(/\D/g, ''))} maxLength={11} placeholder="08012345678" />
                     </div>
-                    <div className="space-y-2">
-                        <Label>Plan Amount (₦)</Label>
-                        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Enter data plan cost" />
-                    </div>
+
+                    {networkCode && (
+                        <div className="space-y-2 pt-2 border-t">
+                            <Label>Select Data Plan</Label>
+                            <div className="relative mb-2">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input placeholder="Search plans..." className="pl-9 h-9 text-sm" value={planSearch} onChange={e => setSearchQuery(e.target.value)} />
+                            </div>
+                            <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-1">
+                                {plansLoading ? <Loader2 className="animate-spin mx-auto mt-4" /> : filteredPlans.length > 0 ? filteredPlans.map(plan => (
+                                    <Button 
+                                        key={plan.id} 
+                                        variant={selectedPlan?.id === plan.id ? 'default' : 'outline'} 
+                                        className="justify-between h-12 text-sm" 
+                                        onClick={() => setSelectedPlan(plan)}
+                                    >
+                                        <span>{plan.name}</span>
+                                        <span className="font-bold">₦{plan.amount.toLocaleString()}</span>
+                                    </Button>
+                                )) : <p className="text-center text-xs text-muted-foreground py-4">No matching plans found.</p>}
+                            </div>
+                        </div>
+                    )}
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button className="w-full" disabled={!networkCode || phoneNumber.length < 10 || !amount}>Continue</Button>
+                            <Button className="w-full" disabled={!selectedPlan || phoneNumber.length < 10}>Continue</Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
-                                <AlertDialogDescription>Purchase data for {phoneNumber} ({selectedProvider?.name}) for ₦{amount}?</AlertDialogDescription>
+                                <AlertDialogDescription>Buy {selectedPlan?.name} for {phoneNumber} at ₦{selectedPlan?.amount.toLocaleString()}?</AlertDialogDescription>
                             </AlertDialogHeader>
                             <div className="space-y-2">
                                 <Label>Transaction PIN</Label>
-                                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} placeholder="*****" />
+                                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} placeholder="*****" className="text-center text-lg tracking-widest" />
                             </div>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction onClick={handlePurchase} disabled={isLoading || pin.length !== 5}>
-                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Confirm Payment'}
+                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Confirm & Pay'}
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
