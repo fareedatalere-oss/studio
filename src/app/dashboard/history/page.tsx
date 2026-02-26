@@ -1,16 +1,18 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MessageSquare } from "lucide-react";
 import { useUser } from "@/hooks/use-appwrite";
 import { useEffect, useState } from 'react';
 import { Skeleton } from "@/components/ui/skeleton";
 import { databases, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from "@/lib/appwrite";
 import { Query } from "appwrite";
 import { format } from 'date-fns';
+import { Button } from "@/components/ui/button";
 
 
 export default function HistoryPage() {
@@ -54,12 +56,12 @@ export default function HistoryPage() {
     };
 
     const getAmountClass = (type: string) => {
-        return type !== 'deposit' ? 'text-red-500' : 'text-green-500';
+        return type !== 'deposit' && type !== 'product_sale' ? 'text-red-500' : 'text-green-500';
     };
     
     const formatAmount = (amount: number, type: string) => {
         if (typeof amount !== 'number') return '₦0.00';
-        const sign = type !== 'deposit' ? '-' : '+';
+        const sign = type !== 'deposit' && type !== 'product_sale' ? '-' : '+';
         return `${sign} ₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
@@ -95,19 +97,45 @@ export default function HistoryPage() {
                                     </TableRow>
                                 ))
                             ) : transactions.length > 0 ? (
-                                transactions.map((tx: any) => (
-                                <TableRow key={tx.$id}>
-                                    <TableCell>
-                                        <div className="font-medium capitalize">{tx.type?.replace('_', ' ')}</div>
-                                        <div className="text-sm text-muted-foreground max-w-[200px] truncate" title={tx.recipientName || tx.narration}>{tx.recipientName || tx.narration}</div>
-                                    </TableCell>
-                                    <TableCell className="hidden md:table-cell">{format(new Date(tx.$createdAt), 'PPp')}</TableCell>
-                                    <TableCell>
-                                        <Badge variant={getStatusVariant(tx.status)} className="capitalize">{tx.status}</Badge>
-                                    </TableCell>
-                                    <TableCell className={`text-right font-medium ${getAmountClass(tx.type)}`}>{formatAmount(tx.amount, tx.type)}</TableCell>
-                                </TableRow>
-                            ))
+                                transactions.map((tx: any) => {
+                                    const isMarketTx = tx.type === 'product_purchase' || tx.type === 'product_sale';
+                                    const otherUserHandle = tx.recipientDetails?.startsWith('@') ? tx.recipientDetails : null;
+                                    const otherUserId = isMarketTx && tx.narration && tx.narration.length > 10 ? tx.narration : null;
+
+                                    return (
+                                        <TableRow key={tx.$id}>
+                                            <TableCell>
+                                                <div className="font-medium capitalize">{tx.type?.replace('_', ' ')}</div>
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="text-sm text-muted-foreground max-w-[200px] truncate" title={tx.recipientName}>
+                                                        {tx.recipientName}
+                                                    </div>
+                                                    {otherUserHandle && (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs font-semibold text-primary">{otherUserHandle}</span>
+                                                            {otherUserId && (
+                                                                <Button asChild variant="ghost" size="icon" className="h-6 w-6">
+                                                                    <Link href={`/dashboard/chat/${otherUserId}`}>
+                                                                        <MessageSquare className="h-3 w-3" />
+                                                                    </Link>
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="hidden md:table-cell">
+                                                <div className="text-xs">{format(new Date(tx.$createdAt), 'PPp')}</div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant={getStatusVariant(tx.status)} className="capitalize text-[10px]">{tx.status}</Badge>
+                                            </TableCell>
+                                            <TableCell className={`text-right font-medium ${getAmountClass(tx.type)}`}>
+                                                {formatAmount(tx.amount, tx.type)}
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })
                             ) : (
                                 <TableRow>
                                     <TableCell colSpan={4} className="text-center h-24">No transactions yet.</TableCell>

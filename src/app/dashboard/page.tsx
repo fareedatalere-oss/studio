@@ -33,7 +33,7 @@ import {
   RefreshCw,
   Smartphone,
   Wifi,
-} from 'lucide-material';
+} from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';

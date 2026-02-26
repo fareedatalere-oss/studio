@@ -42,9 +42,10 @@ export async function purchaseProduct(payload: {
             amount: totalCost,
             status: 'pending',
             recipientName: `Purchase: ${product.name}`,
-            recipientDetails: `Seller: @${sellerProfile.username}`,
-            narration: `Purchase of ${product.name}`,
+            recipientDetails: `@${sellerProfile.username}`,
+            narration: sellerProfile.uid, // Store UID here for the chat link
             sessionId: `${sessionId}-buyer`,
+            createdAt: new Date().toISOString()
         });
         const sellerTxPromise = databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
             userId: product.sellerId,
@@ -52,9 +53,10 @@ export async function purchaseProduct(payload: {
             amount: product.price,
             status: 'pending',
             recipientName: `Sale: ${product.name}`,
-            recipientDetails: `Buyer: @${buyerProfile.username}`,
-            narration: `Sale of ${product.name}`,
+            recipientDetails: `@${buyerProfile.username}`,
+            narration: buyerProfile.uid, // Store UID here for the chat link
             sessionId: `${sessionId}-seller`,
+            createdAt: new Date().toISOString()
         });
 
         const [buyerTxDoc, sellerTxDoc] = await Promise.all([buyerTxPromise, sellerTxPromise]);
@@ -98,6 +100,10 @@ export async function purchaseBook(payload: {
     bookId: string;
     pin: string; // can be empty for free books
 }) {
+    let buyerTxId: string | null = null;
+    let sellerTxId: string | null = null;
+    const sessionId = `ipay-book-${payload.bookId}-${Date.now()}`;
+
     try {
         const { buyerId, bookId, pin } = payload;
         const [buyerProfile, book] = await Promise.all([
@@ -115,6 +121,32 @@ export async function purchaseBook(payload: {
             
             const sellerProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, book.sellerId);
             
+            // Create Audit Logs
+            const buyerTxPromise = databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+                userId: buyerId,
+                type: 'product_purchase',
+                amount: totalCost,
+                status: 'completed',
+                recipientName: `Book: ${book.name}`,
+                recipientDetails: `@${sellerProfile.username}`,
+                narration: sellerProfile.uid,
+                sessionId: `${sessionId}-buyer`,
+                createdAt: new Date().toISOString()
+            });
+            const sellerTxPromise = databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+                userId: book.sellerId,
+                type: 'product_sale',
+                amount: book.price,
+                status: 'completed',
+                recipientName: `Sale: ${book.name}`,
+                recipientDetails: `@${buyerProfile.username}`,
+                narration: buyerProfile.uid,
+                sessionId: `${sessionId}-seller`,
+                createdAt: new Date().toISOString()
+            });
+
+            await Promise.all([buyerTxPromise, sellerTxPromise]);
+
             const newBuyerBalance = buyerProfile.nairaBalance - totalCost;
             const newSellerBalance = sellerProfile.nairaBalance + book.price;
 
