@@ -1,3 +1,4 @@
+
 'use server';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
@@ -83,7 +84,6 @@ export async function initiatePaystackBillPayment(payload: {
             })
         });
 
-        // Better error handling for non-JSON or empty responses
         if (!response.ok) {
             const errorText = await response.text();
             let errorMsg = "Paystack rejected the request.";
@@ -91,7 +91,7 @@ export async function initiatePaystackBillPayment(payload: {
                 const errorJson = JSON.parse(errorText);
                 errorMsg = errorJson.message || errorMsg;
             } catch {
-                errorMsg = `Server error: ${response.status}. Please check your account permissions.`;
+                errorMsg = `Server error: ${response.status}. Check Paystack permissions.`;
             }
             throw new Error(errorMsg);
         }
@@ -119,6 +119,65 @@ export async function initiatePaystackBillPayment(payload: {
             throw new Error(data.message || "Paystack declined the transaction.");
         }
 
+    } catch (e: any) {
+        return { success: false, message: e.message };
+    }
+}
+
+export async function initiatePaystackTransfer(payload: { userId: string, pin: string, bankCode: string, accountNumber: string, name: string, amount: number, bankName: string, narration: string }) {
+    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    const sessionId = `ipay-out-${Date.now()}`;
+
+    // TIERED FEE CALCULATION
+    let fee = 0;
+    if (payload.amount >= 100 && payload.amount <= 1000) {
+        fee = 30;
+    } else if (payload.amount > 1000 && payload.amount < 10000) {
+        fee = 80;
+    } else if (payload.amount >= 10000 && payload.amount <= 100000) {
+        fee = 100;
+    } else if (payload.amount > 100000) {
+        fee = 150;
+    }
+
+    const totalDebit = payload.amount + fee;
+
+    try {
+        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
+        if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
+        if (userProfile.nairaBalance < totalDebit) throw new Error(`Insufficient balance. (Amount + Hidden Fee: ₦${totalDebit.toLocaleString()})`);
+
+        const recipientRes = await fetch('https://api.paystack.co/transferrecipient', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: "nuban", name: payload.name, account_number: payload.accountNumber, bank_code: payload.bankCode, currency: "NGN" })
+        });
+        const recipientData = await recipientRes.json();
+        if (!recipientData.status) throw new Error(recipientData.message);
+
+        const transferRes = await fetch('https://api.paystack.co/transfer', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source: "balance", amount: payload.amount * 100, recipient: recipientData.data.recipient_code, reason: payload.narration || payload.name, reference: sessionId })
+        });
+        const transferData = await transferRes.json();
+
+        if (transferData.status) {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { nairaBalance: userProfile.nairaBalance - totalDebit });
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+                userId: payload.userId,
+                type: 'transfer',
+                amount: payload.amount,
+                status: 'completed',
+                recipientName: payload.name,
+                recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
+                narration: payload.narration,
+                sessionId: transferData.data.transfer_code || sessionId,
+            });
+            return { success: true, message: "Transfer successful." };
+        } else {
+            throw new Error(transferData.message);
+        }
     } catch (e: any) {
         return { success: false, message: e.message };
     }
@@ -181,50 +240,5 @@ export async function verifyMarketplaceSubscription(reference: string, userId: s
         return { success: false, message: 'Verification failed.' };
     } catch (error: any) {
         return { success: false, message: error.message };
-    }
-}
-
-export async function initiatePaystackTransfer(payload: { userId: string, pin: string, bankCode: string, accountNumber: string, name: string, amount: number, bankName: string, narration: string }) {
-    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
-    const sessionId = `ipay-out-${Date.now()}`;
-
-    try {
-        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
-        if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
-        if (userProfile.nairaBalance < payload.amount) throw new Error('Insufficient balance.');
-
-        const recipientRes = await fetch('https://api.paystack.co/transferrecipient', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: "nuban", name: payload.name, account_number: payload.accountNumber, bank_code: payload.bankCode, currency: "NGN" })
-        });
-        const recipientData = await recipientRes.json();
-        if (!recipientData.status) throw new Error(recipientData.message);
-
-        const transferRes = await fetch('https://api.paystack.co/transfer', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ source: "balance", amount: payload.amount * 100, recipient: recipientData.data.recipient_code, reason: payload.narration || payload.name, reference: sessionId })
-        });
-        const transferData = await transferRes.json();
-
-        if (transferData.status) {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { nairaBalance: userProfile.nairaBalance - payload.amount });
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
-                userId: payload.userId,
-                type: 'transfer',
-                amount: payload.amount,
-                status: 'completed',
-                recipientName: payload.name,
-                recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
-                narration: payload.narration,
-                sessionId: transferData.data.transfer_code || sessionId,
-            });
-            return { success: true, message: "Transfer successful." };
-        } else {
-            throw new Error(transferData.message);
-        }
-    } catch (e: any) {
-        return { success: false, message: e.message };
     }
 }

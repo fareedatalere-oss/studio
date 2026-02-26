@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -12,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { getPaystackBillers, initiatePaystackBillPayment } from '@/app/actions/paystack';
+import { initiateFlutterwaveAirtime } from '@/app/actions/flutterwave';
 
 const CORE_PROVIDERS = [
     { name: 'MTN', searchKey: 'MTN' },
@@ -26,43 +27,23 @@ export default function BuyAirtimePage() {
     const { toast } = useToast();
     const { user } = useUser();
 
-    const [paystackBillers, setPaystackBillers] = useState<any[]>([]);
-    const [isLoadingBillers, setIsLoadingBillers] = useState(true);
-
     const [networkName, setNetworkName] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
     const [amount, setAmount] = useState('');
     const [pin, setPin] = useState('');
     const [isPurchasing, setIsPurchasing] = useState(false);
 
-    useEffect(() => {
-        getPaystackBillers().then(res => {
-            if (res.success && res.data) {
-                setPaystackBillers(res.data);
-            }
-            setIsLoadingBillers(false);
-        });
-    }, []);
-
     const handlePurchase = async () => {
         if (!user || !networkName) return;
         
-        const network = CORE_PROVIDERS.find(p => p.name === networkName);
-        // Find biller that is NOT data
-        const biller = paystackBillers.find(b => 
-            b.name.toUpperCase().includes(network?.searchKey || '') && 
-            !b.name.toUpperCase().includes('DATA')
-        );
-
         setIsPurchasing(true);
 
-        const result = await initiatePaystackBillPayment({
+        const result = await initiateFlutterwaveAirtime({
             userId: user.$id,
             pin,
             customer: phoneNumber,
             amount: Number(amount),
-            type: biller?.slug || `${networkName.toLowerCase()}_airtime`,
-            description: `${networkName} Airtime Recharge`
+            type: networkName
         });
 
         setIsPurchasing(false);
@@ -71,7 +52,7 @@ export default function BuyAirtimePage() {
             toast({ title: "Airtime Purchase Successful" });
             router.push('/dashboard');
         } else {
-            toast({ variant: 'destructive', title: "Purchase Failed", description: result.message || "Paystack declined the request." });
+            toast({ variant: 'destructive', title: "Purchase Failed", description: result.message || "Flutterwave declined the request." });
         }
     };
 
@@ -82,8 +63,8 @@ export default function BuyAirtimePage() {
             </Link>
             <Card className="w-full max-w-md mx-auto shadow-lg border-t-4 border-t-primary">
                 <CardHeader className="text-center pb-2">
-                    <CardTitle className="text-2xl font-bold">Buy Airtime</CardTitle>
-                    <CardDescription>Select network and enter details</CardDescription>
+                    <CardTitle className="text-2xl font-bold">Buy Airtime (Flutterwave)</CardTitle>
+                    <CardDescription>Instant recharge for all networks</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 pt-4">
                     <div className="space-y-2">
@@ -135,13 +116,11 @@ export default function BuyAirtimePage() {
                         <AlertDialogContent>
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Confirm Airtime Purchase</AlertDialogTitle>
-                                <AlertDialogDescription asChild>
-                                    <div className="space-y-2 text-foreground">
-                                        <div>Network: <span className="font-bold">{networkName}</span></div>
-                                        <div>Number: <span className="font-bold">{phoneNumber}</span></div>
-                                        <div className="pt-2 text-primary font-bold text-lg border-t">Total: ₦{Number(amount).toLocaleString()}</div>
-                                    </div>
-                                </AlertDialogDescription>
+                                <div className="space-y-2 text-foreground text-sm">
+                                    <div>Network: <span className="font-bold">{networkName}</span></div>
+                                    <div>Number: <span className="font-bold">{phoneNumber}</span></div>
+                                    <div className="pt-2 text-primary font-bold text-lg border-t">Total: ₦{Number(amount).toLocaleString()}</div>
+                                </div>
                             </AlertDialogHeader>
                             <div className="space-y-2 pt-4">
                                 <Label className="font-bold">Enter 5-Digit Transaction PIN</Label>

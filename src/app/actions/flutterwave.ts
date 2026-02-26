@@ -1,3 +1,4 @@
+
 'use server';
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
 import { ID, Query } from 'appwrite';
@@ -39,9 +40,7 @@ export async function getBankList() {
 }
 
 export async function syncVirtualAccountPayments(userId: string, userEmail?: string) {
-    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
-        return { success: false, message: "API key is not configured correctly." };
-    }
+    if (!FLUTTERWAVE_API_KEY) return { success: false, message: "API key is not configured correctly." };
 
     try {
         const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
@@ -68,8 +67,6 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
 
         for (const tx of remoteTransactions) {
             const txId = tx.id.toString();
-            
-            // Deduplicate: Check if we already processed this ID
             const existingRecords = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, [
                 Query.equal('sessionId', txId),
                 Query.limit(1)
@@ -110,6 +107,60 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
     }
 }
 
+export async function initiateFlutterwaveAirtime(payload: { userId: string, pin: string, customer: string, amount: number, type: string }) {
+    if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    
+    const sessionId = `ipay-flw-airtime-${Date.now()}`;
+    const MY_CHARGE = 3;
+    const totalDebit = payload.amount + MY_CHARGE;
+
+    try {
+        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
+        if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
+        if (userProfile.nairaBalance < totalDebit) throw new Error('Insufficient balance.');
+
+        const response = await fetch('https://api.flutterwave.com/v3/bills', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                country: "NG",
+                customer: payload.customer,
+                amount: payload.amount,
+                type: "AIRTIME",
+                reference: sessionId
+            }),
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { 
+                nairaBalance: userProfile.nairaBalance - totalDebit 
+            });
+
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+                userId: payload.userId,
+                type: 'airtime',
+                amount: payload.amount,
+                status: 'completed',
+                recipientName: `${payload.type} Airtime Recharge`,
+                recipientDetails: payload.customer,
+                narration: `Service charge of ₦${MY_CHARGE} applied.`,
+                sessionId: data.data?.reference || sessionId,
+            });
+
+            return { success: true, message: "Airtime purchase successful via Flutterwave." };
+        } else {
+            throw new Error(data.message || "Flutterwave declined the request.");
+        }
+    } catch (e: any) {
+        return { success: false, message: e.message };
+    }
+}
+
 export async function generateVirtualAccount(payload: any) {
     if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     try {
@@ -134,7 +185,7 @@ export async function generateVirtualAccount(payload: any) {
 }
 
 export async function makeBillPayment(payload: any) {
-    return { success: false, message: "Service temporarily unavailable. Use Paystack utilities instead." };
+    return { success: false, message: "Use the Multi-Purpose section for Paystack payments." };
 }
 
 export async function getUtilityProviders(type: string) { return { success: false, data: [] }; }
@@ -180,7 +231,6 @@ export async function verifyCardPayment(transactionId: string, userId: string) {
         });
         const data = await response.json();
         if (data.status === 'success' && data.data.status === 'successful') {
-            // Save card token for recurring payments
             const cardToken = data.data.card.token;
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
                 fwCardToken: cardToken

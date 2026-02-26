@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -19,8 +20,7 @@ export default function RewardsPage() {
     const [userProfile, setUserProfile] = useState<any>(null);
     const [profileLoading, setProfileLoading] = useState(true);
     
-    // UI State
-    const [step, setStep] = useState('loading'); // 'loading', 'rules', 'referral', 'main'
+    const [step, setStep] = useState('loading'); 
     const [referralCode, setReferralCode] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [monetizationLink, setMonetizationLink] = useState('');
@@ -49,7 +49,6 @@ export default function RewardsPage() {
             fetchProfile();
         } else if (!userLoading) {
             setProfileLoading(false);
-            // Redirect or show error if no user
         }
     }, [user, userLoading, toast]);
 
@@ -143,32 +142,6 @@ export default function RewardsPage() {
         setMonetizationLink('');
         setSearchQuery('');
     };
-    
-    const handleWithdraw = async () => {
-        if (!user || !userProfile || (userProfile.rewardBalance || 0) < 10000) return;
-        
-        setIsProcessing(true);
-        toast({ title: 'Processing Withdrawal...' });
-
-        try {
-            const newNairaBalance = (userProfile.nairaBalance || 0) + userProfile.rewardBalance;
-
-            const updatedProfile = await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, {
-                nairaBalance: newNairaBalance,
-                rewardBalance: 0,
-                clickCount: 0 // Also reset click count on withdrawal
-            });
-            setUserProfile(updatedProfile);
-            toast({
-                title: 'Withdrawal Successful!',
-                description: `₦${userProfile.rewardBalance.toLocaleString()} has been added to your main balance.`,
-            });
-        } catch (error) {
-            toast({ variant: 'destructive', title: 'Withdrawal Failed', description: 'Could not process your withdrawal.' });
-        } finally {
-            setIsProcessing(false);
-        }
-    }
     
     if (userLoading || profileLoading || step === 'loading') {
         return (
@@ -275,12 +248,7 @@ export default function RewardsPage() {
                                <a href={monetizationLink} target="_blank" rel="noopener noreferrer" onClick={handleMonetizationClick}>Click Monetization Link</a>
                             </Button>
                         )}
-
-                        {(userProfile?.rewardBalance || 0) >= 10000 && (
-                                <Button onClick={handleWithdraw} className="w-full mt-4" variant="secondary" disabled={isProcessing}>
-                                {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Withdrawing...</> : 'Withdraw Rewards'}
-                            </Button>
-                        )}
+                        {/* THE WITHDRAW BUTTON HAS BEEN REMOVED AS REQUESTED */}
                     </CardContent>
                 </Card>
             </div>
@@ -294,7 +262,7 @@ export default function RewardsPage() {
             return renderReferral();
         case 'main':
             return renderMain();
-        default: // loading
+        default:
             return (
                  <div className="container py-8">
                     <Skeleton className="h-8 w-36 mb-4" />
