@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { resolveAccountNumber, getBankList, makeBankTransfer } from '@/app/actions/flutterwave';
+import { resolvePaystackAccount, getPaystackBanks, initiatePaystackTransfer } from '@/app/actions/paystack';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -44,8 +45,9 @@ export default function TransferPage() {
     useEffect(() => {
         const fetchBanks = async () => {
             setBanksLoading(true);
-            const result = await getBankList();
+            const result = await getPaystackBanks();
             if (result.success) {
+                // Ensure unique banks by code
                 const uniqueBanks = Array.from(new Map(result.data.map((bank: Bank) => [bank.code, bank])).values());
                 setBanks(uniqueBanks);
             } else {
@@ -70,7 +72,7 @@ export default function TransferPage() {
     
     const handleVerifyDetails = async () => {
         setIsLoading(true);
-        const result = await resolveAccountNumber({ accountNumber, bankCode });
+        const result = await resolvePaystackAccount(accountNumber, bankCode);
         setIsLoading(false);
 
         if (result.success && result.data?.account_name) {
@@ -80,7 +82,7 @@ export default function TransferPage() {
             toast({
                 variant: 'destructive',
                 title: 'Account Verification Failed',
-                description: result.message || 'Could not verify the account details.',
+                description: result.message || 'Could not verify the account details via Paystack.',
             });
         }
     };
@@ -99,14 +101,14 @@ export default function TransferPage() {
 
         setIsLoading(true);
 
-        const result = await makeBankTransfer({
+        const result = await initiatePaystackTransfer({
             userId: user.$id,
             pin,
             bankCode,
             accountNumber,
             amount: Number(amount),
             narration,
-            recipientName: resolvedName,
+            name: resolvedName,
             bankName: selectedBank.name
         });
 
@@ -170,7 +172,7 @@ export default function TransferPage() {
             <Card className="w-full max-w-md mx-auto">
                 <CardHeader>
                     <CardTitle>Send Money</CardTitle>
-                    <CardDescription>Enter recipient details to start a transfer via Flutterwave.</CardDescription>
+                    <CardDescription>Enter recipient details to start a transfer via Paystack.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
