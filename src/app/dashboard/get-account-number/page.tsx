@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -47,6 +48,7 @@ export default function GetAccountNumberPage() {
         })
         .catch(error => {
           // It's okay if the profile doesn't have these fields yet, just log for debugging.
+          setFormData(prev => ({ ...prev, email: user.email }));
           console.log("Could not pre-fill all profile data, user might need to enter it manually.", error.message);
         })
         .finally(() => {
@@ -122,6 +124,7 @@ export default function GetAccountNumberPage() {
                 COLLECTION_ID_PROFILES,
                 user.$id,
                 {
+                    email: user.email, // Ensure email is saved for sync purposes
                     accountNumber: accountInfo.number,
                     bankName: accountInfo.bank,
                     firstName: formData.firstName,

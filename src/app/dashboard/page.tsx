@@ -51,11 +51,11 @@ function DashboardContent() {
 
   // Real-time Automated Sync Logic
   useEffect(() => {
-    if (user?.$id && !hasSyncedRef.current) {
+    if (user?.$id && user?.email && !hasSyncedRef.current) {
         hasSyncedRef.current = true; // prevent infinite loops on mount
         
         const runSync = async () => {
-            const result = await syncVirtualAccountPayments(user.$id);
+            const result = await syncVirtualAccountPayments(user.$id, user.email);
             if (result.success && result.amountAdded && result.amountAdded > 0) {
                 toast({
                     title: 'New Deposit Detected!',

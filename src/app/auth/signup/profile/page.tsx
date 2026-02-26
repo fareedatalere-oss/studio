@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -65,10 +66,19 @@ export default function CompleteProfilePage() {
 
         // Prepare the profile data.
         const profileData = {
+            uid: user.$id,
+            email: user.email,
             username: username,
             country: country,
             pin: pin,
             avatar: '',
+            createdAt: new Date().toISOString(),
+            nairaBalance: 0,
+            rewardBalance: 0,
+            clickCount: 0,
+            hasReferral: false,
+            isBanned: false,
+            isMarketplaceSubscribed: false
         };
 
         // Create the new profile document using the user's ID as the document ID

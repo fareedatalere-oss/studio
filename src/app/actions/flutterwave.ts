@@ -43,12 +43,14 @@ export async function getBankList() {
     }
 }
 
-export async function syncVirtualAccountPayments(userId: string) {
+export async function syncVirtualAccountPayments(userId: string, userEmail?: string) {
     if (!FLUTTERWAVE_API_KEY) return { success: false, message: "API key missing" };
 
     try {
         const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
-        const email = profile.email;
+        
+        // Use provided email or fall back to profile email
+        const email = userEmail || profile.email;
         if (!email) return { success: false, message: "No email associated with profile" };
 
         const response = await fetch(`https://api.flutterwave.com/v3/transactions?customer_email=${email}&status=successful`, {
@@ -91,7 +93,9 @@ export async function syncVirtualAccountPayments(userId: string) {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
                 nairaBalance: newBalance,
                 processedTransactions: newProcessedIds,
-                lastSyncAt: new Date().toISOString()
+                lastSyncAt: new Date().toISOString(),
+                // Also save the email if it was missing to prevent future issues
+                email: profile.email || email 
             });
             return { success: true, amountAdded: totalNewAmount };
         }
