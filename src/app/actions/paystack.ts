@@ -7,59 +7,6 @@ import { ID } from 'appwrite';
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const API_KEY_ERROR_MESSAGE = 'Configuration error. Please contact support.';
 
-// Real Nigerian Utility Plans Data
-const NIGERIAN_PLANS: Record<string, any[]> = {
-    'MTN': [
-        { id: 'm1', name: '100MB (1 Day)', amount: 100 },
-        { id: 'm2', name: '1GB (1 Day)', amount: 300 },
-        { id: 'm3', name: '2GB (2 Days)', amount: 500 },
-        { id: 'm4', name: '1.5GB (30 Days)', amount: 1000 },
-        { id: 'm5', name: '2GB (30 Days)', amount: 1200 },
-        { id: 'm6', name: '5GB (30 Days)', amount: 1500 },
-        { id: 'm7', name: '10GB (30 Days)', amount: 3000 },
-        { id: 'm8', name: '20GB (30 Days)', amount: 5000 },
-    ],
-    'Airtel': [
-        { id: 'a1', name: '1GB (1 Day)', amount: 300 },
-        { id: 'a2', name: '2GB (2 Days)', amount: 500 },
-        { id: 'a3', name: '1.5GB (30 Days)', amount: 1000 },
-        { id: 'a4', name: '3GB (30 Days)', amount: 1500 },
-        { id: 'a5', name: '10GB (30 Days)', amount: 3000 },
-    ],
-    'Glo': [
-        { id: 'g1', name: '1GB (5 Days)', amount: 300 },
-        { id: 'g2', name: '2GB (30 Days)', amount: 1000 },
-        { id: 'g3', name: '5.8GB (30 Days)', amount: 1500 },
-        { id: 'g4', name: '10GB (30 Days)', amount: 2500 },
-    ],
-    '9mobile': [
-        { id: '91', name: '1GB (1 Day)', amount: 300 },
-        { id: '92', name: '1.5GB (30 Days)', amount: 1000 },
-        { id: '93', name: '3GB (30 Days)', amount: 1500 },
-    ],
-    'GOtv': [
-        { id: 'gt1', name: 'GOtv Smallie', amount: 1300 },
-        { id: 'gt2', name: 'GOtv Jinja', amount: 3300 },
-        { id: 'gt3', name: 'GOtv Jolli', amount: 4850 },
-        { id: 'gt4', name: 'GOtv Max', amount: 7200 },
-        { id: 'gt5', name: 'GOtv Supa', amount: 9600 },
-    ],
-    'DStv': [
-        { id: 'dt1', name: 'DStv Padi', amount: 3600 },
-        { id: 'dt2', name: 'DStv Yanga', amount: 5100 },
-        { id: 'dt3', name: 'DStv Confam', amount: 9300 },
-        { id: 'dt4', name: 'DStv Compact', amount: 15700 },
-        { id: 'dt5', name: 'DStv Compact Plus', amount: 25000 },
-        { id: 'dt6', name: 'DStv Premium', amount: 37000 },
-    ],
-    'StarTimes': [
-        { id: 'st1', name: 'Nova (Weekly)', amount: 600 },
-        { id: 'st2', name: 'Nova (Monthly)', amount: 1500 },
-        { id: 'st3', name: 'Basic (Monthly)', amount: 3100 },
-        { id: 'st4', name: 'Classic (Monthly)', amount: 4500 },
-    ]
-};
-
 export async function getPaystackProviders() {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
     try {
@@ -75,14 +22,93 @@ export async function getPaystackProviders() {
     }
 }
 
-export async function getUtilityPlansPaystack(providerName: string) {
-    // Find the closest match in our real plans database
-    const key = Object.keys(NIGERIAN_PLANS).find(k => providerName.toUpperCase().includes(k.toUpperCase()));
-    if (!key) return { success: false, message: "No plans found for this provider.", data: [] };
+export async function getPaystackBillers() {
+    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
+    try {
+        // Fetch all supported billers from Paystack
+        const response = await fetch('https://api.paystack.co/billpayment', {
+            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}` },
+            next: { revalidate: 3600 }
+        });
+        const data = await response.json();
+        if (data.status) return { success: true, data: data.data };
+        return { success: false, message: data.message || "Could not fetch billers.", data: [] };
+    } catch (e: any) {
+        return { success: false, message: e.message, data: [] };
+    }
+}
+
+export async function initiatePaystackBillPayment(payload: { 
+    userId: string, 
+    pin: string, 
+    customer: string, 
+    amount: number, 
+    type: string, 
+    description: string 
+}) {
+    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     
-    // Sort by amount (low to high)
-    const sortedPlans = [...NIGERIAN_PLANS[key]].sort((a, b) => a.amount - b.amount);
-    return { success: true, data: sortedPlans };
+    const sessionId = `ipay-bill-${Date.now()}`;
+    let txDbId: string | null = null;
+
+    try {
+        // 1. Verify User and Balance
+        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
+        if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
+        if (userProfile.nairaBalance < payload.amount) throw new Error('Insufficient balance.');
+
+        // 2. Create Transaction Log
+        const doc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+            userId: payload.userId,
+            type: 'product_purchase', // mapping to a generic spending type for ledger
+            amount: payload.amount,
+            status: 'pending',
+            recipientName: payload.description,
+            recipientDetails: payload.customer,
+            narration: payload.description,
+            sessionId: sessionId,
+        });
+        txDbId = doc.$id;
+
+        // 3. Send Real Bill Payment Request to Paystack
+        const response = await fetch('https://api.paystack.co/billpayment', {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                customer: payload.customer,
+                amount: payload.amount * 100, // Paystack expects kobo
+                type: payload.type, // Biller code from getPaystackBillers
+                reference: sessionId
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.status) {
+            // 4. Update Balances and Status
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { 
+                nairaBalance: userProfile.nairaBalance - payload.amount 
+            });
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, { 
+                status: 'completed' 
+            });
+            return { success: true, message: "Transaction successful." };
+        } else {
+            throw new Error(data.message || "Paystack declined the transaction.");
+        }
+
+    } catch (e: any) {
+        if (txDbId) {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, { 
+                status: 'failed', 
+                narration: `Error: ${e.message}` 
+            });
+        }
+        return { success: false, message: e.message };
+    }
 }
 
 export async function initializeTransaction(payload: { email: string; userId: string }) {

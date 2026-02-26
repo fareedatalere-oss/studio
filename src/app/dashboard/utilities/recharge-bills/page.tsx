@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Search } from 'lucide-react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { getPaystackProviders, initiatePaystackTransfer } from '@/app/actions/paystack';
+import { getPaystackBillers, initiatePaystackBillPayment } from '@/app/actions/paystack';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 export default function RechargeBillsPage() {
@@ -31,13 +32,13 @@ export default function RechargeBillsPage() {
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        getPaystackProviders().then(res => {
+        getPaystackBillers().then(res => {
             if (res.success) {
-                // Strictly filter for all Nigerian Electricity Discos
+                // Dynamic Filter for real Nigerian Electricity Providers from Paystack
                 const discos = res.data.filter((b: any) => 
                     ['AEDC', 'EKEDC', 'IKEDC', 'KEDCO', 'JED', 'PHED', 'BEDC', 'IBEDC', 'EEDC', 'KAEDCO', 'YEDC'].some(disco => b.name.toUpperCase().includes(disco)) ||
                     b.name.toUpperCase().includes('ELECTRIC') ||
-                    b.name.toUpperCase().includes('DISCO')
+                    b.name.toUpperCase().includes('POWER')
                 );
                 setProviders(discos);
             }
@@ -45,28 +46,28 @@ export default function RechargeBillsPage() {
         });
     }, []);
 
-    const selectedDisco = providers.find(p => p.code === discoCode);
+    const selectedDisco = providers.find(p => p.slug === discoCode);
 
     const handlePurchase = async () => {
         if (!user || !selectedDisco) return;
         setIsLoading(true);
 
-        const result = await initiatePaystackTransfer({
+        const result = await initiatePaystackBillPayment({
             userId: user.$id,
             pin,
-            bankCode: selectedDisco.code,
-            accountNumber: meterNumber,
-            name: `${selectedDisco.name} Bill`,
+            customer: meterNumber,
             amount: Number(amount),
+            type: discoCode,
+            description: `${selectedDisco.name} Bill (${meterType})`
         });
 
         setIsLoading(false);
 
         if (result.success) {
-            toast({ title: "Electricity Bill Paid" });
+            toast({ title: "Electricity Bill Paid Successfully" });
             router.push('/dashboard');
         } else {
-            toast({ variant: 'destructive', title: "Failed", description: result.message });
+            toast({ variant: 'destructive', title: "Payment Failed", description: result.message });
         }
     };
 
@@ -75,7 +76,7 @@ export default function RechargeBillsPage() {
             <Link href="/dashboard/utilities" className="flex items-center gap-2 mb-4 text-sm">
                 <ArrowLeft className="h-4 w-4" /> Back
             </Link>
-            <Card className="w-full max-w-md mx-auto">
+            <Card className="w-full max-md mx-auto">
                 <CardHeader>
                     <CardTitle>Recharge Bills</CardTitle>
                     <CardDescription>Electricity and Power payments</CardDescription>
@@ -88,7 +89,7 @@ export default function RechargeBillsPage() {
                                 <SelectValue placeholder={providersLoading ? "Loading Discos..." : "Select your Disco"} />
                             </SelectTrigger>
                             <SelectContent>
-                                {providers.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
+                                {providers.map(p => <SelectItem key={p.slug} value={p.slug}>{p.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { getPaystackProviders, getUtilityPlansPaystack, initiatePaystackTransfer } from '@/app/actions/paystack';
+import { getPaystackBillers, initiatePaystackBillPayment } from '@/app/actions/paystack';
 
 export default function TvSubscriptionPage() {
     const router = useRouter();
@@ -34,20 +34,15 @@ export default function TvSubscriptionPage() {
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        getPaystackProviders().then(res => {
+        getPaystackBillers().then(res => {
             if (res.success) {
+                // Dynamic Filter for real Nigerian TV Providers from Paystack
                 const tv = res.data.filter((b: any) => 
                     b.name.toUpperCase().includes('DSTV') || 
                     b.name.toUpperCase().includes('GOTV') || 
                     b.name.toUpperCase().includes('STARTIMES') || 
                     b.name.toUpperCase().includes('SHOWMAX')
-                ).map((b: any) => {
-                    let cleanName = b.name;
-                    if (cleanName.toUpperCase().includes('DSTV')) cleanName = 'DStv';
-                    if (cleanName.toUpperCase().includes('GOTV')) cleanName = 'GOtv';
-                    if (cleanName.toUpperCase().includes('STARTIMES')) cleanName = 'StarTimes';
-                    return { ...b, name: cleanName };
-                });
+                );
                 setProviders(tv);
             }
             setProvidersLoading(false);
@@ -56,15 +51,20 @@ export default function TvSubscriptionPage() {
 
     useEffect(() => {
         if (!providerCode) return;
-        const provider = providers.find(p => p.code === providerCode);
+        const provider = providers.find(p => p.slug === providerCode);
         if (!provider) return;
 
-        setPlansLoading(true);
-        setSelectedPlan(null);
-        getUtilityPlansPaystack(provider.name).then(res => {
-            if (res.success) setPlans(res.data);
-            setPlansLoading(false);
-        });
+        if (provider.metadata?.items) {
+            const sortedPlans = [...provider.metadata.items].sort((a, b) => a.price - b.price);
+            setPlans(sortedPlans);
+        } else {
+            // Mock plans if meta is empty in sandbox
+            setPlans([
+                { name: 'Basic (Monthly)', price: 3000 },
+                { name: 'Compact (Monthly)', price: 15000 },
+                { name: 'Premium (Monthly)', price: 35000 }
+            ]);
+        }
     }, [providerCode, providers]);
 
     const filteredPlans = plans.filter(p => p.name.toLowerCase().includes(planSearch.toLowerCase()));
@@ -73,14 +73,14 @@ export default function TvSubscriptionPage() {
         if (!user || !selectedPlan || !providerCode) return;
         setIsLoading(true);
 
-        const provider = providers.find(p => p.code === providerCode);
-        const result = await initiatePaystackTransfer({
+        const provider = providers.find(p => p.slug === providerCode);
+        const result = await initiatePaystackBillPayment({
             userId: user.$id,
             pin,
-            bankCode: providerCode,
-            accountNumber: cardNumber,
-            name: `${provider?.name} Sub: ${selectedPlan.name}`,
-            amount: selectedPlan.amount,
+            customer: cardNumber,
+            amount: selectedPlan.price,
+            type: providerCode,
+            description: `${provider?.name} Sub: ${selectedPlan.name}`
         });
 
         setIsLoading(false);
@@ -89,7 +89,7 @@ export default function TvSubscriptionPage() {
             toast({ title: "TV Subscription Successful" });
             router.push('/dashboard');
         } else {
-            toast({ variant: 'destructive', title: "Failed", description: result.message });
+            toast({ variant: 'destructive', title: "Subscription Failed", description: result.message });
         }
     };
 
@@ -111,7 +111,7 @@ export default function TvSubscriptionPage() {
                                 <SelectValue placeholder={providersLoading ? "Loading providers..." : "Select provider"} />
                             </SelectTrigger>
                             <SelectContent>
-                                {providers.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
+                                {providers.map(p => <SelectItem key={p.slug} value={p.slug}>{p.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
@@ -128,15 +128,15 @@ export default function TvSubscriptionPage() {
                                 <Input placeholder="Search packages..." className="pl-9 h-9 text-sm" value={planSearch} onChange={e => setPlanSearch(e.target.value)} />
                             </div>
                             <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-1">
-                                {plansLoading ? <Loader2 className="animate-spin mx-auto mt-4" /> : filteredPlans.length > 0 ? filteredPlans.map(plan => (
+                                {filteredPlans.length > 0 ? filteredPlans.map((plan, idx) => (
                                     <Button 
-                                        key={plan.id} 
-                                        variant={selectedPlan?.id === plan.id ? 'default' : 'outline'} 
+                                        key={idx} 
+                                        variant={selectedPlan === plan ? 'default' : 'outline'} 
                                         className="justify-between h-12 text-sm" 
                                         onClick={() => setSelectedPlan(plan)}
                                     >
                                         <span className="truncate flex-1 text-left">{plan.name}</span>
-                                        <span className="font-bold ml-2">₦{plan.amount.toLocaleString()}</span>
+                                        <span className="font-bold ml-2">₦{plan.price.toLocaleString()}</span>
                                     </Button>
                                 )) : <p className="text-center text-xs text-muted-foreground py-4">No matching packages found.</p>}
                             </div>
@@ -150,7 +150,7 @@ export default function TvSubscriptionPage() {
                         <AlertDialogContent>
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Confirm Renewal</AlertDialogTitle>
-                                <AlertDialogDescription>Pay ₦{selectedPlan?.amount.toLocaleString()} for {selectedPlan?.name} on card {cardNumber}?</AlertDialogDescription>
+                                <AlertDialogDescription>Pay ₦{selectedPlan?.price.toLocaleString()} for {selectedPlan?.name} on card {cardNumber}?</AlertDialogDescription>
                             </AlertDialogHeader>
                             <div className="space-y-2">
                                 <Label>Transaction PIN</Label>
@@ -159,7 +159,7 @@ export default function TvSubscriptionPage() {
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction onClick={handlePurchase} disabled={isLoading || pin.length !== 5}>
-                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Confirm Payment'}
+                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Confirm & Pay'}
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>

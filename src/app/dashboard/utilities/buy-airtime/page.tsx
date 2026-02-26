@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { getPaystackProviders, initiatePaystackTransfer } from '@/app/actions/paystack';
+import { getPaystackBillers, initiatePaystackBillPayment } from '@/app/actions/paystack';
 
 export default function BuyAirtimePage() {
     const router = useRouter();
@@ -29,53 +30,43 @@ export default function BuyAirtimePage() {
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        getPaystackProviders().then(res => {
+        getPaystackBillers().then(res => {
             if (res.success) {
-                // Strictly filter for real Telcos and clean their names
-                const telcos = res.data
-                    .filter((b: any) => 
-                        (b.name.toUpperCase().includes('MTN') || 
-                         b.name.toUpperCase().includes('AIRTEL') || 
-                         b.name.toUpperCase().includes('GLO') || 
-                         b.name.toUpperCase().includes('9MOBILE')) &&
-                        !b.name.toUpperCase().includes('GLOBUS') // Prevent Globus Bank
-                    )
-                    .map((b: any) => {
-                        let cleanName = b.name;
-                        if (cleanName.toUpperCase().includes('MTN')) cleanName = 'MTN';
-                        if (cleanName.toUpperCase().includes('AIRTEL')) cleanName = 'Airtel';
-                        if (cleanName.toUpperCase().includes('GLO')) cleanName = 'Glo';
-                        if (cleanName.toUpperCase().includes('9MOBILE')) cleanName = '9mobile';
-                        return { ...b, name: cleanName };
-                    });
+                // Filter for real Nigerian Telcos including Glo
+                const telcos = res.data.filter((b: any) => 
+                    b.name.toUpperCase().includes('MTN') || 
+                    b.name.toUpperCase().includes('AIRTEL') || 
+                    b.name.toUpperCase().includes('GLO') || 
+                    b.name.toUpperCase().includes('9MOBILE')
+                );
                 setProviders(telcos);
             }
             setProvidersLoading(false);
         });
     }, []);
 
-    const selectedProvider = providers.find(p => p.code === networkCode);
+    const selectedProvider = providers.find(p => p.slug === networkCode);
 
     const handlePurchase = async () => {
         if (!user || !selectedProvider) return;
         setIsLoading(true);
 
-        const result = await initiatePaystackTransfer({
+        const result = await initiatePaystackBillPayment({
             userId: user.$id,
             pin,
-            bankCode: selectedProvider.code,
-            accountNumber: phoneNumber,
-            name: `${selectedProvider.name} Airtime`,
+            customer: phoneNumber,
             amount: Number(amount),
+            type: selectedProvider.slug,
+            description: `${selectedProvider.name} Airtime`
         });
 
         setIsLoading(false);
 
         if (result.success) {
-            toast({ title: "Airtime Sent Successfully" });
+            toast({ title: "Airtime Purchase Successful" });
             router.push('/dashboard');
         } else {
-            toast({ variant: 'destructive', title: "Failed", description: result.message });
+            toast({ variant: 'destructive', title: "Purchase Failed", description: result.message });
         }
     };
 
@@ -97,7 +88,7 @@ export default function BuyAirtimePage() {
                                 <SelectValue placeholder={providersLoading ? "Loading networks..." : "Select network"} />
                             </SelectTrigger>
                             <SelectContent>
-                                {providers.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
+                                {providers.map(p => <SelectItem key={p.slug} value={p.slug}>{p.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
