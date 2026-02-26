@@ -106,7 +106,7 @@ export default function BuyDataPage() {
             toast({ title: "Data Purchase Successful" });
             router.push('/dashboard');
         } else {
-            toast({ variant: 'destructive', title: "Purchase Failed", description: result.message });
+            toast({ variant: 'destructive', title: "Purchase Failed", description: result.message || "Paystack declined the request." });
         }
     };
 

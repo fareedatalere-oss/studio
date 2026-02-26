@@ -1,4 +1,3 @@
-
 'use server';
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
 import { ID, Query } from 'appwrite';
@@ -80,7 +79,6 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
                 totalNewAmount += Number(tx.amount);
                 foundNew = true;
 
-                // Create record without the problematic 'createdAt' attribute
                 await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                     userId: userId,
                     type: 'deposit',
@@ -136,12 +134,94 @@ export async function generateVirtualAccount(payload: any) {
 }
 
 export async function makeBillPayment(payload: any) {
-    // Legacy support for school payments
-    return { success: false, message: "Service under maintenance." };
+    return { success: false, message: "Service temporarily unavailable. Use Paystack utilities instead." };
 }
 
 export async function getUtilityProviders(type: string) { return { success: false, data: [] }; }
 export async function getUtilityPlans(billerCode: string) { return { success: false, data: [] }; }
-export async function getCardVerificationLink(payload: any) { return { success: false, message: "Feature disabled." }; }
-export async function verifyCardPayment(transactionId: string, userId: string) { return { success: false }; }
-export async function chargeTokenizedCard(payload: any) { return { success: false }; }
+
+export async function getCardVerificationLink(payload: { userId: string, email: string, name: string, redirectUrl: string }) {
+    if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    try {
+        const response = await fetch('https://api.flutterwave.com/v3/payments', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                tx_ref: `card-ver-${payload.userId}-${Date.now()}`,
+                amount: '100', // Verification fee
+                currency: 'NGN',
+                redirect_url: payload.redirectUrl,
+                customer: {
+                    email: payload.email,
+                    name: payload.name,
+                },
+                customizations: {
+                    title: 'I-Pay Card Verification',
+                    description: 'Adding card for future funding.',
+                }
+            }),
+        });
+        const data = await response.json();
+        if (data.status === 'success') return { success: true, data: data.data };
+        return { success: false, message: data.message };
+    } catch (e: any) {
+        return { success: false, message: e.message };
+    }
+}
+
+export async function verifyCardPayment(transactionId: string, userId: string) {
+    if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    try {
+        const response = await fetch(`https://api.flutterwave.com/v3/transactions/${transactionId}/verify`, {
+            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` }
+        });
+        const data = await response.json();
+        if (data.status === 'success' && data.data.status === 'successful') {
+            // Save card token for recurring payments
+            const cardToken = data.data.card.token;
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
+                fwCardToken: cardToken
+            });
+            return { success: true };
+        }
+        return { success: false, message: 'Card verification failed.' };
+    } catch (e: any) {
+        return { success: false, message: e.message };
+    }
+}
+
+export async function chargeTokenizedCard(payload: { userId: string, amount: number, pin: string }) {
+    if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    try {
+        const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
+        if (profile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
+        if (!profile.fwCardToken) throw new Error('No saved card found.');
+
+        const response = await fetch('https://api.flutterwave.com/v3/tokenized-charges', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                token: profile.fwCardToken,
+                currency: 'NGN',
+                amount: payload.amount,
+                email: profile.email,
+                tx_ref: `fund-${payload.userId}-${Date.now()}`,
+            }),
+        });
+        const data = await response.json();
+        if (data.status === 'success') {
+            const newBalance = (profile.nairaBalance || 0) + payload.amount;
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { nairaBalance: newBalance });
+            return { success: true, message: `Successfully funded ₦${payload.amount.toLocaleString()}.` };
+        }
+        return { success: false, message: data.message };
+    } catch (e: any) {
+        return { success: false, message: e.message };
+    }
+}

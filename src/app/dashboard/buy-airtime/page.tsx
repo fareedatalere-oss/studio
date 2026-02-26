@@ -48,6 +48,7 @@ export default function BuyAirtimePage() {
         if (!user || !networkName) return;
         
         const network = CORE_PROVIDERS.find(p => p.name === networkName);
+        // Find biller that is NOT data
         const biller = paystackBillers.find(b => 
             b.name.toUpperCase().includes(network?.searchKey || '') && 
             !b.name.toUpperCase().includes('DATA')
@@ -70,7 +71,7 @@ export default function BuyAirtimePage() {
             toast({ title: "Airtime Purchase Successful" });
             router.push('/dashboard');
         } else {
-            toast({ variant: 'destructive', title: "Purchase Failed", description: result.message });
+            toast({ variant: 'destructive', title: "Purchase Failed", description: result.message || "Paystack declined the request." });
         }
     };
 
