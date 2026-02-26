@@ -33,13 +33,13 @@ export default function RechargeBillsPage() {
 
     useEffect(() => {
         getPaystackBillers().then(res => {
-            if (res.success) {
-                // Dynamic Filter for real Nigerian Electricity Providers from Paystack
-                const discos = res.data.filter((b: any) => 
-                    ['AEDC', 'EKEDC', 'IKEDC', 'KEDCO', 'JED', 'PHED', 'BEDC', 'IBEDC', 'EEDC', 'KAEDCO', 'YEDC'].some(disco => b.name.toUpperCase().includes(disco)) ||
-                    b.name.toUpperCase().includes('ELECTRIC') ||
-                    b.name.toUpperCase().includes('POWER')
-                );
+            if (res.success && res.data) {
+                // Robust filter for all 11 Nigerian Electricity Discos from Paystack
+                const discos = res.data.filter((b: any) => {
+                    const n = b.name.toUpperCase();
+                    return ['AEDC', 'EKEDC', 'IKEDC', 'KEDCO', 'JED', 'PHED', 'BEDC', 'IBEDC', 'EEDC', 'KAEDCO', 'YEDC'].some(disco => n.includes(disco)) ||
+                           n.includes('ELECTRIC') || n.includes('POWER') || n.includes('LIGHT');
+                });
                 setProviders(discos);
             }
             setProvidersLoading(false);
@@ -76,7 +76,7 @@ export default function RechargeBillsPage() {
             <Link href="/dashboard/utilities" className="flex items-center gap-2 mb-4 text-sm">
                 <ArrowLeft className="h-4 w-4" /> Back
             </Link>
-            <Card className="w-full max-md mx-auto">
+            <Card className="w-full max-w-md mx-auto">
                 <CardHeader>
                     <CardTitle>Recharge Bills</CardTitle>
                     <CardDescription>Electricity and Power payments</CardDescription>

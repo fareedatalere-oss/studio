@@ -25,7 +25,6 @@ export async function getPaystackProviders() {
 export async function getPaystackBillers() {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
     try {
-        // Fetch all supported billers from Paystack
         const response = await fetch('https://api.paystack.co/billpayment', {
             headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}` },
             next: { revalidate: 3600 }
@@ -60,7 +59,7 @@ export async function initiatePaystackBillPayment(payload: {
         // 2. Create Transaction Log
         const doc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
             userId: payload.userId,
-            type: 'product_purchase', // mapping to a generic spending type for ledger
+            type: 'product_purchase', // mapping to a spending type for ledger
             amount: payload.amount,
             status: 'pending',
             recipientName: payload.description,
@@ -80,7 +79,7 @@ export async function initiatePaystackBillPayment(payload: {
             body: JSON.stringify({
                 customer: payload.customer,
                 amount: payload.amount * 100, // Paystack expects kobo
-                type: payload.type, // Biller code from getPaystackBillers
+                type: payload.type, 
                 reference: sessionId
             })
         });

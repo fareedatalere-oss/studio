@@ -31,19 +31,22 @@ export default function BuyAirtimePage() {
 
     useEffect(() => {
         getPaystackBillers().then(res => {
-            if (res.success) {
-                // Filter for real Nigerian Telcos including Glo
-                const telcos = res.data.filter((b: any) => 
-                    b.name.toUpperCase().includes('MTN') || 
-                    b.name.toUpperCase().includes('AIRTEL') || 
-                    b.name.toUpperCase().includes('GLO') || 
-                    b.name.toUpperCase().includes('9MOBILE')
-                );
+            if (res.success && res.data) {
+                // Professional, robust filter for real Nigerian Telcos including GLO
+                const telcos = res.data.filter((b: any) => {
+                    const n = b.name.toUpperCase();
+                    return n.includes('MTN') || n.includes('AIRTEL') || n.includes('GLO') || n.includes('9MOBILE');
+                });
                 setProviders(telcos);
+                if (telcos.length === 0) {
+                    toast({ variant: 'destructive', title: 'API Sync Error', description: 'Real telcos not returned from Paystack. Check account permissions.' });
+                }
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: res.message });
             }
             setProvidersLoading(false);
         });
-    }, []);
+    }, [toast]);
 
     const selectedProvider = providers.find(p => p.slug === networkCode);
 

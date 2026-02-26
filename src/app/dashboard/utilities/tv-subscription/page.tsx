@@ -24,7 +24,6 @@ export default function TvSubscriptionPage() {
     const [providersLoading, setProvidersLoading] = useState(true);
     
     const [plans, setPlans] = useState<any[]>([]);
-    const [plansLoading, setPlansLoading] = useState(false);
     const [planSearch, setPlanSearch] = useState('');
 
     const [providerCode, setProviderCode] = useState('');
@@ -35,14 +34,12 @@ export default function TvSubscriptionPage() {
 
     useEffect(() => {
         getPaystackBillers().then(res => {
-            if (res.success) {
-                // Dynamic Filter for real Nigerian TV Providers from Paystack
-                const tv = res.data.filter((b: any) => 
-                    b.name.toUpperCase().includes('DSTV') || 
-                    b.name.toUpperCase().includes('GOTV') || 
-                    b.name.toUpperCase().includes('STARTIMES') || 
-                    b.name.toUpperCase().includes('SHOWMAX')
-                );
+            if (res.success && res.data) {
+                // Robust filter for real Nigerian TV Providers from Paystack
+                const tv = res.data.filter((b: any) => {
+                    const n = b.name.toUpperCase();
+                    return n.includes('DSTV') || n.includes('GOTV') || n.includes('STARTIMES') || n.includes('SHOWMAX') || n.includes('CABLE');
+                });
                 setProviders(tv);
             }
             setProvidersLoading(false);
@@ -54,14 +51,16 @@ export default function TvSubscriptionPage() {
         const provider = providers.find(p => p.slug === providerCode);
         if (!provider) return;
 
+        // Pull real packages from Paystack biller metadata
         if (provider.metadata?.items) {
             const sortedPlans = [...provider.metadata.items].sort((a, b) => a.price - b.price);
             setPlans(sortedPlans);
         } else {
-            // Mock plans if meta is empty in sandbox
+            // High-quality mock packages if API meta is restricted
             setPlans([
-                { name: 'Basic (Monthly)', price: 3000 },
-                { name: 'Compact (Monthly)', price: 15000 },
+                { name: 'Basic / Lite (Monthly)', price: 3000 },
+                { name: 'Value / Plus (Monthly)', price: 6500 },
+                { name: 'Compact / Max (Monthly)', price: 15000 },
                 { name: 'Premium (Monthly)', price: 35000 }
             ]);
         }
@@ -122,7 +121,7 @@ export default function TvSubscriptionPage() {
 
                     {providerCode && (
                         <div className="space-y-2 pt-2 border-t">
-                            <Label>Choose Package</Label>
+                            <Label>Choose Package (Sorted by Price)</Label>
                             <div className="relative mb-2">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input placeholder="Search packages..." className="pl-9 h-9 text-sm" value={planSearch} onChange={e => setPlanSearch(e.target.value)} />
