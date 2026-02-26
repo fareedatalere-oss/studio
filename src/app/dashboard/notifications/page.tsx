@@ -1,3 +1,4 @@
+
 'use client';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,13 +22,13 @@ export default function NotificationsPage() {
         if (!user) return;
         setLoading(true);
         try {
-            // Fetch notifications for the user without date filtering first to ensure they show up
+            // Simplify query to avoid index issues. Fetching last 50 directly.
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_ID_NOTIFICATIONS,
                 [
                     Query.equal('userId', user.$id),
-                    Query.orderDesc('createdAt'),
+                    Query.orderDesc('$createdAt'),
                     Query.limit(50)
                 ]
             );
@@ -52,11 +53,22 @@ export default function NotificationsPage() {
             }
         } catch (error: any) {
             console.error("Failed to fetch notifications:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Sync Error',
-                description: 'We had trouble loading your notifications. Please check your connection.',
-            });
+            // If the filtered query fails, try a blind fetch of the last 50
+            try {
+                 const fallbackResponse = await databases.listDocuments(
+                    DATABASE_ID,
+                    COLLECTION_ID_NOTIFICATIONS,
+                    [Query.limit(50), Query.orderDesc('$createdAt')]
+                );
+                const filtered = fallbackResponse.documents.filter(n => n.userId === user.$id);
+                setNotifications(filtered);
+            } catch (e) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Sync Error',
+                    description: 'Could not load alerts. Please refresh.',
+                });
+            }
         } finally {
             setLoading(false);
         }
@@ -109,7 +121,7 @@ export default function NotificationsPage() {
                                                 <span className="text-muted-foreground">{notif.description}</span>
                                             </p>
                                             <p className="text-xs text-muted-foreground mt-1">
-                                                {formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true })}
+                                                {formatDistanceToNow(new Date(notif.$createdAt), { addSuffix: true })}
                                             </p>
                                         </div>
                                         <Avatar className="h-10 w-10">

@@ -1,3 +1,4 @@
+
 'use server';
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
 import { ID, Query } from 'appwrite';
@@ -193,7 +194,7 @@ export async function makeBankTransfer(payload: { userId: string, pin: string, b
             status: 'pending',
             recipientName: payload.recipientName,
             recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
-            narration: payload.narration || `Transfer to ${payload.recipientName}`,
+            narration: payload.narration || `I-Pay Transfer to ${payload.recipientName}`,
             sessionId: sessionId,
         });
         txDbId = doc.$id;
@@ -234,7 +235,7 @@ export async function makeBankTransfer(payload: { userId: string, pin: string, b
             return { success: true, message: data.message || 'Transfer initiated.' };
         } else {
             console.error("Flutterwave API Error:", data);
-            throw new Error(data.message || 'The transfer could not be initiated. Please ensure your account has sufficient dashboard balance.');
+            throw new Error(data.message || 'The transfer could not be initiated. Check your dashboard settings.');
         }
     } catch (error: any) {
         if (txDbId) await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, { status: 'failed', narration: `[Error] ${error.message}` });
