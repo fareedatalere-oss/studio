@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Edit, Save, Loader2, KeyRound } from 'lucide-react';
+import { ArrowLeft, Edit, Save, Loader2, KeyRound, Wallet, MousePointer2, Gift, Landmark } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
 import { Models, Query } from 'appwrite';
@@ -33,7 +33,6 @@ export default function ViewUserPage() {
         if (!userId) return;
         setLoading(true);
         try {
-            // Use try-catch blocks individually to see where it fails
             let profileData;
             try {
                 profileData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
@@ -74,10 +73,18 @@ export default function ViewUserPage() {
         setIsSaving(true);
         try {
             // Remove internal Appwrite fields before sending update
-            const { $id, $collectionId, $databaseId, $createdAt, $updatedAt, $permissions, ...updateData } = profile;
+            const { $id, $collectionId, $databaseId, $createdAt, $updatedAt, $permissions, email, ...updateData } = profile;
             
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, $id, updateData);
-            toast({ title: 'Success', description: 'Profile updated successfully.' });
+            // Ensure numbers are numbers
+            const finalData = {
+                ...updateData,
+                nairaBalance: Number(profile.nairaBalance || 0),
+                rewardBalance: Number(profile.rewardBalance || 0),
+                clickCount: Number(profile.clickCount || 0),
+            };
+
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, $id, finalData);
+            toast({ title: 'Success', description: 'User account and balances updated successfully.' });
             setEditMode(false);
             fetchData(); // reload data
         } catch (error: any) {
@@ -125,11 +132,11 @@ export default function ViewUserPage() {
                 {editMode ? (
                      <Button onClick={handleSave} disabled={isSaving}>
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                        Save Changes
+                        Save Account Changes
                     </Button>
                 ) : (
                     <Button onClick={() => setEditMode(true)}>
-                        <Edit className="mr-2 h-4 w-4" /> Edit Profile
+                        <Edit className="mr-2 h-4 w-4" /> Edit Account & Balances
                     </Button>
                 )}
             </div>
@@ -142,8 +149,8 @@ export default function ViewUserPage() {
                             <AvatarFallback>{profile.username?.charAt(0).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div>
-                            <CardTitle>{profile.username || 'No Username'}</CardTitle>
-                            <CardDescription>{profile.email || 'No Email'}</CardDescription>
+                            <CardTitle>{profile.username || 'Full User Record'}</CardTitle>
+                            <CardDescription>{profile.email || 'Email not found'}</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -153,15 +160,37 @@ export default function ViewUserPage() {
                     <div className="space-y-1"><Label>Username</Label><Input id="username" value={profile.username || ''} onChange={handleInputChange} readOnly={!editMode} /></div>
                     <div className="space-y-1"><Label>Phone</Label><Input id="phone" value={profile.phone || ''} onChange={handleInputChange} readOnly={!editMode} /></div>
                     <div className="space-y-1"><Label>Country</Label><Input id="country" value={profile.country || ''} onChange={handleInputChange} readOnly={!editMode} /></div>
-                    <div className="space-y-1"><Label>Naira Balance</Label><Input id="nairaBalance" type="number" value={profile.nairaBalance || 0} onChange={handleInputChange} readOnly={!editMode} /></div>
-                    <div className="space-y-1"><Label>Bank Name</Label><Input value={profile.bankName || 'N/A'} readOnly className="bg-muted cursor-not-allowed" /></div>
-                    <div className="space-y-1"><Label>Account Number</Label><Input value={profile.accountNumber || 'N/A'} readOnly className="bg-muted cursor-not-allowed" /></div>
-                    <div className="space-y-1"><Label>BVN</Label><Input value={profile.bvn || 'N/A'} readOnly className="bg-muted cursor-not-allowed" /></div>
+                    
+                    <div className="space-y-1">
+                        <Label className="flex items-center gap-2 text-primary font-bold"><Wallet className="h-4 w-4" /> Main Balance (₦)</Label>
+                        <Input id="nairaBalance" type="number" value={profile.nairaBalance || 0} onChange={handleInputChange} readOnly={!editMode} className={editMode ? "border-primary" : ""} />
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="flex items-center gap-2 text-orange-500 font-bold"><Gift className="h-4 w-4" /> Reward Balance</Label>
+                        <Input id="rewardBalance" type="number" value={profile.rewardBalance || 0} onChange={handleInputChange} readOnly={!editMode} className={editMode ? "border-orange-500" : ""} />
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="flex items-center gap-2 text-blue-500 font-bold"><MousePointer2 className="h-4 w-4" /> Click Count</Label>
+                        <Input id="clickCount" type="number" value={profile.clickCount || 0} onChange={handleInputChange} readOnly={!editMode} className={editMode ? "border-blue-500" : ""} />
+                    </div>
+
+                    <div className="space-y-1">
+                        <Label className="flex items-center gap-2"><Landmark className="h-4 w-4" /> Bank Name</Label>
+                        <Input value={profile.bankName || 'Account Not Generated'} readOnly className="bg-muted" />
+                    </div>
+                    <div className="space-y-1">
+                        <Label>Virtual Account Number</Label>
+                        <Input value={profile.accountNumber || 'Account Not Generated'} readOnly className="bg-muted font-mono font-bold" />
+                    </div>
+                    <div className="space-y-1">
+                        <Label>BVN / NIN</Label>
+                        <Input value={profile.bvn || 'Not Provided'} readOnly className="bg-muted" />
+                    </div>
                     <div className="space-y-1">
                         <Label>Transaction PIN</Label>
-                        <div className="flex items-center gap-2 font-mono text-lg p-2 bg-muted rounded-md h-10">
-                            <KeyRound className="h-5 w-5" />
-                            <span className="font-bold">{profile.pin || 'N/A'}</span>
+                        <div className="flex items-center gap-2 font-mono text-lg p-2 bg-muted rounded-md h-10 border">
+                            <KeyRound className="h-5 w-5 text-muted-foreground" />
+                            <span className="font-bold text-primary">{profile.pin || 'None'}</span>
                         </div>
                     </div>
                 </CardContent>
@@ -169,7 +198,7 @@ export default function ViewUserPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Transaction History</CardTitle>
+                    <CardTitle>User Ledger (Recent Transactions)</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -184,7 +213,7 @@ export default function ViewUserPage() {
                                         {tx.type === 'deposit' ? '+' : '-'} ₦{tx.amount.toLocaleString()}
                                     </TableCell>
                                 </TableRow>
-                            )) : <TableRow><TableCell colSpan={4} className="text-center h-24">No transactions found for this user.</TableCell></TableRow>}
+                            )) : <TableRow><TableCell colSpan={4} className="text-center h-24">No transaction history recorded for this user.</TableCell></TableRow>}
                         </TableBody>
                     </Table>
                 </CardContent>

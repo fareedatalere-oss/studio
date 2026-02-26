@@ -33,17 +33,14 @@ export default function DashboardLayout({
   const fetchUnreadCounts = useCallback(async () => {
     if (!user) return;
     try {
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      
-      // Total unread notifications
+      // Simplified unread check to ensure it works even without complex indexes
       const totalRes = await databases.listDocuments(
         DATABASE_ID,
         COLLECTION_ID_NOTIFICATIONS,
         [
           Query.equal('userId', user.$id),
           Query.equal('isRead', false),
-          Query.greaterThan('createdAt', sevenDaysAgo),
-          Query.limit(1)
+          Query.limit(100)
         ]
       );
       setUnreadCount(totalRes.total);
@@ -56,8 +53,7 @@ export default function DashboardLayout({
           Query.equal('userId', user.$id),
           Query.equal('isRead', false),
           Query.equal('type', 'message'),
-          Query.greaterThan('createdAt', sevenDaysAgo),
-          Query.limit(1)
+          Query.limit(100)
         ]
       );
       setUnreadMsgCount(msgRes.total);

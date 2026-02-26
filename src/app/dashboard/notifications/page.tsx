@@ -9,9 +9,11 @@ import { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_PROF
 import { Query, ID } from "appwrite";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
+import { useToast } from "@/hooks/use-toast";
 
 export default function NotificationsPage() {
     const { user } = useUser();
+    const { toast } = useToast();
     const [notifications, setNotifications] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -19,22 +21,21 @@ export default function NotificationsPage() {
         if (!user) return;
         setLoading(true);
         try {
-            // 7-Day Logic: Only fetch notifications from the last 7 days
-            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-            
+            // Fetch notifications for the user
+            // We simplify the query to avoid missing index errors
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_ID_NOTIFICATIONS,
                 [
                     Query.equal('userId', user.$id),
-                    Query.greaterThan('createdAt', sevenDaysAgo),
                     Query.orderDesc('createdAt'),
                     Query.limit(50)
                 ]
             );
 
-            // Fetch sender profiles for each notification
+            // Fetch sender profiles for each notification to show real names and avatars
             const notificationsWithProfiles = await Promise.all(response.documents.map(async (notif) => {
+                if (!notif.senderId) return { ...notif, sender: { username: 'System', avatar: '' } };
                 try {
                     const senderProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, notif.senderId);
                     return { ...notif, sender: senderProfile };
@@ -43,21 +44,32 @@ export default function NotificationsPage() {
                 }
             }));
 
-            setNotifications(notificationsWithProfiles);
+            // Filter for the last 7 days locally if the server query is too broad
+            const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+            const recentNotifications = notificationsWithProfiles.filter(n => 
+                new Date(n.createdAt).getTime() > sevenDaysAgo
+            );
 
-            // Automatically mark all as read when opening the page
+            setNotifications(recentNotifications);
+
+            // Automatically mark all as read
             const unread = response.documents.filter(n => !n.isRead);
             if (unread.length > 0) {
                 await Promise.all(unread.map(n => 
                     databases.updateDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, n.$id, { isRead: true })
                 ));
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to fetch notifications:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Sync Error',
+                description: 'We had trouble loading your notifications. Please check your network.',
+            });
         } finally {
             setLoading(false);
         }
-    }, [user]);
+    }, [user, toast]);
 
     useEffect(() => {
         fetchNotifications();
