@@ -33,7 +33,7 @@ import {
   RefreshCw,
   Smartphone,
   Wifi,
-} from 'lucide-react';
+} from 'lucide-material';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -74,22 +74,27 @@ function DashboardContent() {
   const handleRefresh = async () => {
     if (!user?.$id) return;
     setIsProcessing(true);
-    toast({ title: 'Checking for transactions...' });
+    toast({ title: 'Refreshing Balance...', description: `Checking transactions for ${user.email}...` });
     try {
       const result = await syncVirtualAccountPayments(user.$id, user.email);
       if (result.success) {
         if (result.amountAdded && result.amountAdded > 0) {
-          toast({ title: 'Balance Updated!', description: `Added ₦${result.amountAdded.toLocaleString()} to your wallet.` });
+          toast({ 
+            title: 'Balance Updated!', 
+            description: result.message || `Added ₦${result.amountAdded.toLocaleString()} to your wallet.` 
+          });
           await recheckUser();
         } else {
-          toast({ title: 'Up to date', description: 'Your balance is currently accurate.' });
+          toast({ 
+            title: 'Sync Complete', 
+            description: result.message || 'Your balance is currently up to date.' 
+          });
         }
       } else {
-        // Direct error reporting from the technology
         toast({ 
           variant: 'destructive', 
-          title: 'Sync Failed', 
-          description: result.message || 'The payment service returned an unknown error.' 
+          title: 'Sync Notice', 
+          description: result.message || 'The payment service returned an unexpected response.' 
         });
       }
     } catch (e: any) {

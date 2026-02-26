@@ -44,51 +44,57 @@ export async function getBankList() {
 }
 
 export async function syncVirtualAccountPayments(userId: string, userEmail?: string) {
-    if (!FLUTTERWAVE_API_KEY) return { success: false, message: "API key missing" };
+    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
+        return { success: false, message: "API key is not configured correctly." };
+    }
 
     try {
-        // Fetch current profile for balance
+        // Fetch current profile for balance and fallback email
         const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
         
-        // Use provided email from the session
-        const email = userEmail;
-        if (!email) return { success: false, message: "User session email not found. Please refresh." };
-
-        const response = await fetch(`https://api.flutterwave.com/v3/transactions?customer_email=${email}&status=successful`, {
-            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` }
-        });
-        const data = await response.json();
-
-        if (data.status !== 'success' || !data.data) {
-            return { success: false, message: "Could not fetch data from Flutterwave" };
+        const email = userEmail || profile.email;
+        if (!email) {
+            return { success: false, message: "No email associated with this account to check transactions." };
         }
 
-        const remoteTransactions = data.data;
+        // FORCE NO CACHE: We need the absolute latest data from Flutterwave
+        const response = await fetch(`https://api.flutterwave.com/v3/transactions?customer_email=${encodeURIComponent(email)}&status=successful`, {
+            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` },
+            cache: 'no-store', // Crucial for real-time updates
+        });
+        
+        const data = await response.json();
+
+        if (data.status !== 'success') {
+            return { success: false, message: data.message || "Could not reach Flutterwave." };
+        }
+
+        const remoteTransactions = data.data || [];
         let totalNewAmount = 0;
         let foundNew = false;
 
         for (const tx of remoteTransactions) {
             const txId = tx.id.toString();
             
-            // Professional check: verify if this transaction already exists in our database
+            // Verify if this transaction already exists in our local database
             const existingRecords = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, [
                 Query.equal('sessionId', txId),
                 Query.limit(1)
             ]);
 
             if (existingRecords.total === 0) {
-                totalNewAmount += tx.amount;
+                totalNewAmount += Number(tx.amount);
                 foundNew = true;
 
-                // Log the new transaction
+                // Log the new transaction immediately
                 await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                     userId: userId,
                     type: 'deposit',
-                    amount: tx.amount,
+                    amount: Number(tx.amount),
                     status: 'completed',
                     recipientName: 'Wallet Credit',
-                    recipientDetails: `Flutterwave Ref: ${tx.tx_ref}`,
-                    narration: `Automated credit for payment ID ${txId}`,
+                    recipientDetails: `FLW Ref: ${tx.tx_ref}`,
+                    narration: `Automated credit for ID ${txId}`,
                     sessionId: txId,
                     createdAt: new Date().toISOString()
                 });
@@ -96,19 +102,20 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
         }
 
         if (foundNew) {
-            const newBalance = (profile.nairaBalance || 0) + totalNewAmount;
-            // Update balance only - avoiding any attributes that might not exist in the user's schema
+            const currentBalance = Number(profile.nairaBalance || 0);
+            const newBalance = currentBalance + totalNewAmount;
+            
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
                 nairaBalance: newBalance
             });
-            return { success: true, amountAdded: totalNewAmount };
+            return { success: true, amountAdded: totalNewAmount, message: `Successfully added ₦${totalNewAmount.toLocaleString()} to your balance.` };
         }
 
-        return { success: true, amountAdded: 0 };
+        return { success: true, amountAdded: 0, message: "Checked successfully. No new deposits found." };
 
     } catch (error: any) {
         console.error("Sync Error:", error);
-        return { success: false, message: error.message };
+        return { success: false, message: error.message || "An error occurred while syncing transactions." };
     }
 }
 
