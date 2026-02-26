@@ -50,7 +50,6 @@ export async function syncVirtualAccountPayments(userId: string) {
         const email = profile.email;
         if (!email) return { success: false, message: "No email associated with profile" };
 
-        // 1. Fetch successful transactions for this customer from Flutterwave
         const response = await fetch(`https://api.flutterwave.com/v3/transactions?customer_email=${email}&status=successful`, {
             headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` }
         });
@@ -66,7 +65,6 @@ export async function syncVirtualAccountPayments(userId: string) {
         let newProcessedIds = [...processedIds];
         let foundNew = false;
 
-        // 2. Loop through and find transactions we haven't added yet
         for (const tx of remoteTransactions) {
             const txId = tx.id.toString();
             if (!processedIds.includes(txId)) {
@@ -74,7 +72,6 @@ export async function syncVirtualAccountPayments(userId: string) {
                 newProcessedIds.push(txId);
                 foundNew = true;
 
-                // Create a record in our database for audit
                 await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                     userId: userId,
                     type: 'deposit',
@@ -88,7 +85,6 @@ export async function syncVirtualAccountPayments(userId: string) {
             }
         }
 
-        // 3. Update the user balance and processed list if new money found
         if (foundNew) {
             const newBalance = (profile.nairaBalance || 0) + totalNewAmount;
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
@@ -99,7 +95,6 @@ export async function syncVirtualAccountPayments(userId: string) {
             return { success: true, amountAdded: totalNewAmount };
         }
 
-        // Update last sync time anyway
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
             lastSyncAt: new Date().toISOString()
         });
@@ -198,7 +193,7 @@ export async function makeBankTransfer(payload: { userId: string, pin: string, b
             status: 'pending',
             recipientName: payload.recipientName,
             recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
-            narration: payload.narration,
+            narration: payload.narration || `Transfer to ${payload.recipientName}`,
             sessionId: sessionId,
         });
         txDbId = doc.$id;
@@ -223,8 +218,9 @@ export async function makeBankTransfer(payload: { userId: string, pin: string, b
                 account_bank: payload.bankCode,
                 account_number: payload.accountNumber,
                 amount: transferAmount,
-                narration: payload.narration,
+                narration: payload.narration || `I-Pay Transfer to ${payload.recipientName}`,
                 currency: "NGN",
+                debit_currency: "NGN",
                 reference: sessionId,
             })
         });
@@ -237,7 +233,8 @@ export async function makeBankTransfer(payload: { userId: string, pin: string, b
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, { status: 'completed', sessionId: data.data.id.toString() });
             return { success: true, message: data.message || 'Transfer initiated.' };
         } else {
-            throw new Error(data.message || 'The transfer could not be initiated.');
+            console.error("Flutterwave API Error:", data);
+            throw new Error(data.message || 'The transfer could not be initiated. Please ensure your account has sufficient dashboard balance.');
         }
     } catch (error: any) {
         if (txDbId) await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, { status: 'failed', narration: `[Error] ${error.message}` });

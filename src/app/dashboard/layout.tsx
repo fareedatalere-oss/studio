@@ -33,7 +33,6 @@ export default function DashboardLayout({
   const fetchUnreadCounts = useCallback(async () => {
     if (!user) return;
     try {
-      // Simplified unread check to ensure it works even without complex indexes
       const totalRes = await databases.listDocuments(
         DATABASE_ID,
         COLLECTION_ID_NOTIFICATIONS,
@@ -45,7 +44,6 @@ export default function DashboardLayout({
       );
       setUnreadCount(totalRes.total);
 
-      // Specific unread message notifications for the chat badge
       const msgRes = await databases.listDocuments(
         DATABASE_ID,
         COLLECTION_ID_NOTIFICATIONS,

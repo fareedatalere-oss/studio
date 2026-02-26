@@ -21,8 +21,7 @@ export default function NotificationsPage() {
         if (!user) return;
         setLoading(true);
         try {
-            // Fetch notifications for the user
-            // We simplify the query to avoid missing index errors
+            // Fetch notifications for the user without date filtering first to ensure they show up
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_ID_NOTIFICATIONS,
@@ -33,26 +32,18 @@ export default function NotificationsPage() {
                 ]
             );
 
-            // Fetch sender profiles for each notification to show real names and avatars
             const notificationsWithProfiles = await Promise.all(response.documents.map(async (notif) => {
                 if (!notif.senderId) return { ...notif, sender: { username: 'System', avatar: '' } };
                 try {
                     const senderProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, notif.senderId);
                     return { ...notif, sender: senderProfile };
                 } catch {
-                    return { ...notif, sender: { username: 'Someone', avatar: '' } };
+                    return { ...notif, sender: { username: 'User', avatar: '' } };
                 }
             }));
 
-            // Filter for the last 7 days locally if the server query is too broad
-            const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-            const recentNotifications = notificationsWithProfiles.filter(n => 
-                new Date(n.createdAt).getTime() > sevenDaysAgo
-            );
+            setNotifications(notificationsWithProfiles);
 
-            setNotifications(recentNotifications);
-
-            // Automatically mark all as read
             const unread = response.documents.filter(n => !n.isRead);
             if (unread.length > 0) {
                 await Promise.all(unread.map(n => 
@@ -64,7 +55,7 @@ export default function NotificationsPage() {
             toast({
                 variant: 'destructive',
                 title: 'Sync Error',
-                description: 'We had trouble loading your notifications. Please check your network.',
+                description: 'We had trouble loading your notifications. Please check your connection.',
             });
         } finally {
             setLoading(false);
@@ -92,7 +83,7 @@ export default function NotificationsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Notifications</CardTitle>
-                    <CardDescription>Alerts from the last 7 days.</CardDescription>
+                    <CardDescription>All your recent alerts.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {loading ? (
@@ -132,7 +123,7 @@ export default function NotificationsPage() {
                     ) : (
                        <div className="text-center py-12">
                            <Bell className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-                           <p className="text-muted-foreground">No recent activity to show.</p>
+                           <p className="text-muted-foreground">No notifications yet.</p>
                        </div>
                     )}
                 </CardContent>
