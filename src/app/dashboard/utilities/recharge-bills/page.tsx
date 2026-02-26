@@ -33,10 +33,11 @@ export default function RechargeBillsPage() {
     useEffect(() => {
         getPaystackProviders().then(res => {
             if (res.success) {
+                // Filter specifically for Electricity billers
                 const discos = res.data.filter((b: any) => 
-                    ['ELECTRIC', 'POWER', 'EDC'].some(t => b.name.toUpperCase().includes(t))
+                    ['ELECTRIC', 'POWER', 'EDC', 'IKEDC', 'EKEDC', 'AEDC', 'KAEDCO', 'PHED', 'BEDC', 'JED', 'KEDCO', 'IBEDC', 'EEDC'].some(t => b.name.toUpperCase().includes(t))
                 );
-                setProviders(discos.length > 0 ? discos : res.data.slice(0, 10));
+                setProviders(discos);
             }
             setProvidersLoading(false);
         });
@@ -60,7 +61,7 @@ export default function RechargeBillsPage() {
         setIsLoading(false);
 
         if (result.success) {
-            toast({ title: "Bill Paid via Paystack" });
+            toast({ title: "Electricity Bill Paid" });
             router.push('/dashboard');
         } else {
             toast({ variant: 'destructive', title: "Failed", description: result.message });
@@ -75,14 +76,14 @@ export default function RechargeBillsPage() {
             <Card className="w-full max-w-md mx-auto">
                 <CardHeader>
                     <CardTitle>Recharge Bills</CardTitle>
-                    <CardDescription>Electricity & Power via Paystack</CardDescription>
+                    <CardDescription>Electricity and Power payments</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label>Distribution Company (Disco)</Label>
                         <Select onValueChange={setDiscoCode} value={discoCode} disabled={providersLoading}>
                             <SelectTrigger>
-                                <SelectValue placeholder="Select your Disco" />
+                                <SelectValue placeholder={providersLoading ? "Loading Discos..." : "Select your Disco"} />
                             </SelectTrigger>
                             <SelectContent>
                                 {providers.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
@@ -98,11 +99,11 @@ export default function RechargeBillsPage() {
                     </div>
                     <div className="space-y-2">
                         <Label>Meter Number</Label>
-                        <Input value={meterNumber} onChange={e => setMeterNumber(e.target.value)} />
+                        <Input value={meterNumber} onChange={e => setMeterNumber(e.target.value)} placeholder="Enter meter number" />
                     </div>
                      <div className="space-y-2">
                         <Label>Amount (₦)</Label>
-                        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} />
+                        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" />
                     </div>
 
                     <AlertDialog>
@@ -111,12 +112,12 @@ export default function RechargeBillsPage() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Authorize</AlertDialogTitle>
-                                <AlertDialogDescription>Pay ₦{amount} for meter {meterNumber} via Paystack?</AlertDialogDescription>
+                                <AlertDialogTitle>Authorize Payment</AlertDialogTitle>
+                                <AlertDialogDescription>Pay ₦{amount} for {selectedDisco?.name} meter {meterNumber}?</AlertDialogDescription>
                             </AlertDialogHeader>
                             <div className="space-y-2">
-                                <Label>PIN</Label>
-                                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} />
+                                <Label>Transaction PIN</Label>
+                                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} placeholder="*****" />
                             </div>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>

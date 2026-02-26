@@ -41,7 +41,6 @@ export default function MultiPurposePaymentPage() {
 
     const filteredCategories = categories.filter(c => c.toLowerCase().includes(categorySearch.toLowerCase()));
     
-    // In Paystack, we use the bank list as providers for transfers
     const filteredProviders = allProviders.filter(b => 
         b.name.toLowerCase().includes(providerSearch.toLowerCase())
     );
@@ -66,13 +65,13 @@ export default function MultiPurposePaymentPage() {
                 userId: user.$id,
                 pin,
                 bankCode: selectedProvider.code,
-                accountNumber: customerId, // Using input as the recipient account
+                accountNumber: customerId, 
                 name: `${selectedProvider.name} Payment`,
                 amount: totalAmount
             });
 
             if (result.success) {
-                toast({ title: 'Payment Successful via Paystack' });
+                toast({ title: 'Payment Successful' });
                 router.push('/dashboard');
             } else {
                 throw new Error(result.message);
@@ -98,7 +97,7 @@ export default function MultiPurposePaymentPage() {
                         <CreditCard className="text-primary" />
                         Multi-Purpose Payment
                     </CardTitle>
-                    <CardDescription>Live Paystack Service Providers</CardDescription>
+                    <CardDescription>Select service and search provider</CardDescription>
                 </CardHeader>
                 
                 <CardContent className="space-y-4">
@@ -107,7 +106,6 @@ export default function MultiPurposePaymentPage() {
                             <Button className="w-full h-16 text-lg font-bold" onClick={() => setStep(2)}>
                                 Payment Multi Purpose
                             </Button>
-                            <p className="text-center text-xs text-muted-foreground">Powered by Paystack Live API</p>
                         </div>
                     )}
 
@@ -130,7 +128,7 @@ export default function MultiPurposePaymentPage() {
 
                     {step === 3 && (
                         <div className="space-y-4">
-                            <Label>Select {selectedCategory} Provider from Paystack</Label>
+                            <Label>Select {selectedCategory} Provider</Label>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input placeholder={`Search providers...`} className="pl-10" value={providerSearch} onChange={e => setProviderSearch(e.target.value)} />
@@ -178,7 +176,7 @@ export default function MultiPurposePaymentPage() {
                             </div>
                             <Button className="w-full h-12" disabled={pin.length !== 5 || isProcessing} onClick={handleFinalPayment}>
                                 {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle className="mr-2" />}
-                                Authorize via Paystack
+                                Authorize Payment
                             </Button>
                         </div>
                     )}

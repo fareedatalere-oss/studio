@@ -31,10 +31,11 @@ export default function BuyDataPage() {
     useEffect(() => {
         getPaystackProviders().then(res => {
             if (res.success) {
+                // Filter specifically for Data providers
                 const telcos = res.data.filter((b: any) => 
-                    ['MTN', 'AIRTEL', 'GLO', '9MOBILE'].some(t => b.name.toUpperCase().includes(t))
+                    ['MTN', 'AIRTEL', 'GLO', '9MOBILE', 'SMILE', 'SPECTRANET'].some(t => b.name.toUpperCase().includes(t))
                 );
-                setProviders(telcos.length > 0 ? telcos : res.data.slice(0, 10));
+                setProviders(telcos);
             }
             setProvidersLoading(false);
         });
@@ -58,7 +59,7 @@ export default function BuyDataPage() {
         setIsLoading(false);
 
         if (result.success) {
-            toast({ title: "Data Bundle Processed via Paystack" });
+            toast({ title: "Data Bundle Processed" });
             router.push('/dashboard');
         } else {
             toast({ variant: 'destructive', title: "Failed", description: result.message });
@@ -73,14 +74,14 @@ export default function BuyDataPage() {
             <Card className="w-full max-w-md mx-auto">
                 <CardHeader>
                     <CardTitle>Buy Data</CardTitle>
-                    <CardDescription>Instant Activation via Paystack</CardDescription>
+                    <CardDescription>Instant activation for all networks</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label>Network</Label>
                         <Select onValueChange={setNetworkCode} value={networkCode} disabled={providersLoading}>
                             <SelectTrigger>
-                                <SelectValue placeholder="Select network" />
+                                <SelectValue placeholder={providersLoading ? "Loading networks..." : "Select network"} />
                             </SelectTrigger>
                             <SelectContent>
                                 {providers.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
@@ -89,11 +90,11 @@ export default function BuyDataPage() {
                     </div>
                     <div className="space-y-2">
                         <Label>Phone Number</Label>
-                        <Input value={phoneNumber} onChange={e => setPhoneNumber(e.target.value.replace(/\D/g, ''))} maxLength={11} />
+                        <Input value={phoneNumber} onChange={e => setPhoneNumber(e.target.value.replace(/\D/g, ''))} maxLength={11} placeholder="08012345678" />
                     </div>
                     <div className="space-y-2">
                         <Label>Plan Amount (₦)</Label>
-                        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Enter bundle cost" />
+                        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Enter data plan cost" />
                     </div>
 
                     <AlertDialog>
@@ -102,12 +103,12 @@ export default function BuyDataPage() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Confirm</AlertDialogTitle>
-                                <AlertDialogDescription>Purchase data bundle for {phoneNumber} via Paystack?</AlertDialogDescription>
+                                <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
+                                <AlertDialogDescription>Purchase data for {phoneNumber} ({selectedProvider?.name}) for ₦{amount}?</AlertDialogDescription>
                             </AlertDialogHeader>
                             <div className="space-y-2">
-                                <Label>PIN</Label>
-                                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} />
+                                <Label>Transaction PIN</Label>
+                                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} placeholder="*****" />
                             </div>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>

@@ -31,10 +31,11 @@ export default function TvSubscriptionPage() {
     useEffect(() => {
         getPaystackProviders().then(res => {
             if (res.success) {
+                // Filter specifically for TV billers
                 const tv = res.data.filter((b: any) => 
-                    ['DSTV', 'GOTV', 'STARTIMES', 'SHOWMAX'].some(t => b.name.toUpperCase().includes(t))
+                    ['DSTV', 'GOTV', 'STARTIMES', 'SHOWMAX', 'CABLE', 'TV'].some(t => b.name.toUpperCase().includes(t))
                 );
-                setProviders(tv.length > 0 ? tv : res.data.slice(0, 10));
+                setProviders(tv);
             }
             setProvidersLoading(false);
         });
@@ -58,7 +59,7 @@ export default function TvSubscriptionPage() {
         setIsLoading(false);
 
         if (result.success) {
-            toast({ title: "TV Subscription Processed via Paystack" });
+            toast({ title: "TV Subscription Successful" });
             router.push('/dashboard');
         } else {
             toast({ variant: 'destructive', title: "Failed", description: result.message });
@@ -73,14 +74,14 @@ export default function TvSubscriptionPage() {
             <Card className="w-full max-w-md mx-auto">
                 <CardHeader>
                     <CardTitle>TV Subscription</CardTitle>
-                    <CardDescription>Cable Renewal via Paystack</CardDescription>
+                    <CardDescription>Renew your cable subscription</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label>Provider</Label>
                         <Select onValueChange={setProviderCode} value={providerCode} disabled={providersLoading}>
                             <SelectTrigger>
-                                <SelectValue placeholder="Select a provider" />
+                                <SelectValue placeholder={providersLoading ? "Loading providers..." : "Select a provider"} />
                             </SelectTrigger>
                             <SelectContent>
                                 {providers.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
@@ -89,11 +90,11 @@ export default function TvSubscriptionPage() {
                     </div>
                      <div className="space-y-2">
                         <Label>Smart Card / IUC Number</Label>
-                        <Input value={cardNumber} onChange={e => setCardNumber(e.target.value)} />
+                        <Input value={cardNumber} onChange={e => setCardNumber(e.target.value)} placeholder="Enter card number" />
                     </div>
                     <div className="space-y-2">
-                        <Label>Plan Price (₦)</Label>
-                        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} />
+                        <Label>Amount (₦)</Label>
+                        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" />
                     </div>
 
                     <AlertDialog>
@@ -102,17 +103,17 @@ export default function TvSubscriptionPage() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Authorize</AlertDialogTitle>
-                                <AlertDialogDescription>Pay ₦{amount} for card {cardNumber} via Paystack?</AlertDialogDescription>
+                                <AlertDialogTitle>Confirm Renewal</AlertDialogTitle>
+                                <AlertDialogDescription>Pay ₦{amount} for {selectedProvider?.name} card {cardNumber}?</AlertDialogDescription>
                             </AlertDialogHeader>
                             <div className="space-y-2">
-                                <Label>PIN</Label>
-                                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} />
+                                <Label>Transaction PIN</Label>
+                                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} placeholder="*****" />
                             </div>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction onClick={handlePurchase} disabled={isLoading || pin.length !== 5}>
-                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Confirm'}
+                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Confirm Payment'}
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>

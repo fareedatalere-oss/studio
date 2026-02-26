@@ -31,11 +31,11 @@ export default function BuyAirtimePage() {
     useEffect(() => {
         getPaystackProviders().then(res => {
             if (res.success) {
-                // Filter for common telcos in the Paystack bank list
+                // Filter specifically for Telcos
                 const telcos = res.data.filter((b: any) => 
-                    ['MTN', 'AIRTEL', 'GLO', '9MOBILE'].some(t => b.name.toUpperCase().includes(t))
+                    ['MTN', 'AIRTEL', 'GLO', '9MOBILE', 'SMILE', 'SPECTRANET'].some(t => b.name.toUpperCase().includes(t))
                 );
-                setProviders(telcos.length > 0 ? telcos : res.data.slice(0, 10));
+                setProviders(telcos);
             }
             setProvidersLoading(false);
         });
@@ -59,7 +59,7 @@ export default function BuyAirtimePage() {
         setIsLoading(false);
 
         if (result.success) {
-            toast({ title: "Airtime Sent via Paystack" });
+            toast({ title: "Airtime Sent Successfully" });
             router.push('/dashboard');
         } else {
             toast({ variant: 'destructive', title: "Failed", description: result.message });
@@ -74,14 +74,14 @@ export default function BuyAirtimePage() {
             <Card className="w-full max-w-md mx-auto">
                 <CardHeader>
                     <CardTitle>Buy Airtime</CardTitle>
-                    <CardDescription>Powered by Paystack API</CardDescription>
+                    <CardDescription>Select network and enter details</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label>Network</Label>
                         <Select onValueChange={setNetworkCode} value={networkCode} disabled={providersLoading}>
                             <SelectTrigger>
-                                <SelectValue placeholder={providersLoading ? "Loading..." : "Select network"} />
+                                <SelectValue placeholder={providersLoading ? "Loading networks..." : "Select network"} />
                             </SelectTrigger>
                             <SelectContent>
                                 {providers.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
@@ -90,11 +90,11 @@ export default function BuyAirtimePage() {
                     </div>
                     <div className="space-y-2">
                         <Label>Phone Number</Label>
-                        <Input value={phoneNumber} onChange={e => setPhoneNumber(e.target.value.replace(/\D/g, ''))} maxLength={11} />
+                        <Input value={phoneNumber} onChange={e => setPhoneNumber(e.target.value.replace(/\D/g, ''))} maxLength={11} placeholder="08012345678" />
                     </div>
                     <div className="space-y-2">
                         <Label>Amount (₦)</Label>
-                        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} />
+                        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" />
                     </div>
 
                     <AlertDialog>
@@ -103,17 +103,17 @@ export default function BuyAirtimePage() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Confirm</AlertDialogTitle>
-                                <AlertDialogDescription>Buy ₦{amount} airtime for {phoneNumber} via Paystack?</AlertDialogDescription>
+                                <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
+                                <AlertDialogDescription>Buy ₦{amount} airtime for {phoneNumber} ({selectedProvider?.name})?</AlertDialogDescription>
                             </AlertDialogHeader>
                             <div className="space-y-2">
-                                <Label>PIN</Label>
-                                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} />
+                                <Label>Transaction PIN</Label>
+                                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} placeholder="*****" />
                             </div>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction onClick={handlePurchase} disabled={isLoading || pin.length !== 5}>
-                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Pay'}
+                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Confirm Payment'}
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
