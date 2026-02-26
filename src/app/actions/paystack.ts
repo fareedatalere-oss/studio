@@ -1,3 +1,4 @@
+
 'use server';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
@@ -16,7 +17,6 @@ export async function getPaystackProviders() {
         });
         const data = await response.json();
         if (data.status) {
-            // Curate specific fintechs/billers from the bank list for "Multi-Purpose" feel
             return { success: true, data: data.data };
         }
         return { success: false, message: data.message || "Could not fetch providers.", data: [] };
