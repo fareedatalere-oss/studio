@@ -83,15 +83,19 @@ export async function initiatePaystackBillPayment(payload: {
             })
         });
 
-        const data = await response.json();
+        const text = await response.text();
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (err) {
+            throw new Error(`Paystack Response Error: ${text.substring(0, 100) || 'Empty response'}`);
+        }
 
         if (data.status) {
-            // Update balance in real-time
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { 
                 nairaBalance: userProfile.nairaBalance - totalDebit 
             });
 
-            // Create transaction history record
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: payload.userId,
                 type: 'product_purchase',
