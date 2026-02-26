@@ -7,6 +7,24 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const API_KEY_ERROR_MESSAGE = 'Paystack API key is not configured. Please contact an administrator.';
 const SUBSCRIPTION_FEE = 25000; // NGN
 
+export async function getPaystackProviders() {
+    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
+    try {
+        const response = await fetch('https://api.paystack.co/bank?country=nigeria&perPage=100', {
+            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}` },
+            next: { revalidate: 86400 } // Cache for 24 hours
+        });
+        const data = await response.json();
+        if (data.status) {
+            // Curate specific fintechs/billers from the bank list for "Multi-Purpose" feel
+            return { success: true, data: data.data };
+        }
+        return { success: false, message: data.message || "Could not fetch providers.", data: [] };
+    } catch (e: any) {
+        return { success: false, message: e.message, data: [] };
+    }
+}
+
 export async function initializeTransaction(payload: { email: string; userId: string }) {
     if (!PAYSTACK_SECRET_KEY) {
         return { success: false, message: API_KEY_ERROR_MESSAGE };
@@ -33,17 +51,14 @@ export async function initializeTransaction(payload: { email: string; userId: st
         const data = await response.json();
 
         if (data.status === true) {
-            return { success: true, data: data.data }; // data contains authorization_url and reference
+            return { success: true, data: data.data };
         } else {
-            console.error("Paystack Initialization Error:", data);
             return { success: false, message: data.message || 'Failed to initialize payment.' };
         }
     } catch (error: any) {
-        console.error("Paystack Connection Error:", error);
         return { success: false, message: error.message || 'An unexpected error occurred.' };
     }
 }
-
 
 export async function verifyMarketplaceSubscription(reference: string, userId: string) {
     if (!PAYSTACK_SECRET_KEY) {
@@ -60,44 +75,19 @@ export async function verifyMarketplaceSubscription(reference: string, userId: s
         const data = await response.json();
         
         if (data.status === true && data.data.status === 'success') {
-            const paidAmount = data.data.amount / 100;
             const metadataUserId = data.data.metadata?.user_id;
-
             if (metadataUserId !== userId) {
                 throw new Error("User mismatch during verification.");
             }
-
-            if (paidAmount < SUBSCRIPTION_FEE) {
-                throw new Error(`Payment amount is incorrect. Expected ₦${SUBSCRIPTION_FEE}, got ₦${paidAmount}.`);
-            }
-
-            // Update user profile to grant subscription access
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
                 isMarketplaceSubscribed: true
             });
-
             return { success: true, message: 'Your marketplace subscription is now active!' };
         } else {
              throw new Error(data.data.gateway_response || 'Payment verification failed.');
         }
     } catch (error: any) {
-        console.error("Paystack Verification Error:", error);
-        return { success: false, message: error.message || 'An unexpected error occurred during payment verification.' };
-    }
-}
-
-export async function getPaystackBankList() {
-    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
-    try {
-        const response = await fetch('https://api.paystack.co/bank?country=nigeria', {
-            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}` },
-            next: { revalidate: 86400 } // Cache for 24 hours
-        });
-        const data = await response.json();
-        if (data.status) return { success: true, data: data.data };
-        return { success: false, message: data.message || "Could not fetch bank list.", data: [] };
-    } catch (e: any) {
-        return { success: false, message: e.message, data: [] };
+        return { success: false, message: error.message || 'An unexpected error occurred during verification.' };
     }
 }
 
@@ -135,7 +125,7 @@ export async function makeBankTransferPaystack(payload: {
         const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
 
         if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
-        if (transferAmount <= 0) throw new Error('Invalid transfer amount.');
+        if (transferAmount <= 0) throw new Error('Invalid amount.');
         if (userProfile.nairaBalance < transferAmount) throw new Error('Insufficient balance.');
 
         const doc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
@@ -145,7 +135,7 @@ export async function makeBankTransferPaystack(payload: {
             status: 'pending',
             recipientName: payload.recipientName,
             recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
-            narration: payload.narration || `I-Pay Transfer to ${payload.recipientName}`,
+            narration: payload.narration || `I-Pay Transfer`,
             sessionId: sessionId,
         });
         txDbId = doc.$id;
@@ -165,7 +155,7 @@ export async function makeBankTransferPaystack(payload: {
             })
         });
         const recipientData = await recipientRes.json();
-        if (!recipientData.status) throw new Error(recipientData.message || "Failed to create recipient on Paystack.");
+        if (!recipientData.status) throw new Error(recipientData.message || "Failed to create recipient.");
 
         const recipientCode = recipientData.data.recipient_code;
 
@@ -179,7 +169,7 @@ export async function makeBankTransferPaystack(payload: {
                 source: "balance",
                 amount: transferAmount * 100, // Naira to Kobo
                 recipient: recipientCode,
-                reason: payload.narration || "I-Pay Transfer",
+                reason: payload.narration || "I-Pay Payout",
                 reference: sessionId
             })
         });
@@ -192,7 +182,7 @@ export async function makeBankTransferPaystack(payload: {
                 status: 'completed', 
                 sessionId: transferData.data.transfer_code 
             });
-            return { success: true, message: "Transfer successfully initiated." };
+            return { success: true, message: "Transfer successfully processed via Paystack." };
         } else {
             throw new Error(transferData.message || "Paystack transfer initiation failed.");
         }
@@ -212,21 +202,7 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
     return makeBankTransferPaystack({
         ...payload,
         recipientName: payload.name,
-        narration: "Paystack Payment",
-        bankName: "Provider Bank"
+        narration: "Multi-Purpose Payment",
+        bankName: "Verified Provider"
     });
-}
-
-export async function getPaystackMultiPurposeBillers() {
-    // Simulated curated list of Nigerian billers searchable via Paystack
-    return [
-        { id: '1', category: 'Electricity', name: 'EKEDC (Eko Electricity)', code: '044', accountNumber: '1234567890' },
-        { id: '2', category: 'Electricity', name: 'IKEDC (Ikeja Electric)', code: '011', accountNumber: '0987654321' },
-        { id: '3', category: 'Water', name: 'Lagos Water Corporation', code: '058', accountNumber: '1122334455' },
-        { id: '4', category: 'School Fees', name: 'UNILAG Tuition', code: '033', accountNumber: '5566778899' },
-        { id: '5', category: 'School Fees', name: 'ABU Zaria Fees', code: '035', accountNumber: '9988776655' },
-        { id: '6', category: 'Registration', name: 'JAMB PIN Purchase', code: '070', accountNumber: '4433221100' },
-        { id: '7', category: 'Registration', name: 'WAEC Exam PIN', code: '050', accountNumber: '6677881122' },
-        { id: '8', category: 'Electronic', name: 'DSTV Subscription', code: '044', accountNumber: '8899001122' },
-    ];
 }

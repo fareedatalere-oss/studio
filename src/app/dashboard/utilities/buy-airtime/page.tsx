@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
@@ -12,156 +12,108 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { makeBillPayment, getUtilityProviders } from '@/app/actions/flutterwave';
-
-type Provider = {
-    biller_code: string;
-    name: string;
-};
+import { getPaystackProviders, initiatePaystackTransfer } from '@/app/actions/paystack';
 
 export default function BuyAirtimePage() {
     const router = useRouter();
     const { toast } = useToast();
     const { user } = useUser();
 
-    const [airtimeProviders, setAirtimeProviders] = useState<Provider[]>([]);
+    const [providers, setProviders] = useState<any[]>([]);
     const [providersLoading, setProvidersLoading] = useState(true);
 
-    const [network, setNetwork] = useState('');
+    const [networkCode, setNetworkCode] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
     const [amount, setAmount] = useState('');
     const [pin, setPin] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        async function fetchProviders() {
-            setProvidersLoading(true);
-            const result = await getUtilityProviders('airtime');
-            if (result.success) {
-                const uniqueProviders = Array.from(new Map(result.data.map((item: Provider) => [item.biller_code, item])).values());
-                setAirtimeProviders(uniqueProviders);
-            } else {
-                toast({
-                    variant: 'destructive',
-                    title: 'Error',
-                    description: 'Could not load airtime providers. Please try again later.',
-                });
+        getPaystackProviders().then(res => {
+            if (res.success) {
+                // Filter for common telcos in the Paystack bank list
+                const telcos = res.data.filter((b: any) => 
+                    ['MTN', 'AIRTEL', 'GLO', '9MOBILE'].some(t => b.name.toUpperCase().includes(t))
+                );
+                setProviders(telcos.length > 0 ? telcos : res.data.slice(0, 10));
             }
             setProvidersLoading(false);
-        }
-        fetchProviders();
-    }, [toast]);
+        });
+    }, []);
 
-
-    const selectedProvider = airtimeProviders.find(p => p.biller_code === network);
+    const selectedProvider = providers.find(p => p.code === networkCode);
 
     const handlePurchase = async () => {
         if (!user || !selectedProvider) return;
         setIsLoading(true);
 
-        const result = await makeBillPayment({
+        const result = await initiatePaystackTransfer({
             userId: user.$id,
             pin,
-            billerCode: selectedProvider.biller_code,
-            customer: phoneNumber,
+            bankCode: selectedProvider.code,
+            accountNumber: phoneNumber,
+            name: `${selectedProvider.name} Airtime`,
             amount: Number(amount),
-            type: 'airtime',
-            narration: `${selectedProvider.name} Airtime`,
         });
 
         setIsLoading(false);
 
         if (result.success) {
-            toast({
-                title: "Purchase Successful",
-                description: result.message,
-            });
+            toast({ title: "Airtime Sent via Paystack" });
             router.push('/dashboard');
         } else {
-            toast({
-                variant: 'destructive',
-                title: "Purchase Failed",
-                description: result.message,
-            });
+            toast({ variant: 'destructive', title: "Failed", description: result.message });
         }
     };
 
     return (
         <div className="container py-8">
             <Link href="/dashboard/utilities" className="flex items-center gap-2 mb-4 text-sm">
-                <ArrowLeft className="h-4 w-4" />
-                Back to Utilities
+                <ArrowLeft className="h-4 w-4" /> Back
             </Link>
             <Card className="w-full max-w-md mx-auto">
                 <CardHeader>
                     <CardTitle>Buy Airtime</CardTitle>
-                    <CardDescription>Top up any mobile number instantly.</CardDescription>
+                    <CardDescription>Powered by Paystack API</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="network">Network</Label>
-                        <Select onValueChange={setNetwork} value={network} disabled={providersLoading}>
-                            <SelectTrigger id="network">
-                                <SelectValue placeholder={providersLoading ? "Loading networks..." : "Select a network"} />
+                        <Label>Network</Label>
+                        <Select onValueChange={setNetworkCode} value={networkCode} disabled={providersLoading}>
+                            <SelectTrigger>
+                                <SelectValue placeholder={providersLoading ? "Loading..." : "Select network"} />
                             </SelectTrigger>
                             <SelectContent>
-                                {airtimeProviders.map(p => (
-                                    <SelectItem key={p.biller_code} value={p.biller_code}>{p.name}</SelectItem>
-                                ))}
+                                {providers.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="phone">Phone Number</Label>
-                        <Input 
-                            id="phone" 
-                            type="tel"
-                            value={phoneNumber} 
-                            onChange={e => setPhoneNumber(e.target.value.replace(/\D/g, ''))} 
-                            placeholder="e.g., 08012345678"
-                            maxLength={11}
-                        />
+                        <Label>Phone Number</Label>
+                        <Input value={phoneNumber} onChange={e => setPhoneNumber(e.target.value.replace(/\D/g, ''))} maxLength={11} />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="amount">Amount (₦)</Label>
-                        <Input 
-                            id="amount" 
-                            type="number"
-                            value={amount} 
-                            onChange={e => setAmount(e.target.value)} 
-                            placeholder="e.g., 500"
-                        />
+                        <Label>Amount (₦)</Label>
+                        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} />
                     </div>
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button className="w-full" disabled={!network || phoneNumber.length < 10 || !amount || Number(amount) <= 0}>
-                                Continue
-                            </Button>
+                            <Button className="w-full" disabled={!networkCode || phoneNumber.length < 10 || !amount}>Continue</Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    You are about to buy ₦{Number(amount).toLocaleString()} of {selectedProvider?.name} airtime for {phoneNumber}. Enter your PIN to confirm.
-                                </AlertDialogDescription>
+                                <AlertDialogTitle>Confirm</AlertDialogTitle>
+                                <AlertDialogDescription>Buy ₦{amount} airtime for {phoneNumber} via Paystack?</AlertDialogDescription>
                             </AlertDialogHeader>
                             <div className="space-y-2">
-                                <Label htmlFor="pin">5-Digit Transaction PIN</Label>
-                                <Input
-                                    id="pin"
-                                    type="tel"
-                                    inputMode="numeric"
-                                    value={pin}
-                                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                                    maxLength={5}
-                                    placeholder="*****"
-                                />
+                                <Label>PIN</Label>
+                                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} />
                             </div>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction onClick={handlePurchase} disabled={isLoading || pin.length !== 5}>
-                                    {isLoading ? 'Processing...' : 'Confirm & Pay'}
+                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Pay'}
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>

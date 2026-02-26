@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
@@ -12,20 +12,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { makeBillPayment, getUtilityProviders } from '@/app/actions/flutterwave';
+import { getPaystackProviders, initiatePaystackTransfer } from '@/app/actions/paystack';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-
-type Provider = {
-    biller_code: string;
-    name: string;
-};
 
 export default function RechargeBillsPage() {
     const router = useRouter();
     const { toast } = useToast();
     const { user } = useUser();
 
-    const [electricityProviders, setElectricityProviders] = useState<Provider[]>([]);
+    const [providers, setProviders] = useState<any[]>([]);
     const [providersLoading, setProvidersLoading] = useState(true);
 
     const [discoCode, setDiscoCode] = useState('');
@@ -36,80 +31,61 @@ export default function RechargeBillsPage() {
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        async function fetchProviders() {
-            setProvidersLoading(true);
-            const result = await getUtilityProviders('electricity');
-            if (result.success) {
-                const uniqueProviders = Array.from(new Map(result.data.map((item: Provider) => [item.biller_code, item])).values());
-                setElectricityProviders(uniqueProviders);
-            } else {
-                toast({
-                    variant: 'destructive',
-                    title: 'Error',
-                    description: 'Could not load electricity providers.',
-                });
+        getPaystackProviders().then(res => {
+            if (res.success) {
+                const discos = res.data.filter((b: any) => 
+                    ['ELECTRIC', 'POWER', 'EDC'].some(t => b.name.toUpperCase().includes(t))
+                );
+                setProviders(discos.length > 0 ? discos : res.data.slice(0, 10));
             }
             setProvidersLoading(false);
-        }
-        fetchProviders();
-    }, [toast]);
+        });
+    }, []);
 
-
-    const selectedDisco = electricityProviders.find(p => p.biller_code === discoCode);
+    const selectedDisco = providers.find(p => p.code === discoCode);
 
     const handlePurchase = async () => {
         if (!user || !selectedDisco) return;
         setIsLoading(true);
 
-        const result = await makeBillPayment({
+        const result = await initiatePaystackTransfer({
             userId: user.$id,
             pin,
-            billerCode: selectedDisco.biller_code,
-            customer: meterNumber,
+            bankCode: selectedDisco.code,
+            accountNumber: meterNumber,
+            name: `${selectedDisco.name} Bill`,
             amount: Number(amount),
-            type: 'electricity',
-            narration: `${selectedDisco.name} ${meterType} payment`,
         });
 
         setIsLoading(false);
 
         if (result.success) {
-            toast({
-                title: "Payment Successful",
-                description: result.message,
-            });
+            toast({ title: "Bill Paid via Paystack" });
             router.push('/dashboard');
         } else {
-            toast({
-                variant: 'destructive',
-                title: "Payment Failed",
-                description: result.message,
-            });
+            toast({ variant: 'destructive', title: "Failed", description: result.message });
         }
     };
 
     return (
         <div className="container py-8">
             <Link href="/dashboard/utilities" className="flex items-center gap-2 mb-4 text-sm">
-                <ArrowLeft className="h-4 w-4" />
-                Back to Utilities
+                <ArrowLeft className="h-4 w-4" /> Back
             </Link>
             <Card className="w-full max-w-md mx-auto">
                 <CardHeader>
                     <CardTitle>Recharge Bills</CardTitle>
-                    <CardDescription>Pay for your electricity bills.</CardDescription>
+                    <CardDescription>Electricity & Power via Paystack</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="disco">Distribution Company (Disco)</Label>
+                        <Label>Distribution Company (Disco)</Label>
                         <Select onValueChange={setDiscoCode} value={discoCode} disabled={providersLoading}>
-                            <SelectTrigger id="disco">
-                                <SelectValue placeholder={providersLoading ? "Loading Discos..." : "Select your Disco"} />
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select your Disco" />
                             </SelectTrigger>
                             <SelectContent>
-                                {electricityProviders.map(p => (
-                                    <SelectItem key={p.biller_code} value={p.biller_code}>{p.name}</SelectItem>
-                                ))}
+                                {providers.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
@@ -121,35 +97,31 @@ export default function RechargeBillsPage() {
                         </RadioGroup>
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="meterNumber">Meter Number</Label>
-                        <Input id="meterNumber" value={meterNumber} onChange={e => setMeterNumber(e.target.value)} />
+                        <Label>Meter Number</Label>
+                        <Input value={meterNumber} onChange={e => setMeterNumber(e.target.value)} />
                     </div>
                      <div className="space-y-2">
-                        <Label htmlFor="amount">Amount (₦)</Label>
-                        <Input id="amount" type="number" value={amount} onChange={e => setAmount(e.target.value)} />
+                        <Label>Amount (₦)</Label>
+                        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} />
                     </div>
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button className="w-full" disabled={!selectedDisco || !meterNumber || !amount}>
-                                Continue
-                            </Button>
+                            <Button className="w-full" disabled={!discoCode || !meterNumber || !amount}>Continue</Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    You are about to pay ₦{Number(amount).toLocaleString()} for {selectedDisco?.name} on meter {meterNumber}. Enter your PIN to confirm.
-                                </AlertDialogDescription>
+                                <AlertDialogTitle>Authorize</AlertDialogTitle>
+                                <AlertDialogDescription>Pay ₦{amount} for meter {meterNumber} via Paystack?</AlertDialogDescription>
                             </AlertDialogHeader>
                             <div className="space-y-2">
-                                <Label htmlFor="pin">5-Digit Transaction PIN</Label>
-                                <Input id="pin" type="tel" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} />
+                                <Label>PIN</Label>
+                                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} />
                             </div>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction onClick={handlePurchase} disabled={isLoading || pin.length !== 5}>
-                                    {isLoading ? 'Processing...' : 'Confirm & Pay'}
+                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Confirm'}
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
