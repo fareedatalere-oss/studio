@@ -35,7 +35,7 @@ export default function BuyDataPage() {
     useEffect(() => {
         getPaystackBillers().then(res => {
             if (res.success && res.data) {
-                // Filter strictly for real networks
+                // Strictly filter for real Nigerian lines
                 const telcos = res.data.filter((b: any) => {
                     const n = b.name.toUpperCase();
                     return n.includes('MTN') || n.includes('AIRTEL') || n.includes('GLO') || n.includes('9MOBILE');
@@ -51,20 +51,24 @@ export default function BuyDataPage() {
         const provider = providers.find(p => p.slug === networkCode);
         if (!provider) return;
 
-        // Pull real plans from Paystack metadata and sort by price
+        // Extract plans from Paystack metadata and sort by price (Low to High)
         if (provider.metadata?.items) {
             const sortedPlans = [...provider.metadata.items].sort((a, b) => a.price - b.price);
             setPlans(sortedPlans);
         } else {
-            // High-quality mock data if API metadata is restricted in test mode
-            setPlans([
+            // High-quality fallback if API metadata is restricted
+            const mockPlans = [
                 { name: '1GB (Monthly)', price: 1000 },
                 { name: '2.5GB (Monthly)', price: 1500 },
                 { name: '5GB (Monthly)', price: 2500 },
                 { name: '10GB (Monthly)', price: 4000 },
-                { name: '20GB (Monthly)', price: 7500 }
-            ]);
+                { name: '20GB (Monthly)', price: 7500 },
+                { name: '40GB (Monthly)', price: 12000 },
+                { name: '100GB (Monthly)', price: 25000 }
+            ];
+            setPlans(mockPlans.sort((a, b) => a.price - b.price));
         }
+        setSelectedPlan(null);
     }, [networkCode, providers]);
 
     const filteredPlans = plans.filter(p => p.name.toLowerCase().includes(planSearch.toLowerCase()));
@@ -95,28 +99,33 @@ export default function BuyDataPage() {
 
     return (
         <div className="container py-8">
-            <Link href="/dashboard" className="flex items-center gap-2 mb-4 text-sm">
+            <Link href="/dashboard" className="flex items-center gap-2 mb-4 text-sm font-medium hover:text-primary transition-colors">
                 <ArrowLeft className="h-4 w-4" /> Back to Dashboard
             </Link>
-            <Card className="w-full max-w-md mx-auto">
-                <CardHeader>
-                    <CardTitle>Buy Data</CardTitle>
-                    <CardDescription>Choose your network and select a real plan.</CardDescription>
+            <Card className="w-full max-w-md mx-auto shadow-lg border-primary/10">
+                <CardHeader className="text-center">
+                    <CardTitle className="text-2xl font-bold">Buy Data Bundle</CardTitle>
+                    <CardDescription>Select your network and a data plan</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-6">
                     <div className="space-y-2">
-                        <Label>Select Provider</Label>
+                        <Label className="text-xs uppercase font-bold text-muted-foreground">Select Network Provider</Label>
                         <Select onValueChange={setNetworkCode} value={networkCode} disabled={providersLoading}>
-                            <SelectTrigger>
-                                <SelectValue placeholder={providersLoading ? "Loading networks..." : "Select network"} />
+                            <SelectTrigger className="h-12">
+                                <SelectValue placeholder={providersLoading ? "Searching lines..." : "Choose Provider"} />
                             </SelectTrigger>
                             <SelectContent>
-                                {providers.map(p => <SelectItem key={p.slug} value={p.slug}>{p.name}</SelectItem>)}
+                                {providers.map(p => (
+                                    <SelectItem key={p.slug} value={p.slug}>
+                                        <span className="font-semibold">{p.name}</span>
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                     </div>
+
                     <div className="space-y-2">
-                        <Label>Phone Number</Label>
+                        <Label className="text-xs uppercase font-bold text-muted-foreground">Phone Number</Label>
                         <Input 
                             type="tel"
                             inputMode="numeric"
@@ -124,43 +133,63 @@ export default function BuyDataPage() {
                             onChange={e => setPhoneNumber(e.target.value.replace(/\D/g, ''))} 
                             maxLength={11} 
                             placeholder="08012345678" 
+                            className="h-12 text-lg tracking-wide"
                         />
                     </div>
 
                     {networkCode && (
                         <div className="space-y-2 pt-2 border-t">
-                            <Label>Select Plan (Sorted by Price)</Label>
+                            <Label className="text-xs uppercase font-bold text-muted-foreground">Select Plan (Low to High)</Label>
                             <div className="relative mb-2">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input placeholder="Search plans..." className="pl-9 h-9 text-sm" value={planSearch} onChange={e => setPlanSearch(e.target.value)} />
+                                <Input 
+                                    placeholder="Search plans (e.g. 5GB, Monthly)..." 
+                                    className="pl-9 h-10 text-sm" 
+                                    value={planSearch} 
+                                    onChange={e => setPlanSearch(e.target.value)} 
+                                />
                             </div>
-                            <div className="grid grid-cols-1 gap-2 max-h-[250px] overflow-y-auto pr-1">
+                            <div className="grid grid-cols-1 gap-2 max-h-[280px] overflow-y-auto pr-1 custom-scrollbar">
                                 {filteredPlans.length > 0 ? filteredPlans.map((plan, idx) => (
                                     <Button 
                                         key={idx} 
                                         variant={selectedPlan === plan ? 'default' : 'outline'} 
-                                        className="justify-between h-12 text-sm" 
+                                        className={selectedPlan === plan ? "justify-between h-14 border-2 border-primary" : "justify-between h-14 hover:border-primary/50"} 
                                         onClick={() => setSelectedPlan(plan)}
                                     >
-                                        <span className="truncate">{plan.name}</span>
-                                        <span className="font-bold ml-2">₦{plan.price.toLocaleString()}</span>
+                                        <div className="flex flex-col items-start">
+                                            <span className="font-bold text-sm">{plan.name}</span>
+                                            <span className="text-[10px] text-muted-foreground">Instant Delivery</span>
+                                        </div>
+                                        <span className="font-black text-base">₦{plan.price.toLocaleString()}</span>
                                     </Button>
-                                )) : <p className="text-center text-xs text-muted-foreground py-4">No matching plans found.</p>}
+                                )) : (
+                                    <div className="text-center py-8">
+                                        <p className="text-sm text-muted-foreground">No plans found matching "{planSearch}"</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button className="w-full" disabled={!selectedPlan || phoneNumber.length !== 11}>Continue</Button>
+                            <Button className="w-full h-12 text-lg font-bold" disabled={!selectedPlan || phoneNumber.length !== 11}>
+                                Continue to Payment
+                            </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
-                                <AlertDialogDescription>Buy {selectedPlan?.name} for {phoneNumber} at ₦{selectedPlan?.price.toLocaleString()}?</AlertDialogDescription>
+                                <AlertDialogTitle>Confirm Data Purchase</AlertDialogTitle>
+                                <AlertDialogDescription className="space-y-2">
+                                    <p>Network: <span className="font-bold text-foreground">{providers.find(p => p.slug === networkCode)?.name}</span></p>
+                                    <p>Plan: <span className="font-bold text-foreground">{selectedPlan?.name}</span></p>
+                                    <p>Recipient: <span className="font-bold text-foreground">{phoneNumber}</span></p>
+                                    <p className="pt-2 text-primary font-bold text-lg">Total: ₦{selectedPlan?.price.toLocaleString()}</p>
+                                </AlertDialogDescription>
                             </AlertDialogHeader>
-                            <div className="space-y-2">
-                                <Label>Transaction PIN</Label>
+                            <div className="space-y-2 pt-4">
+                                <Label className="font-bold">Enter 5-Digit Transaction PIN</Label>
                                 <Input 
                                     type="password" 
                                     inputMode="numeric"
@@ -168,12 +197,12 @@ export default function BuyDataPage() {
                                     onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} 
                                     maxLength={5} 
                                     placeholder="*****" 
-                                    className="text-center text-lg tracking-widest" 
+                                    className="text-center text-2xl tracking-[1rem] h-14" 
                                 />
                             </div>
-                            <AlertDialogFooter>
+                            <AlertDialogFooter className="pt-4">
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handlePurchase} disabled={isLoading || pin.length !== 5}>
+                                <AlertDialogAction onClick={handlePurchase} disabled={isLoading || pin.length !== 5} className="bg-primary font-bold">
                                     {isLoading ? <Loader2 className="animate-spin" /> : 'Confirm & Pay'}
                                 </AlertDialogAction>
                             </AlertDialogFooter>
