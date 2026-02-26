@@ -31,9 +31,12 @@ export default function TvSubscriptionPage() {
     useEffect(() => {
         getPaystackProviders().then(res => {
             if (res.success) {
-                // Filter specifically for TV billers
+                // Strictly filter for TV billers
                 const tv = res.data.filter((b: any) => 
-                    ['DSTV', 'GOTV', 'STARTIMES', 'SHOWMAX', 'CABLE', 'TV'].some(t => b.name.toUpperCase().includes(t))
+                    b.name.toUpperCase().includes('DSTV') || 
+                    b.name.toUpperCase().includes('GOTV') || 
+                    b.name.toUpperCase().includes('STARTIMES') || 
+                    b.name.toUpperCase().includes('SHOWMAX')
                 );
                 setProviders(tv);
             }

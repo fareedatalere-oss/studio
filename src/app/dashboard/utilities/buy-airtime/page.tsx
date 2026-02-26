@@ -31,10 +31,23 @@ export default function BuyAirtimePage() {
     useEffect(() => {
         getPaystackProviders().then(res => {
             if (res.success) {
-                // Filter specifically for Telcos
-                const telcos = res.data.filter((b: any) => 
-                    ['MTN', 'AIRTEL', 'GLO', '9MOBILE', 'SMILE', 'SPECTRANET'].some(t => b.name.toUpperCase().includes(t))
-                );
+                // Strictly filter for real Telcos and clean their names
+                const telcos = res.data
+                    .filter((b: any) => 
+                        (b.name.toUpperCase().includes('MTN') || 
+                         b.name.toUpperCase().includes('AIRTEL') || 
+                         b.name.toUpperCase().includes('GLO') || 
+                         b.name.toUpperCase().includes('9MOBILE')) &&
+                        !b.name.toUpperCase().includes('GLOBUS') // Prevent Globus Bank
+                    )
+                    .map((b: any) => {
+                        let cleanName = b.name;
+                        if (cleanName.toUpperCase().includes('MTN')) cleanName = 'MTN';
+                        if (cleanName.toUpperCase().includes('AIRTEL')) cleanName = 'Airtel';
+                        if (cleanName.toUpperCase().includes('GLO')) cleanName = 'Glo';
+                        if (cleanName.toUpperCase().includes('9MOBILE')) cleanName = '9mobile';
+                        return { ...b, name: cleanName };
+                    });
                 setProviders(telcos);
             }
             setProvidersLoading(false);

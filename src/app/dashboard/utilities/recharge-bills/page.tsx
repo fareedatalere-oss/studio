@@ -33,9 +33,11 @@ export default function RechargeBillsPage() {
     useEffect(() => {
         getPaystackProviders().then(res => {
             if (res.success) {
-                // Filter specifically for Electricity billers
+                // Strictly filter for all Nigerian Electricity Discos
                 const discos = res.data.filter((b: any) => 
-                    ['ELECTRIC', 'POWER', 'EDC', 'IKEDC', 'EKEDC', 'AEDC', 'KAEDCO', 'PHED', 'BEDC', 'JED', 'KEDCO', 'IBEDC', 'EEDC'].some(t => b.name.toUpperCase().includes(t))
+                    ['AEDC', 'EKEDC', 'IKEDC', 'KEDCO', 'JED', 'PHED', 'BEDC', 'IBEDC', 'EEDC', 'KAEDCO', 'YEDC'].some(disco => b.name.toUpperCase().includes(disco)) ||
+                    b.name.toUpperCase().includes('ELECTRIC') ||
+                    b.name.toUpperCase().includes('DISCO')
                 );
                 setProviders(discos);
             }
