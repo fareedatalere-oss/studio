@@ -81,7 +81,7 @@ export default function HistoryPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Details</TableHead>
-                                <TableHead className="hidden md:table-cell">Date</TableHead>
+                                <TableHead>Date</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
@@ -91,7 +91,7 @@ export default function HistoryPage() {
                                 Array.from({ length: 5 }).map((_, i) => (
                                      <TableRow key={i}>
                                         <TableCell><div className="space-y-1"><Skeleton className="h-5 w-24" /><Skeleton className="h-4 w-32" /></div></TableCell>
-                                        <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-28" /></TableCell>
+                                        <TableCell><Skeleton className="h-5 w-28" /></TableCell>
                                         <TableCell><Skeleton className="h-6 w-20" /></TableCell>
                                         <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
                                     </TableRow>
@@ -124,8 +124,10 @@ export default function HistoryPage() {
                                                     )}
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="hidden md:table-cell">
-                                                <div className="text-xs">{format(new Date(tx.$createdAt), 'PPp')}</div>
+                                            <TableCell>
+                                                <div className="text-[10px] sm:text-xs text-muted-foreground">
+                                                    {format(new Date(tx.$createdAt), 'PPp')}
+                                                </div>
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant={getStatusVariant(tx.status)} className="capitalize text-[10px]">{tx.status}</Badge>

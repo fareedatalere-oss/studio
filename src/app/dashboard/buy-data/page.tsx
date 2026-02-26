@@ -56,7 +56,7 @@ export default function BuyDataPage() {
             const sortedPlans = [...provider.metadata.items].sort((a, b) => a.price - b.price);
             setPlans(sortedPlans);
         } else {
-            // High-quality fallback if API metadata is restricted
+            // Professional fallback if API metadata is restricted
             const mockPlans = [
                 { name: '1GB (Monthly)', price: 1000 },
                 { name: '2.5GB (Monthly)', price: 1500 },
