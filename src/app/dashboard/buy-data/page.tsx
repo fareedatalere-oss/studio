@@ -14,7 +14,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
 import { getPaystackBillers, initiatePaystackBillPayment } from '@/app/actions/paystack';
 
-// Hardcoded core providers as requested
 const CORE_PROVIDERS = [
     { name: 'MTN', searchKey: 'MTN' },
     { name: 'Airtel', searchKey: 'AIRTEL' },
@@ -48,9 +47,8 @@ export default function BuyDataPage() {
         });
     }, []);
 
-    // When a network is selected, find the matching biller and extract plans
     useEffect(() => {
-        if (!selectedNetwork || paystackBillers.length === 0) {
+        if (!selectedNetwork) {
             setPlans([]);
             return;
         }
@@ -62,18 +60,18 @@ export default function BuyDataPage() {
         );
 
         if (biller && biller.metadata?.items) {
-            // Sort plans from Low to High price
             const sortedPlans = [...biller.metadata.items].sort((a, b) => a.price - b.price);
             setPlans(sortedPlans);
         } else {
-            // High-quality fallback if API metadata is restricted
+            // High-quality fallback if Paystack doesn't return metadata
             const fallbacks = [
                 { name: '500MB (Weekly)', price: 500 },
                 { name: '1GB (Monthly)', price: 1000 },
                 { name: '2.5GB (Monthly)', price: 1500 },
                 { name: '5GB (Monthly)', price: 2500 },
                 { name: '10GB (Monthly)', price: 4000 },
-                { name: '20GB (Monthly)', price: 7500 }
+                { name: '20GB (Monthly)', price: 7500 },
+                { name: '40GB (Monthly)', price: 12000 }
             ];
             setPlans(fallbacks);
         }

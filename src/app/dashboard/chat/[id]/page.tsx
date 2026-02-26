@@ -177,7 +177,6 @@ export default function ChatThreadPage() {
     const markMessagesAsRead = useCallback(async () => {
         if (!chatId || !currentUser) return;
         try {
-            // Find all unread messages from the other user in this chat
             const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
                 Query.equal('chatId', chatId),
                 Query.notEqual('senderId', currentUser.$id),
@@ -190,7 +189,6 @@ export default function ChatThreadPage() {
                 ));
             }
 
-            // Also mark corresponding notifications as read
             const notifRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, [
                 Query.equal('userId', currentUser.$id),
                 Query.equal('senderId', otherUserId),
@@ -208,37 +206,34 @@ export default function ChatThreadPage() {
         }
     }, [chatId, currentUser, otherUserId]);
 
-    const setupRealtimeSubscription = useCallback(() => {
+    useEffect(() => {
         if (!chatId) return;
 
         const realtimeTopic = `databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`;
         const unsubscribe = account.client.subscribe(realtimeTopic, (response) => {
-            const createdMessage = response.payload as Models.Document;
+            const payload = response.payload as Models.Document;
             
-            if (response.events.includes('databases.*.collections.*.documents.*.create') && createdMessage.chatId === chatId) {
-                 setMessages((prevMessages) => {
-                    if (prevMessages.some(msg => msg.$id === createdMessage.$id)) {
-                        return prevMessages;
+            if (payload.chatId === chatId) {
+                if (response.events.some(e => e.includes('.create'))) {
+                    setMessages((prev) => {
+                        if (prev.some(m => m.$id === payload.$id)) return prev;
+                        return [...prev, payload];
+                    });
+                    if (payload.senderId !== currentUser?.$id) {
+                        markMessagesAsRead();
                     }
-                    return [...prevMessages, createdMessage];
-                });
-                
-                // If we are currently in the chat, mark new incoming messages as read instantly
-                if (createdMessage.senderId !== currentUser?.$id) {
-                    markMessagesAsRead();
+                } else if (response.events.some(e => e.includes('.delete'))) {
+                    setMessages((prev) => prev.filter(m => m.$id !== payload.$id));
+                } else if (response.events.some(e => e.includes('.update'))) {
+                    setMessages((prev) => prev.map(m => m.$id === payload.$id ? payload : m));
                 }
-            }
-            if (response.events.includes('databases.*.collections.*.documents.*.delete')) {
-                setMessages((prevMessages) => prevMessages.filter(msg => msg.$id !== createdMessage.$id));
             }
         });
 
-        return unsubscribe;
+        return () => unsubscribe();
     }, [chatId, currentUser?.$id, markMessagesAsRead]);
 
     useEffect(() => {
-        let unsubscribe: (() => void) | undefined;
-        
         const setupChat = async () => {
             if (!chatId) return;
             setLoading(true);
@@ -252,8 +247,6 @@ export default function ChatThreadPage() {
                     Query.limit(100) 
                 ]);
                 setMessages(response.documents);
-                
-                unsubscribe = setupRealtimeSubscription();
                 markMessagesAsRead();
 
             } catch (error: any) {
@@ -267,13 +260,7 @@ export default function ChatThreadPage() {
         if (chatId && otherUserId) {
             setupChat();
         }
-
-        return () => {
-            if (unsubscribe) {
-                unsubscribe();
-            }
-        };
-    }, [chatId, otherUserId, toast, setupRealtimeSubscription, markMessagesAsRead]);
+    }, [chatId, otherUserId, toast, markMessagesAsRead]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

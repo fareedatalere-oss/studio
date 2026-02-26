@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Suspense, useEffect, useState, useRef } from 'react';
@@ -33,6 +32,7 @@ import {
   RefreshCw,
   Smartphone,
   Wifi,
+  Undo2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
@@ -52,10 +52,9 @@ function DashboardContent() {
   
   const isLoading = userLoading;
 
-  // Real-time Automated Sync Logic
   useEffect(() => {
     if (user?.$id && user?.email && !hasSyncedRef.current) {
-        hasSyncedRef.current = true; // prevent infinite loops on mount
+        hasSyncedRef.current = true;
         
         const runSync = async () => {
             const result = await syncVirtualAccountPayments(user.$id, user.email);
@@ -64,7 +63,7 @@ function DashboardContent() {
                     title: 'New Deposit Detected!',
                     description: `Your account was automatically credited with ₦${result.amountAdded.toLocaleString()}.`,
                 });
-                await recheckUser(); // Reflect the new balance instantly
+                await recheckUser();
             }
         };
         runSync();
@@ -74,27 +73,27 @@ function DashboardContent() {
   const handleRefresh = async () => {
     if (!user?.$id) return;
     setIsProcessing(true);
-    toast({ title: 'Refreshing Balance...', description: `Checking transactions for ${user.email}...` });
+    toast({ title: 'Processing...', description: `Checking for new transactions...` });
     try {
       const result = await syncVirtualAccountPayments(user.$id, user.email);
       if (result.success) {
         if (result.amountAdded && result.amountAdded > 0) {
           toast({ 
-            title: 'Balance Updated!', 
+            title: 'Success!', 
             description: result.message || `Added ₦${result.amountAdded.toLocaleString()} to your wallet.` 
           });
           await recheckUser();
         } else {
           toast({ 
-            title: 'Sync Complete', 
-            description: result.message || 'Your balance is currently up to date.' 
+            title: 'Up to Date', 
+            description: 'No new transactions found.' 
           });
         }
       } else {
         toast({ 
           variant: 'destructive', 
           title: 'Sync Notice', 
-          description: result.message || 'The payment service returned an unexpected response.' 
+          description: result.message || 'Service returned an unexpected response.' 
         });
       }
     } catch (e: any) {
@@ -164,6 +163,7 @@ function DashboardContent() {
     { label: 'Multi Purpose', icon: CreditCard, href: '/dashboard/multi-purpose' },
     { label: 'Traveling', icon: Plane, href: '/dashboard/travelling' },
     { label: 'AI', icon: Bot, href: '/dashboard/ai-chat' },
+    { label: 'Refund', icon: Undo2, onClick: handleRefresh },
     { label: 'News', icon: Newspaper, href: '/dashboard/news' },
   ];
 
@@ -239,7 +239,7 @@ function DashboardContent() {
                         className="h-16 w-16 rounded-full mx-auto flex items-center justify-center"
                         disabled={isProcessing}
                     >
-                        {isProcessing && action.label === 'Refresh' ? <Loader2 className="h-6 w-6 animate-spin" /> : <action.icon className="h-6 w-6" />}
+                        {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-6 w-6 animate-spin" /> : <action.icon className="h-6 w-6" />}
                     </Button>
                     <span className="mt-2 block text-xs font-medium">{action.label}</span>
                 </div>
