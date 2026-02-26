@@ -1,12 +1,11 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowRight, Search, ChevronUp, Upload, ShoppingCart, Trash2, Phone, Book, Library, MoreVertical, Video, UserPlus, Loader2 } from 'lucide-react';
+import { Search, ChevronUp, Upload, ShoppingCart, Trash2, Phone, Library, MoreVertical, UserPlus, Loader2, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
-import { useState, Suspense, useEffect, useCallback } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -26,21 +25,18 @@ function MarketContent() {
   const searchParams = useSearchParams();
   const { user: currentUser, profile: currentUserProfile, loading: userLoading, recheckUser } = useUser();
   
-  // Control State
   const [currentTab, setCurrentTab] = useState(searchParams.get('tab') || 'apps');
   const [isLoading, setIsLoading] = useState(false);
   const [pin, setPin] = useState('');
 
-  // Data State
   const [apps, setApps] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [books, setBooks] = useState<any[]>([]);
   const [upworkProfiles, setUpworkProfiles] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState({ apps: true, products: true, books: true, upwork: true });
 
-  // Cart/Library State
   const [cart, setCart] = useState<any[]>([]);
-  const [library, setLibrary] = useState<string[]>([]); // Store book IDs
+  const [library, setLibrary] = useState<string[]>([]);
 
   const isSubscribed = currentUserProfile?.isMarketplaceSubscribed === true;
   
@@ -68,20 +64,13 @@ function MarketContent() {
             })
             .catch(err => {
               console.error(`Failed to fetch ${collectionId}`, err)
-              toast({
-                title: `Failed to load ${loadingKey}`,
-                description: "There was an error fetching market items.",
-                variant: "destructive"
-              });
-            })
-            .finally(() => setDataLoading(prev => ({...prev, [loadingKey]: false})));
+              setDataLoading(prev => ({...prev, [loadingKey]: false}));
+            });
       }
 
-      // Initial fetch
       setDataLoading(prev => ({...prev, [loadingKey]: true}));
       fetchData();
 
-      // Subscribe to changes
       const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${collectionId}.documents`, response => {
         fetchData();
       });
@@ -111,8 +100,7 @@ function MarketContent() {
         unsubBooks();
         unsubUpwork();
     };
-  }, [toast]);
-  
+  }, []);
   
   const AppItem = ({ app }: { app: any}) => (
     <Link href={`/dashboard/market/apps/${app.$id}`}>
@@ -178,7 +166,6 @@ function MarketContent() {
 
         } catch (e) {
             console.error("Failed to save book to local storage", e);
-            toast({ variant: 'destructive', title: 'Save Failed', description: 'Could not save the book to your device.'});
         }
 
         setIsLoading(false);
@@ -192,15 +179,20 @@ function MarketContent() {
             <p className="font-semibold text-sm truncate w-full mt-2">{product.name}</p>
             <p className="text-sm font-bold">₦{(product.price + 80).toLocaleString()}</p>
         </CardContent>
-        <div className="border-t p-2 flex items-center justify-between">
-            {product.contactType === 'call' && (
-                <Button asChild variant="ghost" size="sm">
-                    <a href={`tel:${product.contactInfo}`}><Phone className="h-4 w-4 mr-1" /> Call</a>
+        <div className="border-t p-2 flex items-center justify-between gap-1">
+            <div className="flex gap-1 flex-1">
+                {product.contactType === 'call' && (
+                    <Button asChild variant="ghost" size="icon" className="h-8 w-8">
+                        <a href={`tel:${product.contactInfo}`} title="Call Seller"><Phone className="h-4 w-4" /></a>
+                    </Button>
+                )}
+                <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-primary">
+                    <Link href={`/dashboard/chat/${product.sellerId}`} title="Chat with Seller"><MessageSquare className="h-4 w-4" /></Link>
                 </Button>
-            )}
+            </div>
              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 ml-auto"><MoreVertical /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical /></Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                      <AlertDialog>
@@ -221,9 +213,7 @@ function MarketContent() {
                     <DropdownMenuItem onClick={() => {
                         if (!cart.find(item => item.$id === product.$id)) {
                             setCart(prev => [...prev, product]);
-                            toast({title: 'Added to Cart', description: `${product.name} has been added to your cart.`});
-                        } else {
-                             toast({title: 'Already in Cart', description: `${product.name} is already in your cart.`});
+                            toast({title: 'Added to Cart', description: `${product.name} added to cart.`});
                         }
                     }}>Add to Cart</DropdownMenuItem>
                 </DropdownMenuContent>
@@ -239,7 +229,10 @@ function MarketContent() {
             <p className="font-semibold text-sm truncate w-full mt-2">{book.name}</p>
             <p className="text-xs font-bold text-muted-foreground">{book.priceType === 'free' ? 'Free' : `₦${(book.price + 50).toLocaleString()}`}</p>
         </CardContent>
-         <div className="border-t p-2 flex items-center justify-end">
+         <div className="border-t p-2 flex items-center justify-between">
+             <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-primary">
+                <Link href={`/dashboard/chat/${book.sellerId}`} title="Chat with Author"><MessageSquare className="h-4 w-4" /></Link>
+            </Button>
              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical /></Button>
@@ -299,37 +292,19 @@ function MarketContent() {
         <CardHeader>
             <div className="flex items-center gap-4">
                 <Image src={profile.avatarUrl} alt={profile.name} width={60} height={60} className="rounded-full" />
-                <div>
-                    <CardTitle>{profile.name}</CardTitle>
-                    <CardDescription>{profile.title}</CardDescription>
+                <div className="flex-1 min-w-0">
+                    <CardTitle className="truncate">{profile.name}</CardTitle>
+                    <CardDescription className="truncate">{profile.title}</CardDescription>
                 </div>
             </div>
         </CardHeader>
         <CardContent className="flex gap-2">
-            <Button asChild className="w-full">
+            <Button asChild className="flex-1">
                 <a href={`tel:${profile.phoneNumber}`}><Phone className="mr-2 h-4 w-4" /> Call</a>
             </Button>
-             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon"><MoreVertical/></Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                     <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>View Description</DropdownMenuItem>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                             <AlertDialogHeader>
-                                <AlertDialogTitle>{profile.name}</AlertDialogTitle>
-                                <AlertDialogDescription>{profile.description}</AlertDialogDescription>
-                            </AlertDialogHeader>
-                             <AlertDialogFooter>
-                                <AlertDialogCancel>Close</AlertDialogCancel>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                </DropdownMenuContent>
-            </DropdownMenu>
+            <Button asChild variant="secondary" className="flex-1">
+                <Link href={`/dashboard/chat/${profile.sellerId}`}><MessageSquare className="mr-2 h-4 w-4" /> Chat</Link>
+            </Button>
         </CardContent>
       </Card>
   )
@@ -390,7 +365,7 @@ function MarketContent() {
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="apps">Apps</TabsTrigger>
           <TabsTrigger value="products">Products</TabsTrigger>
-          <TabsTrigger value="bookstore">Bookstore</TabsTrigger>
+          <TabsTrigger value="bookstore">Books</TabsTrigger>
           <TabsTrigger value="upwork">Upwork</TabsTrigger>
         </TabsList>
         

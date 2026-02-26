@@ -132,7 +132,12 @@ export async function makeBankTransferPaystack(payload: {
     const transferAmount = Number(payload.amount);
 
     try {
-        // 1. Create Initial Pending Transaction Log
+        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
+
+        if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
+        if (transferAmount <= 0) throw new Error('Invalid transfer amount.');
+        if (userProfile.nairaBalance < transferAmount) throw new Error('Insufficient balance.');
+
         const doc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
             userId: payload.userId,
             type: 'transfer',
@@ -145,14 +150,6 @@ export async function makeBankTransferPaystack(payload: {
         });
         txDbId = doc.$id;
 
-        // 2. Critical Security Check: PIN and Balance (Before calling Paystack)
-        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
-
-        if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
-        if (transferAmount <= 0) throw new Error('Invalid transfer amount.');
-        if (userProfile.nairaBalance < transferAmount) throw new Error('Insufficient balance.');
-
-        // 3. Create Paystack Recipient
         const recipientRes = await fetch('https://api.paystack.co/transferrecipient', {
             method: 'POST',
             headers: { 
@@ -172,7 +169,6 @@ export async function makeBankTransferPaystack(payload: {
 
         const recipientCode = recipientData.data.recipient_code;
 
-        // 4. Initiate Paystack Payout
         const transferRes = await fetch('https://api.paystack.co/transfer', {
             method: 'POST',
             headers: { 
@@ -190,7 +186,6 @@ export async function makeBankTransferPaystack(payload: {
         const transferData = await transferRes.json();
 
         if (transferData.status) {
-            // 5. Success: Update Balance and Transaction Status
             const newNairaBalance = userProfile.nairaBalance - transferAmount;
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { nairaBalance: newNairaBalance });
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, { 
@@ -214,11 +209,24 @@ export async function makeBankTransferPaystack(payload: {
 }
 
 export async function initiatePaystackTransfer(payload: { userId: string, pin: string, bankCode: string, accountNumber: string, name: string, amount: number }) {
-    // Legacy wrapper for test page
     return makeBankTransferPaystack({
         ...payload,
         recipientName: payload.name,
-        narration: "Paystack Test Payout",
-        bankName: "Access Bank"
+        narration: "Paystack Payment",
+        bankName: "Provider Bank"
     });
+}
+
+export async function getPaystackMultiPurposeBillers() {
+    // Simulated curated list of Nigerian billers searchable via Paystack
+    return [
+        { id: '1', category: 'Electricity', name: 'EKEDC (Eko Electricity)', code: '044', accountNumber: '1234567890' },
+        { id: '2', category: 'Electricity', name: 'IKEDC (Ikeja Electric)', code: '011', accountNumber: '0987654321' },
+        { id: '3', category: 'Water', name: 'Lagos Water Corporation', code: '058', accountNumber: '1122334455' },
+        { id: '4', category: 'School Fees', name: 'UNILAG Tuition', code: '033', accountNumber: '5566778899' },
+        { id: '5', category: 'School Fees', name: 'ABU Zaria Fees', code: '035', accountNumber: '9988776655' },
+        { id: '6', category: 'Registration', name: 'JAMB PIN Purchase', code: '070', accountNumber: '4433221100' },
+        { id: '7', category: 'Registration', name: 'WAEC Exam PIN', code: '050', accountNumber: '6677881122' },
+        { id: '8', category: 'Electronic', name: 'DSTV Subscription', code: '044', accountNumber: '8899001122' },
+    ];
 }
