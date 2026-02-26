@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Edit, Save, Loader2, KeyRound, Wallet, MousePointer2, Gift, Landmark } from 'lucide-react';
+import { ArrowLeft, Edit, Save, Loader2, KeyRound, Wallet, MousePointer2, Gift, Landmark, ShieldAlert, UserX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
 import { Models, Query } from 'appwrite';
@@ -34,31 +34,21 @@ export default function ViewUserPage() {
         if (!userId) return;
         setLoading(true);
         try {
-            let profileData;
-            try {
-                profileData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
-            } catch (err) {
-                console.error("Profile Fetch Error:", err);
-                throw new Error("Could not find this user's profile document.");
-            }
-
-            let transactionsData;
-            try {
-                transactionsData = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, [
-                    Query.equal('userId', userId),
-                    Query.orderDesc('$createdAt'),
-                    Query.limit(50)
-                ]);
-            } catch (err) {
-                console.warn("Transactions Fetch Warning:", err);
-                transactionsData = { documents: [] };
-            }
+            // Fetch User Profile
+            const profileData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
+            
+            // Fetch User Transactions
+            const transactionsData = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, [
+                Query.equal('userId', userId),
+                Query.orderDesc('$createdAt'),
+                Query.limit(20)
+            ]);
 
             setProfile(profileData);
             setTransactions(transactionsData.documents);
         } catch (error: any) {
-            console.error("Overall Fetch Error:", error);
-            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not load user data.' });
+            console.error("Fetch Error:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load user data. They may not have a profile yet.' });
             router.push('/manager/users');
         } finally {
             setLoading(false);
@@ -73,10 +63,10 @@ export default function ViewUserPage() {
         if (!profile) return;
         setIsSaving(true);
         try {
-            // Remove internal Appwrite fields before sending update
+            // Clean up data for update: remove internal Appwrite fields and the email which shouldn't be updated here
             const { $id, $collectionId, $databaseId, $createdAt, $updatedAt, $permissions, email, ...updateData } = profile;
             
-            // Ensure numbers are numbers
+            // Explicitly force balances to be numbers
             const finalData = {
                 ...updateData,
                 nairaBalance: Number(profile.nairaBalance || 0),
@@ -85,12 +75,12 @@ export default function ViewUserPage() {
             };
 
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, $id, finalData);
-            toast({ title: 'Success', description: 'User account and balances updated successfully.' });
+            toast({ title: 'Account Updated!', description: 'All balances and details have been saved.' });
             setEditMode(false);
-            fetchData(); // reload data
+            fetchData(); // Refresh to show clean state
         } catch (error: any) {
             console.error("Save Error:", error);
-            toast({ variant: 'destructive', title: 'Save failed', description: error.message });
+            toast({ variant: 'destructive', title: 'Update Failed', description: error.message });
         } finally {
             setIsSaving(false);
         }
@@ -99,6 +89,21 @@ export default function ViewUserPage() {
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { id, value } = e.target;
         setProfile((prev: any) => ({ ...prev, [id]: value }));
+    };
+
+    const handleSuspendToggle = async () => {
+        if (!profile) return;
+        setIsSaving(true);
+        const newBannedState = !profile.isBanned;
+        try {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, profile.$id, { isBanned: newBannedState });
+            setProfile((prev: any) => ({ ...prev, isBanned: newBannedState }));
+            toast({ title: newBannedState ? 'Account Suspended' : 'Account Reinstated' });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Action Failed', description: error.message });
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     if (loading) {
@@ -111,10 +116,6 @@ export default function ViewUserPage() {
         );
     }
 
-    if (!profile) {
-        return <div className="container py-8 text-center">User profile not found.</div>;
-    }
-    
     const getStatusVariant = (status: string) => {
         switch (status?.toLowerCase()) {
             case 'completed': return 'secondary';
@@ -128,21 +129,27 @@ export default function ViewUserPage() {
         <div className="container py-8 space-y-6">
             <div className="flex items-center justify-between">
                 <Button asChild variant="ghost">
-                    <Link href="/manager/users"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Users</Link>
+                    <Link href="/manager/users"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
                 </Button>
-                {editMode ? (
-                     <Button onClick={handleSave} disabled={isSaving}>
-                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                        Save Account Changes
+                <div className="flex gap-2">
+                    <Button variant={profile.isBanned ? "outline" : "destructive"} onClick={handleSuspendToggle} disabled={isSaving}>
+                        {profile.isBanned ? <UserX className="mr-2 h-4 w-4" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
+                        {profile.isBanned ? 'Unsuspend' : 'Suspend'}
                     </Button>
-                ) : (
-                    <Button onClick={() => setEditMode(true)}>
-                        <Edit className="mr-2 h-4 w-4" /> Edit Account & Balances
-                    </Button>
-                )}
+                    {editMode ? (
+                        <Button onClick={handleSave} disabled={isSaving}>
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            Update Record
+                        </Button>
+                    ) : (
+                        <Button onClick={() => setEditMode(true)}>
+                            <Edit className="mr-2 h-4 w-4" /> Edit Account
+                        </Button>
+                    )}
+                </div>
             </div>
 
-            <Card>
+            <Card className={profile.isBanned ? "border-destructive bg-destructive/5" : ""}>
                 <CardHeader>
                     <div className="flex items-center gap-4">
                         <Avatar className="h-20 w-20">
@@ -150,42 +157,59 @@ export default function ViewUserPage() {
                             <AvatarFallback>{profile.username?.charAt(0).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div>
-                            <CardTitle>{profile.username || 'Full User Record'}</CardTitle>
-                            <CardDescription>{profile.email || 'Email not found'}</CardDescription>
+                            <CardTitle>User: @{profile.username || 'N/A'}</CardTitle>
+                            <CardDescription>{profile.email || 'No Email'}</CardDescription>
+                            {profile.isBanned && <Badge variant="destructive" className="mt-2">Account Banned</Badge>}
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div className="space-y-1"><Label>First Name</Label><Input id="firstName" value={profile.firstName || ''} onChange={handleInputChange} readOnly={!editMode} /></div>
-                    <div className="space-y-1"><Label>Last Name</Label><Input id="lastName" value={profile.lastName || ''} onChange={handleInputChange} readOnly={!editMode} /></div>
-                    <div className="space-y-1"><Label>Username</Label><Input id="username" value={profile.username || ''} onChange={handleInputChange} readOnly={!editMode} /></div>
-                    <div className="space-y-1"><Label>Phone</Label><Input id="phone" value={profile.phone || ''} onChange={handleInputChange} readOnly={!editMode} /></div>
-                    <div className="space-y-1"><Label>Country</Label><Input id="country" value={profile.country || ''} onChange={handleInputChange} readOnly={!editMode} /></div>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-1">
+                        <Label>Username</Label>
+                        <Input id="username" value={profile.username || ''} onChange={handleInputChange} readOnly={!editMode} />
+                    </div>
+                    <div className="space-y-1">
+                        <Label>First Name</Label>
+                        <Input id="firstName" value={profile.firstName || ''} onChange={handleInputChange} readOnly={!editMode} />
+                    </div>
+                    <div className="space-y-1">
+                        <Label>Last Name</Label>
+                        <Input id="lastName" value={profile.lastName || ''} onChange={handleInputChange} readOnly={!editMode} />
+                    </div>
                     
                     <div className="space-y-1">
                         <Label className="flex items-center gap-2 text-primary font-bold"><Wallet className="h-4 w-4" /> Main Balance (₦)</Label>
-                        <Input id="nairaBalance" type="number" value={profile.nairaBalance || 0} onChange={handleInputChange} readOnly={!editMode} className={editMode ? "border-primary" : ""} />
+                        <Input id="nairaBalance" type="number" value={profile.nairaBalance || 0} onChange={handleInputChange} readOnly={!editMode} className={editMode ? "border-primary ring-1 ring-primary" : ""} />
                     </div>
                     <div className="space-y-1">
                         <Label className="flex items-center gap-2 text-orange-500 font-bold"><Gift className="h-4 w-4" /> Reward Balance</Label>
-                        <Input id="rewardBalance" type="number" value={profile.rewardBalance || 0} onChange={handleInputChange} readOnly={!editMode} className={editMode ? "border-orange-500" : ""} />
+                        <Input id="rewardBalance" type="number" value={profile.rewardBalance || 0} onChange={handleInputChange} readOnly={!editMode} className={editMode ? "border-orange-500 ring-1 ring-orange-500" : ""} />
                     </div>
                     <div className="space-y-1">
                         <Label className="flex items-center gap-2 text-blue-500 font-bold"><MousePointer2 className="h-4 w-4" /> Click Count</Label>
-                        <Input id="clickCount" type="number" value={profile.clickCount || 0} onChange={handleInputChange} readOnly={!editMode} className={editMode ? "border-blue-500" : ""} />
+                        <Input id="clickCount" type="number" value={profile.clickCount || 0} onChange={handleInputChange} readOnly={!editMode} className={editMode ? "border-blue-500 ring-1 ring-blue-500" : ""} />
                     </div>
 
                     <div className="space-y-1">
-                        <Label className="flex items-center gap-2"><Landmark className="h-4 w-4" /> Bank Name</Label>
-                        <Input value={profile.bankName || 'Account Not Generated'} readOnly className="bg-muted" />
+                        <Label>Phone Number</Label>
+                        <Input id="phone" value={profile.phone || ''} onChange={handleInputChange} readOnly={!editMode} />
                     </div>
                     <div className="space-y-1">
                         <Label>Virtual Account Number</Label>
-                        <Input value={profile.accountNumber || 'Account Not Generated'} readOnly className="bg-muted font-mono font-bold" />
+                        <Input value={profile.accountNumber || 'Not Generated'} readOnly className="bg-muted font-mono font-bold" />
                     </div>
+                    <div className="space-y-1">
+                        <Label>Bank Name</Label>
+                        <Input value={profile.bankName || 'N/A'} readOnly className="bg-muted" />
+                    </div>
+                    
                     <div className="space-y-1">
                         <Label>BVN / NIN</Label>
                         <Input value={profile.bvn || 'Not Provided'} readOnly className="bg-muted" />
+                    </div>
+                    <div className="space-y-1">
+                        <Label>Country</Label>
+                        <Input id="country" value={profile.country || ''} onChange={handleInputChange} readOnly={!editMode} />
                     </div>
                     <div className="space-y-1">
                         <Label>Transaction PIN</Label>
@@ -199,7 +223,7 @@ export default function ViewUserPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>User Ledger (Recent Transactions)</CardTitle>
+                    <CardTitle>Recent Transactions</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -207,14 +231,17 @@ export default function ViewUserPage() {
                         <TableBody>
                             {transactions.length > 0 ? transactions.map(tx => (
                                 <TableRow key={tx.$id}>
-                                    <TableCell><div className="font-medium capitalize">{tx.type.replace('_', ' ')}</div><div className="text-sm text-muted-foreground truncate max-w-[150px]">{tx.recipientName || tx.narration}</div></TableCell>
-                                    <TableCell>{format(new Date(tx.$createdAt), 'PPp')}</TableCell>
-                                    <TableCell><Badge variant={getStatusVariant(tx.status)}>{tx.status}</Badge></TableCell>
+                                    <TableCell>
+                                        <div className="font-medium capitalize">{tx.type.replace('_', ' ')}</div>
+                                        <div className="text-xs text-muted-foreground truncate max-w-[150px]">{tx.recipientName || tx.narration}</div>
+                                    </TableCell>
+                                    <TableCell className="text-xs">{format(new Date(tx.$createdAt), 'PPp')}</TableCell>
+                                    <TableCell><Badge variant={getStatusVariant(tx.status)} className="text-[10px]">{tx.status}</Badge></TableCell>
                                     <TableCell className={`text-right font-semibold ${tx.type === 'deposit' ? 'text-green-600' : 'text-red-600'}`}>
                                         {tx.type === 'deposit' ? '+' : '-'} ₦{tx.amount.toLocaleString()}
                                     </TableCell>
                                 </TableRow>
-                            )) : <TableRow><TableCell colSpan={4} className="text-center h-24">No transaction history recorded for this user.</TableCell></TableRow>}
+                            )) : <TableRow><TableCell colSpan={4} className="text-center h-24">No transactions found.</TableCell></TableRow>}
                         </TableBody>
                     </Table>
                 </CardContent>

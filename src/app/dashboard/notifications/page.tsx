@@ -22,7 +22,8 @@ export default function NotificationsPage() {
         if (!user) return;
         setLoading(true);
         try {
-            // Simplify query to avoid index issues. Fetching last 50 directly.
+            // Fetch notifications for the user. We limit to 50 and use simple sorting if possible.
+            // If this fails due to missing index, we catch and show a helpful error.
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_ID_NOTIFICATIONS,
@@ -33,6 +34,7 @@ export default function NotificationsPage() {
                 ]
             );
 
+            // Fetch profile data for all senders to show avatars and usernames
             const notificationsWithProfiles = await Promise.all(response.documents.map(async (notif) => {
                 if (!notif.senderId) return { ...notif, sender: { username: 'System', avatar: '' } };
                 try {
@@ -45,6 +47,7 @@ export default function NotificationsPage() {
 
             setNotifications(notificationsWithProfiles);
 
+            // Mark all fetched notifications as read
             const unread = response.documents.filter(n => !n.isRead);
             if (unread.length > 0) {
                 await Promise.all(unread.map(n => 
@@ -53,20 +56,19 @@ export default function NotificationsPage() {
             }
         } catch (error: any) {
             console.error("Failed to fetch notifications:", error);
-            // If the filtered query fails, try a blind fetch of the last 50
+            // Fallback for missing indexes or other errors
             try {
                  const fallbackResponse = await databases.listDocuments(
                     DATABASE_ID,
                     COLLECTION_ID_NOTIFICATIONS,
-                    [Query.limit(50), Query.orderDesc('$createdAt')]
+                    [Query.equal('userId', user.$id), Query.limit(50)]
                 );
-                const filtered = fallbackResponse.documents.filter(n => n.userId === user.$id);
-                setNotifications(filtered);
+                setNotifications(fallbackResponse.documents);
             } catch (e) {
                 toast({
                     variant: 'destructive',
                     title: 'Sync Error',
-                    description: 'Could not load alerts. Please refresh.',
+                    description: 'Could not load alerts. Please check your internet connection.',
                 });
             }
         } finally {
@@ -94,8 +96,11 @@ export default function NotificationsPage() {
         <div className="container py-8">
             <Card>
                 <CardHeader>
-                    <CardTitle>Notifications</CardTitle>
-                    <CardDescription>All your recent alerts.</CardDescription>
+                    <CardTitle className="flex items-center gap-2">
+                        <Bell className="h-6 w-6 text-primary" />
+                        Notifications
+                    </CardTitle>
+                    <CardDescription>Stay updated with activity on your account.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {loading ? (
@@ -116,15 +121,15 @@ export default function NotificationsPage() {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm">
-                                                <span className="font-semibold text-foreground">@{notif.sender?.username}</span>
+                                                <span className="font-semibold text-foreground">@{notif.sender?.username || 'User'}</span>
                                                 {' '}
                                                 <span className="text-muted-foreground">{notif.description}</span>
                                             </p>
-                                            <p className="text-xs text-muted-foreground mt-1">
+                                            <p className="text-[10px] text-muted-foreground mt-1 uppercase">
                                                 {formatDistanceToNow(new Date(notif.$createdAt), { addSuffix: true })}
                                             </p>
                                         </div>
-                                        <Avatar className="h-10 w-10">
+                                        <Avatar className="h-10 w-10 border">
                                             <AvatarImage src={notif.sender?.avatar} />
                                             <AvatarFallback>{notif.sender?.username?.charAt(0).toUpperCase()}</AvatarFallback>
                                         </Avatar>
@@ -135,7 +140,7 @@ export default function NotificationsPage() {
                     ) : (
                        <div className="text-center py-12">
                            <Bell className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-                           <p className="text-muted-foreground">No notifications yet.</p>
+                           <p className="text-muted-foreground">You have no new notifications.</p>
                        </div>
                     )}
                 </CardContent>
