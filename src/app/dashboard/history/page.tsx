@@ -127,7 +127,7 @@ export default function HistoryPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <div className="text-[10px] sm:text-xs font-semibold">
+                                                <div className="text-[10px] sm:text-xs font-bold text-foreground">
                                                     {format(new Date(tx.$createdAt), 'PPp')}
                                                 </div>
                                             </TableCell>

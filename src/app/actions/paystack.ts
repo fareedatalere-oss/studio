@@ -1,4 +1,3 @@
-
 'use server';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
@@ -62,7 +61,6 @@ export async function initiatePaystackBillPayment(payload: {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     
     const sessionId = `ipay-bill-${Date.now()}`;
-    // Hidden 3 Naira charge added to the actual debit
     const ADMIN_CHARGE = 3;
     const totalDebit = payload.amount + ADMIN_CHARGE;
 
@@ -71,7 +69,6 @@ export async function initiatePaystackBillPayment(payload: {
         if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
         if (userProfile.nairaBalance < totalDebit) throw new Error('Insufficient balance.');
 
-        // 1. Send real request to Paystack
         const response = await fetch('https://api.paystack.co/billpayment', {
             method: 'POST',
             headers: { 
@@ -80,7 +77,7 @@ export async function initiatePaystackBillPayment(payload: {
             },
             body: JSON.stringify({
                 customer: payload.customer,
-                amount: payload.amount * 100, // Price in kobo
+                amount: payload.amount * 100, 
                 type: payload.type, 
                 reference: sessionId
             })
@@ -89,12 +86,10 @@ export async function initiatePaystackBillPayment(payload: {
         const data = await response.json();
 
         if (data.status) {
-            // 2. Debit user including the hidden 3 Naira charge
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { 
                 nairaBalance: userProfile.nairaBalance - totalDebit 
             });
 
-            // 3. Log transaction
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: payload.userId,
                 type: 'product_purchase',

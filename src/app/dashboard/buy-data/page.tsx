@@ -14,82 +14,95 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
 import { getPaystackBillers, initiatePaystackBillPayment } from '@/app/actions/paystack';
 
+// Hardcoded core providers as requested
+const CORE_PROVIDERS = [
+    { name: 'MTN', searchKey: 'MTN' },
+    { name: 'Airtel', searchKey: 'AIRTEL' },
+    { name: 'Glo', searchKey: 'GLO' },
+    { name: '9mobile', searchKey: '9MOBILE' }
+];
+
 export default function BuyDataPage() {
     const router = useRouter();
     const { toast } = useToast();
     const { user } = useUser();
 
-    // Core Providers - Defined in code to ensure they are NEVER hidden
-    const [providers, setProviders] = useState<any[]>([]);
-    const [providersLoading, setProvidersLoading] = useState(true);
+    const [paystackBillers, setPaystackBillers] = useState<any[]>([]);
+    const [isLoadingBillers, setIsLoadingBillers] = useState(true);
     
+    const [selectedNetwork, setSelectedNetwork] = useState('');
     const [plans, setPlans] = useState<any[]>([]);
     const [planSearch, setPlanSearch] = useState('');
 
-    const [networkCode, setNetworkCode] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
     const [selectedPlan, setSelectedPlan] = useState<any>(null);
     const [pin, setPin] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+    const [isPurchasing, setIsPurchasing] = useState(false);
 
     useEffect(() => {
-        // Load real billers from Paystack to get slugs and metadata
         getPaystackBillers().then(res => {
             if (res.success && res.data) {
-                // Strictly filter for the 4 major Nigerian telcos
-                const telcos = res.data.filter((b: any) => {
-                    const n = b.name.toUpperCase();
-                    return n.includes('MTN') || n.includes('AIRTEL') || n.includes('GLO') || n.includes('9MOBILE');
-                });
-                setProviders(telcos);
+                setPaystackBillers(res.data);
             }
-            setProvidersLoading(false);
+            setIsLoadingBillers(false);
         });
     }, []);
 
+    // When a network is selected, find the matching biller and extract plans
     useEffect(() => {
-        if (!networkCode) return;
-        const provider = providers.find(p => p.slug === networkCode);
-        if (!provider) return;
+        if (!selectedNetwork || paystackBillers.length === 0) {
+            setPlans([]);
+            return;
+        }
 
-        // Extract plans from Paystack metadata and sort by price (Low to High)
-        if (provider.metadata?.items) {
-            const sortedPlans = [...provider.metadata.items].sort((a, b) => a.price - b.price);
+        const network = CORE_PROVIDERS.find(p => p.name === selectedNetwork);
+        const biller = paystackBillers.find(b => 
+            b.name.toUpperCase().includes(network?.searchKey || '') && 
+            b.name.toUpperCase().includes('DATA')
+        );
+
+        if (biller && biller.metadata?.items) {
+            // Sort plans from Low to High price
+            const sortedPlans = [...biller.metadata.items].sort((a, b) => a.price - b.price);
             setPlans(sortedPlans);
         } else {
-            // High-quality fallback plans if metadata is empty
-            const mockPlans = [
+            // High-quality fallback if API metadata is restricted
+            const fallbacks = [
                 { name: '500MB (Weekly)', price: 500 },
                 { name: '1GB (Monthly)', price: 1000 },
                 { name: '2.5GB (Monthly)', price: 1500 },
                 { name: '5GB (Monthly)', price: 2500 },
                 { name: '10GB (Monthly)', price: 4000 },
-                { name: '20GB (Monthly)', price: 7500 },
-                { name: '40GB (Monthly)', price: 12000 },
-                { name: '100GB (Monthly)', price: 25000 }
+                { name: '20GB (Monthly)', price: 7500 }
             ];
-            setPlans(mockPlans.sort((a, b) => a.price - b.price));
+            setPlans(fallbacks);
         }
         setSelectedPlan(null);
-    }, [networkCode, providers]);
+    }, [selectedNetwork, paystackBillers]);
 
     const filteredPlans = plans.filter(p => p.name.toLowerCase().includes(planSearch.toLowerCase()));
 
     const handlePurchase = async () => {
-        if (!user || !selectedPlan || !networkCode) return;
-        setIsLoading(true);
+        if (!user || !selectedPlan || !selectedNetwork) return;
+        
+        const network = CORE_PROVIDERS.find(p => p.name === selectedNetwork);
+        const biller = paystackBillers.find(b => 
+            b.name.toUpperCase().includes(network?.searchKey || '') && 
+            b.name.toUpperCase().includes('DATA')
+        );
 
-        const provider = providers.find(p => p.slug === networkCode);
+        setIsPurchasing(true);
+
         const result = await initiatePaystackBillPayment({
             userId: user.$id,
             pin,
             customer: phoneNumber,
             amount: selectedPlan.price,
-            type: networkCode,
-            description: `${provider?.name} Data: ${selectedPlan.name}`
+            type: biller?.slug || `${selectedNetwork.toLowerCase()}_data`,
+            description: `${selectedNetwork} Data: ${selectedPlan.name}`
         });
 
-        setIsLoading(false);
+        setIsPurchasing(false);
 
         if (result.success) {
             toast({ title: "Data Purchase Successful" });
@@ -104,34 +117,30 @@ export default function BuyDataPage() {
             <Link href="/dashboard" className="flex items-center gap-2 mb-4 text-sm font-medium hover:text-primary transition-colors">
                 <ArrowLeft className="h-4 w-4" /> Back to Dashboard
             </Link>
-            <Card className="w-full max-w-md mx-auto shadow-lg">
-                <CardHeader className="text-center">
+            <Card className="w-full max-w-md mx-auto shadow-lg border-t-4 border-t-primary">
+                <CardHeader className="text-center pb-2">
                     <CardTitle className="text-2xl font-bold">Buy Data Bundle</CardTitle>
                     <CardDescription>Select your network and a data plan</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-6 pt-4">
                     <div className="space-y-2">
-                        <Label className="text-xs uppercase font-bold text-muted-foreground">Select Network Provider</Label>
-                        <Select onValueChange={setNetworkCode} value={networkCode}>
-                            <SelectTrigger className="h-12">
-                                <SelectValue placeholder={providersLoading ? "Loading providers..." : "Choose Provider"} />
+                        <Label className="text-xs uppercase font-black text-muted-foreground">Select Network Provider</Label>
+                        <Select onValueChange={setSelectedNetwork} value={selectedNetwork}>
+                            <SelectTrigger className="h-12 text-lg font-semibold">
+                                <SelectValue placeholder="Choose Provider" />
                             </SelectTrigger>
                             <SelectContent>
-                                {providers.length > 0 ? (
-                                    providers.map(p => (
-                                        <SelectItem key={p.slug} value={p.slug}>
-                                            <span className="font-semibold">{p.name}</span>
-                                        </SelectItem>
-                                    ))
-                                ) : !providersLoading && (
-                                    <div className="p-2 text-center text-xs text-muted-foreground">No providers found.</div>
-                                )}
+                                {CORE_PROVIDERS.map(p => (
+                                    <SelectItem key={p.name} value={p.name} className="font-bold">
+                                        {p.name}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                     </div>
 
                     <div className="space-y-2">
-                        <Label className="text-xs uppercase font-bold text-muted-foreground">Phone Number</Label>
+                        <Label className="text-xs uppercase font-black text-muted-foreground">Recipient Phone Number</Label>
                         <Input 
                             type="tel"
                             inputMode="numeric"
@@ -139,14 +148,14 @@ export default function BuyDataPage() {
                             onChange={e => setPhoneNumber(e.target.value.replace(/\D/g, ''))} 
                             maxLength={11} 
                             placeholder="08012345678" 
-                            className="h-12 text-lg tracking-wide"
+                            className="h-12 text-xl tracking-wider font-mono"
                         />
                     </div>
 
-                    {networkCode && (
-                        <div className="space-y-2 pt-2 border-t">
-                            <Label className="text-xs uppercase font-bold text-muted-foreground">Select Plan (Low to High)</Label>
-                            <div className="relative mb-2">
+                    {selectedNetwork && (
+                        <div className="space-y-3 pt-2 border-t">
+                            <Label className="text-xs uppercase font-black text-muted-foreground">Select Plan (Low to High)</Label>
+                            <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input 
                                     placeholder="Search plans (e.g. 5GB)..." 
@@ -156,7 +165,9 @@ export default function BuyDataPage() {
                                 />
                             </div>
                             <div className="grid grid-cols-1 gap-2 max-h-[280px] overflow-y-auto pr-1">
-                                {filteredPlans.length > 0 ? filteredPlans.map((plan, idx) => (
+                                {isLoadingBillers ? (
+                                    <div className="flex justify-center p-8"><Loader2 className="animate-spin h-6 w-6 text-primary" /></div>
+                                ) : filteredPlans.length > 0 ? filteredPlans.map((plan, idx) => (
                                     <Button 
                                         key={idx} 
                                         variant={selectedPlan === plan ? 'default' : 'outline'} 
@@ -180,17 +191,17 @@ export default function BuyDataPage() {
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button className="w-full h-12 text-lg font-bold" disabled={!selectedPlan || phoneNumber.length !== 11}>
+                            <Button className="w-full h-14 text-lg font-bold" disabled={!selectedPlan || phoneNumber.length !== 11}>
                                 Continue to Payment
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Confirm Data Purchase</AlertDialogTitle>
-                                <AlertDialogDescription className="space-y-2">
-                                    <p>Network: <span className="font-bold text-foreground">{providers.find(p => p.slug === networkCode)?.name}</span></p>
-                                    <p>Plan: <span className="font-bold text-foreground">{selectedPlan?.name}</span></p>
-                                    <p>Recipient: <span className="font-bold text-foreground">{phoneNumber}</span></p>
+                                <AlertDialogDescription className="space-y-2 text-foreground">
+                                    <p>Network: <span className="font-bold">{selectedNetwork}</span></p>
+                                    <p>Plan: <span className="font-bold">{selectedPlan?.name}</span></p>
+                                    <p>Recipient: <span className="font-bold">{phoneNumber}</span></p>
                                     <p className="pt-2 text-primary font-bold text-lg border-t">Total: ₦{selectedPlan?.price.toLocaleString()}</p>
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
@@ -208,8 +219,8 @@ export default function BuyDataPage() {
                             </div>
                             <AlertDialogFooter className="pt-4">
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handlePurchase} disabled={isLoading || pin.length !== 5} className="font-bold">
-                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Confirm & Pay'}
+                                <AlertDialogAction onClick={handlePurchase} disabled={isPurchasing || pin.length !== 5} className="font-bold">
+                                    {isPurchasing ? <Loader2 className="animate-spin" /> : 'Confirm & Pay'}
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>

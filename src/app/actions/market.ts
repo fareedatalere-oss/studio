@@ -1,4 +1,3 @@
-
 'use server';
 
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_PRODUCTS, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_BOOKS } from '@/lib/appwrite';
@@ -21,7 +20,7 @@ export async function purchaseProduct(payload: {
         // 1. Fetch buyer's profile first
         const buyerProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, buyerId);
 
-        // 2. Perform validations as requested
+        // 2. Perform validations
         const totalCost = product.price + PRODUCT_COMMISSION;
 
         if (buyerProfile.nairaBalance < totalCost) {
@@ -35,7 +34,7 @@ export async function purchaseProduct(payload: {
         // 3. All checks passed, now get seller and proceed
         const sellerProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, product.sellerId);
 
-        // 4. Create pending transaction logs for audit trail
+        // 4. Create pending transaction logs (removed manual createdAt)
         const buyerTxPromise = databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
             userId: buyerId,
             type: 'product_purchase',
@@ -43,9 +42,8 @@ export async function purchaseProduct(payload: {
             status: 'pending',
             recipientName: `Purchase: ${product.name}`,
             recipientDetails: `@${sellerProfile.username}`,
-            narration: sellerProfile.uid, // Store UID here for the chat link
+            narration: sellerProfile.uid, 
             sessionId: `${sessionId}-buyer`,
-            createdAt: new Date().toISOString()
         });
         const sellerTxPromise = databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
             userId: product.sellerId,
@@ -54,9 +52,8 @@ export async function purchaseProduct(payload: {
             status: 'pending',
             recipientName: `Sale: ${product.name}`,
             recipientDetails: `@${buyerProfile.username}`,
-            narration: buyerProfile.uid, // Store UID here for the chat link
+            narration: buyerProfile.uid,
             sessionId: `${sessionId}-seller`,
-            createdAt: new Date().toISOString()
         });
 
         const [buyerTxDoc, sellerTxDoc] = await Promise.all([buyerTxPromise, sellerTxPromise]);
@@ -98,7 +95,7 @@ export async function purchaseProduct(payload: {
 export async function purchaseBook(payload: {
     buyerId: string;
     bookId: string;
-    pin: string; // can be empty for free books
+    pin: string; 
 }) {
     let buyerTxId: string | null = null;
     let sellerTxId: string | null = null;
@@ -121,7 +118,7 @@ export async function purchaseBook(payload: {
             
             const sellerProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, book.sellerId);
             
-            // Create Audit Logs
+            // Create Audit Logs (removed manual createdAt)
             const buyerTxPromise = databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: buyerId,
                 type: 'product_purchase',
@@ -131,7 +128,6 @@ export async function purchaseBook(payload: {
                 recipientDetails: `@${sellerProfile.username}`,
                 narration: sellerProfile.uid,
                 sessionId: `${sessionId}-buyer`,
-                createdAt: new Date().toISOString()
             });
             const sellerTxPromise = databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: book.sellerId,
@@ -142,7 +138,6 @@ export async function purchaseBook(payload: {
                 recipientDetails: `@${buyerProfile.username}`,
                 narration: buyerProfile.uid,
                 sessionId: `${sessionId}-seller`,
-                createdAt: new Date().toISOString()
             });
 
             await Promise.all([buyerTxPromise, sellerTxPromise]);
