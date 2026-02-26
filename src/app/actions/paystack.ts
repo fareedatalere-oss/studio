@@ -83,13 +83,20 @@ export async function initiatePaystackBillPayment(payload: {
             })
         });
 
-        const text = await response.text();
-        let data;
-        try {
-            data = JSON.parse(text);
-        } catch (err) {
-            throw new Error(`Paystack Response Error: ${text.substring(0, 100) || 'Empty response'}`);
+        // Better error handling for non-JSON or empty responses
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorMsg = "Paystack rejected the request.";
+            try {
+                const errorJson = JSON.parse(errorText);
+                errorMsg = errorJson.message || errorMsg;
+            } catch {
+                errorMsg = `Server error: ${response.status}. Please check your account permissions.`;
+            }
+            throw new Error(errorMsg);
         }
+
+        const data = await response.json();
 
         if (data.status) {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { 
