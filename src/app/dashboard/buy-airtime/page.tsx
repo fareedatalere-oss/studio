@@ -135,10 +135,12 @@ export default function BuyAirtimePage() {
                         <AlertDialogContent>
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Confirm Airtime Purchase</AlertDialogTitle>
-                                <AlertDialogDescription className="space-y-2 text-foreground">
-                                    <p>Network: <span className="font-bold">{networkName}</span></p>
-                                    <p>Number: <span className="font-bold">{phoneNumber}</span></p>
-                                    <p className="pt-2 text-primary font-bold text-lg border-t">Total: ₦{Number(amount).toLocaleString()}</p>
+                                <AlertDialogDescription asChild>
+                                    <div className="space-y-2 text-foreground">
+                                        <div>Network: <span className="font-bold">{networkName}</span></div>
+                                        <div>Number: <span className="font-bold">{phoneNumber}</span></div>
+                                        <div className="pt-2 text-primary font-bold text-lg border-t">Total: ₦{Number(amount).toLocaleString()}</div>
+                                    </div>
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <div className="space-y-2 pt-4">

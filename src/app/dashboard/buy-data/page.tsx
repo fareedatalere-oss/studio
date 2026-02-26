@@ -63,7 +63,7 @@ export default function BuyDataPage() {
             const sortedPlans = [...biller.metadata.items].sort((a, b) => a.price - b.price);
             setPlans(sortedPlans);
         } else {
-            // High-quality fallback for real Nigerian data plans
+            // Robust fallback for Nigerian data plans sorted low to high
             const fallbacks = [
                 { name: '500MB (Weekly)', price: 500 },
                 { name: '1GB (Monthly)', price: 1000 },
@@ -172,7 +172,7 @@ export default function BuyDataPage() {
                                         className={selectedPlan === plan ? "justify-between h-14 border-2 border-primary" : "justify-between h-14"} 
                                         onClick={() => setSelectedPlan(plan)}
                                     >
-                                        <div className="flex flex-col items-start">
+                                        <div className="flex flex-col items-start text-left">
                                             <span className="font-bold text-sm">{plan.name}</span>
                                             <span className="text-[10px] text-muted-foreground italic">Instant Delivery</span>
                                         </div>
@@ -196,11 +196,13 @@ export default function BuyDataPage() {
                         <AlertDialogContent>
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Confirm Data Purchase</AlertDialogTitle>
-                                <AlertDialogDescription className="space-y-2 text-foreground">
-                                    <p>Network: <span className="font-bold">{selectedNetwork}</span></p>
-                                    <p>Plan: <span className="font-bold">{selectedPlan?.name}</span></p>
-                                    <p>Recipient: <span className="font-bold">{phoneNumber}</span></p>
-                                    <p className="pt-2 text-primary font-bold text-lg border-t">Total: ₦{selectedPlan?.price.toLocaleString()}</p>
+                                <AlertDialogDescription asChild>
+                                    <div className="space-y-2 text-foreground">
+                                        <div>Network: <span className="font-bold">{selectedNetwork}</span></div>
+                                        <div>Plan: <span className="font-bold">{selectedPlan?.name}</span></div>
+                                        <div>Recipient: <span className="font-bold">{phoneNumber}</span></div>
+                                        <div className="pt-2 text-primary font-bold text-lg border-t">Total: ₦{selectedPlan?.price.toLocaleString()}</div>
+                                    </div>
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <div className="space-y-2 pt-4">

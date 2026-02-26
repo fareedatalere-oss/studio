@@ -72,18 +72,18 @@ export default function HistoryPage() {
             </Link>
             <Card className="shadow-md">
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-2xl font-bold">
                         <Calendar className="h-6 w-6 text-primary" />
-                        Transaction History
+                        Account History
                     </CardTitle>
-                    <CardDescription>Detailed records of all your account activities.</CardDescription>
+                    <CardDescription>Full history of your transactions and account activity.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead className="w-[120px]">Date & Time</TableHead>
                                 <TableHead>Activity Details</TableHead>
-                                <TableHead>Date & Time</TableHead>
                                 <TableHead className="hidden sm:table-cell">Status</TableHead>
                                 <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
@@ -92,8 +92,8 @@ export default function HistoryPage() {
                             {(loading || userLoading) ? (
                                 Array.from({ length: 5 }).map((_, i) => (
                                      <TableRow key={i}>
+                                        <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                                         <TableCell><div className="space-y-1"><Skeleton className="h-5 w-24" /><Skeleton className="h-4 w-32" /></div></TableCell>
-                                        <TableCell><Skeleton className="h-5 w-28" /></TableCell>
                                         <TableCell className="hidden sm:table-cell"><Skeleton className="h-6 w-20" /></TableCell>
                                         <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
                                     </TableRow>
@@ -106,6 +106,14 @@ export default function HistoryPage() {
 
                                     return (
                                         <TableRow key={tx.$id} className="hover:bg-muted/50">
+                                            <TableCell>
+                                                <div className="text-[10px] sm:text-xs font-black text-foreground">
+                                                    {format(new Date(tx.$createdAt), 'PP')}
+                                                </div>
+                                                <div className="text-[9px] text-muted-foreground">
+                                                    {format(new Date(tx.$createdAt), 'p')}
+                                                </div>
+                                            </TableCell>
                                             <TableCell>
                                                 <div className="font-bold capitalize text-sm">{tx.type?.replace('_', ' ')}</div>
                                                 <div className="flex flex-col gap-1">
@@ -126,15 +134,10 @@ export default function HistoryPage() {
                                                     )}
                                                 </div>
                                             </TableCell>
-                                            <TableCell>
-                                                <div className="text-[10px] sm:text-xs font-bold text-foreground">
-                                                    {format(new Date(tx.$createdAt), 'PPp')}
-                                                </div>
-                                            </TableCell>
                                             <TableCell className="hidden sm:table-cell">
                                                 <Badge variant={getStatusVariant(tx.status)} className="capitalize text-[9px] px-2 py-0">{tx.status}</Badge>
                                             </TableCell>
-                                            <TableCell className={`text-right font-bold text-sm ${getAmountClass(tx.type)}`}>
+                                            <TableCell className={`text-right font-black text-sm ${getAmountClass(tx.type)}`}>
                                                 {formatAmount(tx.amount, tx.type)}
                                             </TableCell>
                                         </TableRow>
