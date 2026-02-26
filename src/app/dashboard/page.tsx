@@ -30,6 +30,9 @@ import {
   CircleDollarSign,
   Loader2,
   ArrowDownCircle,
+  RefreshCw,
+  Smartphone,
+  Wifi,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
@@ -67,6 +70,34 @@ function DashboardContent() {
         runSync();
     }
   }, [user, recheckUser, toast]);
+
+  const handleRefresh = async () => {
+    if (!user?.$id) return;
+    setIsProcessing(true);
+    toast({ title: 'Checking for transactions...' });
+    try {
+      const result = await syncVirtualAccountPayments(user.$id, user.email);
+      if (result.success) {
+        if (result.amountAdded && result.amountAdded > 0) {
+          toast({ title: 'Balance Updated!', description: `Added ₦${result.amountAdded.toLocaleString()} to your wallet.` });
+          await recheckUser();
+        } else {
+          toast({ title: 'Up to date', description: 'Your balance is currently accurate.' });
+        }
+      } else {
+        // Direct error reporting from the technology
+        toast({ 
+          variant: 'destructive', 
+          title: 'Sync Failed', 
+          description: result.message || 'The payment service returned an unknown error.' 
+        });
+      }
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Error', description: e.message });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const handleFundAccountClick = async () => {
     if (!user || !userProfile) return;
@@ -120,6 +151,9 @@ function DashboardContent() {
   const actions = [
     { label: 'Send', icon: Send, href: '/dashboard/transfer' },
     { label: 'Deposit', icon: ArrowDownCircle, href: '/dashboard/deposit' },
+    { label: 'Refresh', icon: RefreshCw, onClick: handleRefresh },
+    { label: 'Buy Airtime', icon: Smartphone, href: '/dashboard/buy-airtime' },
+    { label: 'Buy Data', icon: Wifi, href: '/dashboard/buy-data' },
     { label: 'History', icon: History, href: '/dashboard/history' },
     { label: 'Get Reward', icon: Gift, href: '/dashboard/rewards' },
     { label: 'Multi Purpose', icon: CreditCard, href: '/dashboard/multi-purpose' },
@@ -192,16 +226,30 @@ function DashboardContent() {
 
         <div className="grid grid-cols-3 md:grid-cols-4 gap-4 text-center">
           {actions.map((action) => (
-             <Link key={action.label} href={action.href} className="flex flex-col items-center gap-1">
-              <Button
-                variant="default"
-                size="icon"
-                className="h-16 w-16 rounded-full mx-auto flex items-center justify-center flex-col gap-1"
-              >
-                <action.icon className="h-6 w-6" />
-              </Button>
-              <span className="mt-2 block text-xs font-medium">{action.label}</span>
-            </Link>
+             action.onClick ? (
+                <div key={action.label} className="flex flex-col items-center gap-1 cursor-pointer" onClick={action.onClick}>
+                    <Button
+                        variant="default"
+                        size="icon"
+                        className="h-16 w-16 rounded-full mx-auto flex items-center justify-center"
+                        disabled={isProcessing}
+                    >
+                        {isProcessing && action.label === 'Refresh' ? <Loader2 className="h-6 w-6 animate-spin" /> : <action.icon className="h-6 w-6" />}
+                    </Button>
+                    <span className="mt-2 block text-xs font-medium">{action.label}</span>
+                </div>
+             ) : (
+                <Link key={action.label} href={action.href || '#'} className="flex flex-col items-center gap-1">
+                    <Button
+                        variant="default"
+                        size="icon"
+                        className="h-16 w-16 rounded-full mx-auto flex items-center justify-center flex-col gap-1"
+                    >
+                        <action.icon className="h-6 w-6" />
+                    </Button>
+                    <span className="mt-2 block text-xs font-medium">{action.label}</span>
+                </Link>
+             )
           ))}
         </div>
       </div>
