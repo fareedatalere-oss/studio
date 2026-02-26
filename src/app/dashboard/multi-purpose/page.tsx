@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { getPaystackProviders, initiatePaystackTransfer } from '@/app/actions/paystack';
+import { getPaystackBillers, initiatePaystackBillPayment } from '@/app/actions/paystack';
 
 export default function MultiPurposePaymentPage() {
     const router = useRouter();
@@ -17,14 +17,14 @@ export default function MultiPurposePaymentPage() {
     const { user, profile } = useUser();
 
     const [step, setStep] = useState(1); 
-    const [categories] = useState(['Electronic', 'Water', 'School Fees', 'Registration Form', 'Taxes', 'Others']);
-    const [allProviders, setAllProviders] = useState<any[]>([]);
-    const [isLoadingProviders, setIsLoadingProviders] = useState(false);
+    const [categories] = useState(['Electronic', 'Water', 'School Fees', 'Registration Form', 'All']);
+    const [allBillers, setAllBillers] = useState<any[]>([]);
+    const [isLoadingBillers, setIsLoadingBillers] = useState(false);
     
     const [selectedCategory, setSelectedCategory] = useState('');
     const [categorySearch, setCategorySearch] = useState('');
-    const [providerSearch, setProviderSearch] = useState('');
-    const [selectedProvider, setSelectedProvider] = useState<any>(null);
+    const [billerSearch, setBillerSearch] = useState('');
+    const [selectedBiller, setSelectedBiller] = useState<any>(null);
     
     const [customerId, setCustomerId] = useState('');
     const [amount, setAmount] = useState('');
@@ -32,21 +32,21 @@ export default function MultiPurposePaymentPage() {
     const [isProcessing, setIsProcessing] = useState(false);
 
     useEffect(() => {
-        setIsLoadingProviders(true);
-        getPaystackProviders().then(res => {
-            if (res.success) setAllProviders(res.data);
-            setIsLoadingProviders(false);
+        setIsLoadingBillers(true);
+        getPaystackBillers().then(res => {
+            if (res.success) setAllBillers(res.data);
+            setIsLoadingBillers(false);
         });
     }, []);
 
     const filteredCategories = categories.filter(c => c.toLowerCase().includes(categorySearch.toLowerCase()));
     
-    const filteredProviders = allProviders.filter(b => 
-        b.name.toLowerCase().includes(providerSearch.toLowerCase())
+    const filteredBillers = allBillers.filter(b => 
+        b.name.toLowerCase().includes(billerSearch.toLowerCase())
     );
 
     const handleFinalPayment = async () => {
-        if (!user || !profile || !selectedProvider) return;
+        if (!user || !profile || !selectedBiller) return;
         
         if (profile.pin !== pin) {
             toast({ variant: 'destructive', title: 'Invalid PIN' });
@@ -61,13 +61,13 @@ export default function MultiPurposePaymentPage() {
 
         setIsProcessing(true);
         try {
-            const result = await initiatePaystackTransfer({
+            const result = await initiatePaystackBillPayment({
                 userId: user.$id,
                 pin,
-                bankCode: selectedProvider.code,
-                accountNumber: customerId, 
-                name: `${selectedProvider.name} Payment`,
-                amount: totalAmount
+                customer: customerId,
+                amount: totalAmount,
+                type: selectedBiller.slug,
+                description: `${selectedBiller.name} Payment`
             });
 
             if (result.success) {
@@ -131,11 +131,11 @@ export default function MultiPurposePaymentPage() {
                             <Label>Select {selectedCategory} Provider</Label>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input placeholder={`Search providers...`} className="pl-10" value={providerSearch} onChange={e => setProviderSearch(e.target.value)} />
+                                <Input placeholder={`Search providers...`} className="pl-10" value={billerSearch} onChange={e => setBillerSearch(e.target.value)} />
                             </div>
                             <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto">
-                                {isLoadingProviders ? <Loader2 className="animate-spin mx-auto" /> : filteredProviders.length > 0 ? filteredProviders.map(b => (
-                                    <Button key={b.id} variant="outline" className="justify-start h-12" onClick={() => { setSelectedProvider(b); setStep(4); }}>
+                                {isLoadingBillers ? <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div> : filteredBillers.length > 0 ? filteredBillers.map(b => (
+                                    <Button key={b.id} variant="outline" className="justify-start h-12" onClick={() => { setSelectedBiller(b); setStep(4); }}>
                                         {b.name}
                                     </Button>
                                 )) : <p className="text-center text-sm text-muted-foreground">No providers found.</p>}
@@ -143,10 +143,10 @@ export default function MultiPurposePaymentPage() {
                         </div>
                     )}
 
-                    {step === 4 && selectedProvider && (
+                    {step === 4 && selectedBiller && (
                         <div className="space-y-4">
                             <div className="bg-muted p-4 rounded-lg text-center">
-                                <p className="font-bold">{selectedProvider.name}</p>
+                                <p className="font-bold">{selectedBiller.name}</p>
                                 <p className="text-xs text-muted-foreground">{selectedCategory}</p>
                             </div>
                             <div className="space-y-2">
@@ -168,7 +168,7 @@ export default function MultiPurposePaymentPage() {
                             <div className="p-4 border rounded-lg">
                                 <p className="text-sm text-muted-foreground">Paying</p>
                                 <p className="text-2xl font-bold">₦{Number(amount).toLocaleString()}</p>
-                                <p className="text-xs text-muted-foreground mt-1">To: {selectedProvider?.name}</p>
+                                <p className="text-xs text-muted-foreground mt-1">To: {selectedBiller?.name}</p>
                             </div>
                             <div className="space-y-2 text-left">
                                 <Label>Transaction PIN</Label>

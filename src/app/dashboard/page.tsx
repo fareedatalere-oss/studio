@@ -20,12 +20,10 @@ import { getCardVerificationLink, chargeTokenizedCard, syncVirtualAccountPayment
 import { useRouter } from 'next/navigation';
 import {
   Bot,
-  Landmark,
   Newspaper,
   Plane,
   CreditCard,
   Send,
-  Wrench,
   History,
   Gift,
   CircleDollarSign,
@@ -119,10 +117,8 @@ function DashboardContent() {
 
   const actions = [
     { label: 'Send', icon: Send, href: '/dashboard/transfer' },
-    { label: 'Utilities', icon: Wrench, href: '/dashboard/utilities' },
     { label: 'History', icon: History, href: '/dashboard/history' },
     { label: 'Get Reward', icon: Gift, href: '/dashboard/rewards' },
-    { label: 'Get Loans', icon: Landmark, href: '/dashboard/get-loan' },
     { label: 'Multi Purpose', icon: CreditCard, href: '/dashboard/multi-purpose' },
     { label: 'Traveling', icon: Plane, href: '/dashboard/travelling' },
     { label: 'AI', icon: Bot, href: '/dashboard/ai-chat' },
