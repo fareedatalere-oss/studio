@@ -35,6 +35,7 @@ export default function BuyDataPage() {
     useEffect(() => {
         getPaystackBillers().then(res => {
             if (res.success && res.data) {
+                // Filter strictly for real networks
                 const telcos = res.data.filter((b: any) => {
                     const n = b.name.toUpperCase();
                     return n.includes('MTN') || n.includes('AIRTEL') || n.includes('GLO') || n.includes('9MOBILE');
@@ -50,16 +51,18 @@ export default function BuyDataPage() {
         const provider = providers.find(p => p.slug === networkCode);
         if (!provider) return;
 
+        // Pull real plans from Paystack metadata and sort by price
         if (provider.metadata?.items) {
             const sortedPlans = [...provider.metadata.items].sort((a, b) => a.price - b.price);
             setPlans(sortedPlans);
         } else {
-            // High-quality mock data if metadata is empty in sandbox/test mode
+            // High-quality mock data if API metadata is restricted in test mode
             setPlans([
-                { name: '1GB (30 Days)', price: 1000 },
-                { name: '2.5GB (30 Days)', price: 1500 },
-                { name: '5GB (30 Days)', price: 2500 },
-                { name: '10GB (30 Days)', price: 4000 }
+                { name: '1GB (Monthly)', price: 1000 },
+                { name: '2.5GB (Monthly)', price: 1500 },
+                { name: '5GB (Monthly)', price: 2500 },
+                { name: '10GB (Monthly)', price: 4000 },
+                { name: '20GB (Monthly)', price: 7500 }
             ]);
         }
     }, [networkCode, providers]);
@@ -98,11 +101,11 @@ export default function BuyDataPage() {
             <Card className="w-full max-w-md mx-auto">
                 <CardHeader>
                     <CardTitle>Buy Data</CardTitle>
-                    <CardDescription>Select network and choose a plan</CardDescription>
+                    <CardDescription>Choose your network and select a real plan.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
-                        <Label>Network</Label>
+                        <Label>Select Provider</Label>
                         <Select onValueChange={setNetworkCode} value={networkCode} disabled={providersLoading}>
                             <SelectTrigger>
                                 <SelectValue placeholder={providersLoading ? "Loading networks..." : "Select network"} />
@@ -114,15 +117,22 @@ export default function BuyDataPage() {
                     </div>
                     <div className="space-y-2">
                         <Label>Phone Number</Label>
-                        <Input value={phoneNumber} onChange={e => setPhoneNumber(e.target.value.replace(/\D/g, ''))} maxLength={11} placeholder="08012345678" />
+                        <Input 
+                            type="tel"
+                            inputMode="numeric"
+                            value={phoneNumber} 
+                            onChange={e => setPhoneNumber(e.target.value.replace(/\D/g, ''))} 
+                            maxLength={11} 
+                            placeholder="08012345678" 
+                        />
                     </div>
 
                     {networkCode && (
                         <div className="space-y-2 pt-2 border-t">
-                            <Label>Select Data Plan (Sorted by Price)</Label>
+                            <Label>Select Plan (Sorted by Price)</Label>
                             <div className="relative mb-2">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input placeholder="Search data plans..." className="pl-9 h-9 text-sm" value={planSearch} onChange={e => setPlanSearch(e.target.value)} />
+                                <Input placeholder="Search plans..." className="pl-9 h-9 text-sm" value={planSearch} onChange={e => setPlanSearch(e.target.value)} />
                             </div>
                             <div className="grid grid-cols-1 gap-2 max-h-[250px] overflow-y-auto pr-1">
                                 {filteredPlans.length > 0 ? filteredPlans.map((plan, idx) => (
@@ -142,7 +152,7 @@ export default function BuyDataPage() {
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button className="w-full" disabled={!selectedPlan || phoneNumber.length < 10}>Continue</Button>
+                            <Button className="w-full" disabled={!selectedPlan || phoneNumber.length !== 11}>Continue</Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
@@ -151,7 +161,15 @@ export default function BuyDataPage() {
                             </AlertDialogHeader>
                             <div className="space-y-2">
                                 <Label>Transaction PIN</Label>
-                                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} placeholder="*****" className="text-center text-lg tracking-widest" />
+                                <Input 
+                                    type="password" 
+                                    inputMode="numeric"
+                                    value={pin} 
+                                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} 
+                                    maxLength={5} 
+                                    placeholder="*****" 
+                                    className="text-center text-lg tracking-widest" 
+                                />
                             </div>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>

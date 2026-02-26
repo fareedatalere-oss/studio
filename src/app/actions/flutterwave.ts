@@ -31,15 +31,11 @@ export async function getBankList() {
         if (data.status === 'success' && data.data) {
             return { success: true, data: data.data, message: 'Banks fetched successfully.' };
         } else {
-            console.error("Flutterwave API Error (getBankList):", data);
             return { success: false, message: data.message || 'Failed to fetch bank list.', data: [] };
         }
     } catch (error: any) {
         clearTimeout(timeoutId);
-        if (error.name === 'AbortError') {
-            return { success: false, message: 'The request to the payment service timed out.', data: [] };
-        }
-        return { success: false, message: error.message || 'An unexpected error occurred while fetching banks.', data: [] };
+        return { success: false, message: error.message || 'An unexpected error occurred.', data: [] };
     }
 }
 
@@ -49,24 +45,22 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
     }
 
     try {
-        // Fetch current profile for balance and fallback email
         const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
-        
         const email = userEmail || profile.email;
+        
         if (!email) {
-            return { success: false, message: "No email associated with this account to check transactions." };
+            return { success: false, message: "No email associated with this account." };
         }
 
-        // FORCE NO CACHE: We need the absolute latest data from Flutterwave
         const response = await fetch(`https://api.flutterwave.com/v3/transactions?customer_email=${encodeURIComponent(email)}&status=successful`, {
             headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` },
-            cache: 'no-store', // Crucial for real-time updates
+            cache: 'no-store',
         });
         
         const data = await response.json();
 
         if (data.status !== 'success') {
-            return { success: false, message: data.message || "Could not reach Flutterwave." };
+            return { success: false, message: data.message || "Could not reach payment service." };
         }
 
         const remoteTransactions = data.data || [];
@@ -76,7 +70,7 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
         for (const tx of remoteTransactions) {
             const txId = tx.id.toString();
             
-            // Verify if this transaction already exists in our local database
+            // Deduplicate: Check if we already processed this ID
             const existingRecords = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, [
                 Query.equal('sessionId', txId),
                 Query.limit(1)
@@ -86,17 +80,16 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
                 totalNewAmount += Number(tx.amount);
                 foundNew = true;
 
-                // Log the new transaction immediately
+                // Create record without the problematic 'createdAt' attribute
                 await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                     userId: userId,
                     type: 'deposit',
                     amount: Number(tx.amount),
                     status: 'completed',
                     recipientName: 'Wallet Credit',
-                    recipientDetails: `FLW Ref: ${tx.tx_ref}`,
-                    narration: `Automated credit for ID ${txId}`,
+                    recipientDetails: `Deposit: ${tx.payment_type || 'Transfer'}`,
+                    narration: tx.narration || `Ref: ${tx.tx_ref}`,
                     sessionId: txId,
-                    createdAt: new Date().toISOString()
                 });
             }
         }
@@ -108,30 +101,19 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
                 nairaBalance: newBalance
             });
-            return { success: true, amountAdded: totalNewAmount, message: `Successfully added ₦${totalNewAmount.toLocaleString()} to your balance.` };
+            return { success: true, amountAdded: totalNewAmount, message: `Successfully updated! Added ₦${totalNewAmount.toLocaleString()} to balance.` };
         }
 
-        return { success: true, amountAdded: 0, message: "Checked successfully. No new deposits found." };
+        return { success: true, amountAdded: 0, message: "Your balance is accurate and up to date." };
 
     } catch (error: any) {
         console.error("Sync Error:", error);
-        return { success: false, message: error.message || "An error occurred while syncing transactions." };
+        return { success: false, message: error.message || "An error occurred during sync." };
     }
 }
 
-interface VirtualAccountPayload {
-    email: string;
-    firstname: string;
-    lastname: string;
-    phonenumber: string;
-    bvn: string;
-}
-
-export async function generateVirtualAccount(payload: VirtualAccountPayload) {
-    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
-        return { success: false, message: API_KEY_ERROR_MESSAGE };
-    }
-
+export async function generateVirtualAccount(payload: any) {
+    if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     try {
         const response = await fetch('https://api.flutterwave.com/v3/virtual-account-numbers', {
             method: 'POST',
@@ -142,338 +124,24 @@ export async function generateVirtualAccount(payload: VirtualAccountPayload) {
             body: JSON.stringify({
                 ...payload,
                 is_permanent: true,
-                tx_ref: `ipay-tx-${Date.now()}`
+                tx_ref: `v-acc-${Date.now()}`
             }),
         });
-
         const data = await response.json();
-
-        if (data.status === 'success' && data.data && data.data.account_number) {
-            return { success: true, data: data.data };
-        } else {
-            return { success: false, message: data.message || 'Failed to generate account number.' };
-        }
-    } catch (error: any) {
-        return { success: false, message: error.message || 'An unexpected error occurred connecting to the payment service.' };
+        if (data.status === 'success') return { success: true, data: data.data };
+        return { success: false, message: data.message };
+    } catch (e: any) {
+        return { success: false, message: e.message };
     }
 }
 
-export async function resolveAccountNumber(payload: { accountNumber: string; bankCode: string }) {
-     if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
-        return { success: false, message: API_KEY_ERROR_MESSAGE };
-    }
-
-    try {
-        const response = await fetch('https://api.flutterwave.com/v3/accounts/resolve', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                account_number: payload.accountNumber,
-                account_bank: payload.bankCode,
-            }),
-        });
-        
-        const data = await response.json();
-
-        if (data.status === 'success' && data.data && data.data.account_name) {
-            return { success: true, data: data.data };
-        } else {
-            return { success: false, message: data.message || 'Failed to resolve account name.' };
-        }
-    } catch (error: any) {
-        return { success: false, message: error.message || 'An unexpected error occurred while resolving account.' };
-    }
+export async function makeBillPayment(payload: any) {
+    // Legacy support for school payments
+    return { success: false, message: "Service under maintenance." };
 }
 
-export async function makeBankTransfer(payload: { userId: string, pin: string, bankCode: string; accountNumber: string; amount: number; narration: string; recipientName: string, bankName: string }) {
-    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
-        return { success: false, message: API_KEY_ERROR_MESSAGE };
-    }
-    
-    const sessionId = `ipay-transfer-${Date.now()}`;
-    let txDbId: string | null = null;
-    const transferAmount = Number(payload.amount);
-
-    try {
-        const doc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
-            userId: payload.userId,
-            type: 'transfer',
-            amount: transferAmount,
-            status: 'pending',
-            recipientName: payload.recipientName,
-            recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
-            narration: payload.narration || `I-Pay Transfer to ${payload.recipientName}`,
-            sessionId: sessionId,
-            createdAt: new Date().toISOString()
-        });
-        txDbId = doc.$id;
-    } catch (dbError: any) {
-        return { success: false, message: "Failed to initiate transaction log." };
-    }
-
-    try {
-        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
-
-        if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
-        if (transferAmount <= 0) throw new Error('Invalid transfer amount.');
-        if (userProfile.nairaBalance < transferAmount) throw new Error('Insufficient balance.');
-
-        const response = await fetch('https://api.flutterwave.com/v3/transfers', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                account_bank: payload.bankCode,
-                account_number: payload.accountNumber,
-                amount: transferAmount,
-                narration: payload.narration || `I-Pay Transfer to ${payload.recipientName}`,
-                currency: "NGN",
-                debit_currency: "NGN",
-                reference: sessionId,
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.status === 'success') {
-            const newNairaBalance = userProfile.nairaBalance - transferAmount;
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { nairaBalance: newNairaBalance });
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, { status: 'completed', sessionId: data.data.id.toString() });
-            return { success: true, message: data.message || 'Transfer initiated.' };
-        } else {
-            console.error("Flutterwave API Error:", data);
-            throw new Error(data.message || 'The transfer could not be initiated. Check your dashboard settings.');
-        }
-    } catch (error: any) {
-        if (txDbId) await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, { status: 'failed', narration: `[Error] ${error.message}` });
-        return { success: false, message: error.message || 'An unexpected error occurred.' };
-    }
-}
-
-export async function makeBillPayment(payload: { userId: string; pin: string; billerCode: string; customer: string; amount: number; type: string; narration: string; }) {
-    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
-        return { success: false, message: API_KEY_ERROR_MESSAGE };
-    }
-
-    const sessionId = `ipay-bill-${Date.now()}`;
-    let txDbId: string | null = null;
-    const billAmount = Number(payload.amount);
-
-    try {
-        const doc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
-            userId: payload.userId,
-            type: payload.type.toLowerCase().replace(' ', '_'),
-            amount: billAmount,
-            status: 'pending',
-            recipientName: payload.narration,
-            recipientDetails: payload.customer,
-            narration: payload.narration,
-            sessionId: sessionId,
-            createdAt: new Date().toISOString()
-        });
-        txDbId = doc.$id;
-    } catch (dbError: any) {
-        return { success: false, message: "Failed to initiate transaction log." };
-    }
-
-    try {
-        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
-        if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
-        if (userProfile.nairaBalance < billAmount) throw new Error('Insufficient balance.');
-
-        const fwResponse = await fetch('https://api.flutterwave.com/v3/bills', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                country: 'NG',
-                customer: payload.customer,
-                amount: billAmount,
-                type: payload.billerCode,
-                reference: sessionId,
-            }),
-        });
-        
-        const fwData = await fwResponse.json();
-
-        if (fwData.status === 'success' || fwData.status === 'pending') {
-            const newBalance = userProfile.nairaBalance - billAmount;
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { nairaBalance: newBalance });
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, { status: 'completed', sessionId: fwData.data?.flw_ref || sessionId });
-            return { success: true, message: fwData.data?.response_message || `${payload.narration} successful.` };
-        } else {
-            throw new Error(fwData.message || 'The transaction failed.');
-        }
-    } catch (error: any) {
-        if (txDbId) await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, { status: 'failed', narration: `[Error] ${error.message}` });
-        return { success: false, message: error.message || 'An unexpected server error occurred.' };
-    }
-}
-
-const billCategoryMapping = {
-    airtime: 'airtime=1',
-    data: 'data_bundle=1',
-    tv: 'cables=1',
-    electricity: 'power=1',
-    education: 'education=1',
-};
-
-export async function getUtilityProviders(type: 'airtime' | 'data' | 'tv' | 'electricity' | 'education') {
-    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
-        return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
-    }
-    try {
-        const query = billCategoryMapping[type];
-        const response = await fetch(`https://api.flutterwave.com/v3/bill-categories?${query}`, {
-            method: 'GET',
-            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` },
-            next: { revalidate: 3600 }
-        });
-        const data = await response.json();
-        if (data.status === 'success' && data.data) {
-            return { success: true, data: data.data };
-        } else {
-            return { success: false, message: data.message || `Failed to fetch providers.`, data: [] };
-        }
-    } catch (error: any) {
-        return { success: false, message: error.message || 'An unexpected error occurred.', data: [] };
-    }
-}
-
-export async function getUtilityPlans(billerCode: string) {
-    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
-        return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
-    }
-    try {
-        const response = await fetch(`https://api.flutterwave.com/v3/bill-categories?biller_code=${billerCode}`, {
-            method: 'GET',
-            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` },
-            next: { revalidate: 3600 }
-        });
-        const data = await response.json();
-        if (data.status === 'success' && data.data) {
-            return { success: true, data: data.data };
-        } else {
-            return { success: false, message: data.message || `Failed to fetch plans.`, data: [] };
-        }
-    } catch (error: any) {
-        return { success: false, message: error.message || 'An unexpected error occurred.', data: [] };
-    }
-}
-
-export async function getCardVerificationLink(payload: { userId: string; email: string; name: string; redirectUrl: string; }) {
-    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
-        return { success: false, message: API_KEY_ERROR_MESSAGE };
-    }
-    try {
-        const response = await fetch('https://api.flutterwave.com/v3/payments', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                tx_ref: `ipay-verify-${payload.userId}-${Date.now()}`,
-                amount: 49,
-                currency: 'NGN',
-                redirect_url: payload.redirectUrl,
-                customer: { email: payload.email, name: payload.name },
-                meta: { user_id: payload.userId },
-                customizations: { title: 'I-Pay Card Verification', logo: 'https://ipay.com/logo.png' }
-            })
-        });
-        const data = await response.json();
-        if (data.status === 'success') {
-            return { success: true, data: data.data };
-        } else {
-            return { success: false, message: data.message || 'Could not initiate card verification.' };
-        }
-    } catch (error: any) {
-        return { success: false, message: error.message || 'An unexpected error occurred.' };
-    }
-}
-
-export async function verifyCardPayment(transactionId: string, userId: string) {
-     if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
-        return { success: false, message: API_KEY_ERROR_MESSAGE };
-    }
-    try {
-        const response = await fetch(`https://api.flutterwave.com/v3/transactions/${transactionId}/verify`, {
-            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` }
-        });
-        const data = await response.json();
-
-        if (data.status === 'success' && data.data.status === 'successful' && data.data.amount === 49) {
-            const cardToken = data.data.card?.token;
-            if (!cardToken) throw new Error("Card token not found.");
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, { fwCardToken: cardToken });
-            return { success: true, message: 'Card verified and saved successfully!' };
-        } else {
-             throw new Error(data.message || 'Card verification failed.');
-        }
-    } catch (error: any) {
-        return { success: false, message: error.message || 'An unexpected error occurred.' };
-    }
-}
-
-export async function chargeTokenizedCard(payload: { userId: string; amount: number; pin: string }) {
-    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
-        return { success: false, message: API_KEY_ERROR_MESSAGE };
-    }
-     try {
-        const { userId, amount, pin } = payload;
-        const depositAmount = Number(amount);
-        if (isNaN(depositAmount) || depositAmount < 100) throw new Error('Minimum funding amount is ₦100.');
-
-        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
-        if (userProfile.pin !== pin) throw new Error('Incorrect transaction PIN.');
-        if (!userProfile.fwCardToken) throw new Error('No saved card found.');
-
-        let fee = 0;
-        if (depositAmount >= 100 && depositAmount <= 1000) fee = 49;
-        else if (depositAmount > 1000) fee = 95;
-        
-        const totalCharge = depositAmount + fee;
-        
-        const response = await fetch('https://api.flutterwave.com/v3/tokenized-charges', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                token: userProfile.fwCardToken,
-                currency: "NGN",
-                country: "NG",
-                amount: totalCharge,
-                email: userProfile.email,
-                fullname: `${userProfile.firstName} ${userProfile.lastName}`,
-                tx_ref: `ipay-fund-${userId}-${Date.now()}`
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.status === 'success' && data.data?.status === 'successful') {
-            const newNairaBalance = (userProfile.nairaBalance || 0) + depositAmount;
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, { nairaBalance: newNairaBalance });
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
-                userId: userId,
-                type: 'deposit',
-                amount: depositAmount,
-                status: 'completed',
-                recipientName: 'Account Funding',
-                recipientDetails: `Card Deposit (Fee: ₦${fee})`,
-                narration: `Funded account with ₦${depositAmount.toLocaleString()}`,
-                sessionId: data.data.id,
-                createdAt: new Date().toISOString()
-            });
-            return { success: true, message: `Account funded with ₦${depositAmount.toLocaleString()}.` };
-        } else {
-            throw new Error(data.message || 'Payment failed.');
-        }
-    } catch (error: any) {
-        return { success: false, message: error.message || 'An unexpected error occurred.' };
-    }
-}
+export async function getUtilityProviders(type: string) { return { success: false, data: [] }; }
+export async function getUtilityPlans(billerCode: string) { return { success: false, data: [] }; }
+export async function getCardVerificationLink(payload: any) { return { success: false, message: "Feature disabled." }; }
+export async function verifyCardPayment(transactionId: string, userId: string) { return { success: false }; }
+export async function chargeTokenizedCard(payload: any) { return { success: false }; }
