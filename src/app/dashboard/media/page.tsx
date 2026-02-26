@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
@@ -48,7 +47,7 @@ import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { databases, DATABASE_ID, COLLECTION_ID_POSTS, COLLECTION_ID_PROFILES, COLLECTION_ID_POST_COMMENTS } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS, COLLECTION_ID_PROFILES, COLLECTION_ID_POST_COMMENTS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -70,7 +69,7 @@ const CommentItem = ({ comment }: { comment: any }) => (
   </div>
 );
 
-const CommentInput = ({ postId, onCommentPosted }: { postId: string, onCommentPosted: () => void }) => {
+const CommentInput = ({ postId, postOwnerId, onCommentPosted }: { postId: string, postOwnerId: string, onCommentPosted: () => void }) => {
   const [text, setText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user, profile } = useUser();
@@ -102,6 +101,20 @@ const CommentInput = ({ postId, onCommentPosted }: { postId: string, onCommentPo
       await databases.updateDocument(DATABASE_ID, COLLECTION_ID_POSTS, postId, {
           commentCount: newCount
       });
+
+      // Create notification for the post owner
+      if (postOwnerId !== user.$id) {
+        databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
+          userId: postOwnerId,
+          senderId: user.$id,
+          type: 'comment',
+          title: 'New Comment',
+          description: `commented on your post: "${text.substring(0, 20)}..."`,
+          isRead: false,
+          link: `/dashboard/media`,
+          createdAt: new Date().toISOString()
+        }).catch(e => console.log("Notification trigger failed", e));
+      }
 
       setText('');
       onCommentPosted();
@@ -231,6 +244,21 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_POSTS, post.$id, {
             likes: newLikes
         });
+        
+        // Create notification for the post owner if it's a new like
+        if (newIsLiked && post.userId !== currentUser.$id) {
+          databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
+            userId: post.userId,
+            senderId: currentUser.$id,
+            type: 'like',
+            title: 'New Like',
+            description: 'liked your post.',
+            isRead: false,
+            link: `/dashboard/media`,
+            createdAt: new Date().toISOString()
+          }).catch(e => console.log("Notification trigger failed", e));
+        }
+
         setPost({...post, likes: newLikes});
     } catch (error) {
         setIsLiked(!newIsLiked);
@@ -266,6 +294,20 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
             databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id, { following: newMyFollowing }),
             databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, post.userId, { followers: newTheirFollowers })
         ]);
+
+        // Create notification for the person being followed
+        if (!currentlyFollowing) {
+          databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
+            userId: post.userId,
+            senderId: currentUser.$id,
+            type: 'follow',
+            title: 'New Follower',
+            description: 'started following you.',
+            isRead: false,
+            link: `/dashboard/profile/connections?tab=followers`,
+            createdAt: new Date().toISOString()
+          }).catch(e => console.log("Notification trigger failed", e));
+        }
         
         await recheckUser();
 
@@ -306,7 +348,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
     }
   }, [showComments, fetchComments]);
 
-  const onCommentPosted = () => {
+  const onCommentPostedAction = () => {
       fetchComments();
       setCommentCount(prev => prev + 1);
   };
@@ -504,7 +546,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
                 )}
             </div>
             <div className="mt-auto p-4 border-t">
-                 <CommentInput postId={post.$id} onCommentPosted={onCommentPosted} />
+                 <CommentInput postId={post.$id} postOwnerId={post.userId} onCommentPosted={onCommentPostedAction} />
             </div>
         </SheetContent>
       </Sheet>
@@ -660,5 +702,3 @@ export default function MediaPage() {
     </div>
   );
 }
-
-    

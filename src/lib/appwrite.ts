@@ -26,6 +26,7 @@ export const COLLECTION_ID_PRODUCTS = 'products';
 export const COLLECTION_ID_BOOKS = 'books';
 export const COLLECTION_ID_UPWORK_PROFILES = 'upworkProfiles';
 export const COLLECTION_ID_APP_CONFIG = 'app_config';
+export const COLLECTION_ID_NOTIFICATIONS = 'notifications';
 
 
 export function getAppwriteStorageUrl(fileId: string) {

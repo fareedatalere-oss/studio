@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, getAppwriteStorageUrl, storage, BUCKET_ID_UPLOADS } from '@/lib/appwrite';
+import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, getAppwriteStorageUrl, storage, BUCKET_ID_UPLOADS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
 import { Models, ID, Query } from 'appwrite';
 import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, ImageIcon, PlayCircle, FileAudio, Trash2, Play, Pause, Forward, MessageSquare } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -275,6 +275,24 @@ export default function ChatThreadPage() {
         }
     }
 
+    const triggerMessageNotification = async (text: string) => {
+        if (!currentUser || !otherUserId) return;
+        try {
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
+                userId: otherUserId,
+                senderId: currentUser.$id,
+                type: 'message',
+                title: 'New Message',
+                description: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
+                isRead: false,
+                link: `/dashboard/chat/${currentUser.$id}`,
+                createdAt: new Date().toISOString()
+            });
+        } catch (e) {
+            console.log("Notification trigger failed", e);
+        }
+    }
+
     const handleSendTextMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newMessage.trim() || !currentUser || !chatId) return;
@@ -296,6 +314,7 @@ export default function ChatThreadPage() {
                 }
             );
             await updateChatList(messageText);
+            await triggerMessageNotification(messageText);
         } catch (error: any) {
             console.error('Failed to send message:', error);
             toast({ title: 'Error', description: `Failed to send message: ${error.message}`, variant: 'destructive' });
@@ -335,8 +354,9 @@ export default function ChatThreadPage() {
                 }
             );
     
-            const lastMessageText = `[${fileTypeLabel}]`;
+            const lastMessageText = `[${fileTypeLabel}]Sent a ${fileTypeLabel.toLowerCase()}`;
             await updateChatList(lastMessageText);
+            await triggerMessageNotification(lastMessageText);
     
             toast({ title: 'Media sent!' });
         } catch (error: any) {
