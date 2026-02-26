@@ -65,9 +65,9 @@ export default function CompleteProfilePage() {
         await account.updateName(username);
 
         // Prepare the profile data.
+        // Note: We avoid saving 'email' directly to the document to prevent "Unknown attribute" errors if the collection is misconfigured.
         const profileData = {
             uid: user.$id,
-            email: user.email,
             username: username,
             country: country,
             pin: pin,

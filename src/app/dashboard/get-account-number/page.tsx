@@ -118,20 +118,20 @@ export default function GetAccountNumberPage() {
             // Update user's main name in Appwrite Auth
             await account.updateName(`${formData.firstName} ${formData.lastName}`);
             
-            // Save account number and other details to the profile
+            // Save account number and other details to the profile.
+            // Note: We avoid saving the 'email' field to the document itself to prevent "Unknown attribute" errors.
             await databases.updateDocument(
                 DATABASE_ID,
                 COLLECTION_ID_PROFILES,
                 user.$id,
                 {
-                    email: user.email, // Ensure email is saved for sync purposes
                     accountNumber: accountInfo.number,
                     bankName: accountInfo.bank,
                     firstName: formData.firstName,
                     lastName: formData.lastName,
                     phone: formData.phone,
                     bvn: formData.bvn,
-                    username: `${formData.firstName.toLowerCase()}${formData.lastName.toLowerCase()}`, // Update username to something more meaningful
+                    username: `${formData.firstName.toLowerCase()}${formData.lastName.toLowerCase()}`, 
                 }
             );
 

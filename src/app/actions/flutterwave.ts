@@ -47,11 +47,12 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
     if (!FLUTTERWAVE_API_KEY) return { success: false, message: "API key missing" };
 
     try {
+        // Fetch current profile for balance
         const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
         
-        // Use provided email or fall back to profile email
-        const email = userEmail || profile.email;
-        if (!email) return { success: false, message: "No email associated with profile" };
+        // Use provided email from the session
+        const email = userEmail;
+        if (!email) return { success: false, message: "User session email not found. Please refresh." };
 
         const response = await fetch(`https://api.flutterwave.com/v3/transactions?customer_email=${email}&status=successful`, {
             headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` }
@@ -63,18 +64,23 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
         }
 
         const remoteTransactions = data.data;
-        const processedIds = profile.processedTransactions || [];
         let totalNewAmount = 0;
-        let newProcessedIds = [...processedIds];
         let foundNew = false;
 
         for (const tx of remoteTransactions) {
             const txId = tx.id.toString();
-            if (!processedIds.includes(txId)) {
+            
+            // Professional check: verify if this transaction already exists in our database
+            const existingRecords = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, [
+                Query.equal('sessionId', txId),
+                Query.limit(1)
+            ]);
+
+            if (existingRecords.total === 0) {
                 totalNewAmount += tx.amount;
-                newProcessedIds.push(txId);
                 foundNew = true;
 
+                // Log the new transaction
                 await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                     userId: userId,
                     type: 'deposit',
@@ -84,25 +90,19 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
                     recipientDetails: `Flutterwave Ref: ${tx.tx_ref}`,
                     narration: `Automated credit for payment ID ${txId}`,
                     sessionId: txId,
+                    createdAt: new Date().toISOString()
                 });
             }
         }
 
         if (foundNew) {
             const newBalance = (profile.nairaBalance || 0) + totalNewAmount;
+            // Update balance only - avoiding any attributes that might not exist in the user's schema
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
-                nairaBalance: newBalance,
-                processedTransactions: newProcessedIds,
-                lastSyncAt: new Date().toISOString(),
-                // Also save the email if it was missing to prevent future issues
-                email: profile.email || email 
+                nairaBalance: newBalance
             });
             return { success: true, amountAdded: totalNewAmount };
         }
-
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
-            lastSyncAt: new Date().toISOString()
-        });
 
         return { success: true, amountAdded: 0 };
 
@@ -200,6 +200,7 @@ export async function makeBankTransfer(payload: { userId: string, pin: string, b
             recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
             narration: payload.narration || `I-Pay Transfer to ${payload.recipientName}`,
             sessionId: sessionId,
+            createdAt: new Date().toISOString()
         });
         txDbId = doc.$id;
     } catch (dbError: any) {
@@ -266,6 +267,7 @@ export async function makeBillPayment(payload: { userId: string; pin: string; bi
             recipientDetails: payload.customer,
             narration: payload.narration,
             sessionId: sessionId,
+            createdAt: new Date().toISOString()
         });
         txDbId = doc.$id;
     } catch (dbError: any) {
@@ -458,6 +460,7 @@ export async function chargeTokenizedCard(payload: { userId: string; amount: num
                 recipientDetails: `Card Deposit (Fee: ₦${fee})`,
                 narration: `Funded account with ₦${depositAmount.toLocaleString()}`,
                 sessionId: data.data.id,
+                createdAt: new Date().toISOString()
             });
             return { success: true, message: `Account funded with ₦${depositAmount.toLocaleString()}.` };
         } else {
