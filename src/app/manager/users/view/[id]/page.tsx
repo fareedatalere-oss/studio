@@ -1,12 +1,12 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Edit, Save, Loader2, KeyRound } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
+import { Models, Query } from 'appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -29,37 +29,59 @@ export default function ViewUserPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [editMode, setEditMode] = useState(false);
     
-    useEffect(() => {
+    const fetchData = useCallback(async () => {
         if (!userId) return;
-
-        const fetchData = async () => {
-            setLoading(true);
+        setLoading(true);
+        try {
+            // Use try-catch blocks individually to see where it fails
+            let profileData;
             try {
-                const [profileData, transactionsData] = await Promise.all([
-                    databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId),
-                    databases.listDocuments(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, [Query.equal('userId', userId), Query.orderDesc('$createdAt')])
-                ]);
-                setProfile(profileData);
-                setTransactions(transactionsData.documents);
-            } catch (error) {
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not load user data.' });
-                router.push('/manager/users');
-            } finally {
-                setLoading(false);
+                profileData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
+            } catch (err) {
+                console.error("Profile Fetch Error:", err);
+                throw new Error("Could not find this user's profile document.");
             }
-        };
-        fetchData();
+
+            let transactionsData;
+            try {
+                transactionsData = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, [
+                    Query.equal('userId', userId),
+                    Query.orderDesc('$createdAt'),
+                    Query.limit(50)
+                ]);
+            } catch (err) {
+                console.warn("Transactions Fetch Warning:", err);
+                transactionsData = { documents: [] };
+            }
+
+            setProfile(profileData);
+            setTransactions(transactionsData.documents);
+        } catch (error: any) {
+            console.error("Overall Fetch Error:", error);
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not load user data.' });
+            router.push('/manager/users');
+        } finally {
+            setLoading(false);
+        }
     }, [userId, router, toast]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const handleSave = async () => {
         if (!profile) return;
         setIsSaving(true);
         try {
-            const { $id, $collectionId, $databaseId, $createdAt, $updatedAt, ...updateData } = profile;
+            // Remove internal Appwrite fields before sending update
+            const { $id, $collectionId, $databaseId, $createdAt, $updatedAt, $permissions, ...updateData } = profile;
+            
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, $id, updateData);
             toast({ title: 'Success', description: 'Profile updated successfully.' });
             setEditMode(false);
+            fetchData(); // reload data
         } catch (error: any) {
+            console.error("Save Error:", error);
             toast({ variant: 'destructive', title: 'Save failed', description: error.message });
         } finally {
             setIsSaving(false);
@@ -72,11 +94,17 @@ export default function ViewUserPage() {
     };
 
     if (loading) {
-        return <div className="container py-8"><Skeleton className="w-full h-[500px]" /></div>;
+        return (
+            <div className="container py-8 space-y-6">
+                <Skeleton className="h-10 w-32" />
+                <Skeleton className="w-full h-64 rounded-xl" />
+                <Skeleton className="w-full h-96 rounded-xl" />
+            </div>
+        );
     }
 
     if (!profile) {
-        return <div className="container py-8 text-center">User not found.</div>;
+        return <div className="container py-8 text-center">User profile not found.</div>;
     }
     
     const getStatusVariant = (status: string) => {
@@ -114,8 +142,8 @@ export default function ViewUserPage() {
                             <AvatarFallback>{profile.username?.charAt(0).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div>
-                            <CardTitle>{profile.username}</CardTitle>
-                            <CardDescription>{profile.email}</CardDescription>
+                            <CardTitle>{profile.username || 'No Username'}</CardTitle>
+                            <CardDescription>{profile.email || 'No Email'}</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -126,9 +154,9 @@ export default function ViewUserPage() {
                     <div className="space-y-1"><Label>Phone</Label><Input id="phone" value={profile.phone || ''} onChange={handleInputChange} readOnly={!editMode} /></div>
                     <div className="space-y-1"><Label>Country</Label><Input id="country" value={profile.country || ''} onChange={handleInputChange} readOnly={!editMode} /></div>
                     <div className="space-y-1"><Label>Naira Balance</Label><Input id="nairaBalance" type="number" value={profile.nairaBalance || 0} onChange={handleInputChange} readOnly={!editMode} /></div>
-                    <div className="space-y-1"><Label>Bank Name</Label><Input value={profile.bankName || 'N/A'} readOnly /></div>
-                    <div className="space-y-1"><Label>Account Number</Label><Input value={profile.accountNumber || 'N/A'} readOnly /></div>
-                    <div className="space-y-1"><Label>BVN</Label><Input value={profile.bvn || 'N/A'} readOnly /></div>
+                    <div className="space-y-1"><Label>Bank Name</Label><Input value={profile.bankName || 'N/A'} readOnly className="bg-muted cursor-not-allowed" /></div>
+                    <div className="space-y-1"><Label>Account Number</Label><Input value={profile.accountNumber || 'N/A'} readOnly className="bg-muted cursor-not-allowed" /></div>
+                    <div className="space-y-1"><Label>BVN</Label><Input value={profile.bvn || 'N/A'} readOnly className="bg-muted cursor-not-allowed" /></div>
                     <div className="space-y-1">
                         <Label>Transaction PIN</Label>
                         <div className="flex items-center gap-2 font-mono text-lg p-2 bg-muted rounded-md h-10">
@@ -149,12 +177,14 @@ export default function ViewUserPage() {
                         <TableBody>
                             {transactions.length > 0 ? transactions.map(tx => (
                                 <TableRow key={tx.$id}>
-                                    <TableCell><div className="font-medium">{tx.type}</div><div className="text-sm text-muted-foreground">{tx.recipientName}</div></TableCell>
+                                    <TableCell><div className="font-medium capitalize">{tx.type.replace('_', ' ')}</div><div className="text-sm text-muted-foreground truncate max-w-[150px]">{tx.recipientName || tx.narration}</div></TableCell>
                                     <TableCell>{format(new Date(tx.$createdAt), 'PPp')}</TableCell>
                                     <TableCell><Badge variant={getStatusVariant(tx.status)}>{tx.status}</Badge></TableCell>
-                                    <TableCell className="text-right">{tx.type === 'deposit' ? '+' : '-'} ₦{tx.amount.toLocaleString()}</TableCell>
+                                    <TableCell className={`text-right font-semibold ${tx.type === 'deposit' ? 'text-green-600' : 'text-red-600'}`}>
+                                        {tx.type === 'deposit' ? '+' : '-'} ₦{tx.amount.toLocaleString()}
+                                    </TableCell>
                                 </TableRow>
-                            )) : <TableRow><TableCell colSpan={4} className="text-center h-24">No transactions found.</TableCell></TableRow>}
+                            )) : <TableRow><TableCell colSpan={4} className="text-center h-24">No transactions found for this user.</TableCell></TableRow>}
                         </TableBody>
                     </Table>
                 </CardContent>

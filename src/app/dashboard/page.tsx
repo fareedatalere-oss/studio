@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { getCardVerificationLink, chargeTokenizedCard } from '@/app/actions/flutterwave';
+import { getCardVerificationLink, chargeTokenizedCard, syncVirtualAccountPayments } from '@/app/actions/flutterwave';
 import { useRouter } from 'next/navigation';
 import {
   Bot,
@@ -45,19 +45,37 @@ function DashboardContent() {
   const [fundAmount, setFundAmount] = useState('');
   const [pin, setPin] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const hasSyncedRef = useRef(false);
   
   const isLoading = userLoading;
+
+  // Real-time Automated Sync Logic
+  useEffect(() => {
+    if (user?.$id && !hasSyncedRef.current) {
+        hasSyncedRef.current = true; // prevent infinite loops on mount
+        
+        const runSync = async () => {
+            const result = await syncVirtualAccountPayments(user.$id);
+            if (result.success && result.amountAdded && result.amountAdded > 0) {
+                toast({
+                    title: 'New Deposit Detected!',
+                    description: `Your account was automatically credited with ₦${result.amountAdded.toLocaleString()}.`,
+                });
+                await recheckUser(); // Reflect the new balance instantly
+            }
+        };
+        runSync();
+    }
+  }, [user, recheckUser, toast]);
 
   const handleFundAccountClick = async () => {
     if (!user || !userProfile) return;
     setIsProcessing(true);
 
     if (userProfile.fwCardToken) {
-        // User has a saved card, open the dialog to enter amount
         setIsFundDialogOpen(true);
         setIsProcessing(false);
     } else {
-        // No card on file, start the verification process
         toast({ title: 'Redirecting to add card...' });
         const redirectUrl = `${window.location.origin}/dashboard/fund/verify`;
         const result = await getCardVerificationLink({
@@ -88,7 +106,7 @@ function DashboardContent() {
 
       if (result.success) {
           toast({ title: 'Success!', description: result.message });
-          await recheckUser(); // Re-fetch user profile to get updated balance
+          await recheckUser();
           setIsFundDialogOpen(false);
           setFundAmount('');
           setPin('');
@@ -193,7 +211,7 @@ function DashboardContent() {
             <AlertDialogHeader>
                 <AlertDialogTitle>Fund Your Account</AlertDialogTitle>
                 <AlertDialogDescription>
-                    Enter the amount you wish to add and your PIN. Transaction fees may apply.
+                    Enter the amount you wish to add and your PIN.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="space-y-4">
