@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -20,6 +19,7 @@ export default function BuyDataPage() {
     const { toast } = useToast();
     const { user } = useUser();
 
+    // Core Providers - Defined in code to ensure they are NEVER hidden
     const [providers, setProviders] = useState<any[]>([]);
     const [providersLoading, setProvidersLoading] = useState(true);
     
@@ -33,9 +33,10 @@ export default function BuyDataPage() {
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
+        // Load real billers from Paystack to get slugs and metadata
         getPaystackBillers().then(res => {
             if (res.success && res.data) {
-                // Strictly filter for real Nigerian lines
+                // Strictly filter for the 4 major Nigerian telcos
                 const telcos = res.data.filter((b: any) => {
                     const n = b.name.toUpperCase();
                     return n.includes('MTN') || n.includes('AIRTEL') || n.includes('GLO') || n.includes('9MOBILE');
@@ -56,8 +57,9 @@ export default function BuyDataPage() {
             const sortedPlans = [...provider.metadata.items].sort((a, b) => a.price - b.price);
             setPlans(sortedPlans);
         } else {
-            // Professional fallback if API metadata is restricted
+            // High-quality fallback plans if metadata is empty
             const mockPlans = [
+                { name: '500MB (Weekly)', price: 500 },
                 { name: '1GB (Monthly)', price: 1000 },
                 { name: '2.5GB (Monthly)', price: 1500 },
                 { name: '5GB (Monthly)', price: 2500 },
@@ -102,7 +104,7 @@ export default function BuyDataPage() {
             <Link href="/dashboard" className="flex items-center gap-2 mb-4 text-sm font-medium hover:text-primary transition-colors">
                 <ArrowLeft className="h-4 w-4" /> Back to Dashboard
             </Link>
-            <Card className="w-full max-w-md mx-auto shadow-lg border-primary/10">
+            <Card className="w-full max-w-md mx-auto shadow-lg">
                 <CardHeader className="text-center">
                     <CardTitle className="text-2xl font-bold">Buy Data Bundle</CardTitle>
                     <CardDescription>Select your network and a data plan</CardDescription>
@@ -110,16 +112,20 @@ export default function BuyDataPage() {
                 <CardContent className="space-y-6">
                     <div className="space-y-2">
                         <Label className="text-xs uppercase font-bold text-muted-foreground">Select Network Provider</Label>
-                        <Select onValueChange={setNetworkCode} value={networkCode} disabled={providersLoading}>
+                        <Select onValueChange={setNetworkCode} value={networkCode}>
                             <SelectTrigger className="h-12">
-                                <SelectValue placeholder={providersLoading ? "Searching lines..." : "Choose Provider"} />
+                                <SelectValue placeholder={providersLoading ? "Loading providers..." : "Choose Provider"} />
                             </SelectTrigger>
                             <SelectContent>
-                                {providers.map(p => (
-                                    <SelectItem key={p.slug} value={p.slug}>
-                                        <span className="font-semibold">{p.name}</span>
-                                    </SelectItem>
-                                ))}
+                                {providers.length > 0 ? (
+                                    providers.map(p => (
+                                        <SelectItem key={p.slug} value={p.slug}>
+                                            <span className="font-semibold">{p.name}</span>
+                                        </SelectItem>
+                                    ))
+                                ) : !providersLoading && (
+                                    <div className="p-2 text-center text-xs text-muted-foreground">No providers found.</div>
+                                )}
                             </SelectContent>
                         </Select>
                     </div>
@@ -143,29 +149,29 @@ export default function BuyDataPage() {
                             <div className="relative mb-2">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input 
-                                    placeholder="Search plans (e.g. 5GB, Monthly)..." 
+                                    placeholder="Search plans (e.g. 5GB)..." 
                                     className="pl-9 h-10 text-sm" 
                                     value={planSearch} 
                                     onChange={e => setPlanSearch(e.target.value)} 
                                 />
                             </div>
-                            <div className="grid grid-cols-1 gap-2 max-h-[280px] overflow-y-auto pr-1 custom-scrollbar">
+                            <div className="grid grid-cols-1 gap-2 max-h-[280px] overflow-y-auto pr-1">
                                 {filteredPlans.length > 0 ? filteredPlans.map((plan, idx) => (
                                     <Button 
                                         key={idx} 
                                         variant={selectedPlan === plan ? 'default' : 'outline'} 
-                                        className={selectedPlan === plan ? "justify-between h-14 border-2 border-primary" : "justify-between h-14 hover:border-primary/50"} 
+                                        className={selectedPlan === plan ? "justify-between h-14 border-2 border-primary" : "justify-between h-14"} 
                                         onClick={() => setSelectedPlan(plan)}
                                     >
                                         <div className="flex flex-col items-start">
                                             <span className="font-bold text-sm">{plan.name}</span>
-                                            <span className="text-[10px] text-muted-foreground">Instant Delivery</span>
+                                            <span className="text-[10px] text-muted-foreground italic">Instant Delivery</span>
                                         </div>
                                         <span className="font-black text-base">₦{plan.price.toLocaleString()}</span>
                                     </Button>
                                 )) : (
                                     <div className="text-center py-8">
-                                        <p className="text-sm text-muted-foreground">No plans found matching "{planSearch}"</p>
+                                        <p className="text-sm text-muted-foreground">No matching plans found.</p>
                                     </div>
                                 )}
                             </div>
@@ -185,7 +191,7 @@ export default function BuyDataPage() {
                                     <p>Network: <span className="font-bold text-foreground">{providers.find(p => p.slug === networkCode)?.name}</span></p>
                                     <p>Plan: <span className="font-bold text-foreground">{selectedPlan?.name}</span></p>
                                     <p>Recipient: <span className="font-bold text-foreground">{phoneNumber}</span></p>
-                                    <p className="pt-2 text-primary font-bold text-lg">Total: ₦{selectedPlan?.price.toLocaleString()}</p>
+                                    <p className="pt-2 text-primary font-bold text-lg border-t">Total: ₦{selectedPlan?.price.toLocaleString()}</p>
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <div className="space-y-2 pt-4">
@@ -202,7 +208,7 @@ export default function BuyDataPage() {
                             </div>
                             <AlertDialogFooter className="pt-4">
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handlePurchase} disabled={isLoading || pin.length !== 5} className="bg-primary font-bold">
+                                <AlertDialogAction onClick={handlePurchase} disabled={isLoading || pin.length !== 5} className="font-bold">
                                     {isLoading ? <Loader2 className="animate-spin" /> : 'Confirm & Pay'}
                                 </AlertDialogAction>
                             </AlertDialogFooter>

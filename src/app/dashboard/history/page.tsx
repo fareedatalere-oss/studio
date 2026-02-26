@@ -1,11 +1,10 @@
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { ArrowLeft, MessageSquare } from "lucide-react";
+import { ArrowLeft, MessageSquare, Calendar } from "lucide-react";
 import { useUser } from "@/hooks/use-appwrite";
 import { useEffect, useState } from 'react';
 import { Skeleton } from "@/components/ui/skeleton";
@@ -67,22 +66,25 @@ export default function HistoryPage() {
 
     return (
         <div className="container py-8">
-            <Link href="/dashboard" className="flex items-center gap-2 mb-4 text-sm">
+            <Link href="/dashboard" className="flex items-center gap-2 mb-4 text-sm font-medium hover:text-primary">
                 <ArrowLeft className="h-4 w-4" />
                 Back to Dashboard
             </Link>
-            <Card>
+            <Card className="shadow-md">
                 <CardHeader>
-                    <CardTitle>Transaction History</CardTitle>
-                    <CardDescription>A record of all your transactions.</CardDescription>
+                    <CardTitle className="flex items-center gap-2">
+                        <Calendar className="h-6 w-6 text-primary" />
+                        Transaction History
+                    </CardTitle>
+                    <CardDescription>Detailed records of all your account activities.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Details</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Status</TableHead>
+                                <TableHead>Activity Details</TableHead>
+                                <TableHead>Date & Time</TableHead>
+                                <TableHead className="hidden sm:table-cell">Status</TableHead>
                                 <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -92,7 +94,7 @@ export default function HistoryPage() {
                                      <TableRow key={i}>
                                         <TableCell><div className="space-y-1"><Skeleton className="h-5 w-24" /><Skeleton className="h-4 w-32" /></div></TableCell>
                                         <TableCell><Skeleton className="h-5 w-28" /></TableCell>
-                                        <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+                                        <TableCell className="hidden sm:table-cell"><Skeleton className="h-6 w-20" /></TableCell>
                                         <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
                                     </TableRow>
                                 ))
@@ -103,16 +105,16 @@ export default function HistoryPage() {
                                     const otherUserId = isMarketTx && tx.narration && tx.narration.length > 10 ? tx.narration : null;
 
                                     return (
-                                        <TableRow key={tx.$id}>
+                                        <TableRow key={tx.$id} className="hover:bg-muted/50">
                                             <TableCell>
-                                                <div className="font-medium capitalize">{tx.type?.replace('_', ' ')}</div>
+                                                <div className="font-bold capitalize text-sm">{tx.type?.replace('_', ' ')}</div>
                                                 <div className="flex flex-col gap-1">
-                                                    <div className="text-sm text-muted-foreground max-w-[200px] truncate" title={tx.recipientName}>
+                                                    <div className="text-xs text-muted-foreground max-w-[180px] truncate" title={tx.recipientName}>
                                                         {tx.recipientName}
                                                     </div>
                                                     {otherUserHandle && (
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-semibold text-primary">{otherUserHandle}</span>
+                                                            <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">{otherUserHandle}</span>
                                                             {otherUserId && (
                                                                 <Button asChild variant="ghost" size="icon" className="h-6 w-6">
                                                                     <Link href={`/dashboard/chat/${otherUserId}`}>
@@ -125,14 +127,14 @@ export default function HistoryPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <div className="text-[10px] sm:text-xs text-muted-foreground">
+                                                <div className="text-[10px] sm:text-xs font-semibold">
                                                     {format(new Date(tx.$createdAt), 'PPp')}
                                                 </div>
                                             </TableCell>
-                                            <TableCell>
-                                                <Badge variant={getStatusVariant(tx.status)} className="capitalize text-[10px]">{tx.status}</Badge>
+                                            <TableCell className="hidden sm:table-cell">
+                                                <Badge variant={getStatusVariant(tx.status)} className="capitalize text-[9px] px-2 py-0">{tx.status}</Badge>
                                             </TableCell>
-                                            <TableCell className={`text-right font-medium ${getAmountClass(tx.type)}`}>
+                                            <TableCell className={`text-right font-bold text-sm ${getAmountClass(tx.type)}`}>
                                                 {formatAmount(tx.amount, tx.type)}
                                             </TableCell>
                                         </TableRow>
@@ -140,7 +142,7 @@ export default function HistoryPage() {
                                 })
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="text-center h-24">No transactions yet.</TableCell>
+                                    <TableCell colSpan={4} className="text-center h-24 text-muted-foreground italic">No transaction records found.</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
