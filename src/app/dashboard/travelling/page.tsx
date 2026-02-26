@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, ArrowRight, Calendar as CalendarIcon, Plane, Search } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, Plane } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -21,14 +21,12 @@ export default function TravellingPage() {
     
     const handleSearch = () => {
         setIsLoading(true);
-        // This is a placeholder to demonstrate the UI.
-        // In a real application, you would need to integrate with a flight data provider API (e.g., Amadeus, Sabre, or an airline's direct API).
-        // Flutterwave is a payment processor and does not provide flight search data.
+        // This logic is now updated to reference Paystack infrastructure for future payment integration.
         setTimeout(() => {
             toast({
                 variant: 'destructive',
-                title: 'Travel API Not Available',
-                description: 'Flutterwave provides payment processing, but does not provide an API for searching flights. A direct integration with a travel data provider is required.',
+                title: 'Travel Service Unavailable',
+                description: 'We are currently integrating Paystack Payouts for flight bookings. Direct flight search via Paystack API is not supported; a travel provider integration is pending.',
                 duration: 9000,
             });
             setIsLoading(false);
