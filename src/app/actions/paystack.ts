@@ -131,6 +131,31 @@ export async function initializeTransaction(payload: { email: string; userId: st
     }
 }
 
+export async function initializeDeposit(payload: { email: string; userId: string; amount: number }) {
+    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    try {
+        const response = await fetch('https://api.paystack.co/transaction/initialize', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: payload.email,
+                amount: payload.amount * 100, // kobo
+                callback_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/dashboard`,
+                channels: ['bank_transfer'],
+                metadata: { 
+                    user_id: payload.userId,
+                    type: 'deposit'
+                }
+            }),
+        });
+        const data = await response.json();
+        if (data.status) return { success: true, data: data.data };
+        return { success: false, message: data.message };
+    } catch (error: any) {
+        return { success: false, message: error.message };
+    }
+}
+
 export async function verifyMarketplaceSubscription(reference: string, userId: string) {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     try {

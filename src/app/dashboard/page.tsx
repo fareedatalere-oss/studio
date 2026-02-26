@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Suspense, useEffect, useState, useRef } from 'react';
@@ -28,6 +29,7 @@ import {
   Gift,
   CircleDollarSign,
   Loader2,
+  ArrowDownCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
@@ -117,6 +119,7 @@ function DashboardContent() {
 
   const actions = [
     { label: 'Send', icon: Send, href: '/dashboard/transfer' },
+    { label: 'Deposit', icon: ArrowDownCircle, href: '/dashboard/deposit' },
     { label: 'History', icon: History, href: '/dashboard/history' },
     { label: 'Get Reward', icon: Gift, href: '/dashboard/rewards' },
     { label: 'Multi Purpose', icon: CreditCard, href: '/dashboard/multi-purpose' },
