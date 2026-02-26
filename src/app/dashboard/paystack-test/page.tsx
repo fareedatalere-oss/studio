@@ -9,11 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { useUser } from '@/hooks/use-appwrite';
 import { resolvePaystackAccount, initiatePaystackTransfer } from '@/app/actions/paystack';
 
 export default function PaystackTestPage() {
     const { toast } = useToast();
     const router = useRouter();
+    const { user } = useUser();
 
     const [accountNumber, setAccountNumber] = useState('');
     const [resolvedName, setResolvedName] = useState('');
@@ -41,16 +43,19 @@ export default function PaystackTestPage() {
     };
 
     const handleSend = async () => {
+        if (!user) return;
         if (!pin) {
             toast({ variant: 'destructive', title: 'PIN Required', description: 'Please enter your transaction PIN.' });
             return;
         }
         setIsLoading(true);
         const result = await initiatePaystackTransfer({
+            userId: user.$id,
             accountNumber,
             bankCode: ACCESS_BANK_CODE,
             name: resolvedName,
-            amount: 300
+            amount: 300,
+            pin: pin
         });
         setIsLoading(false);
 

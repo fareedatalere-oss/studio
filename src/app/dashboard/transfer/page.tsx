@@ -6,9 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { resolveAccountNumber, getBankList, makeBankTransfer } from '@/app/actions/flutterwave';
+import { resolvePaystackAccount, getPaystackBankList, makeBankTransferPaystack } from '@/app/actions/paystack';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 
@@ -44,7 +44,7 @@ export default function TransferPage() {
     useEffect(() => {
         const fetchBanks = async () => {
             setBanksLoading(true);
-            const result = await getBankList();
+            const result = await getPaystackBankList();
             if (result.success) {
                 // Deduplicate banks by code to prevent React key errors and confusion
                 const uniqueBanks = Array.from(new Map(result.data.map((bank: Bank) => [bank.code, bank])).values());
@@ -53,7 +53,7 @@ export default function TransferPage() {
                 toast({
                     variant: 'destructive',
                     title: 'Could Not Load Banks',
-                    description: result.message || 'Failed to fetch the list of banks. Please try again later.',
+                    description: result.message || 'Failed to fetch the list of banks.',
                 });
             }
             setBanksLoading(false);
@@ -71,21 +71,17 @@ export default function TransferPage() {
     
     const handleVerifyDetails = async () => {
         setIsLoading(true);
-        const result = await resolveAccountNumber({ accountNumber, bankCode });
+        const result = await resolvePaystackAccount(accountNumber, bankCode);
         setIsLoading(false);
 
         if (result.success && result.data?.account_name) {
             setResolvedName(result.data.account_name);
             setStep(2);
         } else {
-            let description = result.message || 'Could not verify the account details. Please check and try again.';
-            if (result.message?.toLowerCase().includes('unknown bank code')) {
-                description = 'The selected bank is not currently supported or the bank code is incorrect. Please try another bank.';
-            }
             toast({
                 variant: 'destructive',
                 title: 'Account Verification Failed',
-                description: description,
+                description: result.message || 'Could not verify the account details.',
             });
         }
     };
@@ -104,7 +100,7 @@ export default function TransferPage() {
 
         setIsLoading(true);
 
-        const result = await makeBankTransfer({
+        const result = await makeBankTransferPaystack({
             userId: user.$id,
             pin,
             bankCode,
@@ -158,11 +154,11 @@ export default function TransferPage() {
                         </div>
                          <div className="space-y-2">
                             <Label htmlFor="pin">Your 5-Digit PIN</Label>
-                            <Input id="pin" type="tel" inputMode="numeric" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} required/>
+                            <Input id="pin" type="password" inputMode="numeric" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} required/>
                         </div>
 
                         <Button onClick={handleSendMoney} className="w-full" disabled={isLoading || !amount || pin.length !== 5}>
-                            {isLoading ? 'Sending...' : `Send ₦${Number(amount).toLocaleString() || '0'}`}
+                            {isLoading ? <><Loader2 className="animate-spin mr-2 h-4 w-4" />Sending...</> : `Send ₦${Number(amount).toLocaleString() || '0'}`}
                         </Button>
                     </CardContent>
                 </Card>
@@ -175,7 +171,7 @@ export default function TransferPage() {
             <Card className="w-full max-w-md mx-auto">
                 <CardHeader>
                     <CardTitle>Send Money</CardTitle>
-                    <CardDescription>Enter recipient details to start a transfer.</CardDescription>
+                    <CardDescription>Enter recipient details to start a transfer via Paystack.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -206,7 +202,7 @@ export default function TransferPage() {
                         </Select>
                     </div>
                     <Button onClick={handleVerifyDetails} className="w-full" disabled={isLoading || accountNumber.length !== 10 || !bankCode || banksLoading}>
-                        {isLoading ? 'Verifying...' : 'Continue'}
+                        {isLoading ? <><Loader2 className="animate-spin mr-2 h-4 w-4" />Verifying...</> : 'Continue'}
                     </Button>
                 </CardContent>
             </Card>

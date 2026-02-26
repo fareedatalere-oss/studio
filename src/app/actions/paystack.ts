@@ -1,6 +1,7 @@
 'use server';
 
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
+import { ID } from 'appwrite';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const API_KEY_ERROR_MESSAGE = 'Paystack API key is not configured. Please contact an administrator.';
@@ -85,6 +86,21 @@ export async function verifyMarketplaceSubscription(reference: string, userId: s
     }
 }
 
+export async function getPaystackBankList() {
+    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
+    try {
+        const response = await fetch('https://api.paystack.co/bank?country=nigeria', {
+            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}` },
+            next: { revalidate: 86400 } // Cache for 24 hours
+        });
+        const data = await response.json();
+        if (data.status) return { success: true, data: data.data };
+        return { success: false, message: data.message || "Could not fetch bank list.", data: [] };
+    } catch (e: any) {
+        return { success: false, message: e.message, data: [] };
+    }
+}
+
 export async function resolvePaystackAccount(accountNumber: string, bankCode: string) {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     try {
@@ -99,10 +115,44 @@ export async function resolvePaystackAccount(accountNumber: string, bankCode: st
     }
 }
 
-export async function initiatePaystackTransfer(payload: { accountNumber: string, bankCode: string, name: string, amount: number }) {
+export async function makeBankTransferPaystack(payload: { 
+    userId: string, 
+    pin: string, 
+    bankCode: string; 
+    accountNumber: string; 
+    amount: number; 
+    narration: string; 
+    recipientName: string, 
+    bankName: string 
+}) {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    
+    const sessionId = `ipay-payout-${Date.now()}`;
+    let txDbId: string | null = null;
+    const transferAmount = Number(payload.amount);
+
     try {
-        // 1. Create Recipient
+        // 1. Create Initial Pending Transaction Log
+        const doc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+            userId: payload.userId,
+            type: 'transfer',
+            amount: transferAmount,
+            status: 'pending',
+            recipientName: payload.recipientName,
+            recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
+            narration: payload.narration || `I-Pay Transfer to ${payload.recipientName}`,
+            sessionId: sessionId,
+        });
+        txDbId = doc.$id;
+
+        // 2. Critical Security Check: PIN and Balance (Before calling Paystack)
+        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
+
+        if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
+        if (transferAmount <= 0) throw new Error('Invalid transfer amount.');
+        if (userProfile.nairaBalance < transferAmount) throw new Error('Insufficient balance.');
+
+        // 3. Create Paystack Recipient
         const recipientRes = await fetch('https://api.paystack.co/transferrecipient', {
             method: 'POST',
             headers: { 
@@ -111,18 +161,18 @@ export async function initiatePaystackTransfer(payload: { accountNumber: string,
             },
             body: JSON.stringify({
                 type: "nuban",
-                name: payload.name,
+                name: payload.recipientName,
                 account_number: payload.accountNumber,
                 bank_code: payload.bankCode,
                 currency: "NGN"
             })
         });
         const recipientData = await recipientRes.json();
-        if (!recipientData.status) throw new Error(recipientData.message || "Failed to create recipient.");
+        if (!recipientData.status) throw new Error(recipientData.message || "Failed to create recipient on Paystack.");
 
         const recipientCode = recipientData.data.recipient_code;
 
-        // 2. Initiate Transfer
+        // 4. Initiate Paystack Payout
         const transferRes = await fetch('https://api.paystack.co/transfer', {
             method: 'POST',
             headers: { 
@@ -131,16 +181,44 @@ export async function initiatePaystackTransfer(payload: { accountNumber: string,
             },
             body: JSON.stringify({
                 source: "balance",
-                amount: payload.amount * 100, // Naira to Kobo
+                amount: transferAmount * 100, // Naira to Kobo
                 recipient: recipientCode,
-                reason: "I-Pay Paystack Payout"
+                reason: payload.narration || "I-Pay Transfer",
+                reference: sessionId
             })
         });
         const transferData = await transferRes.json();
-        if (transferData.status) return { success: true, message: "Transfer initiated successfully." };
-        return { success: false, message: transferData.message || "Transfer failed." };
+
+        if (transferData.status) {
+            // 5. Success: Update Balance and Transaction Status
+            const newNairaBalance = userProfile.nairaBalance - transferAmount;
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { nairaBalance: newNairaBalance });
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, { 
+                status: 'completed', 
+                sessionId: transferData.data.transfer_code 
+            });
+            return { success: true, message: "Transfer successfully initiated." };
+        } else {
+            throw new Error(transferData.message || "Paystack transfer initiation failed.");
+        }
 
     } catch (e: any) {
+        if (txDbId) {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txDbId, { 
+                status: 'failed', 
+                narration: `[Error] ${e.message}` 
+            });
+        }
         return { success: false, message: e.message };
     }
+}
+
+export async function initiatePaystackTransfer(payload: { userId: string, pin: string, bankCode: string, accountNumber: string, name: string, amount: number }) {
+    // Legacy wrapper for test page
+    return makeBankTransferPaystack({
+        ...payload,
+        recipientName: payload.name,
+        narration: "Paystack Test Payout",
+        bankName: "Access Bank"
+    });
 }
