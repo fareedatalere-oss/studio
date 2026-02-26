@@ -63,7 +63,7 @@ export default function BuyDataPage() {
             const sortedPlans = [...biller.metadata.items].sort((a, b) => a.price - b.price);
             setPlans(sortedPlans);
         } else {
-            // High-quality fallback if Paystack doesn't return metadata
+            // High-quality fallback for real Nigerian data plans
             const fallbacks = [
                 { name: '500MB (Weekly)', price: 500 },
                 { name: '1GB (Monthly)', price: 1000 },

@@ -163,7 +163,7 @@ function DashboardContent() {
     { label: 'Multi Purpose', icon: CreditCard, href: '/dashboard/multi-purpose' },
     { label: 'Traveling', icon: Plane, href: '/dashboard/travelling' },
     { label: 'AI', icon: Bot, href: '/dashboard/ai-chat' },
-    { label: 'Refund', icon: Undo2, onClick: handleRefresh },
+    { label: 'Refund', icon: Undo2, onClick: handleFundAccountClick },
     { label: 'News', icon: Newspaper, href: '/dashboard/news' },
   ];
 
