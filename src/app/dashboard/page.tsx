@@ -30,6 +30,7 @@ import {
   Gift,
   CircleDollarSign,
   Loader2,
+  Zap,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
@@ -119,6 +120,7 @@ function DashboardContent() {
 
   const actions = [
     { label: 'Send', icon: Send, href: '/dashboard/transfer' },
+    { label: 'Paystack', icon: Zap, href: '/dashboard/paystack-test' },
     { label: 'Utilities', icon: Wrench, href: '/dashboard/utilities' },
     { label: 'History', icon: History, href: '/dashboard/history' },
     { label: 'Get Reward', icon: Gift, href: '/dashboard/rewards' },

@@ -84,3 +84,63 @@ export async function verifyMarketplaceSubscription(reference: string, userId: s
         return { success: false, message: error.message || 'An unexpected error occurred during payment verification.' };
     }
 }
+
+export async function resolvePaystackAccount(accountNumber: string, bankCode: string) {
+    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    try {
+        const response = await fetch(`https://api.paystack.co/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`, {
+            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}` }
+        });
+        const data = await response.json();
+        if (data.status) return { success: true, data: data.data };
+        return { success: false, message: data.message || "Could not resolve account." };
+    } catch (e: any) {
+        return { success: false, message: e.message };
+    }
+}
+
+export async function initiatePaystackTransfer(payload: { accountNumber: string, bankCode: string, name: string, amount: number }) {
+    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    try {
+        // 1. Create Recipient
+        const recipientRes = await fetch('https://api.paystack.co/transferrecipient', {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                type: "nuban",
+                name: payload.name,
+                account_number: payload.accountNumber,
+                bank_code: payload.bankCode,
+                currency: "NGN"
+            })
+        });
+        const recipientData = await recipientRes.json();
+        if (!recipientData.status) throw new Error(recipientData.message || "Failed to create recipient.");
+
+        const recipientCode = recipientData.data.recipient_code;
+
+        // 2. Initiate Transfer
+        const transferRes = await fetch('https://api.paystack.co/transfer', {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                source: "balance",
+                amount: payload.amount * 100, // Naira to Kobo
+                recipient: recipientCode,
+                reason: "I-Pay Paystack Payout"
+            })
+        });
+        const transferData = await transferRes.json();
+        if (transferData.status) return { success: true, message: "Transfer initiated successfully." };
+        return { success: false, message: transferData.message || "Transfer failed." };
+
+    } catch (e: any) {
+        return { success: false, message: e.message };
+    }
+}
