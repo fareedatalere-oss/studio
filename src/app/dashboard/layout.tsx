@@ -7,10 +7,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useUser } from '@/hooks/use-appwrite';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { account, databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
 import { Query } from 'appwrite';
+import { cn } from '@/lib/utils';
 
 export default function DashboardLayout({
   children,
@@ -18,55 +19,70 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
   const { user, profile, loading, recheckUser } = useUser();
   const [isMounted, setIsMounted] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMsgCount, setUnreadMsgCount] = useState(0);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
   
-  const fetchUnreadCount = useCallback(async () => {
+  const fetchUnreadCounts = useCallback(async () => {
     if (!user) return;
     try {
-      // 7-day Filter Logic: Only count alerts from the last 7 days
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       
-      const response = await databases.listDocuments(
+      // Total unread notifications
+      const totalRes = await databases.listDocuments(
         DATABASE_ID,
         COLLECTION_ID_NOTIFICATIONS,
         [
           Query.equal('userId', user.$id),
           Query.equal('isRead', false),
           Query.greaterThan('createdAt', sevenDaysAgo),
-          Query.limit(1) // We only need the total count
+          Query.limit(1)
         ]
       );
-      setUnreadCount(response.total);
+      setUnreadCount(totalRes.total);
+
+      // Specific unread message notifications for the chat badge
+      const msgRes = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTION_ID_NOTIFICATIONS,
+        [
+          Query.equal('userId', user.$id),
+          Query.equal('isRead', false),
+          Query.equal('type', 'message'),
+          Query.greaterThan('createdAt', sevenDaysAgo),
+          Query.limit(1)
+        ]
+      );
+      setUnreadMsgCount(msgRes.total);
     } catch (error) {
-      console.error("Failed to fetch unread notifications count:", error);
+      console.error("Failed to fetch unread counts:", error);
     }
   }, [user]);
 
   useEffect(() => {
     if (user) {
-      fetchUnreadCount();
+      fetchUnreadCounts();
 
-      // Realtime listener for the badge
       const unsubscribe = account.client.subscribe(
         `databases.${DATABASE_ID}.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`,
         (response) => {
           const payload = response.payload as any;
           if (payload.userId === user.$id) {
-            fetchUnreadCount();
+            fetchUnreadCounts();
           }
         }
       );
 
       return () => unsubscribe();
     }
-  }, [user, fetchUnreadCount]);
+  }, [user, fetchUnreadCounts]);
 
   useEffect(() => {
     if (!loading && profile && profile.isBanned) {
@@ -84,7 +100,6 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      {/* Header */}
       <header className="sticky top-0 z-40 border-b bg-background">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-4">
@@ -103,7 +118,7 @@ export default function DashboardLayout({
               <Link href="/dashboard/notifications">
                 <Bell className="h-5 w-5" />
                  {unreadCount > 0 && (
-                  <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full">
+                  <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px]">
                     {unreadCount > 99 ? '9+' : unreadCount}
                   </Badge>
                 )}
@@ -122,29 +137,32 @@ export default function DashboardLayout({
         </div>
       </header>
       
-      {/* Main Content */}
       <main className="flex-1 pb-20 md:pb-0">{children}</main>
 
-      {/* Bottom Navigation */}
       <footer className="fixed bottom-0 z-40 w-full border-t bg-background md:hidden">
         <div className="container grid h-16 grid-cols-5 items-center justify-around text-center">
-          <Link href="/dashboard" className="flex flex-col items-center gap-1 text-primary">
+          <Link href="/dashboard" className={cn("flex flex-col items-center gap-1", pathname === '/dashboard' ? "text-primary" : "text-muted-foreground")}>
             <Home className="h-6 w-6" />
             <span className="text-xs">Home</span>
           </Link>
-          <Link href="/dashboard/chat" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary">
+          <Link href="/dashboard/chat" className={cn("flex flex-col items-center gap-1 relative", pathname.startsWith('/dashboard/chat') ? "text-primary" : "text-muted-foreground")}>
             <MessageSquare className="h-6 w-6" />
+            {unreadMsgCount > 0 && (
+              <Badge variant="destructive" className="absolute top-0 right-2 h-4 min-w-4 justify-center p-0.5 rounded-full text-[10px]">
+                {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
+              </Badge>
+            )}
             <span className="text-xs">Chat</span>
           </Link>
-          <Link href="/dashboard/media" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary">
+          <Link href="/dashboard/media" className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/media' ? "text-primary" : "text-muted-foreground")}>
             <PlaySquare className="h-6 w-6" />
             <span className="text-xs">Media</span>
           </Link>
-          <Link href="/dashboard/market" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary">
+          <Link href="/dashboard/market" className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/market' ? "text-primary" : "text-muted-foreground")}>
             <Store className="h-6 w-6" />
             <span className="text-xs">Market</span>
           </Link>
-          <Link href="/dashboard/profile" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary">
+          <Link href="/dashboard/profile" className={cn("flex flex-col items-center gap-1", pathname.startsWith('/dashboard/profile') ? "text-primary" : "text-muted-foreground")}>
             <User className="h-6 w-6" />
             <span className="text-xs">Profile</span>
           </Link>

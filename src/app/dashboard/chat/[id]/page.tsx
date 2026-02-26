@@ -5,18 +5,18 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, getAppwriteStorageUrl, storage, BUCKET_ID_UPLOADS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
 import { Models, ID, Query } from 'appwrite';
-import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, ImageIcon, PlayCircle, FileAudio, Trash2, Play, Pause, Forward, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, ImageIcon, PlayCircle, Trash2, Play, Pause, Forward } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 
 const getChatId = (userId1: string, userId2: string) => {
@@ -168,15 +168,46 @@ export default function ChatThreadPage() {
     const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     
-    // --- Forwarding State ---
     const [messageToForward, setMessageToForward] = useState<Models.Document | null>(null);
     const [recentChats, setRecentChats] = useState<any[]>([]);
     const [loadingRecentChats, setLoadingRecentChats] = useState(false);
-    // --- End Forwarding State ---
-
 
     const chatId = currentUser ? getChatId(currentUser.$id, otherUserId) : null;
     
+    const markMessagesAsRead = useCallback(async () => {
+        if (!chatId || !currentUser) return;
+        try {
+            // Find all unread messages from the other user in this chat
+            const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
+                Query.equal('chatId', chatId),
+                Query.notEqual('senderId', currentUser.$id),
+                Query.equal('status', 'sent')
+            ]);
+
+            if (response.documents.length > 0) {
+                await Promise.all(response.documents.map(msg => 
+                    databases.updateDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, msg.$id, { status: 'read' })
+                ));
+            }
+
+            // Also mark corresponding notifications as read
+            const notifRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, [
+                Query.equal('userId', currentUser.$id),
+                Query.equal('senderId', otherUserId),
+                Query.equal('type', 'message'),
+                Query.equal('isRead', false)
+            ]);
+
+            if (notifRes.documents.length > 0) {
+                await Promise.all(notifRes.documents.map(notif => 
+                    databases.updateDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, notif.$id, { isRead: true })
+                ));
+            }
+        } catch (e) {
+            console.log("Error marking messages as read");
+        }
+    }, [chatId, currentUser, otherUserId]);
+
     const setupRealtimeSubscription = useCallback(() => {
         if (!chatId) return;
 
@@ -191,6 +222,11 @@ export default function ChatThreadPage() {
                     }
                     return [...prevMessages, createdMessage];
                 });
+                
+                // If we are currently in the chat, mark new incoming messages as read instantly
+                if (createdMessage.senderId !== currentUser?.$id) {
+                    markMessagesAsRead();
+                }
             }
             if (response.events.includes('databases.*.collections.*.documents.*.delete')) {
                 setMessages((prevMessages) => prevMessages.filter(msg => msg.$id !== createdMessage.$id));
@@ -198,7 +234,7 @@ export default function ChatThreadPage() {
         });
 
         return unsubscribe;
-    }, [chatId]);
+    }, [chatId, currentUser?.$id, markMessagesAsRead]);
 
     useEffect(() => {
         let unsubscribe: (() => void) | undefined;
@@ -218,6 +254,7 @@ export default function ChatThreadPage() {
                 setMessages(response.documents);
                 
                 unsubscribe = setupRealtimeSubscription();
+                markMessagesAsRead();
 
             } catch (error: any) {
                 console.error('Failed to set up chat:', error);
@@ -236,7 +273,7 @@ export default function ChatThreadPage() {
                 unsubscribe();
             }
         };
-    }, [chatId, otherUserId, toast, setupRealtimeSubscription]);
+    }, [chatId, otherUserId, toast, setupRealtimeSubscription, markMessagesAsRead]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -436,7 +473,6 @@ export default function ChatThreadPage() {
         setAudioBlob(null);
     };
 
-    // --- Message Actions ---
     const handleDeleteMessage = async (messageId: string) => {
         toast({title: 'Deleting message...'});
         try {
@@ -474,10 +510,7 @@ export default function ChatThreadPage() {
                 }
             );
 
-            // Update last message on the target chat
-            const participants = targetChatId.split('_');
-            const targetOtherUserId = participants.find(id => id !== currentUser.$id.substring(0, 15)) || ''; // This is a bit weak
-             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, targetChatId, {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, targetChatId, {
                 lastMessage: `[Forwarded] ${text || 'Media'}`,
                 lastMessageAt: new Date().toISOString(),
             });
@@ -509,7 +542,7 @@ export default function ChatThreadPage() {
                         const otherUser = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
                         return { ...chat, otherUser };
                     } catch {
-                        return null; // Ignore chats where the other user profile is deleted
+                        return null; 
                     }
                 }));
 
@@ -523,7 +556,6 @@ export default function ChatThreadPage() {
         
         fetchRecent();
     }, [messageToForward, currentUser]);
-    // --- End Forwarding State ---
 
     const renderMessageContent = (message: Models.Document) => {
         let mediaType: string | null = null;
@@ -538,13 +570,14 @@ export default function ChatThreadPage() {
                 return (
                     <Dialog>
                         <DialogTrigger asChild>
-                             <div className="relative w-full max-w-[250px] aspect-square cursor-pointer bg-muted rounded-lg flex items-center justify-center">
+                             <div className="relative w-full max-w-[250px] aspect-square cursor-pointer bg-muted rounded-lg flex items-center justify-center overflow-hidden">
                                  <ImageIcon className="h-16 w-16 text-muted-foreground" />
+                                 <Image src={message.mediaUrl} alt="chat" fill className="object-cover" />
                              </div>
                         </DialogTrigger>
                         <DialogContent className="p-0 border-0 bg-black/80 w-screen h-screen max-w-none max-h-none flex items-center justify-center">
                             <DialogTitle className="sr-only">Image Preview</DialogTitle>
-                            <Image src={message.mediaUrl} alt="chat image preview" layout="fill" className="object-contain" />
+                            <Image src={message.mediaUrl} alt="chat image preview" fill className="object-contain" />
                         </DialogContent>
                     </Dialog>
                 );
@@ -661,7 +694,7 @@ export default function ChatThreadPage() {
                  <div ref={messagesEndRef} />
             </main>
 
-            <footer className="sticky bottom-16 md:bottom-0 bg-white border-t p-3">
+            <footer className="sticky bottom-16 md:top-0 bg-white border-t p-3">
                 {recordingStatus === 'recording' && (
                     <div className="flex items-center w-full gap-2">
                         <Button
@@ -728,17 +761,17 @@ export default function ChatThreadPage() {
                 accept="image/*,video/*"
             />
             <Sheet open={!!messageToForward} onOpenChange={(isOpen) => !isOpen && setMessageToForward(null)}>
-                <SheetContent>
+                <SheetContent side="bottom" className="h-[60vh]">
                     <SheetHeader>
                         <SheetTitle>Forward message to...</SheetTitle>
                     </SheetHeader>
-                    <div className="py-4 space-y-2">
-                        {loadingRecentChats ? <Loader2 className="animate-spin mx-auto" /> : recentChats.map(chat => (
+                    <div className="py-4 space-y-2 overflow-y-auto h-full">
+                        {loadingRecentChats ? <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div> : recentChats.map(chat => (
                             <div key={chat.$id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted">
                                 <div className="flex items-center gap-3">
                                     <Avatar>
                                         <AvatarImage src={chat.otherUser.avatar} />
-                                        <AvatarFallback>{chat.otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                                        <AvatarFallback>{chat.otherUser.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
                                     </Avatar>
                                     <p className="font-semibold">{chat.otherUser.username}</p>
                                 </div>

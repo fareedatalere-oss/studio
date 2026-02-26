@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -14,6 +13,7 @@ import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_
 import { Query } from 'appwrite';
 import { formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,8 +36,26 @@ import {
 // Recent Chat Item Component
 const RecentChatItem = ({ chat, currentUser, onAction }: { chat: any, currentUser: any, onAction: () => void }) => {
     const { toast } = useToast();
+    const [unreadCount, setUnreadCount] = useState(0);
     const displayName = chat.otherUser?.username || 'Unknown User';
     
+    useEffect(() => {
+        const fetchUnread = async () => {
+            try {
+                const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
+                    Query.equal('chatId', chat.$id),
+                    Query.equal('status', 'sent'),
+                    Query.notEqual('senderId', currentUser.$id),
+                    Query.limit(1)
+                ]);
+                setUnreadCount(response.total);
+            } catch (e) {
+                console.log("Error fetching unread messages for chat item");
+            }
+        };
+        fetchUnread();
+    }, [chat.$id, currentUser.$id]);
+
     const handleBlockUser = async (userId: string, username: string) => {
          toast({ title: "Feature coming soon", description: `Blocking for ${username} will be available shortly.` });
     };
@@ -85,27 +103,34 @@ const RecentChatItem = ({ chat, currentUser, onAction }: { chat: any, currentUse
 
     return (
         <div className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted transition-colors">
-            <Link href={`/dashboard/chat/${chat.otherUser.$id}`} className="flex-1 flex items-center gap-4">
-                <Avatar className="h-12 w-12">
+            <Link href={`/dashboard/chat/${chat.otherUser.$id}`} className="flex-1 flex items-center gap-4 overflow-hidden">
+                <Avatar className="h-12 w-12 shrink-0">
                     <AvatarImage src={chat.otherUser.avatar} />
                     <AvatarFallback>{displayName.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 overflow-hidden">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center gap-2">
                         <p className="font-semibold truncate">{displayName}</p>
-                        <p className="text-xs text-muted-foreground whitespace-nowrap">
+                        <p className="text-[10px] text-muted-foreground whitespace-nowrap">
                             {formatDistanceToNow(new Date(chat.lastMessageAt), { addSuffix: true })}
                         </p>
                     </div>
-                    <p className="text-sm text-muted-foreground truncate">{chat.lastMessage}</p>
+                    <div className="flex justify-between items-center gap-2">
+                        <p className="text-sm text-muted-foreground truncate">{chat.lastMessage}</p>
+                        {unreadCount > 0 && (
+                            <Badge variant="destructive" className="h-5 min-w-5 justify-center rounded-full p-1 text-[10px]">
+                                {unreadCount}
+                            </Badge>
+                        )}
+                    </div>
                 </div>
             </Link>
             <AlertDialog>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon"><MoreVertical /></Button>
+                        <Button variant="ghost" size="icon" className="shrink-0"><MoreVertical className="h-4 w-4"/></Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent>
+                    <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleBlockUser(chat.otherUser.$id, displayName)}>Block User</DropdownMenuItem>
                         <AlertDialogTrigger asChild>
                             <DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive">Delete Chat</DropdownMenuItem>
@@ -133,7 +158,7 @@ const AllUserItem = ({ user }: { user: any }) => (
     <Link href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted transition-colors">
         <Avatar className="h-12 w-12">
             <AvatarImage src={user.avatar} />
-            <AvatarFallback>{user.username.charAt(0).toUpperCase()}</AvatarFallback>
+            <AvatarFallback>{user.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
         </Avatar>
         <div className="flex-1">
             <p className="font-semibold">{user.username}</p>
@@ -175,8 +200,12 @@ export default function ChatPage() {
             const chatsWithData = await Promise.all(response.documents.map(async (chat) => {
                 const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
                 if (!otherUserId) return null;
-                const otherUser = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
-                return { ...chat, otherUser };
+                try {
+                    const otherUser = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
+                    return { ...chat, otherUser };
+                } catch {
+                    return null;
+                }
             }));
 
             setRecentChats(chatsWithData.filter(Boolean));
@@ -196,8 +225,10 @@ export default function ChatPage() {
     // Subscribe to chat updates for real-time list updates
     useEffect(() => {
         if (!currentUser) return;
-        const unsubscribe = account.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_CHATS}.documents`, response => {
-            // A chat was created or updated, refetch the list
+        const unsubscribe = account.client.subscribe([
+            `databases.${DATABASE_ID}.collections.${COLLECTION_ID_CHATS}.documents`,
+            `databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`
+        ], response => {
             fetchRecentChats();
         });
         return () => unsubscribe();
