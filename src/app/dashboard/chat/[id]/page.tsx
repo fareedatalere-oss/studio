@@ -325,11 +325,24 @@ export default function ChatThreadPage() {
         const messageText = newMessage.trim();
         setNewMessage('');
 
+        // Optimistic Update for Instant Feedback
+        const tempId = ID.unique();
+        const optimisticMsg = {
+            $id: tempId,
+            chatId: chatId,
+            senderId: currentUser.$id,
+            text: messageText,
+            status: 'sent',
+            $createdAt: new Date().toISOString()
+        } as Models.Document;
+
+        setMessages(prev => [...prev, optimisticMsg]);
+
         try {
-            await databases.createDocument(
+            const finalDoc = await databases.createDocument(
                 DATABASE_ID,
                 COLLECTION_ID_MESSAGES,
-                ID.unique(),
+                tempId,
                 {
                     chatId: chatId,
                     senderId: currentUser.$id,
@@ -337,9 +350,14 @@ export default function ChatThreadPage() {
                     status: 'sent',
                 }
             );
+            // Replace optimistic message with server message to ensure all props are correct
+            setMessages(prev => prev.map(m => m.$id === tempId ? finalDoc : m));
+            
             await updateChatList(messageText);
             await triggerMessageNotification(messageText);
         } catch (error: any) {
+            // Remove optimistic message if server fails
+            setMessages(prev => prev.filter(m => m.$id !== tempId));
             console.error('Failed to send message:', error);
             toast({ title: 'Error', description: `Failed to send message: ${error.message}`, variant: 'destructive' });
             setNewMessage(messageText);
@@ -365,7 +383,7 @@ export default function ChatThreadPage() {
             
             const specialText = `[media:${file.type}]`;
 
-            await databases.createDocument(
+            const finalDoc = await databases.createDocument(
                 DATABASE_ID,
                 COLLECTION_ID_MESSAGES,
                 ID.unique(),
@@ -377,6 +395,8 @@ export default function ChatThreadPage() {
                     status: 'sent',
                 }
             );
+            
+            setMessages(prev => [...prev, finalDoc]);
     
             const lastMessageText = `[${fileTypeLabel}]Sent a ${fileTypeLabel.toLowerCase()}`;
             await updateChatList(lastMessageText);
@@ -484,7 +504,7 @@ export default function ChatThreadPage() {
         try {
             const { text, mediaUrl } = messageToForward;
 
-            await databases.createDocument(
+            const doc = await databases.createDocument(
                 DATABASE_ID,
                 COLLECTION_ID_MESSAGES,
                 ID.unique(),

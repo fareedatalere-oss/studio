@@ -1,4 +1,3 @@
-
 'use server';
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
 import { ID, Query } from 'appwrite';
@@ -259,12 +258,31 @@ export async function chargeTokenizedCard(payload: { userId: string, amount: num
             headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ token: profile.fwCardToken, currency: 'NGN', amount: payload.amount, email: profile.email, tx_ref: `fund-${payload.userId}-${Date.now()}` }),
         });
+        
         const data = await response.json();
-        if (data.status === 'success') {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { nairaBalance: (profile.nairaBalance || 0) + payload.amount });
+        
+        // STRICT VERIFICATION: Must check for 'success' AND 'successful' status
+        if (data.status === 'success' && data.data && data.data.status === 'successful') {
+            const currentBal = Number(profile.nairaBalance || 0);
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { 
+                nairaBalance: currentBal + payload.amount 
+            });
+
+            // LOG CONFIRMED TRANSACTION
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+                userId: payload.userId,
+                type: 'deposit',
+                amount: payload.amount,
+                status: 'completed',
+                recipientName: 'Wallet Fund (Card)',
+                recipientDetails: `Card Charge: ${data.data.card.last_4digits}`,
+                narration: `Ref: ${data.data.tx_ref}`,
+                sessionId: data.data.id.toString(),
+            });
+
             return { success: true, message: `Successfully funded ₦${payload.amount.toLocaleString()}.` };
         }
-        return { success: false, message: data.message };
+        return { success: false, message: data.message || "Payment provider declined the charge." };
     } catch (e: any) {
         return { success: false, message: e.message };
     }

@@ -77,35 +77,37 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
             // Fetch Configs
             try {
                 const [mainConfig, proofConfigDoc] = await Promise.all([
-                    databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main'),
+                    databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main').catch(() => null),
                     databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'proof').catch(() => null)
                 ]);
-                setConfig(mainConfig);
+                
+                if (mainConfig) setConfig(mainConfig);
                 
                 if (proofConfigDoc) {
-                    // Check if it's the new stringified format or old attribute format
                     if (proofConfigDoc.data && typeof proofConfigDoc.data === 'string') {
                         try {
                             const parsed = JSON.parse(proofConfigDoc.data);
                             setProof(parsed);
                         } catch (e) {
-                            console.error("Failed to parse proof JSON", e);
                             setProof(proofConfigDoc);
                         }
                     } else {
                         setProof(proofConfigDoc);
                     }
                 }
-            } catch (configError) {
-                console.log("Could not fetch app configs.");
-            }
+            } catch (configError) {}
             
             try {
                 const currentUser = await account.get();
                 setUser(currentUser);
                 if (currentUser) {
-                    const profileDoc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id);
-                    setProfile(profileDoc);
+                    try {
+                        const profileDoc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id);
+                        setProfile(profileDoc);
+                    } catch (pError: any) {
+                        // Silent catch for profile 404 - happens during signup flow
+                        setProfile(null);
+                    }
                 } else {
                     setUser(null);
                     setProfile(null);
