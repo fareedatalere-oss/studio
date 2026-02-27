@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -129,10 +128,9 @@ NEXT_PUBLIC_APP_URL=https://ipay-online.vercel.app
                             <ShieldCheck className="h-5 w-5 text-primary" /> Admin Deployment Guide
                         </h3>
                         <ol className="text-sm space-y-3 list-decimal pl-5 text-muted-foreground">
-                            <li>Create a <strong>Private</strong> repository on GitHub.</li>
                             <li>Upload the files from the <strong>Sidebar Export</strong> (click the top-right export button in this IDE).</li>
                             <li>Go to <strong>Vercel</strong> and import the repository.</li>
-                            <li>Paste the contents of the <strong>.env</strong> file into Vercel Settings -> Environment Variables.</li>
+                            <li>Paste the contents of the <strong>.env</strong> file into Vercel Settings &rarr; Environment Variables.</li>
                             <li>Click <strong>Deploy</strong>.</li>
                         </ol>
                     </div>
