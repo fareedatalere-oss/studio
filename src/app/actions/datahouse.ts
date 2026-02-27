@@ -4,7 +4,8 @@
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 
-const DATAHOUSE_TOKEN = process.env.DATAHOUSE_TOKEN || ''; 
+// Ensure token is cleaned of any unexpected spaces
+const DATAHOUSE_TOKEN = (process.env.DATAHOUSE_TOKEN || '').trim(); 
 const BASE_URL = 'https://datahouse.com.ng/api';
 
 const getNetworkId = (name: string): number => {
@@ -41,7 +42,7 @@ export async function processDatahouseRecharge(payload: {
         }
 
         if (!DATAHOUSE_TOKEN) {
-            throw new Error("API configuration missing. Please contact the administrator.");
+            throw new Error("Provider configuration missing. Please check your token settings.");
         }
 
         let endpoint = '';
@@ -92,7 +93,7 @@ export async function processDatahouseRecharge(payload: {
 
         const result = await response.json();
 
-        // Enhanced success check: Look for status, Status, or existence of an ID
+        // Enhanced success check based on Datahouse response patterns
         const isSuccess = response.ok && (
             String(result.Status).toLowerCase() === 'success' || 
             String(result.status).toLowerCase() === 'success' || 
@@ -112,19 +113,19 @@ export async function processDatahouseRecharge(payload: {
                 status: 'completed',
                 recipientName: payload.description,
                 recipientDetails: payload.customer,
-                narration: `Processed via Datahouse. Fee: ₦${payload.fee}.`,
+                narration: `Processed via Datahouse. Total Debit: ₦${totalToDebit}.`,
                 sessionId: `dh-${Date.now()}`,
             });
 
             return { success: true, message: "Transaction successful." };
         } else {
-            // Extract detailed error from Datahouse response
-            const errorDetail = result.error || result.msg || result.message || result.Status || result.detail || JSON.stringify(result);
+            // Precise error capturing to resolve "Invalid token header" or other provider issues
+            const errorDetail = result.error || result.msg || result.message || result.Status || result.detail || "Provider declined the request.";
             throw new Error(`Provider Error: ${errorDetail}`);
         }
 
     } catch (error: any) {
-        console.error("Datahouse Error:", error);
+        console.error("Datahouse Action Error:", error);
         return { success: false, message: error.message || "An unexpected error occurred." };
     }
 }
