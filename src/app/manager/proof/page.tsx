@@ -59,11 +59,15 @@ export default function ProofControlPage() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
+            // We save everything as a single JSON string in the 'data' attribute
+            // This prevents "Unknown attribute" errors in Appwrite
+            const payload = { data: JSON.stringify(toggles) };
+            
             try {
-                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, PROOF_DOC_ID, toggles);
+                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, PROOF_DOC_ID, payload);
             } catch (e: any) {
                 if (e.code === 404) {
-                    await databases.createDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, PROOF_DOC_ID, toggles);
+                    await databases.createDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, PROOF_DOC_ID, payload);
                 } else {
                     throw e;
                 }

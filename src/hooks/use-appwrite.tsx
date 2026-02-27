@@ -76,12 +76,26 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
         try {
             // Fetch Configs
             try {
-                const [mainConfig, proofConfig] = await Promise.all([
+                const [mainConfig, proofConfigDoc] = await Promise.all([
                     databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main'),
                     databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'proof').catch(() => null)
                 ]);
                 setConfig(mainConfig);
-                setProof(proofConfig);
+                
+                if (proofConfigDoc) {
+                    // Check if it's the new stringified format or old attribute format
+                    if (proofConfigDoc.data && typeof proofConfigDoc.data === 'string') {
+                        try {
+                            const parsed = JSON.parse(proofConfigDoc.data);
+                            setProof(parsed);
+                        } catch (e) {
+                            console.error("Failed to parse proof JSON", e);
+                            setProof(proofConfigDoc);
+                        }
+                    } else {
+                        setProof(proofConfigDoc);
+                    }
+                }
             } catch (configError) {
                 console.log("Could not fetch app configs.");
             }
