@@ -6,7 +6,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 
 const usePresence = (user: Models.User<Models.Preferences> | null) => {
     useEffect(() => {
-        if (!user || typeof document === 'undefined') return;
+        if (!user || typeof window === 'undefined') return;
 
         const updateUserPresence = async (isOnline: boolean) => {
             try {
@@ -70,6 +70,9 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
     usePresence(user);
 
     const checkUser = useCallback(async () => {
+        // Prevents execution during SSR/Prerender which crashes Vercel
+        if (typeof window === 'undefined') return;
+
         setIsLoading(true);
         try {
             // 1. Fetch Application Configs (Global)
