@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -135,13 +134,34 @@ export default function AiChatPage() {
     toast({ title: "Message Deleted" });
   }
 
-  const handleAction = (action?: string) => {
+  const handleAction = (action?: string, targetId?: string) => {
     if (!action || action === 'none') return;
-    if (action === 'logout') {
-        toast({ title: "Logging out..." });
-        account.deleteSession('current').then(() => router.push('/auth/signin'));
-    } else if (action === 'call') {
-        window.location.href = 'tel:';
+    
+    switch (action) {
+        case 'logout':
+            toast({ title: "Logging out..." });
+            account.deleteSession('current').then(() => router.push('/auth/signin'));
+            break;
+        case 'call':
+            window.location.href = `tel:${targetId || ''}`;
+            break;
+        case 'sms':
+            window.location.href = `sms:${targetId || ''}`;
+            break;
+        case 'market':
+            router.push('/dashboard/market');
+            break;
+        case 'chat':
+            router.push('/dashboard/chat');
+            break;
+        case 'transaction':
+            router.push('/dashboard/history');
+            break;
+        case 'home':
+            router.push('/dashboard');
+            break;
+        default:
+            break;
     }
   }
 
@@ -172,7 +192,7 @@ export default function AiChatPage() {
       const sofiaMsg: Message = { role: 'sofia', text: response.text, timestamp: Date.now() };
       setMessages(prev => [...prev, sofiaMsg]);
       speakText(response.text);
-      handleAction(response.action);
+      handleAction(response.action, response.targetId);
       
       if (response.imageToGenerate) {
           toast({ title: "Creating Image...", description: "Sofia is generating visuals for you." });
@@ -233,8 +253,10 @@ export default function AiChatPage() {
                         : "bg-muted text-foreground rounded-tl-none border border-border"
                 )}>
                     {msg.image && (
-                        <div className="mb-3 relative h-48 w-full">
-                            <Image src={msg.image} alt="Uploaded Content" fill className="object-cover rounded-xl" />
+                        <div className="mb-3 flex justify-center w-full bg-black/5 rounded-xl p-2">
+                            <div className="relative h-64 w-64">
+                                <Image src={msg.image} alt="Uploaded Content" fill className="object-contain rounded-xl" />
+                            </div>
                         </div>
                     )}
                     <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
@@ -286,7 +308,7 @@ export default function AiChatPage() {
                 <Mic className="h-6 w-6" />
               </Button>
           </div>
-          <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={onFileChange} />
+          <input type="file" id="sofia-media-input" ref={fileInputRef} className="hidden" accept="image/*" onChange={onFileChange} />
           <Button size="icon" type="submit" className="h-12 w-12 rounded-full shadow-lg" disabled={isLoading || (!input.trim() && !selectedImage)}>
             {isLoading ? <Loader2 className="animate-spin h-6 w-6" /> : <Send className="h-6 w-6" />}
           </Button>
