@@ -4,8 +4,8 @@
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 
-// Ensure the token is used with the required "Token " prefix
-const DATAHOUSE_TOKEN = process.env.DATAHOUSE_TOKEN; 
+// Datahouse Token (Ensure this is set in your environment or provided)
+const DATAHOUSE_TOKEN = process.env.DATAHOUSE_TOKEN || ''; 
 const BASE_URL = 'https://datahouse.com.ng/api';
 
 /**
@@ -49,6 +49,10 @@ export async function processDatahouseRecharge(payload: {
             throw new Error(`Insufficient funds. Your balance is ₦${currentBalance.toLocaleString()}.`);
         }
 
+        if (!DATAHOUSE_TOKEN) {
+            throw new Error("API configuration missing. Please contact the administrator.");
+        }
+
         // 3. Prepare Datahouse API Call
         let endpoint = '';
         let body: any = {};
@@ -87,7 +91,7 @@ export async function processDatahouseRecharge(payload: {
             };
         }
 
-        // 4. Call Datahouse API with the strictly required "Token " prefix
+        // 4. Call Datahouse API
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
@@ -99,8 +103,13 @@ export async function processDatahouseRecharge(payload: {
 
         const result = await response.json();
 
-        // Datahouse returns status in various formats depending on endpoint
-        const isSuccess = response.ok && (result.Status === 'success' || result.status === 'success' || result.id);
+        // Check for success status from Datahouse
+        const isSuccess = response.ok && (
+            result.Status === 'success' || 
+            result.status === 'success' || 
+            result.id ||
+            result.Status === 'Success'
+        );
 
         if (isSuccess) {
             // 5. Perform Debit (Silent)
@@ -116,17 +125,19 @@ export async function processDatahouseRecharge(payload: {
                 status: 'completed',
                 recipientName: payload.description,
                 recipientDetails: payload.customer,
-                narration: `Ref: ${result.id || Date.now()}. Fee: ₦${payload.fee}.`,
+                narration: `Processed via Datahouse. Fee: ₦${payload.fee}.`,
                 sessionId: `dh-${Date.now()}`,
             });
 
             return { success: true, message: "Transaction successful." };
         } else {
-            const errorMsg = result.error || result.msg || result.message || "Provider declined the request. Check API token or balance.";
-            throw new Error(errorMsg);
+            // Provide exact feedback from the provider
+            const errorDetail = result.error || result.msg || result.message || result.Status || "Unknown provider error.";
+            throw new Error(`Provider Error: ${errorDetail}`);
         }
 
     } catch (error: any) {
+        console.error("Datahouse Error:", error);
         return { success: false, message: error.message || "An unexpected error occurred." };
     }
 }

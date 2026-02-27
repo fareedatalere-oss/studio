@@ -40,9 +40,9 @@ export default function AiChatPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('English');
-  const [locationStr, setLocationStr] = useState('Unknown Location');
+  const [locationStr, setLocationStr] = useState('Determining Location...');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [isListening, setIsFollowing] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -51,7 +51,11 @@ export default function AiChatPage() {
   useEffect(() => {
     const saved = localStorage.getItem('sofia-chat');
     if (saved) {
-        setMessages(JSON.parse(saved));
+        try {
+            setMessages(JSON.parse(saved));
+        } catch {
+            setMessages([]);
+        }
     } else {
         setMessages([{
             role: 'sofia',
@@ -63,6 +67,8 @@ export default function AiChatPage() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((pos) => {
             setLocationStr(`Lat: ${pos.coords.latitude.toFixed(2)}, Lng: ${pos.coords.longitude.toFixed(2)}`);
+        }, () => {
+            setLocationStr("Location Access Denied");
         });
     }
 
@@ -74,10 +80,10 @@ export default function AiChatPage() {
         recognitionRef.current.onresult = (event: any) => {
             const transcript = event.results[0][0].transcript;
             setInput(transcript);
-            setIsFollowing(false);
+            setIsListening(false);
         };
-        recognitionRef.current.onerror = () => setIsFollowing(false);
-        recognitionRef.current.onend = () => setIsFollowing(false);
+        recognitionRef.current.onerror = () => setIsListening(false);
+        recognitionRef.current.onend = () => setIsListening(false);
     }
   }, []);
 
@@ -88,11 +94,17 @@ export default function AiChatPage() {
 
   const speakText = (text: string) => {
     if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel(); // Stop current speech
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'en-US';
         const voices = window.speechSynthesis.getVoices();
-        // Prefer a female voice
-        const femaleVoice = voices.find(v => v.name.includes('Female') || v.name.includes('Google UK English Female') || v.name.includes('Samantha'));
+        // Prefer a professional female voice
+        const femaleVoice = voices.find(v => 
+            v.name.includes('Female') || 
+            v.name.includes('Google UK English Female') || 
+            v.name.includes('Samantha') ||
+            v.name.includes('Microsoft Zira')
+        );
         if (femaleVoice) utterance.voice = femaleVoice;
         window.speechSynthesis.speak(utterance);
     }
@@ -102,8 +114,12 @@ export default function AiChatPage() {
     if (isListening) {
         recognitionRef.current?.stop();
     } else {
-        recognitionRef.current?.start();
-        setIsFollowing(true);
+        try {
+            recognitionRef.current?.start();
+            setIsListening(true);
+        } catch (e) {
+            toast({ title: "Microphone error", description: "Could not start speech recognition." });
+        }
     }
   };
 
@@ -118,8 +134,6 @@ export default function AiChatPage() {
         account.deleteSession('current').then(() => router.push('/auth/signin'));
     } else if (action === 'call') {
         window.location.href = 'tel:';
-    } else if (action === 'balance') {
-        // Handled by text response from Sofia
     }
   }
 
@@ -153,10 +167,11 @@ export default function AiChatPage() {
       handleAction(response.action);
       
       if (response.imageToGenerate) {
-          toast({ title: "Generating image...", description: "Sofia is creating something for you." });
+          toast({ title: "Creating Image...", description: "Sofia is generating visuals for you." });
       }
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'sofia', text: "I hit a snag. Please try again.", timestamp: Date.now() }]);
+    } catch (error: any) {
+      console.error("Sofia Error:", error);
+      setMessages(prev => [...prev, { role: 'sofia', text: "I hit a snag processing your request. Please try again or check your API connection.", timestamp: Date.now() }]);
     } finally {
       setIsLoading(false);
     }
@@ -171,19 +186,22 @@ export default function AiChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-130px)]">
+    <div className="flex flex-col h-[calc(100vh-130px)] bg-background">
       <header className="sticky top-16 md:top-0 bg-background border-b flex items-center justify-between gap-3 p-3 z-10">
         <div className="flex items-center gap-3">
-            <Avatar><AvatarImage src="https://picsum.photos/seed/sofia/100/100" /><AvatarFallback>S</AvatarFallback></Avatar>
+            <Avatar className="h-10 w-10 border border-primary">
+                <AvatarImage src="https://picsum.photos/seed/sofia/100/100" />
+                <AvatarFallback className="bg-primary text-primary-foreground">S</AvatarFallback>
+            </Avatar>
             <div>
-                <h2 className="font-semibold">Sofia</h2>
-                <p className="text-[10px] text-muted-foreground">{locationStr}</p>
+                <h2 className="font-bold text-lg leading-none">Sofia</h2>
+                <p className="text-[10px] text-muted-foreground mt-1">{locationStr}</p>
             </div>
         </div>
         <div className="flex items-center gap-2">
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="gap-2">
+                    <Button variant="outline" size="sm" className="gap-2 h-8">
                         <Languages className="h-4 w-4" />
                         <span className="hidden sm:inline">{selectedLanguage}</span>
                     </Button>
@@ -197,31 +215,39 @@ export default function AiChatPage() {
         </div>
       </header>
 
-      <div className="flex-1 p-4 overflow-y-auto space-y-4">
+      <div className="flex-1 p-4 overflow-y-auto space-y-6">
         {messages.map((msg) => (
             <div key={msg.timestamp} className={cn("flex w-full flex-col group", msg.role === 'user' ? "items-end" : "items-start")}>
                 <div className={cn(
-                    "max-w-[85%] rounded-2xl p-3 text-sm relative",
-                    msg.role === 'user' ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-muted text-foreground rounded-tl-none"
+                    "max-w-[85%] rounded-2xl p-4 text-sm relative shadow-sm",
+                    msg.role === 'user' 
+                        ? "bg-primary text-primary-foreground rounded-tr-none" 
+                        : "bg-muted text-foreground rounded-tl-none border border-border"
                 )}>
-                    {msg.image && <div className="mb-2 relative h-40 w-full"><Image src={msg.image} alt="Uploaded" fill className="object-cover rounded-md" /></div>}
-                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                    {msg.image && (
+                        <div className="mb-3 relative h-48 w-full">
+                            <Image src={msg.image} alt="Uploaded Content" fill className="object-cover rounded-xl" />
+                        </div>
+                    )}
+                    <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
                     <Button 
-                        variant="ghost" 
+                        variant="destructive" 
                         size="icon" 
-                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute -top-3 -right-3 h-7 w-7 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20"
                         onClick={() => handleDeleteMessage(msg.timestamp)}
                     >
-                        <Trash2 className="h-3 w-3 text-destructive" />
+                        <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                 </div>
-                <span className="text-[9px] text-muted-foreground mt-1 px-1">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="text-[9px] text-muted-foreground mt-2 px-1 font-mono uppercase">
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
             </div>
         ))}
         {isLoading && (
             <div className="flex justify-start">
-                <div className="bg-muted rounded-2xl p-3 text-sm flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                <div className="bg-muted border border-border rounded-2xl p-4 text-sm flex items-center gap-3 animate-pulse">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
                     Sofia is thinking...
                 </div>
             </div>
@@ -229,29 +255,32 @@ export default function AiChatPage() {
         <div ref={scrollRef} />
       </div>
 
-      <footer className="sticky bottom-16 md:bottom-0 bg-background border-t p-3">
+      <footer className="sticky bottom-16 md:bottom-0 bg-background border-t p-4 shadow-inner">
         {selectedImage && (
-            <div className="mb-2 flex items-center gap-2 p-2 bg-muted rounded-md relative w-fit">
-                <Image src={selectedImage} alt="Preview" width={40} height={40} className="rounded object-cover" />
-                <Button variant="ghost" size="icon" className="h-5 w-5 absolute -top-2 -right-2" onClick={() => setSelectedImage(null)}><X className="h-3 w-3" /></Button>
+            <div className="mb-3 flex items-center gap-2 p-2 bg-muted rounded-xl relative w-fit border border-primary/20">
+                <Image src={selectedImage} alt="Preview" width={50} height={50} className="rounded-lg object-cover" />
+                <Button variant="destructive" size="icon" className="h-6 w-6 absolute -top-2 -right-2 rounded-full shadow-md" onClick={() => setSelectedImage(null)}><X className="h-3 w-3" /></Button>
             </div>
         )}
-        <form onSubmit={handleSend} className="flex items-center gap-2">
+        <form onSubmit={handleSend} className="flex items-center gap-3">
           <Input 
-            placeholder={`Ask Sofia...`} 
+            placeholder={`Type or ask Sofia in ${selectedLanguage}...`} 
             value={input}
             onChange={e => setInput(e.target.value)}
             disabled={isLoading}
+            className="h-12 bg-muted/50 border-none shadow-none focus-visible:ring-1 focus-visible:ring-primary rounded-xl"
           />
-          <Button variant="ghost" size="icon" type="button" onClick={() => fileInputRef.current?.click()} className={selectedImage ? 'text-primary' : ''}>
-            <ImageIcon className="h-5 w-5" />
-          </Button>
-          <Button variant="ghost" size="icon" type="button" onClick={handleMicClick} className={isListening ? 'text-red-500 animate-pulse' : ''}>
-            <Mic className="h-5 w-5" />
-          </Button>
+          <div className="flex gap-1">
+              <Button variant="ghost" size="icon" type="button" onClick={() => fileInputRef.current?.click()} className={cn("h-12 w-12 rounded-full", selectedImage ? 'text-primary bg-primary/10' : '')}>
+                <ImageIcon className="h-6 w-6" />
+              </Button>
+              <Button variant="ghost" size="icon" type="button" onClick={handleMicClick} className={cn("h-12 w-12 rounded-full", isListening ? 'text-red-500 animate-pulse bg-red-50' : '')}>
+                <Mic className="h-6 w-6" />
+              </Button>
+          </div>
           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={onFileChange} />
-          <Button size="icon" type="submit" disabled={isLoading || (!input.trim() && !selectedImage)}>
-            {isLoading ? <Loader2 className="animate-spin" /> : <Send />}
+          <Button size="icon" type="submit" className="h-12 w-12 rounded-full shadow-lg" disabled={isLoading || (!input.trim() && !selectedImage)}>
+            {isLoading ? <Loader2 className="animate-spin h-6 w-6" /> : <Send className="h-6 w-6" />}
           </Button>
         </form>
       </footer>
