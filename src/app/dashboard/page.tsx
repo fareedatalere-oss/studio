@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Suspense, useEffect, useState, useRef } from 'react';
@@ -33,6 +34,8 @@ import {
   Smartphone,
   Wifi,
   Undo2,
+  Tv,
+  Lightbulb,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
@@ -160,6 +163,8 @@ function DashboardContent() {
     { label: 'Buy Data', icon: Wifi, href: '/dashboard/buy-data' },
     { label: 'History', icon: History, href: '/dashboard/history' },
     { label: 'Get Reward', icon: Gift, href: '/dashboard/rewards' },
+    { label: 'Cable payment', icon: Tv, href: '/dashboard/cable-payment' },
+    { label: 'Electric Bill', icon: Lightbulb, href: '/dashboard/electric-bill' },
     { label: 'Multi Purpose', icon: CreditCard, href: '/dashboard/multi-purpose' },
     { label: 'Traveling', icon: Plane, href: '/dashboard/travelling' },
     { label: 'AI', icon: Bot, href: '/dashboard/ai-chat' },
