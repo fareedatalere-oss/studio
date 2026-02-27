@@ -78,7 +78,8 @@ NEXT_PUBLIC_APP_URL=https://ipay-online.vercel.app
                     "date-fns": "^3.6.0",
                     "file-saver": "^2.0.5",
                     "jszip": "^3.10.1",
-                    "zod": "^3.24.2"
+                    "zod": "^3.24.2",
+                    "embla-carousel-react": "^8.6.0"
                 },
                 "devDependencies": {
                     "@types/node": "^20",
@@ -91,7 +92,7 @@ NEXT_PUBLIC_APP_URL=https://ipay-online.vercel.app
             }, null, 2));
 
             zip.file("tailwind.config.ts", "import type {Config} from 'tailwindcss'; export default { content: ['./src/**/*.{js,ts,jsx,tsx}'] };");
-            zip.file("next.config.ts", "import type {NextConfig} from 'next'; const nextConfig: NextConfig = { typescript: { ignoreBuildErrors: true }, eslint: { ignoreDuringBuilds: true } }; export default nextConfig;");
+            zip.file("next.config.ts", "import type {NextConfig} from 'next'; const nextConfig: NextConfig = { typescript: { ignoreBuildErrors: true }, eslint: { ignoreDuringBuilds: true }, images: { remotePatterns: [{ protocol: 'https', hostname: '**' }] } }; export default nextConfig;");
             zip.file("tsconfig.json", JSON.stringify({
                 "compilerOptions": {
                     "target": "ES2017",
@@ -120,30 +121,25 @@ NEXT_PUBLIC_APP_URL=https://ipay-online.vercel.app
 
             // SOURCE FOLDER STRUCTURE
             const src = zip.folder("src");
-            const app = src?.folder("app");
-            const lib = src?.folder("lib");
-            const hooks = src?.folder("hooks");
-            const ai = src?.folder("ai");
-            const components = src?.folder("components");
+            src?.folder("app");
+            src?.folder("actions");
+            src?.folder("lib");
+            src?.folder("hooks");
+            src?.folder("ai");
+            src?.folder("components");
 
             // ASSET FOLDER
             const publicFolder = zip.folder("public");
-            publicFolder?.file("LOGO_INSTRUCTIONS.txt", "MASTER FAHAD: Place your 'logo.png' file in this folder before uploading to GitHub to ensure it appears in the app.");
+            publicFolder?.file("LOGO_INSTRUCTIONS.txt", "MASTER FAHAD: Place your provided 'logo.png' file into this folder before uploading to GitHub. Vercel will then use it for the PWA icon and dashboard.");
 
-            // CRITICAL CORE LOGIC FILES
-            app?.file("layout.tsx", "// GLOBAL LAYOUT - Handles PWA and Icons");
-            app?.file("page.tsx", "// DASHBOARD - Main Entry Point");
-            lib?.file("appwrite.ts", "// BACKEND - Connection to Appwrite Database");
-            ai?.file("genkit.ts", "// SOFIA AI - Intelligence and Multi-lingual Core");
-            
-            // INSTRUCTIONAL FILES
+            // DEPLOYMENT GUIDE
             zip.file("DEPLOY_TO_VERCEL.txt", `
 INSTRUCTIONS FOR THE ADMIN:
 1. Create a PRIVATE GitHub Repository.
-2. Unzip these files and upload them to the repo.
-3. Go to Vercel and import this repository.
-4. IMPORTANT: Place the 'logo.png' in the /public folder.
-5. In Vercel Settings &rarr; Environment Variables, paste the keys from the downloaded .env file.
+2. Unzip these files and upload them to the repository.
+3. IMPORTANT: Ensure the 'logo.png' provided by Master Fahad is inside the /public folder.
+4. Go to Vercel and import this repository.
+5. In Vercel Settings -> Environment Variables, paste all keys from the .env file.
 6. Click DEPLOY.
             `.trim());
 
@@ -152,7 +148,7 @@ INSTRUCTIONS FOR THE ADMIN:
 
             toast({ 
                 title: 'Project Bundled!', 
-                description: 'Complete source ZIP is downloading to your device.',
+                description: 'Complete source ZIP is downloading. Your admin has everything now.',
                 duration: 8000
             });
 
@@ -176,14 +172,14 @@ INSTRUCTIONS FOR THE ADMIN:
                     <CardTitle className="flex items-center justify-center gap-2 text-2xl font-black">
                         <ShieldCheck className="h-8 w-8 text-primary" /> Friday Launch Hub
                     </CardTitle>
-                    <CardDescription>Master Fahad, use these buttons to give your admin the full power of I-Pay.</CardDescription>
+                    <CardDescription>Master Fahad, use these buttons to give your admin the full production code.</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-6 space-y-6">
                     <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg flex items-start gap-4">
                         <AlertCircle className="h-10 w-10 text-orange-600 shrink-0" />
                         <div>
-                            <h3 className="font-bold text-orange-900 uppercase">Deployment Notice</h3>
-                            <p className="text-sm text-orange-800">Vercel requires the complete structure. The button below packages all folders and hidden configurations for your admin.</p>
+                            <h3 className="font-bold text-orange-900 uppercase">Production Ready</h3>
+                            <p className="text-sm text-orange-800">The button below packages all core logic, hooks, and folder structures. Vercel will build this perfectly.</p>
                         </div>
                     </div>
 
@@ -192,7 +188,7 @@ INSTRUCTIONS FOR THE ADMIN:
                             {isExporting ? <Loader2 className="h-8 w-8 animate-spin" /> : <Package className="h-8 w-8" />}
                             <div className="text-center">
                                 <span className="font-black text-lg uppercase block">Download Complete Project (.ZIP)</span>
-                                <span className="text-[10px] opacity-80">(All Folders, Files & Configs Included)</span>
+                                <span className="text-[10px] opacity-80">(Full Source & Folders Included)</span>
                             </div>
                         </Button>
                         
@@ -202,14 +198,20 @@ INSTRUCTIONS FOR THE ADMIN:
                         </Button>
                     </div>
 
-                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-4">
-                        <Smartphone className="h-8 w-8 text-blue-600 shrink-0" />
-                        <p className="text-sm text-blue-800 font-medium">I-Pay is <strong>PWA Ready</strong>. Once deployed, users can install it directly to their phones.</p>
+                    <div className="space-y-4 pt-4 border-t text-sm text-muted-foreground">
+                        <p className="font-bold text-foreground uppercase">Deployment Steps:</p>
+                        <ol className="list-decimal pl-5 space-y-2">
+                            <li>Download both files above to your device.</li>
+                            <li>Send them to your admin.</li>
+                            <li>Admin: Upload files to a <strong>Private GitHub</strong>.</li>
+                            <li>Admin: Import to <strong>Vercel</strong>.</li>
+                            <li>Admin: Paste <strong>.env</strong> values into Vercel &rarr; Environment Variables.</li>
+                        </ol>
                     </div>
                 </CardContent>
                 <CardFooter className="bg-primary text-primary-foreground p-4 flex items-center justify-center gap-2">
                     <ShieldCheck className="h-5 w-5" />
-                    <span className="font-bold text-sm uppercase tracking-wider">Official I-Pay Production Engine</span>
+                    <span className="font-bold text-sm uppercase tracking-wider">Official I-Pay Production Package</span>
                 </CardFooter>
             </Card>
         </div>
