@@ -75,7 +75,15 @@ export default function SignUpPage() {
           <form onSubmit={handleSignUp} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="m@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} />
+              <Input 
+                id="email" 
+                type="text" 
+                placeholder="m@example.com" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                required 
+                disabled={isLoading} 
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
