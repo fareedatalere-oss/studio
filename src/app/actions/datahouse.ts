@@ -5,8 +5,7 @@ import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTI
 import { ID } from 'appwrite';
 
 /**
- * Strictly hardcoded token as provided by user to avoid environment issues.
- * Token: 80ca2a529de4afa096c4eabefeb275dafe3a8941
+ * Strictly hardcoded token as provided by user.
  */
 const DATAHOUSE_TOKEN = '80ca2a529de4afa096c4eabefeb275dafe3a8941'; 
 const BASE_URL = 'https://datahouse.com.ng/api';
@@ -57,7 +56,7 @@ export async function processDatahouseRecharge(payload: {
                 amount: Number(payload.amount),
                 mobile_number: payload.customer,
                 Port: true,
-                airtime_type: "Share and Sell"
+                airtime_type: "SHARE AND SELL"
             };
         } else if (payload.type === 'data') {
             endpoint = `${BASE_URL}/data/`;
@@ -84,25 +83,29 @@ export async function processDatahouseRecharge(payload: {
             };
         }
 
-        // 4. Send request with strictly formatted header (NO EXTRA SPACES)
+        // 4. Send request with strictly formatted header
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
-                'Authorization': `Token ${DATAHOUSE_TOKEN.trim()}`,
-                'Content-Type': 'application/json'
+                'Authorization': 'Token ' + DATAHOUSE_TOKEN.trim(),
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             },
             body: JSON.stringify(body)
         });
 
-        const result = await response.json();
+        // Parse response carefully
+        let result: any = {};
+        try {
+            result = await response.json();
+        } catch (e) {
+            const rawText = await response.text();
+            throw new Error(`Invalid response from provider: ${rawText.substring(0, 100)}`);
+        }
 
         // 5. Check Success
-        const isSuccess = response.ok && (
-            String(result.Status).toLowerCase() === 'success' || 
-            String(result.status).toLowerCase() === 'success' || 
-            result.id || 
-            result.Status === 'Success'
-        );
+        const statusStr = String(result.Status || result.status || "").toLowerCase();
+        const isSuccess = response.ok && (statusStr === 'success' || !!result.id || !!result.Status === true);
 
         if (isSuccess) {
             // Debit User
@@ -118,15 +121,15 @@ export async function processDatahouseRecharge(payload: {
                 status: 'completed',
                 recipientName: payload.description,
                 recipientDetails: payload.customer,
-                narration: `Processed via Datahouse. Total Debit: ₦${totalToDebit}.`,
+                narration: `Processed via Datahouse. ID: ${result.id || 'N/A'}`,
                 sessionId: `dh-${Date.now()}`,
             });
 
             return { success: true, message: "Transaction successful." };
         } else {
-            // Precise error capturing
-            const errorDetail = result.error || result.msg || result.message || result.Status || result.detail || "Provider declined the request.";
-            throw new Error(`Provider Error: ${errorDetail}`);
+            // Captured failure detail from provider for precise debugging
+            const detail = result.error || result.msg || result.message || result.Status || result.detail || JSON.stringify(result);
+            throw new Error(`Provider Declined: ${detail}`);
         }
 
     } catch (error: any) {
