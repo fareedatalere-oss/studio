@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Languages, Mic, MoreVertical, Send, Loader2, Trash2, Camera, Image as ImageIcon, X } from 'lucide-react';
+import { Languages, Mic, Send, Loader2, Trash2, ImageIcon, X } from 'lucide-react';
 import { chatSofia } from '@/ai/flows/chat-flow';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/use-appwrite';
@@ -31,6 +31,8 @@ type Message = {
     timestamp: number;
 }
 
+const STORAGE_KEY = 'ipay-sofia-history';
+
 export default function AiChatPage() {
   const { user, profile } = useUser();
   const router = useRouter();
@@ -48,13 +50,14 @@ export default function AiChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
 
+  // Load history from browser storage
   useEffect(() => {
-    const saved = localStorage.getItem('sofia-chat');
+    const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
         try {
             setMessages(JSON.parse(saved));
-        } catch {
-            setMessages([]);
+        } catch (e) {
+            console.error("History load failed", e);
         }
     } else {
         setMessages([{
@@ -87,18 +90,20 @@ export default function AiChatPage() {
     }
   }, []);
 
+  // Save history to browser storage on change
   useEffect(() => {
-    localStorage.setItem('sofia-chat', JSON.stringify(messages));
+    if (messages.length > 0) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    }
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const speakText = (text: string) => {
     if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel(); // Stop current speech
+        window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'en-US';
         const voices = window.speechSynthesis.getVoices();
-        // Prefer a professional female voice
         const femaleVoice = voices.find(v => 
             v.name.includes('Female') || 
             v.name.includes('Google UK English Female') || 
@@ -124,7 +129,10 @@ export default function AiChatPage() {
   };
 
   const handleDeleteMessage = (timestamp: number) => {
-    setMessages(prev => prev.filter(m => m.timestamp !== timestamp));
+    const newMessages = messages.filter(m => m.timestamp !== timestamp);
+    setMessages(newMessages);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newMessages));
+    toast({ title: "Message Deleted" });
   }
 
   const handleAction = (action?: string) => {
@@ -171,7 +179,7 @@ export default function AiChatPage() {
       }
     } catch (error: any) {
       console.error("Sofia Error:", error);
-      setMessages(prev => [...prev, { role: 'sofia', text: "I hit a snag processing your request. Please try again or check your API connection.", timestamp: Date.now() }]);
+      setMessages(prev => [...prev, { role: 'sofia', text: "I hit a snag processing your request. Please try again.", timestamp: Date.now() }]);
     } finally {
       setIsLoading(false);
     }

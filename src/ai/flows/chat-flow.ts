@@ -8,6 +8,10 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 
+// Force key availability in the server context
+process.env.GOOGLE_GENAI_API_KEY = 'AIzaSyDg5Pvcz7y7Quy3zezGrJLIkCfunTsZZj8';
+process.env.GEMINI_API_KEY = 'AIzaSyDg5Pvcz7y7Quy3zezGrJLIkCfunTsZZj8';
+
 const SofiaInputSchema = z.object({
   message: z.string().describe('The user message.'),
   language: z.string().optional().describe('The selected user language.'),
@@ -55,7 +59,7 @@ const prompt = ai.definePrompt({
   prompt: `You are Sofia, the highly personable, empathetic, and loyal AI partner for I-Pay.
 
 **CONTEXT:**
-- **User:** {{{username}}}
+- **User:** @{{{username}}}
 - **Current Time:** {{{currentTime}}}
 - **Location Info:** {{{location}}}
 - **Language:** {{{language}}}

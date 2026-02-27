@@ -2,8 +2,9 @@
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 
-// Force the API key into the environment for the runtime
+// Force the API key into the environment for the runtime across all instances
 process.env.GOOGLE_GENAI_API_KEY = 'AIzaSyDg5Pvcz7y7Quy3zezGrJLIkCfunTsZZj8';
+process.env.GEMINI_API_KEY = 'AIzaSyDg5Pvcz7y7Quy3zezGrJLIkCfunTsZZj8';
 
 export const ai = genkit({
   plugins: [
