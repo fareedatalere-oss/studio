@@ -91,6 +91,7 @@ export default function AiChatPage() {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'en-US';
         const voices = window.speechSynthesis.getVoices();
+        // Prefer a female voice
         const femaleVoice = voices.find(v => v.name.includes('Female') || v.name.includes('Google UK English Female') || v.name.includes('Samantha'));
         if (femaleVoice) utterance.voice = femaleVoice;
         window.speechSynthesis.speak(utterance);
@@ -118,7 +119,7 @@ export default function AiChatPage() {
     } else if (action === 'call') {
         window.location.href = 'tel:';
     } else if (action === 'balance') {
-        // Handled by text response
+        // Handled by text response from Sofia
     }
   }
 
@@ -146,7 +147,8 @@ export default function AiChatPage() {
         photoDataUri: currentImg || undefined
       });
 
-      setMessages(prev => [...prev, { role: 'sofia', text: response.text, timestamp: Date.now() }]);
+      const sofiaMsg: Message = { role: 'sofia', text: response.text, timestamp: Date.now() };
+      setMessages(prev => [...prev, sofiaMsg]);
       speakText(response.text);
       handleAction(response.action);
       

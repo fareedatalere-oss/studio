@@ -55,11 +55,6 @@ export default function MultiPurposePaymentPage() {
     const handleFinalPayment = async () => {
         if (!user || !profile || !selectedBiller) return;
         
-        if (profile.pin !== pin) {
-            toast({ variant: 'destructive', title: 'Invalid PIN' });
-            return;
-        }
-
         setIsProcessing(true);
         try {
             const result = await initiateFlutterwaveBill({
@@ -69,7 +64,8 @@ export default function MultiPurposePaymentPage() {
                 amount: Number(amount),
                 type: selectedBiller.biller_code,
                 billerCode: selectedBiller.biller_code,
-                isData: false
+                isData: false,
+                narration: selectedBiller.name
             });
 
             if (result.success) {
@@ -96,20 +92,20 @@ export default function MultiPurposePaymentPage() {
             <Card className="max-w-md mx-auto">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><CreditCard className="text-primary" />Multi-Purpose Payment</CardTitle>
-                    <CardDescription>Live billers directly from our service provider</CardDescription>
+                    <CardDescription>Live billers and services</CardDescription>
                 </CardHeader>
                 
                 <CardContent className="space-y-4">
                     {isLoadingBillers ? (
                         <div className="flex flex-col items-center justify-center p-12">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            <p className="text-sm text-muted-foreground mt-4">Syncing billers...</p>
+                            <p className="text-sm text-muted-foreground mt-4">Syncing services...</p>
                         </div>
                     ) : (
                         <>
                             {step === 1 && (
                                 <div className="space-y-4">
-                                    <Label>Choose Service Category</Label>
+                                    <Label>Choose Category</Label>
                                     <div className="relative">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                         <Input placeholder="Search categories..." className="pl-10" value={categorySearch} onChange={e => setCategorySearch(e.target.value)} />
@@ -126,17 +122,17 @@ export default function MultiPurposePaymentPage() {
 
                             {step === 2 && (
                                 <div className="space-y-4">
-                                    <Label>Select Provider from {selectedCategory}</Label>
+                                    <Label>Select Service from {selectedCategory}</Label>
                                     <div className="relative">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                        <Input placeholder={`Search providers...`} className="pl-10" value={billerSearch} onChange={e => setBillerSearch(e.target.value)} />
+                                        <Input placeholder={`Search services...`} className="pl-10" value={billerSearch} onChange={e => setBillerSearch(e.target.value)} />
                                     </div>
                                     <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-1">
                                         {filteredBillers.length > 0 ? filteredBillers.map((b, idx) => (
                                             <Button key={idx} variant="outline" className="justify-start h-12" onClick={() => { setSelectedBiller(b); setStep(3); }}>
                                                 {b.name}
                                             </Button>
-                                        )) : <p className="text-center text-sm text-muted-foreground">No providers found.</p>}
+                                        )) : <p className="text-center text-sm text-muted-foreground">No services found.</p>}
                                     </div>
                                 </div>
                             )}
@@ -164,7 +160,7 @@ export default function MultiPurposePaymentPage() {
                                     <div className="p-4 border rounded-lg">
                                         <p className="text-sm text-muted-foreground">Authorize Payment</p>
                                         <p className="text-2xl font-bold">₦{Number(amount).toLocaleString()}</p>
-                                        <p className="text-xs text-muted-foreground mt-1">To: {selectedBiller?.name}</p>
+                                        <p className="text-xs text-muted-foreground mt-1">For: {selectedBiller?.name}</p>
                                     </div>
                                     <div className="space-y-2 text-left">
                                         <Label>Transaction PIN</Label>

@@ -6,22 +6,6 @@ import { ID, Query } from 'appwrite';
 const FLUTTERWAVE_API_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
 const API_KEY_ERROR_MESSAGE = 'Configuration error. Please contact an administrator.';
 
-export async function getBankList() {
-    if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
-    try {
-        const response = await fetch('https://api.flutterwave.com/v3/banks/NG', {
-            method: 'GET',
-            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` },
-            cache: 'force-cache'
-        });
-        const data = await response.json();
-        if (data.status === 'success') return { success: true, data: data.data };
-        return { success: false, message: data.message || 'Failed to fetch banks.', data: [] };
-    } catch (error: any) {
-        return { success: false, message: error.message, data: [] };
-    }
-}
-
 export async function getBillCategories(type?: string) {
     if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     try {
@@ -31,7 +15,7 @@ export async function getBillCategories(type?: string) {
         const data = await response.json();
         if (data.status === 'success') {
             let filtered = data.data;
-            if (type) {
+            if (type && type !== 'All') {
                 filtered = filtered.filter((item: any) => item.bill_group.toUpperCase() === type.toUpperCase());
             }
             return { success: true, data: filtered };
@@ -51,10 +35,10 @@ export async function getFlutterwaveDataPlans(providerName: string) {
         const data = await response.json();
         if (data.status === 'success') {
             const plans = data.data
-                .filter((item: any) => item.name.toUpperCase().includes(providerName.toUpperCase()))
+                .filter((item: any) => item.name.toUpperCase().includes(providerName.toUpperCase()) && item.country === 'NG')
                 .map((item: any) => ({
                     name: item.name,
-                    price: item.amount,
+                    price: Number(item.amount),
                     biller_code: item.biller_code,
                     item_code: item.item_code
                 }))
@@ -67,16 +51,18 @@ export async function getFlutterwaveDataPlans(providerName: string) {
     }
 }
 
-export async function initiateFlutterwaveBill(payload: { userId: string, pin: string, customer: string, amount: number, type: string, billerCode: string, isData?: boolean }) {
+export async function initiateFlutterwaveBill(payload: { userId: string, pin: string, customer: string, amount: number, type: string, billerCode: string, isData?: boolean, narration?: string }) {
     if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     
     const MY_CHARGE = 3;
-    const totalDebit = payload.amount + MY_CHARGE;
+    const totalDebit = Number(payload.amount) + MY_CHARGE;
 
     try {
         const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
         if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
-        if (userProfile.nairaBalance < totalDebit) throw new Error('Insufficient funds in your wallet.');
+        
+        const currentBalance = Number(userProfile.nairaBalance || 0);
+        if (currentBalance < totalDebit) throw new Error(`Insufficient funds. Your balance is ₦${currentBalance.toLocaleString()}. You need ₦${totalDebit.toLocaleString()} including fees.`);
 
         const response = await fetch('https://api.flutterwave.com/v3/bills', {
             method: 'POST',
@@ -97,7 +83,7 @@ export async function initiateFlutterwaveBill(payload: { userId: string, pin: st
 
         if (data.status === 'success') {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { 
-                nairaBalance: userProfile.nairaBalance - totalDebit 
+                nairaBalance: currentBalance - totalDebit 
             });
 
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
@@ -105,7 +91,7 @@ export async function initiateFlutterwaveBill(payload: { userId: string, pin: st
                 type: payload.isData ? 'data' : 'airtime',
                 amount: payload.amount,
                 status: 'completed',
-                recipientName: `${payload.type} ${payload.isData ? 'Data' : 'Airtime'}`,
+                recipientName: payload.narration || `${payload.type} ${payload.isData ? 'Data' : 'Airtime'}`,
                 recipientDetails: payload.customer,
                 narration: `Charge of ₦${MY_CHARGE} included.`,
                 sessionId: data.data?.reference || `ref-${Date.now()}`,
