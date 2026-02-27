@@ -23,6 +23,17 @@ const languages = [
   'English', 'Hausa', 'Hindi', 'Arabic', 'Kanuri', 'French', 'Bura', 'Fulani', 'Igbo', 'Yoruba', 'Chinese'
 ];
 
+const langMap: Record<string, string> = {
+    'English': 'en-US',
+    'Hausa': 'ha-NE',
+    'Hindi': 'hi-IN',
+    'Arabic': 'ar-SA',
+    'French': 'fr-FR',
+    'Chinese': 'zh-CN',
+    'Yoruba': 'yo-NG',
+    'Igbo': 'ig-NG'
+};
+
 type Message = {
     role: 'user' | 'sofia';
     text: string;
@@ -101,14 +112,15 @@ export default function AiChatPage() {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'en-US';
+        utterance.lang = langMap[selectedLanguage] || 'en-US';
         const voices = window.speechSynthesis.getVoices();
+        
+        // Find best female voice for the target language or fallback
         const femaleVoice = voices.find(v => 
-            v.name.includes('Female') || 
-            v.name.includes('Google UK English Female') || 
-            v.name.includes('Samantha') ||
+            (v.lang.startsWith(utterance.lang.substring(0, 2)) && (v.name.includes('Female') || v.name.includes('Google') || v.name.includes('Samantha'))) ||
             v.name.includes('Microsoft Zira')
         );
+        
         if (femaleVoice) utterance.voice = femaleVoice;
         window.speechSynthesis.speak(utterance);
     }
@@ -119,8 +131,11 @@ export default function AiChatPage() {
         recognitionRef.current?.stop();
     } else {
         try {
-            recognitionRef.current?.start();
-            setIsListening(true);
+            if (recognitionRef.current) {
+                recognitionRef.current.lang = langMap[selectedLanguage] || 'en-US';
+                recognitionRef.current.start();
+                setIsListening(true);
+            }
         } catch (e) {
             toast({ title: "Microphone error", description: "Could not start speech recognition." });
         }

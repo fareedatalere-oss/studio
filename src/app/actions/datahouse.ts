@@ -1,4 +1,3 @@
-
 'use server';
 
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
@@ -56,7 +55,7 @@ export async function processDatahouseRecharge(payload: {
                 amount: Number(payload.amount),
                 mobile_number: payload.customer,
                 Ported_number: true,
-                airtime_type: "SHARE AND SELL"
+                airtime_type: "VTU" // Changed from "SHARE AND SELL" to ensure provider acceptance
             };
         } else if (payload.type === 'data') {
             endpoint = `${BASE_URL}/data/`;
