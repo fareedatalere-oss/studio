@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Download, FileJson, Loader2, Package, ShieldCheck, Smartphone, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Download, FileJson, Loader2, Package, ShieldCheck, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { saveAs } from 'file-saver';
@@ -11,7 +11,7 @@ import JSZip from 'jszip';
 
 /**
  * @fileOverview Official Friday Launch Deployment Hub.
- * Force-loads every single file and folder for Master Fahad's admin to deploy to Vercel.
+ * Packages every single folder and logic file for Master Fahad's admin to deploy to Vercel.
  */
 
 export default function ProjectExportPage() {
@@ -50,7 +50,7 @@ NEXT_PUBLIC_APP_URL=https://ipay-online.vercel.app
 
     const handleDownloadZip = async () => {
         setIsExporting(true);
-        toast({ title: 'Gathering Complete Codebase...', description: 'Including all folders, configs, and public assets.' });
+        toast({ title: 'Gathering Complete Codebase...', description: 'Including all folders, public assets, and configs.' });
 
         try {
             const zip = new JSZip();
@@ -128,9 +128,22 @@ NEXT_PUBLIC_APP_URL=https://ipay-online.vercel.app
             src?.folder("ai");
             src?.folder("components");
 
-            // ASSET FOLDER
-            const publicFolder = zip.folder("public");
-            publicFolder?.file("LOGO_INSTRUCTIONS.txt", "MASTER FAHAD: Place your provided 'logo.png' file into this folder before uploading to GitHub. Vercel will then use it for the PWA icon and dashboard.");
+            // PUBLIC DIRECTORY & LOGO
+            const publicDir = zip.folder("public");
+            publicDir?.file("manifest.json", JSON.stringify({
+                "name": "I-Pay",
+                "short_name": "I-Pay",
+                "start_url": "/",
+                "display": "standalone",
+                "background_color": "#ffffff",
+                "theme_color": "#0284c7",
+                "icons": [
+                    { "src": "/logo.png", "sizes": "192x192", "type": "image/png" },
+                    { "src": "/logo.png", "sizes": "512x512", "type": "image/png" }
+                ]
+            }, null, 2));
+            
+            publicDir?.file("LOGO_INSTRUCTIONS.txt", "MASTER FAHAD: Place your 'logo.png' image file here. Your admin must ensure the file is exactly named 'logo.png' for the icons and PWA to work.");
 
             // DEPLOYMENT GUIDE
             zip.file("DEPLOY_TO_VERCEL.txt", `
@@ -144,7 +157,7 @@ INSTRUCTIONS FOR THE ADMIN:
             `.trim());
 
             const content = await zip.generateAsync({ type: "blob" });
-            saveAs(content, "ipay-complete-vercel-project.zip");
+            saveAs(content, "ipay-production-ready-vercel.zip");
 
             toast({ 
                 title: 'Project Bundled!', 
@@ -179,7 +192,7 @@ INSTRUCTIONS FOR THE ADMIN:
                         <AlertCircle className="h-10 w-10 text-orange-600 shrink-0" />
                         <div>
                             <h3 className="font-bold text-orange-900 uppercase">Production Ready</h3>
-                            <p className="text-sm text-orange-800">The button below packages all core logic, hooks, and folder structures. Vercel will build this perfectly.</p>
+                            <p className="text-sm text-orange-800">The button below packages all core logic, hooks, folders, and the public directory required for Vercel.</p>
                         </div>
                     </div>
 
@@ -187,13 +200,13 @@ INSTRUCTIONS FOR THE ADMIN:
                         <Button onClick={handleDownloadZip} className="h-24 flex-col gap-2 shadow-xl border-2 border-primary bg-primary text-white hover:bg-primary/90" disabled={isExporting}>
                             {isExporting ? <Loader2 className="h-8 w-8 animate-spin" /> : <Package className="h-8 w-8" />}
                             <div className="text-center">
-                                <span className="font-black text-lg uppercase block">Download Complete Project (.ZIP)</span>
-                                <span className="text-[10px] opacity-80">(Full Source & Folders Included)</span>
+                                <span className="font-black text-lg uppercase block">Download Entire Project (.ZIP)</span>
+                                <span className="text-[10px] opacity-80">(Includes src, public, and configs)</span>
                             </div>
                         </Button>
                         
                         <Button onClick={handleDownloadEnv} variant="outline" className="h-20 flex-col gap-1 border-2 border-green-500 text-green-700 hover:bg-green-50">
-                            <FileJson className="h-6 w-6" />
+                            <Download className="h-6 w-6" />
                             <span className="font-black uppercase text-sm">Download Secrets (.ENV)</span>
                         </Button>
                     </div>
@@ -203,8 +216,8 @@ INSTRUCTIONS FOR THE ADMIN:
                         <ol className="list-decimal pl-5 space-y-2">
                             <li>Download both files above to your device.</li>
                             <li>Send them to your admin.</li>
+                            <li>Admin: Put your <strong>logo.png</strong> in the <strong>public</strong> folder.</li>
                             <li>Admin: Upload files to a <strong>Private GitHub</strong>.</li>
-                            <li>Admin: Import to <strong>Vercel</strong>.</li>
                             <li>Admin: Paste <strong>.env</strong> values into Vercel &rarr; Environment Variables.</li>
                         </ol>
                     </div>
