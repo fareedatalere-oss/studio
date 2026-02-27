@@ -97,7 +97,7 @@ export default function SignInPage() {
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <div className="flex items-center justify-end">
-              <Link href="/auth/forgot-password" size="sm" className="text-xs underline">Forgot password?</Link>
+              <Link href="/auth/forgot-password"  className="text-xs underline">Forgot password?</Link>
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>{isLoading ? 'Signing In...' : 'Sign In'}</Button>
           </form>

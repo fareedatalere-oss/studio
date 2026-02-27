@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -12,7 +11,7 @@ import JSZip from 'jszip';
 
 /**
  * @fileOverview Official Friday Launch Deployment Hub.
- * Optimized for Master Fahad to download everything for his admin to deploy to Vercel.
+ * Force-loads every single file and folder for Master Fahad's admin to deploy to Vercel.
  */
 
 export default function ProjectExportPage() {
@@ -144,7 +143,7 @@ INSTRUCTIONS FOR THE ADMIN:
 2. Unzip these files and upload them to the repo.
 3. Go to Vercel and import this repository.
 4. IMPORTANT: Place the 'logo.png' in the /public folder.
-5. In Vercel Settings -> Environment Variables, paste the keys from the downloaded .env file.
+5. In Vercel Settings &rarr; Environment Variables, paste the keys from the downloaded .env file.
 6. Click DEPLOY.
             `.trim());
 
