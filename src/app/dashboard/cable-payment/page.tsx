@@ -11,16 +11,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { processLocalBillPayment } from '@/app/actions/bills';
+import { processDatahouseRecharge } from '@/app/actions/datahouse';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const CABLE_PLANS = [
-    { id: '28', name: 'Gotv smallie', price: 1900 },
-    { id: '29', name: 'Gotv jinja bouquets', price: 3900 },
-    { id: '31', name: 'Gotv max', price: 8500 },
-    { id: '32', name: 'Dstv compact', price: 19000 },
-    { id: '33', name: 'Dstv compact plus', price: 30000 },
-    { id: '45', name: 'Startimes super', price: 9800 },
+    { id: 28, name: 'Gotv smallie', price: 1900 },
+    { id: 29, name: 'Gotv jinja bouquets', price: 3900 },
+    { id: 31, name: 'Gotv max', price: 8500 },
+    { id: 32, name: 'Dstv compact', price: 19000 },
+    { id: 33, name: 'Dstv compact plus', price: 30000 },
+    { id: 45, name: 'Startimes super', price: 9800 },
 ];
 
 export default function CablePaymentPage() {
@@ -37,14 +37,15 @@ export default function CablePaymentPage() {
         if (!user || !selectedPlan) return;
         setIsLoading(true);
 
-        const result = await processLocalBillPayment({
+        const result = await processDatahouseRecharge({
             userId: user.$id,
             pin,
+            type: 'cable',
+            providerId: selectedPlan.id,
             customer: cableNumber,
             amount: selectedPlan.price,
-            fee: 50, // Hardcoded hidden fee
-            type: 'tv_subscription',
-            narration: selectedPlan.name
+            fee: 50,
+            description: selectedPlan.name
         });
 
         setIsLoading(false);
@@ -68,7 +69,7 @@ export default function CablePaymentPage() {
                         <Tv className="text-primary" />
                         Cable Payment
                     </CardTitle>
-                    <CardDescription>Select a plan and enter your cable number.</CardDescription>
+                    <CardDescription>Select a plan and enter your number.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div className="space-y-2">
@@ -100,7 +101,7 @@ export default function CablePaymentPage() {
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button className="w-full h-12" disabled={!selectedPlan || cableNumber.length < 10}>
+                            <Button className="w-full h-12 font-bold" disabled={!selectedPlan || cableNumber.length < 10}>
                                 Continue
                             </Button>
                         </AlertDialogTrigger>

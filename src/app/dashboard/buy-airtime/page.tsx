@@ -13,13 +13,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { initiateFlutterwaveAirtime } from '@/app/actions/flutterwave';
+import { processDatahouseRecharge } from '@/app/actions/datahouse';
 
 const CORE_PROVIDERS = [
-    { name: 'MTN', searchKey: 'MTN' },
-    { name: 'Airtel', searchKey: 'AIRTEL' },
-    { name: 'Glo', searchKey: 'GLO' },
-    { name: '9mobile', searchKey: '9MOBILE' }
+    { name: 'MTN' },
+    { name: 'Airtel' },
+    { name: 'Glo' },
+    { name: '9mobile' }
 ];
 
 export default function BuyAirtimePage() {
@@ -38,12 +38,15 @@ export default function BuyAirtimePage() {
         
         setIsPurchasing(true);
 
-        const result = await initiateFlutterwaveAirtime({
+        const result = await processDatahouseRecharge({
             userId: user.$id,
             pin,
+            type: 'airtime',
+            providerId: networkName,
             customer: phoneNumber,
             amount: Number(amount),
-            type: networkName
+            fee: 3, // Standard 3 Naira fee for Airtime
+            description: `${networkName} Airtime`
         });
 
         setIsPurchasing(false);
@@ -52,7 +55,7 @@ export default function BuyAirtimePage() {
             toast({ title: "Airtime Purchase Successful" });
             router.push('/dashboard');
         } else {
-            toast({ variant: 'destructive', title: "Purchase Failed", description: result.message || "Provider declined the request." });
+            toast({ variant: 'destructive', title: "Purchase Failed", description: result.message });
         }
     };
 
@@ -64,27 +67,25 @@ export default function BuyAirtimePage() {
             <Card className="w-full max-w-md mx-auto shadow-lg border-t-4 border-t-primary">
                 <CardHeader className="text-center pb-2">
                     <CardTitle className="text-2xl font-bold">Buy Airtime</CardTitle>
-                    <CardDescription>Instant recharge for all networks</CardDescription>
+                    <CardDescription>Instant recharge via Datahouse</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 pt-4">
                     <div className="space-y-2">
-                        <Label className="text-xs uppercase font-black text-muted-foreground">Select Network Provider</Label>
+                        <Label className="text-xs uppercase font-black text-muted-foreground">Select Provider</Label>
                         <Select onValueChange={setNetworkName} value={networkName}>
                             <SelectTrigger className="h-12 text-lg font-semibold">
                                 <SelectValue placeholder="Choose Provider" />
                             </SelectTrigger>
                             <SelectContent>
                                 {CORE_PROVIDERS.map(p => (
-                                    <SelectItem key={p.name} value={p.name} className="font-bold">
-                                        {p.name}
-                                    </SelectItem>
+                                    <SelectItem key={p.name} value={p.name} className="font-bold">{p.name}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
 
                     <div className="space-y-2">
-                        <Label className="text-xs uppercase font-black text-muted-foreground">Recipient Phone Number</Label>
+                        <Label className="text-xs uppercase font-black text-muted-foreground">Phone Number</Label>
                         <Input 
                             type="tel"
                             inputMode="numeric"
@@ -97,7 +98,7 @@ export default function BuyAirtimePage() {
                     </div>
 
                     <div className="space-y-2">
-                        <Label className="text-xs uppercase font-black text-muted-foreground">Recharge Amount (₦)</Label>
+                        <Label className="text-xs uppercase font-black text-muted-foreground">Amount (₦)</Label>
                         <Input 
                             type="number" 
                             value={amount} 
@@ -110,15 +111,15 @@ export default function BuyAirtimePage() {
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button className="w-full h-14 text-lg font-bold" disabled={!networkName || phoneNumber.length !== 11 || !amount || Number(amount) < 50}>
-                                Continue to PIN
+                                Continue
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Confirm Airtime Purchase</AlertDialogTitle>
+                                <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
                                 <div className="space-y-2 text-foreground text-sm">
-                                    <div>Network: <span className="font-bold">{networkName}</span></div>
-                                    <div>Number: <span className="font-bold">{phoneNumber}</span></div>
+                                    <p>Network: <span className="font-bold">{networkName}</span></p>
+                                    <p>Number: <span className="font-bold">{phoneNumber}</span></p>
                                     <div className="pt-2 text-primary font-bold text-lg border-t">Total: ₦{Number(amount).toLocaleString()}</div>
                                 </div>
                             </AlertDialogHeader>

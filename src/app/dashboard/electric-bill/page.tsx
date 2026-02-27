@@ -11,16 +11,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { processLocalBillPayment } from '@/app/actions/bills';
+import { processDatahouseRecharge } from '@/app/actions/datahouse';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const DISCOS = [
-    { id: '10', name: 'Ikeja Electric Disco' },
-    { id: '11', name: 'Eko Electric' },
-    { id: '12', name: 'Abuja Electric' },
-    { id: '13', name: 'Kano Electric' },
-    { id: '15', name: 'Port Harcourt Electric' },
-    { id: '17', name: 'Kaduna Electric' },
+    { id: 10, name: 'Ikeja Electric Disco' },
+    { id: 11, name: 'Eko Electric' },
+    { id: 12, name: 'Abuja Electric' },
+    { id: 13, name: 'Kano Electric' },
+    { id: 15, name: 'Port Harcourt Electric' },
+    { id: 17, name: 'Kaduna Electric' },
 ];
 
 export default function ElectricBillPage() {
@@ -41,14 +41,15 @@ export default function ElectricBillPage() {
         if (!user || !selectedDisco) return;
         setIsLoading(true);
 
-        const result = await processLocalBillPayment({
+        const result = await processDatahouseRecharge({
             userId: user.$id,
             pin,
+            type: 'electric',
+            providerId: selectedDisco.id,
             customer: meterNumber,
             amount: Number(amount),
-            fee: 150, // Hardcoded hidden fee
-            type: 'electricity',
-            narration: `${selectedDisco.name} Recharge`
+            fee: 150,
+            description: `${selectedDisco.name} Recharge`
         });
 
         setIsLoading(false);
@@ -72,15 +73,15 @@ export default function ElectricBillPage() {
                         <Lightbulb className="text-primary" />
                         Electric Bill
                     </CardTitle>
-                    <CardDescription>Recharge your electricity meter.</CardDescription>
+                    <CardDescription>Instant recharge via Datahouse</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div className="space-y-2">
-                        <Label>Select Disco Provider</Label>
+                        <Label className="text-xs uppercase font-black text-muted-foreground">Select Provider</Label>
                         <div className="relative mb-2">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input 
-                                placeholder="Search providers..." 
+                                placeholder="Search Discos..." 
                                 className="pl-9"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -91,7 +92,7 @@ export default function ElectricBillPage() {
                                 <Button 
                                     key={disco.id} 
                                     variant={selectedDisco?.id === disco.id ? 'default' : 'outline'}
-                                    className="justify-start h-12"
+                                    className="justify-start h-12 font-bold"
                                     onClick={() => setSelectedDisco(disco)}
                                 >
                                     {disco.name}
@@ -101,39 +102,41 @@ export default function ElectricBillPage() {
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="meter-number">Meter Number</Label>
+                        <Label htmlFor="meter-number" className="text-xs uppercase font-black text-muted-foreground">Meter Number</Label>
                         <Input 
                             id="meter-number"
                             placeholder="Enter meter number"
                             value={meterNumber}
                             onChange={(e) => setMeterNumber(e.target.value.replace(/\D/g, ''))}
+                            className="h-12 text-lg font-mono"
                         />
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="amount">Amount (₦)</Label>
+                        <Label htmlFor="amount" className="text-xs uppercase font-black text-muted-foreground">Amount (₦)</Label>
                         <Input 
                             id="amount"
                             type="number"
                             placeholder="0.00"
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
+                            className="h-12 text-lg font-bold"
                         />
                     </div>
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button className="w-full h-12" disabled={!selectedDisco || meterNumber.length < 5 || !amount}>
+                            <Button className="w-full h-12 font-bold" disabled={!selectedDisco || meterNumber.length < 5 || !amount}>
                                 Continue
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Authorize Bill Payment</AlertDialogTitle>
+                                <AlertDialogTitle>Authorize Payment</AlertDialogTitle>
                                 <div className="space-y-2 text-sm text-foreground">
                                     <p>Provider: <span className="font-bold">{selectedDisco?.name}</span></p>
                                     <p>Meter: <span className="font-bold">{meterNumber}</span></p>
-                                    <p className="pt-2 text-primary font-bold text-lg border-t">Amount: ₦{Number(amount).toLocaleString()}</p>
+                                    <p className="pt-2 text-primary font-bold text-lg border-t">Total: ₦{Number(amount).toLocaleString()}</p>
                                 </div>
                             </AlertDialogHeader>
                             <div className="space-y-2 pt-4">

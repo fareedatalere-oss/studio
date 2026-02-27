@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { processLocalBillPayment } from '@/app/actions/bills';
+import { processDatahouseRecharge } from '@/app/actions/datahouse';
 
 const CORE_PROVIDERS = [
     { name: 'MTN' },
@@ -24,27 +24,27 @@ const CORE_PROVIDERS = [
 
 const HARDCODED_DATA_PLANS: Record<string, any[]> = {
     'MTN': [
-        { id: '123', name: 'MTN CORPORATE 500mb', price: 450 },
-        { id: '106', name: 'MTN CORPORATE 1GB 30days', price: 570 },
-        { id: '156', name: 'MTN GIFTING +5minute weekly', price: 970 },
-        { id: '168', name: 'MTN GIFTING 75.0mb 1day', price: 75.0 },
-        { id: '169', name: 'MTN GIFTING 1.GB +15min 1day', price: 500 },
+        { id: 123, name: 'MTN CORPORATE 500mb', price: 450 },
+        { id: 106, name: 'MTN CORPORATE 1GB 30days', price: 570 },
+        { id: 156, name: 'MTN GIFTING +5minute weekly', price: 970 },
+        { id: 168, name: 'MTN GIFTING 75.0mb 1day', price: 75 },
+        { id: 169, name: 'MTN GIFTING 1.GB +15min 1day', price: 500 },
     ],
     'Glo': [
-        { id: '260', name: 'GLO special data 1.GB 1day', price: 395 },
-        { id: '258', name: 'GLO special data 750.0mb 1day', price: 230 },
-        { id: '176', name: 'GLO cooperate 2.GB 30days', price: 900 },
+        { id: 260, name: 'GLO special data 1.GB 1day', price: 395 },
+        { id: 258, name: 'GLO special data 750.0mb 1day', price: 230 },
+        { id: 176, name: 'GLO cooperate 2.GB 30days', price: 900 },
     ],
     'Airtel': [
-        { id: '764', name: 'Airtel cooperate 1.gb 3days', price: 300 },
-        { id: '759', name: 'Airtel special data 3.0gb 2days', price: 900 },
-        { id: '757', name: 'Airtel special data 1.gb 1day', price: 500 },
-        { id: '726', name: 'Airtel sme 500mb promo 7days', price: 200 },
+        { id: 764, name: 'Airtel cooperate 1.gb 3days', price: 300 },
+        { id: 759, name: 'Airtel special data 3.0gb 2days', price: 900 },
+        { id: 757, name: 'Airtel special data 1.gb 1day', price: 500 },
+        { id: 726, name: 'Airtel sme 500mb promo 7days', price: 200 },
     ],
     '9mobile': [
-        { id: '73', name: '9mobile Gifting 1gb 30days', price: 940 },
-        { id: '74', name: '9mobile gifting 2.0GB 30days', price: 1128.0 },
-        { id: '184', name: '9mobile cooperate 1.GB 1 month', price: 300 },
+        { id: 73, name: '9mobile Gifting 1gb 30days', price: 940 },
+        { id: 74, name: '9mobile gifting 2.0GB 30days', price: 1128 },
+        { id: 184, name: '9mobile cooperate 1.GB 1 month', price: 300 },
     ]
 };
 
@@ -68,14 +68,15 @@ export default function BuyDataPage() {
         
         setIsPurchasing(true);
 
-        const result = await processLocalBillPayment({
+        const result = await processDatahouseRecharge({
             userId: user.$id,
             pin,
+            type: 'data',
+            providerId: selectedPlan.id,
             customer: phoneNumber,
             amount: selectedPlan.price,
-            fee: 50, // Hardcoded 50 Naira fee
-            type: 'data',
-            narration: `${selectedNetwork} Data: ${selectedPlan.name}`
+            fee: 50,
+            description: `${selectedNetwork} Data: ${selectedPlan.name}`
         });
 
         setIsPurchasing(false);
@@ -98,11 +99,11 @@ export default function BuyDataPage() {
                     <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2">
                         <Wifi className="text-primary" /> Buy Data
                     </CardTitle>
-                    <CardDescription>Select network and choose a hardcoded plan</CardDescription>
+                    <CardDescription>Instant data via Datahouse</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 pt-4">
                     <div className="space-y-2">
-                        <Label className="text-xs uppercase font-black text-muted-foreground">Select Network Provider</Label>
+                        <Label className="text-xs uppercase font-black text-muted-foreground">Select Network</Label>
                         <Select onValueChange={(val) => { setSelectedNetwork(val); setSelectedPlan(null); }} value={selectedNetwork}>
                             <SelectTrigger className="h-12 text-lg font-semibold">
                                 <SelectValue placeholder="Choose Provider" />
@@ -116,7 +117,7 @@ export default function BuyDataPage() {
                     </div>
 
                     <div className="space-y-2">
-                        <Label className="text-xs uppercase font-black text-muted-foreground">Recipient Phone Number</Label>
+                        <Label className="text-xs uppercase font-black text-muted-foreground">Phone Number</Label>
                         <Input 
                             inputMode="numeric"
                             value={phoneNumber} 
@@ -142,14 +143,10 @@ export default function BuyDataPage() {
                                         className="justify-between h-14" 
                                         onClick={() => setSelectedPlan(plan)}
                                     >
-                                        <div className="flex flex-col items-start text-left">
-                                            <span className="font-bold text-xs">{plan.name}</span>
-                                        </div>
+                                        <span className="font-bold text-xs">{plan.name}</span>
                                         <span className="font-black text-sm">₦{plan.price.toLocaleString()}</span>
                                     </Button>
-                                )) : (
-                                    <div className="text-center py-8 text-muted-foreground">No matching plans found.</div>
-                                )}
+                                )) : <div className="text-center py-8 text-muted-foreground">No matching plans found.</div>}
                             </div>
                         </div>
                     )}
@@ -165,7 +162,7 @@ export default function BuyDataPage() {
                             <div className="space-y-2 text-sm text-foreground">
                                 <p>Network: <span className="font-bold">{selectedNetwork}</span></p>
                                 <p>Plan: <span className="font-bold">{selectedPlan?.name}</span></p>
-                                <p>Recipient: <span className="font-bold">{phoneNumber}</span></p>
+                                <p>Number: <span className="font-bold">{phoneNumber}</span></p>
                                 <div className="pt-2 text-primary font-bold text-lg border-t">Total: ₦{selectedPlan?.price.toLocaleString()}</div>
                             </div>
                             <div className="space-y-2 pt-4">
