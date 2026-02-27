@@ -4,13 +4,9 @@
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 
-// Datahouse Token (Ensure this is set in your environment or provided)
 const DATAHOUSE_TOKEN = process.env.DATAHOUSE_TOKEN || ''; 
 const BASE_URL = 'https://datahouse.com.ng/api';
 
-/**
- * Maps Network names to Datahouse Network IDs
- */
 const getNetworkId = (name: string): number => {
     const n = name.toUpperCase();
     if (n.includes('MTN')) return 1;
@@ -20,9 +16,6 @@ const getNetworkId = (name: string): number => {
     return 1;
 };
 
-/**
- * Processes recharges via Datahouse.com.ng with strictly formatted requests
- */
 export async function processDatahouseRecharge(payload: {
     userId: string;
     pin: string;
@@ -36,10 +29,8 @@ export async function processDatahouseRecharge(payload: {
     try {
         const totalToDebit = Number(payload.amount) + Number(payload.fee);
 
-        // 1. Fetch user profile
         const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
 
-        // 2. Security & Balance Checks
         if (profile.pin !== payload.pin) {
             throw new Error('Incorrect transaction PIN.');
         }
@@ -53,7 +44,6 @@ export async function processDatahouseRecharge(payload: {
             throw new Error("API configuration missing. Please contact the administrator.");
         }
 
-        // 3. Prepare Datahouse API Call
         let endpoint = '';
         let body: any = {};
 
@@ -87,11 +77,10 @@ export async function processDatahouseRecharge(payload: {
                 disco_name: payload.providerId,
                 meter_number: payload.customer,
                 amount: payload.amount,
-                Meter_Type: 1 // Default to Prepaid
+                Meter_Type: 1
             };
         }
 
-        // 4. Call Datahouse API
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
@@ -103,21 +92,19 @@ export async function processDatahouseRecharge(payload: {
 
         const result = await response.json();
 
-        // Check for success status from Datahouse
+        // Enhanced success check: Look for status, Status, or existence of an ID
         const isSuccess = response.ok && (
-            result.Status === 'success' || 
-            result.status === 'success' || 
-            result.id ||
+            String(result.Status).toLowerCase() === 'success' || 
+            String(result.status).toLowerCase() === 'success' || 
+            result.id || 
             result.Status === 'Success'
         );
 
         if (isSuccess) {
-            // 5. Perform Debit (Silent)
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, {
                 nairaBalance: currentBalance - totalToDebit
             });
 
-            // 6. Log Transaction
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: payload.userId,
                 type: payload.type === 'cable' ? 'tv_subscription' : (payload.type === 'electric' ? 'electricity' : payload.type),
@@ -131,8 +118,8 @@ export async function processDatahouseRecharge(payload: {
 
             return { success: true, message: "Transaction successful." };
         } else {
-            // Provide exact feedback from the provider
-            const errorDetail = result.error || result.msg || result.message || result.Status || "Unknown provider error.";
+            // Extract detailed error from Datahouse response
+            const errorDetail = result.error || result.msg || result.message || result.Status || result.detail || JSON.stringify(result);
             throw new Error(`Provider Error: ${errorDetail}`);
         }
 
