@@ -188,6 +188,11 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
     };
   }, []);
 
+  // Sync internal state with props from real-time updates
+  useEffect(() => {
+    setPost(initialPost);
+  }, [initialPost]);
+
   useEffect(() => {
     if (post.type !== 'reels' && post.type !== 'film') return;
 

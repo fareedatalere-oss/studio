@@ -39,6 +39,7 @@ import {
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager@17@gmail.com'];
 
@@ -131,6 +132,35 @@ function DashboardContent() {
             toast({ variant: 'destructive', title: 'Error', description: result.message || 'Could not start card verification.' });
             setIsProcessing(false);
         }
+    }
+  };
+
+  const handleFundWithToken = async () => {
+    if (!user || !pin || !fundAmount) return;
+    setIsProcessing(true);
+    try {
+        const amount = Number(fundAmount);
+        if (isNaN(amount) || amount <= 0) throw new Error("Invalid amount");
+        
+        const result = await chargeTokenizedCard({
+            userId: user.$id,
+            amount,
+            pin
+        });
+
+        if (result.success) {
+            toast({ title: "Success!", description: result.message });
+            setIsFundDialogOpen(false);
+            setFundAmount('');
+            setPin('');
+            await recheckUser();
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (e: any) {
+        toast({ variant: 'destructive', title: 'Payment Failed', description: e.message });
+    } finally {
+        setIsProcessing(false);
     }
   };
 
