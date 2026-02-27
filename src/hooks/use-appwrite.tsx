@@ -6,7 +6,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 
 const usePresence = (user: Models.User<Models.Preferences> | null) => {
     useEffect(() => {
-        if (!user) return;
+        if (!user || typeof document === 'undefined') return;
 
         const updateUserPresence = async (isOnline: boolean) => {
             try {
@@ -40,9 +40,7 @@ const usePresence = (user: Models.User<Models.Preferences> | null) => {
             clearInterval(interval);
             window.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('pagehide', () => updateUserPresence(false));
-            if (user) {
-                updateUserPresence(false);
-            }
+            updateUserPresence(false);
         };
     }, [user]);
 };
@@ -74,7 +72,7 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
     const checkUser = useCallback(async () => {
         setIsLoading(true);
         try {
-            // Fetch Configs
+            // 1. Fetch Application Configs (Global)
             try {
                 const [mainConfig, proofConfigDoc] = await Promise.all([
                     databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main').catch(() => null),
@@ -97,6 +95,7 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                 }
             } catch (configError) {}
             
+            // 2. Check Auth State
             try {
                 const currentUser = await account.get();
                 setUser(currentUser);
@@ -105,7 +104,6 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                         const profileDoc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id);
                         setProfile(profileDoc);
                     } catch (pError: any) {
-                        // Silent catch for profile 404 - happens during signup flow
                         setProfile(null);
                     }
                 } else {
