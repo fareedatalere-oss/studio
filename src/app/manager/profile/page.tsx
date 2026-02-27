@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -5,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { LogOut, Paintbrush, Settings, ShieldCheck, Wallet } from 'lucide-react';
+import { LogOut, Paintbrush, Settings, ShieldCheck, Wallet, Code2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function ManagerProfilePage() {
@@ -29,6 +30,7 @@ export default function ManagerProfilePage() {
   };
 
   const actions = [
+    { href: '/manager/project', label: 'Project Export', icon: Code2 },
     { href: '/manager/profile/settings/bypass', label: 'Admin Settings', icon: Settings },
     { href: '/manager/wallet', label: 'Admin Wallet', icon: Wallet },
     { href: '/manager/proof', label: 'Proof Control', icon: ShieldCheck },

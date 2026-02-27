@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,7 @@ export default function ManagerLayout({
     { href: '/manager/market/bypass', label: 'Market', icon: Store },
     { href: '/manager/media/bypass', label: 'Media', icon: PlaySquare },
     { href: '/manager/creators/bypass', label: 'Creators', icon: Star },
-    { href: '/manager/codes', label: 'Project', icon: Code2 },
+    { href: '/manager/project', label: 'Project', icon: Code2 },
     { href: '/manager/profile/bypass', label: 'Profile', icon: User },
   ];
 
