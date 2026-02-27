@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Suspense, useEffect, useState, useRef } from 'react';
@@ -41,9 +40,10 @@ import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 
+const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager@17@gmail.com'];
 
 function DashboardContent() {
-  const { user, profile: userProfile, loading: userLoading, recheckUser } = useUser();
+  const { user, profile: userProfile, loading: userLoading, proof, recheckUser } = useUser();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -54,24 +54,36 @@ function DashboardContent() {
   const hasSyncedRef = useRef(false);
   
   const isLoading = userLoading;
+  const isAdmin = user && MANAGER_EMAILS.includes(user.email);
 
   useEffect(() => {
     if (user?.$id && user?.email && !hasSyncedRef.current) {
         hasSyncedRef.current = true;
-        
         const runSync = async () => {
             const result = await syncVirtualAccountPayments(user.$id, user.email);
             if (result.success && result.amountAdded && result.amountAdded > 0) {
-                toast({
-                    title: 'New Deposit Detected!',
-                    description: `Your account was automatically credited with ₦${result.amountAdded.toLocaleString()}.`,
-                });
+                toast({ title: 'New Deposit Detected!', description: `Your account was automatically credited with ₦${result.amountAdded.toLocaleString()}.` });
                 await recheckUser();
             }
         };
         runSync();
     }
   }, [user, recheckUser, toast]);
+
+  const isFeatOn = (key: string) => {
+      if (isAdmin) return true;
+      if (!proof) return true;
+      return proof[key] !== false;
+  };
+
+  const handleActionClick = (key: string, href?: string, callback?: Function) => {
+      if (!isFeatOn(key)) {
+          toast({ variant: 'destructive', title: "Not Available", description: "Currently not available please try again later" });
+          return;
+      }
+      if (callback) callback();
+      else if (href) router.push(href);
+  };
 
   const handleRefresh = async () => {
     if (!user?.$id) return;
@@ -81,23 +93,13 @@ function DashboardContent() {
       const result = await syncVirtualAccountPayments(user.$id, user.email);
       if (result.success) {
         if (result.amountAdded && result.amountAdded > 0) {
-          toast({ 
-            title: 'Success!', 
-            description: result.message || `Added ₦${result.amountAdded.toLocaleString()} to your wallet.` 
-          });
+          toast({ title: 'Success!', description: result.message || `Added ₦${result.amountAdded.toLocaleString()} to your wallet.` });
           await recheckUser();
         } else {
-          toast({ 
-            title: 'Up to Date', 
-            description: 'No new transactions found.' 
-          });
+          toast({ title: 'Up to Date', description: 'No new transactions found.' });
         }
       } else {
-        toast({ 
-          variant: 'destructive', 
-          title: 'Sync Notice', 
-          description: result.message || 'Service returned an unexpected response.' 
-        });
+        toast({ variant: 'destructive', title: 'Sync Notice', description: result.message || 'Service returned an unexpected response.' });
       }
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Error', description: e.message });
@@ -132,44 +134,21 @@ function DashboardContent() {
     }
   };
 
-  const handleFundWithToken = async () => {
-      if (!user || !fundAmount || !pin) return;
-      setIsProcessing(true);
-
-      const result = await chargeTokenizedCard({
-          userId: user.$id,
-          amount: Number(fundAmount),
-          pin,
-      });
-
-      if (result.success) {
-          toast({ title: 'Success!', description: result.message });
-          await recheckUser();
-          setIsFundDialogOpen(false);
-          setFundAmount('');
-          setPin('');
-      } else {
-          toast({ variant: 'destructive', title: 'Funding Failed', description: result.message });
-      }
-      setIsProcessing(false);
-  };
-
-
   const actions = [
-    { label: 'Send', icon: Send, href: '/dashboard/transfer' },
-    { label: 'Deposit', icon: ArrowDownCircle, href: '/dashboard/deposit' },
-    { label: 'Refresh', icon: RefreshCw, onClick: handleRefresh },
-    { label: 'Buy Airtime', icon: Smartphone, href: '/dashboard/buy-airtime' },
-    { label: 'Buy Data', icon: Wifi, href: '/dashboard/buy-data' },
-    { label: 'History', icon: History, href: '/dashboard/history' },
-    { label: 'Get Reward', icon: Gift, href: '/dashboard/rewards' },
-    { label: 'Cable payment', icon: Tv, href: '/dashboard/cable-payment' },
-    { label: 'Electric Bill', icon: Lightbulb, href: '/dashboard/electric-bill' },
-    { label: 'Multi Purpose', icon: CreditCard, href: '/dashboard/multi-purpose' },
-    { label: 'Traveling', icon: Plane, href: '/dashboard/travelling' },
-    { label: 'AI', icon: Bot, href: '/dashboard/ai-chat' },
-    { label: 'Refund', icon: Undo2, onClick: handleFundAccountClick },
-    { label: 'News', icon: Newspaper, href: '/dashboard/news' },
+    { key: 'feat_send', label: 'Send', icon: Send, href: '/dashboard/transfer' },
+    { key: 'feat_deposit', label: 'Deposit', icon: ArrowDownCircle, href: '/dashboard/deposit' },
+    { key: 'feat_refresh', label: 'Refresh', icon: RefreshCw, onClick: handleRefresh },
+    { key: 'feat_buy_airtime', label: 'Buy Airtime', icon: Smartphone, href: '/dashboard/buy-airtime' },
+    { key: 'feat_buy_data', label: 'Buy Data', icon: Wifi, href: '/dashboard/buy-data' },
+    { key: 'feat_history', label: 'History', icon: History, href: '/dashboard/history' },
+    { key: 'feat_get_reward', label: 'Get Reward', icon: Gift, href: '/dashboard/rewards' },
+    { key: 'feat_cable', label: 'Cable payment', icon: Tv, href: '/dashboard/cable-payment' },
+    { key: 'feat_electric', label: 'Electric Bill', icon: Lightbulb, href: '/dashboard/electric-bill' },
+    { key: 'feat_multipurpose', label: 'Multi Purpose', icon: CreditCard, href: '/dashboard/multi-purpose' },
+    { key: 'feat_traveling', label: 'Traveling', icon: Plane, href: '/dashboard/travelling' },
+    { key: 'feat_ai', label: 'AI', icon: Bot, href: '/dashboard/ai-chat' },
+    { key: 'feat_refund', label: 'Refund', icon: Undo2, onClick: handleFundAccountClick },
+    { key: 'feat_news', label: 'News', icon: Newspaper, href: '/dashboard/news' },
   ];
 
   return (
@@ -223,8 +202,8 @@ function DashboardContent() {
                     <div className="flex items-center gap-2">
                     <p className="font-semibold">{userProfile?.clickCount?.toLocaleString() || 0}</p>
                     {userProfile?.accountNumber && (
-                        <Button asChild size="sm" className="h-auto px-2 py-1 text-xs">
-                        <Link href="/dashboard/rewards">Get Reward</Link>
+                        <Button onClick={() => handleActionClick('feat_get_reward', '/dashboard/rewards')} size="sm" className="h-auto px-2 py-1 text-xs">
+                        Get Reward
                         </Button>
                     )}
                     </div>
@@ -236,78 +215,42 @@ function DashboardContent() {
 
         <div className="grid grid-cols-3 md:grid-cols-4 gap-4 text-center">
           {actions.map((action) => (
-             action.onClick ? (
-                <div key={action.label} className="flex flex-col items-center gap-1 cursor-pointer" onClick={action.onClick}>
-                    <Button
-                        variant="default"
-                        size="icon"
-                        className="h-16 w-16 rounded-full mx-auto flex items-center justify-center"
-                        disabled={isProcessing}
-                    >
-                        {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-6 w-6 animate-spin" /> : <action.icon className="h-6 w-6" />}
-                    </Button>
-                    <span className="mt-2 block text-xs font-medium">{action.label}</span>
-                </div>
-             ) : (
-                <Link key={action.label} href={action.href || '#'} className="flex flex-col items-center gap-1">
-                    <Button
-                        variant="default"
-                        size="icon"
-                        className="h-16 w-16 rounded-full mx-auto flex items-center justify-center flex-col gap-1"
-                    >
-                        <action.icon className="h-6 w-6" />
-                    </Button>
-                    <span className="mt-2 block text-xs font-medium">{action.label}</span>
-                </Link>
-             )
+             <div key={action.label} className="flex flex-col items-center gap-1 cursor-pointer" onClick={() => handleActionClick(action.key, action.href, action.onClick)}>
+                <Button
+                    variant="default"
+                    size="icon"
+                    className={cn("h-16 w-16 rounded-full mx-auto flex items-center justify-center", !isFeatOn(action.key) && "opacity-50 grayscale")}
+                    disabled={isProcessing}
+                >
+                    {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-6 w-6 animate-spin" /> : <action.icon className="h-6 w-6" />}
+                </Button>
+                <span className="mt-2 block text-xs font-medium">{action.label}</span>
+            </div>
           ))}
         </div>
       </div>
       <AlertDialog open={isFundDialogOpen} onOpenChange={setIsFundDialogOpen}>
         <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Fund Your Account</AlertDialogTitle>
-                <AlertDialogDescription>
-                    Enter the amount you wish to add and your PIN.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
+            <AlertDialogHeader><AlertDialogTitle>Fund Your Account</AlertDialogTitle></AlertDialogHeader>
             <div className="space-y-4">
                 <div className="space-y-2">
                     <Label htmlFor="fund-amount">Amount to Add (₦)</Label>
-                    <Input
-                        id="fund-amount"
-                        type="number"
-                        value={fundAmount}
-                        onChange={(e) => setFundAmount(e.target.value)}
-                        placeholder="e.g., 5000"
-                    />
+                    <Input id="fund-amount" type="number" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)} />
                 </div>
                  <div className="space-y-2">
                     <Label htmlFor="fund-pin">5-Digit PIN</Label>
-                    <Input
-                        id="fund-pin"
-                        type="password"
-                        inputMode='numeric'
-                        pattern='[0-9]*'
-                        maxLength={5}
-                        value={pin}
-                        onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                        placeholder="*****"
-                    />
+                    <Input id="fund-pin" type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} />
                 </div>
             </div>
             <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleFundWithToken} disabled={isProcessing || !fundAmount || pin.length !== 5 || Number(fundAmount) < 100}>
-                    {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : 'Fund Account'}
-                </AlertDialogAction>
+                <AlertDialogAction onClick={() => { if(!isFeatOn('feat_refund')) { toast({ variant:'destructive', title:'Off', description:'Disabled'}); return; } handleActionClick('feat_refund', undefined, handleFundWithToken); }} disabled={isProcessing || !fundAmount || pin.length !== 5}>Confirm & Pay</AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
   );
 }
-
 
 export default function DashboardPage() {
   return (

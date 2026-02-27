@@ -13,6 +13,8 @@ import { account, databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS } from '@/
 import { Query } from 'appwrite';
 import { cn } from '@/lib/utils';
 
+const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager@17@gmail.com'];
+
 export default function DashboardLayout({
   children,
 }: {
@@ -21,7 +23,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
-  const { user, profile, loading, recheckUser } = useUser();
+  const { user, profile, loading, proof, recheckUser } = useUser();
   const [isMounted, setIsMounted] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
@@ -78,6 +80,14 @@ export default function DashboardLayout({
     }
   }, [user, fetchUnreadCounts]);
 
+  // Master Switch Logic
+  useEffect(() => {
+    if (proof && !proof.main_switch && user && !MANAGER_EMAILS.includes(user.email)) {
+        router.replace('/');
+    }
+  }, [proof, user, router]);
+
+  // Banned Logic
   useEffect(() => {
     if (!loading && profile && profile.isBanned) {
       toast({
@@ -92,6 +102,21 @@ export default function DashboardLayout({
     }
   }, [profile, loading, router, toast, recheckUser]);
 
+  const isAdmin = user && MANAGER_EMAILS.includes(user.email);
+
+  const isTabOn = (key: string) => {
+      if (isAdmin) return true; // Admin sees everything
+      if (!proof) return true; // Default to on
+      return proof[key] !== false;
+  };
+
+  const handleTabClick = (e: React.MouseEvent, key: string) => {
+      if (!isTabOn(key)) {
+          e.preventDefault();
+          toast({ variant: 'destructive', title: "Not Available", description: "This feature is currently disabled. Please try again later." });
+      }
+  };
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-40 border-b bg-background">
@@ -100,7 +125,7 @@ export default function DashboardLayout({
             <Link href="/dashboard">
                 <IPayLogo className="h-8 w-8" />
             </Link>
-            <Button asChild variant="ghost" size="icon">
+            <Button asChild variant="ghost" size="icon" onClick={(e) => handleTabClick(e, 'feat_ai')}>
               <Link href="/dashboard/ai-chat">
                 <Bot className="h-5 w-5" />
                 <span className="sr-only">AI Assistant</span>
@@ -119,7 +144,7 @@ export default function DashboardLayout({
                 <span className="sr-only">Notifications</span>
               </Link>
             </Button>
-            <Link href="/dashboard/profile">
+            <Link href="/dashboard/profile" onClick={(e) => handleTabClick(e, 'tab_profile')}>
               <Avatar>
                 <AvatarImage src={profile?.avatar} />
                 <AvatarFallback>
@@ -135,11 +160,11 @@ export default function DashboardLayout({
 
       <footer className="fixed bottom-0 z-40 w-full border-t bg-background md:hidden">
         <div className="container grid h-16 grid-cols-5 items-center justify-around text-center">
-          <Link href="/dashboard" className={cn("flex flex-col items-center gap-1", pathname === '/dashboard' ? "text-primary" : "text-muted-foreground")}>
+          <Link href="/dashboard" onClick={(e) => handleTabClick(e, 'tab_home')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard' ? "text-primary" : "text-muted-foreground")}>
             <Home className="h-6 w-6" />
             <span className="text-xs">Home</span>
           </Link>
-          <Link href="/dashboard/chat" className={cn("flex flex-col items-center gap-1 relative", pathname.startsWith('/dashboard/chat') ? "text-primary" : "text-muted-foreground")}>
+          <Link href="/dashboard/chat" onClick={(e) => handleTabClick(e, 'tab_chat')} className={cn("flex flex-col items-center gap-1 relative", pathname.startsWith('/dashboard/chat') ? "text-primary" : "text-muted-foreground")}>
             <MessageSquare className="h-6 w-6" />
             {unreadMsgCount > 0 && (
               <Badge variant="destructive" className="absolute top-0 right-2 h-4 min-w-4 justify-center p-0.5 rounded-full text-[10px]">
@@ -148,15 +173,15 @@ export default function DashboardLayout({
             )}
             <span className="text-xs">Chat</span>
           </Link>
-          <Link href="/dashboard/media" className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/media' ? "text-primary" : "text-muted-foreground")}>
+          <Link href="/dashboard/media" onClick={(e) => handleTabClick(e, 'tab_media')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/media' ? "text-primary" : "text-muted-foreground")}>
             <PlaySquare className="h-6 w-6" />
             <span className="text-xs">Media</span>
           </Link>
-          <Link href="/dashboard/market" className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/market' ? "text-primary" : "text-muted-foreground")}>
+          <Link href="/dashboard/market" onClick={(e) => handleTabClick(e, 'tab_market')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/market' ? "text-primary" : "text-muted-foreground")}>
             <Store className="h-6 w-6" />
             <span className="text-xs">Market</span>
           </Link>
-          <Link href="/dashboard/profile" className={cn("flex flex-col items-center gap-1", pathname.startsWith('/dashboard/profile') ? "text-primary" : "text-muted-foreground")}>
+          <Link href="/dashboard/profile" onClick={(e) => handleTabClick(e, 'tab_profile')} className={cn("flex flex-col items-center gap-1", pathname.startsWith('/dashboard/profile') ? "text-primary" : "text-muted-foreground")}>
             <User className="h-6 w-6" />
             <span className="text-xs">Profile</span>
           </Link>

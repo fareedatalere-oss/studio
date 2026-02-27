@@ -13,13 +13,12 @@ import { account } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 import { useUser } from '@/hooks/use-appwrite';
 
-const MANAGER_EMAIL_1 = 'i-paymanagerscare402@gmail.com';
-const MANAGER_EMAIL_2 = 'ipatmanager@17@gmail.com';
+const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager@17@gmail.com'];
 
 export default function SignUpPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { recheckUser } = useUser();
+  const { recheckUser, proof } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -28,76 +27,37 @@ export default function SignUpPage() {
     e.preventDefault();
     setIsLoading(true);
 
+    const lowerCaseEmail = email.trim().toLowerCase();
+    const isAdmin = MANAGER_EMAILS.includes(lowerCaseEmail);
+
+    // Master Switch Check
+    if (proof && !proof.main_switch && !isAdmin) {
+        toast({ variant: 'destructive', title: "App Offline", description: "I-pay app isn't available kindly try again later" });
+        setIsLoading(false);
+        return;
+    }
+
     if (!email || !password) {
-      toast({
-        title: 'Error',
-        description: 'Email and password are required.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Email and password are required.', variant: 'destructive' });
       setIsLoading(false);
       return;
     }
     
-    const lowerCaseEmail = email.trim().toLowerCase();
-
-    if (lowerCaseEmail === MANAGER_EMAIL_1 || lowerCaseEmail === MANAGER_EMAIL_2) {
-      toast({
-        title: 'Email Not Available',
-        description: 'This email address is not available for sign up.',
-        variant: 'destructive',
-      });
+    if (isAdmin) {
+      toast({ title: 'Reserved Email', description: 'This email is reserved for administrators.', variant: 'destructive' });
        setIsLoading(false);
       return;
     }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast({
-        title: 'Invalid Email',
-        description: 'Please enter a valid email address.',
-        variant: 'destructive',
-      });
-       setIsLoading(false);
-      return;
-    }
-
 
     try {
-      // Before creating a new account, we must ensure no old session is active.
-      await account.deleteSession('current').catch(() => {
-        // Ignore error if no session exists
-        console.log("No active session found. Proceeding with signup.");
-      });
-
-      // Create the user account
+      await account.deleteSession('current').catch(() => {});
       await account.create(ID.unique(), email, password);
-      
-      // Explicitly create a session to ensure it's active before the redirect.
       await account.createEmailPasswordSession(email, password);
-
-      // Force the app-wide user state to update with the new session
       await recheckUser();
-
-      toast({
-          title: 'Account Created!',
-          description: "Next, complete your profile.",
-      });
-
-      // Redirect to the profile setup page
+      toast({ title: 'Account Created!', description: "Next, complete your profile." });
       router.push('/auth/signup/profile');
-
     } catch (error: any) {
-      console.error("Sign up error:", error);
-      let description = 'An unexpected error occurred. Please try again.';
-      if (error.type === 'user_already_exists') {
-        description = 'This email address is already in use by another account.';
-      } else if (error.type === 'user_password_invalid') {
-        description = 'The password must be at least 8 characters long.';
-      }
-      toast({
-        title: 'Sign Up Failed',
-        description: error.message || description,
-        variant: 'destructive',
-      });
+      toast({ title: 'Sign Up Failed', description: error.message || 'An error occurred.', variant: 'destructive' });
     } finally {
         setIsLoading(false);
     }
@@ -115,36 +75,18 @@ export default function SignUpPage() {
           <form onSubmit={handleSignUp} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="m@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={isLoading}
-              />
+              <Input id="email" type="email" placeholder="m@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={isLoading}
-              />
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLoading} />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading || !email || !password}>
               {isLoading ? "Creating Account..." : "Continue"}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">
-            Already have an account?{' '}
-            <Link href="/auth/signin" className="underline">
-              Sign In
-            </Link>
+            Already have an account? <Link href="/auth/signin" className="underline">Sign In</Link>
           </div>
         </CardContent>
       </Card>

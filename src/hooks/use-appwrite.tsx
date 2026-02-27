@@ -4,21 +4,17 @@ import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_
 import { Models } from 'appwrite';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 
-// A hook to manage the user's online presence
 const usePresence = (user: Models.User<Models.Preferences> | null) => {
     useEffect(() => {
         if (!user) return;
 
         const updateUserPresence = async (isOnline: boolean) => {
             try {
-                // This will fail if the profile is not created yet, which is okay.
                 await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, {
                     isOnline,
                     lastSeen: new Date().toISOString(),
                 });
-            } catch (error) {
-                // console.log("Could not update presence yet.");
-            }
+            } catch (error) {}
         };
 
         const handleVisibilityChange = () => {
@@ -29,26 +25,21 @@ const usePresence = (user: Models.User<Models.Preferences> | null) => {
             }
         };
 
-        // Set online status immediately when the app loads
         updateUserPresence(true);
 
-        // Update lastSeen every minute while the tab is active
         const interval = setInterval(() => {
             if (document.visibilityState === 'visible') {
                 updateUserPresence(true);
             }
         }, 60 * 1000);
 
-        // Add event listeners for visibility changes
         window.addEventListener('visibilitychange', handleVisibilityChange);
         window.addEventListener('pagehide', () => updateUserPresence(false));
 
-        // Cleanup on unmount
         return () => {
             clearInterval(interval);
             window.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('pagehide', () => updateUserPresence(false));
-            // Setting to offline here is a good practice as a final attempt
             if (user) {
                 updateUserPresence(false);
             }
@@ -60,11 +51,12 @@ type AppwriteContextType = {
     user: Models.User<Models.Preferences> | null;
     profile: any | null;
     config: any | null;
+    proof: any | null;
     loading: boolean;
     recheckUser: () => Promise<void>;
 };
 
-const AppwriteContext = createContext<AppwriteContextType>({ user: null, profile: null, config: null, loading: true, recheckUser: async () => {} });
+const AppwriteContext = createContext<AppwriteContextType>({ user: null, profile: null, config: null, proof: null, loading: true, recheckUser: async () => {} });
 
 export const useAppwrite = () => {
     return useContext(AppwriteContext);
@@ -74,32 +66,37 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null);
     const [profile, setProfile] = useState<any | null>(null);
     const [config, setConfig] = useState<any | null>(null);
+    const [proof, setProof] = useState<any | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    usePresence(user); // Activate the presence hook
+    usePresence(user);
 
     const checkUser = useCallback(async () => {
         setIsLoading(true);
         try {
+            // Fetch Configs
             try {
-                const appConfig = await databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main');
-                setConfig(appConfig);
+                const [mainConfig, proofConfig] = await Promise.all([
+                    databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main'),
+                    databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'proof').catch(() => null)
+                ]);
+                setConfig(mainConfig);
+                setProof(proofConfig);
             } catch (configError) {
-                console.log("Could not fetch app config, it may not be set.", configError);
-                setConfig(null);
+                console.log("Could not fetch app configs.");
             }
             
-            const currentUser = await account.get();
-            setUser(currentUser);
-            if (currentUser) {
-                try {
+            try {
+                const currentUser = await account.get();
+                setUser(currentUser);
+                if (currentUser) {
                     const profileDoc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id);
                     setProfile(profileDoc);
-                } catch (profileError) {
-                    console.error("Could not fetch user profile", profileError);
+                } else {
+                    setUser(null);
                     setProfile(null);
                 }
-            } else {
+            } catch (authError) {
                 setUser(null);
                 setProfile(null);
             }
@@ -119,6 +116,7 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
         user,
         profile,
         config,
+        proof,
         loading: isLoading,
         recheckUser: checkUser
     };
@@ -131,6 +129,6 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
 };
 
 export const useUser = () => {
-    const { user, profile, config, loading, recheckUser } = useAppwrite();
-    return { user, profile, config, loading, recheckUser };
+    const { user, profile, config, proof, loading, recheckUser } = useAppwrite();
+    return { user, profile, config, proof, loading, recheckUser };
 };

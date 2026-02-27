@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { HardHat, LogOut, Paintbrush, Settings } from 'lucide-react';
+import { LogOut, Paintbrush, Settings, ShieldCheck, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function ManagerProfilePage() {
@@ -20,40 +20,40 @@ export default function ManagerProfilePage() {
   }, [router]);
   
   const handleLogout = () => {
-    // Clear all manager session tokens
     sessionStorage.removeItem('manager-profile-bypass');
     sessionStorage.removeItem('manager-creators-bypass');
     sessionStorage.removeItem('manager-settings-bypass');
+    sessionStorage.removeItem('manager-proof-bypass');
     toast({ title: 'Logged Out', description: 'You have been logged out of the manager panel.' });
     router.push('/auth/signin');
   };
 
   const actions = [
     { href: '/manager/profile/settings/bypass', label: 'Admin Settings', icon: Settings },
-    { href: '#', label: 'Project (coming soon)', icon: HardHat, disabled: true },
-    { href: '#', label: 'Wallet (coming soon)', icon: HardHat, disabled: true },
+    { href: '/manager/wallet', label: 'Admin Wallet', icon: Wallet },
+    { href: '/manager/proof', label: 'Proof Control', icon: ShieldCheck },
     { href: '/manager/profile/logo', label: 'App Logo Edit', icon: Paintbrush },
   ];
 
   return (
     <div className="container py-8">
-      <Card className="w-full max-w-md mx-auto">
+      <Card className="w-full max-w-md mx-auto shadow-xl">
         <CardHeader>
           <CardTitle>Manager Profile</CardTitle>
-          <CardDescription>Manage your administrative settings.</CardDescription>
+          <CardDescription>Administrative controls and revenue monitoring.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-3">
             {actions.map(action => (
-                <Button asChild key={action.label} variant="outline" className="w-full justify-start gap-3" disabled={action.disabled}>
+                <Button asChild key={action.label} variant="outline" className="w-full justify-start gap-3 h-12">
                     <Link href={action.href}>
-                        <action.icon className="h-5 w-5" />
-                        <span>{action.label}</span>
+                        <action.icon className="h-5 w-5 text-primary" />
+                        <span className="font-semibold">{action.label}</span>
                     </Link>
                 </Button>
             ))}
-            <Button onClick={handleLogout} className="w-full justify-start gap-3" variant="destructive">
+            <Button onClick={handleLogout} className="w-full justify-start gap-3 h-12 mt-4" variant="destructive">
                 <LogOut className="h-5 w-5" />
-                <span>Log Out</span>
+                <span className="font-semibold">Log Out</span>
             </Button>
         </CardContent>
       </Card>
