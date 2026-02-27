@@ -67,7 +67,7 @@ export default function DashboardLayout({
       fetchUnreadCounts();
 
       const unsubscribe = account.client.subscribe(
-        `databases.${DATABASE_ID}.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`,
+        [`databases.${DATABASE_ID}.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`],
         (response) => {
           const payload = response.payload as any;
           if (payload.userId === user.$id) {

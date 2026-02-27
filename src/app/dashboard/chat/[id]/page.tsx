@@ -45,7 +45,7 @@ const PresenceIndicator = ({ userId }: { userId: string }) => {
         fetchInitialPresence();
 
         const unsubscribe = account.client.subscribe(
-            `databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${userId}`,
+            [`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${userId}`],
             (response) => {
                 const updatedProfile = response.payload as any;
                  if (isMounted) {
@@ -210,7 +210,7 @@ export default function ChatThreadPage() {
         if (!chatId) return;
 
         const realtimeTopic = `databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`;
-        const unsubscribe = account.client.subscribe(realtimeTopic, (response) => {
+        const unsubscribe = account.client.subscribe([realtimeTopic], (response) => {
             const payload = response.payload as Models.Document;
             
             if (payload.chatId === chatId) {

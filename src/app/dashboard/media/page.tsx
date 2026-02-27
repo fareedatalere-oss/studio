@@ -596,7 +596,7 @@ export default function MediaPage() {
         };
         fetchAllPosts();
         
-        const unsubscribe = databases.client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_POSTS}.documents`, response => {
+        const unsubscribe = databases.client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_POSTS}.documents`], response => {
             const eventType = response.events[0];
             const payload = response.payload as any;
 
