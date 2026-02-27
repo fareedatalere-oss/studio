@@ -19,7 +19,12 @@ const SofiaInputSchema = z.object({
   username: z.string().describe('The current username.'),
   location: z.string().optional().describe('The user location info.'),
   currentTime: z.string().describe('The current local date and time.'),
-  photoDataUri: z.string().optional().describe('An optional photo data URI.'),
+  photoDataUri: z
+    .string()
+    .optional()
+    .describe(
+      "An optional photo of a plant, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+    ),
 });
 export type SofiaInput = z.infer<typeof SofiaInputSchema>;
 
@@ -78,7 +83,7 @@ const prompt = ai.definePrompt({
    - If asked for balance, use 'getBalance'. 
    - If asked to "take me out", "log me out", or "exit", set 'action' to 'logout'. 
    - If asked to "call" or "take me to call", set 'action' to 'call'.
-6. **Vision:** If a photo is provided ({{media url=photoDataUri}}), analyze it carefully and provide a detailed explanation.
+6. **Vision:** If a photo is provided, analyze it carefully and provide a detailed explanation.
 7. **Generation:** If asked to "draw" or "generate" something, describe it in 'imageToGenerate'.
 
 **USER MESSAGE:**
