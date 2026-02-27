@@ -25,13 +25,15 @@ const languages = [
 
 const langMap: Record<string, string> = {
     'English': 'en-US',
-    'Hausa': 'ha-NE',
+    'Hausa': 'ha-NG',
     'Hindi': 'hi-IN',
     'Arabic': 'ar-SA',
     'French': 'fr-FR',
     'Chinese': 'zh-CN',
     'Yoruba': 'yo-NG',
-    'Igbo': 'ig-NG'
+    'Igbo': 'ig-NG',
+    'Kanuri': 'kr-NG',
+    'Fulani': 'ff-NG'
 };
 
 type Message = {
@@ -118,7 +120,7 @@ export default function AiChatPage() {
         // Find best female voice for the target language or fallback
         const femaleVoice = voices.find(v => 
             (v.lang.startsWith(utterance.lang.substring(0, 2)) && (v.name.includes('Female') || v.name.includes('Google') || v.name.includes('Samantha'))) ||
-            v.name.includes('Microsoft Zira')
+            v.name.includes('Microsoft Zira') || v.name.includes('Premium')
         );
         
         if (femaleVoice) utterance.voice = femaleVoice;
@@ -167,13 +169,35 @@ export default function AiChatPage() {
             router.push('/dashboard/market');
             break;
         case 'chat':
-            router.push('/dashboard/chat');
+            if (targetId) {
+                router.push(`/dashboard/chat/${targetId}`);
+            } else {
+                router.push('/dashboard/chat');
+            }
             break;
         case 'transaction':
             router.push('/dashboard/history');
             break;
         case 'home':
             router.push('/dashboard');
+            break;
+        case 'tiktok':
+            window.open('https://www.tiktok.com', '_blank');
+            break;
+        case 'facebook':
+            window.open('https://www.facebook.com', '_blank');
+            break;
+        case 'facebook_lite':
+            window.open('https://m.facebook.com', '_blank');
+            break;
+        case 'whatsapp':
+            window.open('https://wa.me/', '_blank');
+            break;
+        case 'post_media':
+            router.push('/dashboard/media/upload/image');
+            break;
+        case 'transfer':
+            router.push('/dashboard/transfer');
             break;
         default:
             break;

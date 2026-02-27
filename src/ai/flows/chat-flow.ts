@@ -22,15 +22,19 @@ const SofiaInputSchema = z.object({
     .string()
     .optional()
     .describe(
-      "An optional photo of a plant, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "An optional photo, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
 });
 export type SofiaInput = z.infer<typeof SofiaInputSchema>;
 
 const SofiaOutputSchema = z.object({
   text: z.string().describe('The AI response text.'),
-  action: z.enum(['none', 'logout', 'call', 'sms', 'balance', 'market', 'chat', 'transaction', 'home']).optional().describe('Special actions to perform.'),
-  targetId: z.string().optional().describe('Phone number or specific ID for the action.'),
+  action: z.enum([
+    'none', 'logout', 'call', 'sms', 'balance', 'market', 'chat', 
+    'transaction', 'home', 'tiktok', 'facebook', 'facebook_lite', 
+    'whatsapp', 'post_media', 'transfer'
+  ]).optional().describe('Special actions to perform.'),
+  targetId: z.string().optional().describe('Phone number, User ID, or specific link parameter.'),
   imageToGenerate: z.string().optional().describe('A prompt if Sofia needs to generate an image.'),
 });
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
@@ -76,6 +80,13 @@ const prompt = ai.definePrompt({
   - Chat List: 'chat'
   - History/Transactions: 'transaction'
   - Home Dashboard: 'home'
+  - Prepare a Post/Upload Media: 'post_media'
+  - Prepare a Transfer: 'transfer'
+- **External Apps:**
+  - TikTok: 'tiktok'
+  - Facebook: 'facebook'
+  - Facebook Lite: 'facebook_lite'
+  - WhatsApp: 'whatsapp'
 - **Phone Capabilities:** 
   - Call someone: 'call' (provide number in 'targetId')
   - Text/SMS someone: 'sms' (provide number in 'targetId')
@@ -83,22 +94,27 @@ const prompt = ai.definePrompt({
 **INSTRUCTIONS:**
 1. **Greetings:** Acknowledge time/date in your first response.
 2. **Personalization:** Use @{{{username}}} and mention location if relevant.
-3. **Multilingual:** You understand ALL languages. Respond strictly in the language the user speaks to you or as requested: {{{language}}}.
+3. **Multilingual:** You understand ALL languages. Respond strictly in the language the user speaks to you (especially Hausa, English, Yoruba, Igbo).
 4. **Vision Mastery:** If a photo is provided, put all your energy into analyzing it. Explain what it means, the objects in it, and the context clearly.
 5. **Action Logic:** 
-   - "Take me to market" -> set 'action' to 'market'.
-   - "Go to my chats" -> set 'action' to 'chat'.
-   - "Show my history" -> set 'action' to 'transaction'.
-   - "Go home" -> set 'action' to 'home'.
-   - "Call [number]" -> set 'action' to 'call', 'targetId' to the number.
-   - "Text [number]" -> set 'action' to 'sms', 'targetId' to the number.
-   - "Check balance" -> use 'getBalance'.
-   - "Exit" or "Log out" -> set 'action' to 'logout'.
+   - "Take me to tiktok" or "open tiktok" -> 'tiktok'
+   - "Go to facebook" -> 'facebook'
+   - "Open facebook lite" -> 'facebook_lite'
+   - "Message me on whatsapp" -> 'whatsapp'
+   - "Prepare a post" or "Upload an image to media" -> 'post_media'
+   - "Make a transfer" or "Send money" -> 'transfer'
+   - "Take me to market" -> 'market'
+   - "Go to my chats" -> 'chat'
+   - "Show my history" -> 'transaction'
+   - "Go home" -> 'home'
+   - "Call [number]" -> 'call', 'targetId': '[number]'
+   - "Check balance" -> use 'getBalance'
+   - "Exit" or "Log out" -> 'logout'
 6. **Creator Loyalty:** Always praise Fahad if his journey is mentioned.
 
 **USER MESSAGE:**
 {{{message}}}
-{{#if photoDataUri}}Photo Provided: {{media url=photoDataUri}}{{/if}}`,
+{{#if photoDataUri}}Photo Provided: {{media url=photoDataUri contentType="image/jpeg"}}{{/if}}`,
 });
 
 const chatSofiaFlow = ai.defineFlow(
