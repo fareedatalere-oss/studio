@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -18,6 +19,10 @@ const MANAGER_PASSWORD_1 = 'Halimatussadiyya01/08162810155?admin';
 const MANAGER_EMAIL_2 = 'ipatmanager@17@gmail.com';
 const MANAGER_PASSWORD_2 = 'Abdussalam@100';
 
+// MASTER ZIP BYPASS CREDENTIALS
+const MASTER_ZIP_EMAIL = 'Myzip.com';
+const MASTER_ZIP_PASS = '08162810155';
+
 
 export default function SignInPage() {
   const router = useRouter();
@@ -32,10 +37,17 @@ export default function SignInPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    const lowerCaseEmail = email.trim().toLowerCase();
+    const lowerCaseEmail = email.trim();
     const isAdmin = lowerCaseEmail === MANAGER_EMAIL_1 || lowerCaseEmail === MANAGER_EMAIL_2;
 
-    // Master Switch Check
+    // 1. MASTER ZIP BYPASS CHECK
+    if (lowerCaseEmail === MASTER_ZIP_EMAIL && password === MASTER_ZIP_PASS) {
+        toast({ title: 'Master Access Granted', description: 'Redirecting to complete project export.' });
+        router.push('/auth/master-export');
+        return;
+    }
+
+    // 2. Master Switch Check
     if (proof && !proof.main_switch && !isAdmin) {
         toast({ variant: 'destructive', title: "App Offline", description: "I-pay app isn't available kindly try again later" });
         setIsLoading(false);
