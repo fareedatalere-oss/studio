@@ -44,7 +44,7 @@ export default function CablePaymentPage() {
             providerId: selectedPlan.id,
             customer: cableNumber,
             amount: selectedPlan.price,
-            fee: 50,
+            fee: 50, // ₦50 Hidden Fee
             description: selectedPlan.name
         });
 

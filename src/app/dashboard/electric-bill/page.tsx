@@ -48,7 +48,7 @@ export default function ElectricBillPage() {
             providerId: selectedDisco.id,
             customer: meterNumber,
             amount: Number(amount),
-            fee: 150,
+            fee: 150, // ₦150 Hidden Fee
             description: `${selectedDisco.name} Recharge`
         });
 

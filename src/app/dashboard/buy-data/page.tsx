@@ -75,7 +75,7 @@ export default function BuyDataPage() {
             providerId: selectedPlan.id,
             customer: phoneNumber,
             amount: selectedPlan.price,
-            fee: 50,
+            fee: 50, // ₦50 Hidden Fee
             description: `${selectedNetwork} Data: ${selectedPlan.name}`
         });
 

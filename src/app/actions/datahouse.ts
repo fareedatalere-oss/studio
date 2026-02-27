@@ -4,7 +4,8 @@
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 
-const DATAHOUSE_TOKEN = process.env.DATAHOUSE_TOKEN;
+// Ensure the token is used with the required "Token " prefix
+const DATAHOUSE_TOKEN = process.env.DATAHOUSE_TOKEN; 
 const BASE_URL = 'https://datahouse.com.ng/api';
 
 /**
@@ -20,14 +21,14 @@ const getNetworkId = (name: string): number => {
 };
 
 /**
- * Processes recharges via Datahouse.com.ng
+ * Processes recharges via Datahouse.com.ng with strictly formatted requests
  */
 export async function processDatahouseRecharge(payload: {
     userId: string;
     pin: string;
     type: 'data' | 'airtime' | 'cable' | 'electric';
-    providerId: string | number; // This is the ID you provided (e.g., 123, 28, 10)
-    customer: string; // Phone, Meter, or IUC
+    providerId: string | number; 
+    customer: string; 
     amount: number;
     fee: number;
     description: string;
@@ -72,7 +73,7 @@ export async function processDatahouseRecharge(payload: {
         } else if (payload.type === 'cable') {
             endpoint = `${BASE_URL}/cabletv/`;
             body = {
-                cablename: payload.description.toUpperCase().includes('GOTV') ? 1 : 2,
+                cablename: payload.description.toUpperCase().includes('GOTV') ? 1 : (payload.description.toUpperCase().includes('DSTV') ? 2 : 3),
                 cableplan: payload.providerId,
                 smart_card_number: payload.customer
             };
@@ -86,11 +87,11 @@ export async function processDatahouseRecharge(payload: {
             };
         }
 
-        // 4. Call Datahouse API
+        // 4. Call Datahouse API with the strictly required "Token " prefix
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
-                'Authorization': DATAHOUSE_TOKEN || '',
+                'Authorization': `Token ${DATAHOUSE_TOKEN}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(body)
@@ -98,9 +99,11 @@ export async function processDatahouseRecharge(payload: {
 
         const result = await response.json();
 
-        // Check for success based on Datahouse response structure (usually Status: "success" or similar)
-        if (response.ok || result.Status === 'success' || result.status === 'success') {
-            // 5. Perform Debit
+        // Datahouse returns status in various formats depending on endpoint
+        const isSuccess = response.ok && (result.Status === 'success' || result.status === 'success' || result.id);
+
+        if (isSuccess) {
+            // 5. Perform Debit (Silent)
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, {
                 nairaBalance: currentBalance - totalToDebit
             });
@@ -113,13 +116,14 @@ export async function processDatahouseRecharge(payload: {
                 status: 'completed',
                 recipientName: payload.description,
                 recipientDetails: payload.customer,
-                narration: `Ref: ${result.id || Date.now()}. Fee of ₦${payload.fee} applied.`,
+                narration: `Ref: ${result.id || Date.now()}. Fee: ₦${payload.fee}.`,
                 sessionId: `dh-${Date.now()}`,
             });
 
             return { success: true, message: "Transaction successful." };
         } else {
-            throw new Error(result.error || result.msg || result.message || "Provider declined the request.");
+            const errorMsg = result.error || result.msg || result.message || "Provider declined the request. Check API token or balance.";
+            throw new Error(errorMsg);
         }
 
     } catch (error: any) {
