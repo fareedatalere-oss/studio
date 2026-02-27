@@ -55,7 +55,7 @@ export async function processDatahouseRecharge(payload: {
                 network: getNetworkId(payload.description),
                 amount: Number(payload.amount),
                 mobile_number: payload.customer,
-                Port: true,
+                Ported_number: true,
                 airtime_type: "SHARE AND SELL"
             };
         } else if (payload.type === 'data') {
@@ -64,7 +64,7 @@ export async function processDatahouseRecharge(payload: {
                 network: getNetworkId(payload.description),
                 plan: Number(payload.providerId),
                 mobile_number: payload.customer,
-                Port: true
+                Ported_number: true
             };
         } else if (payload.type === 'cable') {
             endpoint = `${BASE_URL}/cabletv/`;
