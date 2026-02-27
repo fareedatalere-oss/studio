@@ -88,7 +88,7 @@ export async function initiateFlutterwaveBill(payload: {
                 customer: payload.customer,
                 amount: payload.amount,
                 type: payload.billerCode, // Force use of biller_code
-                item_code: payload.itemCode || undefined, // Required for Data recharges
+                item_code: payload.itemCode || payload.billerCode, // Required for recharges
                 reference: `ipay-bill-${Date.now()}`
             }),
         });
@@ -185,7 +185,7 @@ export async function initiateFlutterwaveAirtime(payload: { userId: string, pin:
         '9MOBILE': 'BIL103'
     };
     const billerCode = networkBillerCodes[payload.type.toUpperCase()] || 'BIL099';
-    return initiateFlutterwaveBill({ ...payload, billerCode });
+    return initiateFlutterwaveBill({ ...payload, billerCode, itemCode: billerCode });
 }
 
 export async function generateVirtualAccount(payload: any) {

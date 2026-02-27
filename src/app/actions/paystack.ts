@@ -114,12 +114,13 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
 
     let fee = 0;
-    if (payload.amount >= 100 && payload.amount <= 1000) fee = 30;
-    else if (payload.amount > 1000 && payload.amount < 10000) fee = 80;
-    else if (payload.amount >= 10000 && payload.amount <= 100000) fee = 100;
-    else if (payload.amount > 100000) fee = 150;
+    const amt = Number(payload.amount);
+    if (amt >= 100 && amt <= 1000) fee = 30;
+    else if (amt > 1000 && amt < 10000) fee = 80;
+    else if (amt >= 10000 && amt <= 100000) fee = 100;
+    else if (amt > 100000) fee = 150;
 
-    const totalDebit = payload.amount + fee;
+    const totalDebit = amt + fee;
 
     try {
         const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
@@ -137,7 +138,7 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
         const transferRes = await fetch('https://api.paystack.co/transfer', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ source: "balance", amount: payload.amount * 100, recipient: recipientData.data.recipient_code, reason: payload.narration || payload.name, reference: `ipay-out-${Date.now()}` })
+            body: JSON.stringify({ source: "balance", amount: amt * 100, recipient: recipientData.data.recipient_code, reason: payload.narration || payload.name, reference: `ipay-out-${Date.now()}` })
         });
         const transferData = await transferRes.json();
 
@@ -146,7 +147,7 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: payload.userId,
                 type: 'transfer',
-                amount: payload.amount,
+                amount: amt,
                 status: 'completed',
                 recipientName: payload.name,
                 recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
