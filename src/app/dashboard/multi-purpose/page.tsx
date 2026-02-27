@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { getPaystackBillers, initiatePaystackBillPayment } from '@/app/actions/paystack';
+import { getBillCategories, initiateFlutterwaveBill } from '@/app/actions/flutterwave';
 
 export default function MultiPurposePaymentPage() {
     const router = useRouter();
@@ -34,12 +34,11 @@ export default function MultiPurposePaymentPage() {
 
     useEffect(() => {
         setIsLoadingBillers(true);
-        getPaystackBillers().then(res => {
+        getBillCategories().then(res => {
             if (res.success && res.data) {
                 setAllBillers(res.data);
-                // Extract unique categories (types) from real Paystack data
-                const types = Array.from(new Set(res.data.map((b: any) => b.type))).filter(Boolean) as string[];
-                setCategories(['All', ...types]);
+                const groups = Array.from(new Set(res.data.map((b: any) => b.bill_group))).filter(Boolean) as string[];
+                setCategories(['All', ...groups]);
             }
             setIsLoadingBillers(false);
         });
@@ -49,7 +48,7 @@ export default function MultiPurposePaymentPage() {
     
     const filteredBillers = allBillers.filter(b => {
         const matchesSearch = b.name.toLowerCase().includes(billerSearch.toLowerCase());
-        const matchesCategory = selectedCategory === 'All' || b.type === selectedCategory;
+        const matchesCategory = selectedCategory === 'All' || b.bill_group === selectedCategory;
         return matchesSearch && matchesCategory;
     });
 
@@ -61,16 +60,16 @@ export default function MultiPurposePaymentPage() {
             return;
         }
 
-        const totalAmount = Number(amount);
         setIsProcessing(true);
         try {
-            const result = await initiatePaystackBillPayment({
+            const result = await initiateFlutterwaveBill({
                 userId: user.$id,
                 pin,
                 customer: customerId,
-                amount: totalAmount,
-                type: selectedBiller.slug,
-                description: `${selectedBiller.name} Payment`
+                amount: Number(amount),
+                type: selectedBiller.biller_code,
+                billerCode: selectedBiller.biller_code,
+                isData: false
             });
 
             if (result.success) {
@@ -96,15 +95,15 @@ export default function MultiPurposePaymentPage() {
 
             <Card className="max-w-md mx-auto">
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><CreditCard className="text-primary" />Live Multi-Purpose Payment</CardTitle>
-                    <CardDescription>Dynamic categories fetched directly from Paystack</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><CreditCard className="text-primary" />Multi-Purpose Payment</CardTitle>
+                    <CardDescription>Live billers directly from our service provider</CardDescription>
                 </CardHeader>
                 
                 <CardContent className="space-y-4">
                     {isLoadingBillers ? (
                         <div className="flex flex-col items-center justify-center p-12">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            <p className="text-sm text-muted-foreground mt-4">Syncing with Paystack...</p>
+                            <p className="text-sm text-muted-foreground mt-4">Syncing billers...</p>
                         </div>
                     ) : (
                         <>
@@ -133,8 +132,8 @@ export default function MultiPurposePaymentPage() {
                                         <Input placeholder={`Search providers...`} className="pl-10" value={billerSearch} onChange={e => setBillerSearch(e.target.value)} />
                                     </div>
                                     <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-1">
-                                        {filteredBillers.length > 0 ? filteredBillers.map(b => (
-                                            <Button key={b.id} variant="outline" className="justify-start h-12" onClick={() => { setSelectedBiller(b); setStep(3); }}>
+                                        {filteredBillers.length > 0 ? filteredBillers.map((b, idx) => (
+                                            <Button key={idx} variant="outline" className="justify-start h-12" onClick={() => { setSelectedBiller(b); setStep(3); }}>
                                                 {b.name}
                                             </Button>
                                         )) : <p className="text-center text-sm text-muted-foreground">No providers found.</p>}
@@ -146,7 +145,7 @@ export default function MultiPurposePaymentPage() {
                                 <div className="space-y-4">
                                     <div className="bg-muted p-4 rounded-lg text-center">
                                         <p className="font-bold">{selectedBiller.name}</p>
-                                        <p className="text-xs text-muted-foreground uppercase">{selectedBiller.type}</p>
+                                        <p className="text-xs text-muted-foreground uppercase">{selectedBiller.bill_group}</p>
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Account / Meter / Customer ID</Label>
@@ -163,7 +162,7 @@ export default function MultiPurposePaymentPage() {
                             {step === 4 && (
                                 <div className="space-y-4 text-center">
                                     <div className="p-4 border rounded-lg">
-                                        <p className="text-sm text-muted-foreground">Authorize Live Payment</p>
+                                        <p className="text-sm text-muted-foreground">Authorize Payment</p>
                                         <p className="text-2xl font-bold">₦{Number(amount).toLocaleString()}</p>
                                         <p className="text-xs text-muted-foreground mt-1">To: {selectedBiller?.name}</p>
                                     </div>

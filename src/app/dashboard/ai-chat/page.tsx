@@ -42,9 +42,11 @@ export default function AiChatPage() {
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [locationStr, setLocationStr] = useState('Unknown Location');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isListening, setIsFollowing] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('sofia-chat');
@@ -63,12 +65,46 @@ export default function AiChatPage() {
             setLocationStr(`Lat: ${pos.coords.latitude.toFixed(2)}, Lng: ${pos.coords.longitude.toFixed(2)}`);
         });
     }
+
+    if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        recognitionRef.current = new SpeechRecognition();
+        recognitionRef.current.continuous = false;
+        recognitionRef.current.interimResults = false;
+        recognitionRef.current.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            setInput(transcript);
+            setIsFollowing(false);
+        };
+        recognitionRef.current.onerror = () => setIsFollowing(false);
+        recognitionRef.current.onend = () => setIsFollowing(false);
+    }
   }, []);
 
   useEffect(() => {
     localStorage.setItem('sofia-chat', JSON.stringify(messages));
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const speakText = (text: string) => {
+    if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-US';
+        const voices = window.speechSynthesis.getVoices();
+        const femaleVoice = voices.find(v => v.name.includes('Female') || v.name.includes('Google UK English Female') || v.name.includes('Samantha'));
+        if (femaleVoice) utterance.voice = femaleVoice;
+        window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const handleMicClick = () => {
+    if (isListening) {
+        recognitionRef.current?.stop();
+    } else {
+        recognitionRef.current?.start();
+        setIsFollowing(true);
+    }
+  };
 
   const handleDeleteMessage = (timestamp: number) => {
     setMessages(prev => prev.filter(m => m.timestamp !== timestamp));
@@ -82,7 +118,7 @@ export default function AiChatPage() {
     } else if (action === 'call') {
         window.location.href = 'tel:';
     } else if (action === 'balance') {
-        // Balance is handled by the text response from tools
+        // Handled by text response
     }
   }
 
@@ -111,11 +147,11 @@ export default function AiChatPage() {
       });
 
       setMessages(prev => [...prev, { role: 'sofia', text: response.text, timestamp: Date.now() }]);
+      speakText(response.text);
       handleAction(response.action);
       
       if (response.imageToGenerate) {
           toast({ title: "Generating image...", description: "Sofia is creating something for you." });
-          // In a real app, you'd call a text-to-image flow here.
       }
     } catch (error) {
       setMessages(prev => [...prev, { role: 'sofia', text: "I hit a snag. Please try again.", timestamp: Date.now() }]);
@@ -205,8 +241,11 @@ export default function AiChatPage() {
             onChange={e => setInput(e.target.value)}
             disabled={isLoading}
           />
-          <Button variant="ghost" size="icon" type="button" onClick={() => fileInputRef.current?.click()}>
+          <Button variant="ghost" size="icon" type="button" onClick={() => fileInputRef.current?.click()} className={selectedImage ? 'text-primary' : ''}>
             <ImageIcon className="h-5 w-5" />
+          </Button>
+          <Button variant="ghost" size="icon" type="button" onClick={handleMicClick} className={isListening ? 'text-red-500 animate-pulse' : ''}>
+            <Mic className="h-5 w-5" />
           </Button>
           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={onFileChange} />
           <Button size="icon" type="submit" disabled={isLoading || (!input.trim() && !selectedImage)}>

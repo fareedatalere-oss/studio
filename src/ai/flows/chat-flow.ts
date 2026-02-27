@@ -82,8 +82,6 @@ const chatSofiaFlow = ai.defineFlow(
     outputSchema: SofiaOutputSchema,
   },
   async input => {
-    // If user wants image generation, we might need a two-step or specialized handling.
-    // For now, we use Gemini 2.5 Flash for the main reasoning.
     const { output } = await prompt(input);
     return output!;
   }

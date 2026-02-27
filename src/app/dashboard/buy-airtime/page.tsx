@@ -52,7 +52,7 @@ export default function BuyAirtimePage() {
             toast({ title: "Airtime Purchase Successful" });
             router.push('/dashboard');
         } else {
-            toast({ variant: 'destructive', title: "Purchase Failed", description: result.message || "Flutterwave declined the request." });
+            toast({ variant: 'destructive', title: "Purchase Failed", description: result.message || "Provider declined the request." });
         }
     };
 
@@ -63,7 +63,7 @@ export default function BuyAirtimePage() {
             </Link>
             <Card className="w-full max-w-md mx-auto shadow-lg border-t-4 border-t-primary">
                 <CardHeader className="text-center pb-2">
-                    <CardTitle className="text-2xl font-bold">Buy Airtime (Flutterwave)</CardTitle>
+                    <CardTitle className="text-2xl font-bold">Buy Airtime</CardTitle>
                     <CardDescription>Instant recharge for all networks</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 pt-4">

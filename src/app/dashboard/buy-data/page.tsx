@@ -91,7 +91,7 @@ export default function BuyDataPage() {
             </Link>
             <Card className="w-full max-w-md mx-auto shadow-lg border-t-4 border-t-primary">
                 <CardHeader className="text-center pb-2">
-                    <CardTitle className="text-2xl font-bold">Buy Data Bundle (Flutterwave)</CardTitle>
+                    <CardTitle className="text-2xl font-bold">Buy Data Bundle</CardTitle>
                     <CardDescription>Select network and a real-time data plan</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 pt-4">

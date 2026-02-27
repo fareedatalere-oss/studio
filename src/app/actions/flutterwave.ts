@@ -4,14 +4,10 @@ import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTI
 import { ID, Query } from 'appwrite';
 
 const FLUTTERWAVE_API_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
-const API_KEY_ERROR_MESSAGE = 'Your API key is not configured. Please contact an administrator.';
-const REQUEST_TIMEOUT = 20000; // 20 seconds
+const API_KEY_ERROR_MESSAGE = 'Configuration error. Please contact an administrator.';
 
 export async function getBankList() {
-    if (!FLUTTERWAVE_API_KEY || FLUTTERWAVE_API_KEY.includes('YOUR_FLUTTERWAVE_SECRET_KEY_HERE')) {
-        return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
-    }
-
+    if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
     try {
         const response = await fetch('https://api.flutterwave.com/v3/banks/NG', {
             method: 'GET',
@@ -26,21 +22,43 @@ export async function getBankList() {
     }
 }
 
-export async function getFlutterwaveDataPlans(type: string) {
+export async function getBillCategories(type?: string) {
     if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     try {
-        const response = await fetch(`https://api.flutterwave.com/v3/bill-categories?data=1`, {
+        const response = await fetch('https://api.flutterwave.com/v3/bill-categories', {
             headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` }
         });
         const data = await response.json();
         if (data.status === 'success') {
-            const filtered = data.data.filter((item: any) => item.name.toUpperCase().includes(type.toUpperCase()));
-            const plans = filtered.map((item: any) => ({
-                name: item.name,
-                price: item.amount,
-                biller_code: item.biller_code,
-                item_code: item.item_code
-            })).sort((a: any, b: any) => a.price - b.price);
+            let filtered = data.data;
+            if (type) {
+                filtered = filtered.filter((item: any) => item.bill_group.toUpperCase() === type.toUpperCase());
+            }
+            return { success: true, data: filtered };
+        }
+        return { success: false, message: data.message };
+    } catch (e: any) {
+        return { success: false, message: e.message };
+    }
+}
+
+export async function getFlutterwaveDataPlans(providerName: string) {
+    if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    try {
+        const response = await fetch('https://api.flutterwave.com/v3/bill-categories?data=1', {
+            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` }
+        });
+        const data = await response.json();
+        if (data.status === 'success') {
+            const plans = data.data
+                .filter((item: any) => item.name.toUpperCase().includes(providerName.toUpperCase()))
+                .map((item: any) => ({
+                    name: item.name,
+                    price: item.amount,
+                    biller_code: item.biller_code,
+                    item_code: item.item_code
+                }))
+                .sort((a: any, b: any) => a.price - b.price);
             return { success: true, data: plans };
         }
         return { success: false, message: data.message };
@@ -58,7 +76,7 @@ export async function initiateFlutterwaveBill(payload: { userId: string, pin: st
     try {
         const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
         if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
-        if (userProfile.nairaBalance < totalDebit) throw new Error('Insufficient balance.');
+        if (userProfile.nairaBalance < totalDebit) throw new Error('Insufficient funds in your wallet.');
 
         const response = await fetch('https://api.flutterwave.com/v3/bills', {
             method: 'POST',
@@ -89,13 +107,13 @@ export async function initiateFlutterwaveBill(payload: { userId: string, pin: st
                 status: 'completed',
                 recipientName: `${payload.type} ${payload.isData ? 'Data' : 'Airtime'}`,
                 recipientDetails: payload.customer,
-                narration: `Service charge of ₦${MY_CHARGE} applied.`,
+                narration: `Charge of ₦${MY_CHARGE} included.`,
                 sessionId: data.data?.reference || `ref-${Date.now()}`,
             });
 
-            return { success: true, message: "Purchase successful via Flutterwave." };
+            return { success: true, message: "Transaction successful." };
         } else {
-            throw new Error(data.message || "Flutterwave declined the request.");
+            throw new Error(data.message || "Provider declined the request.");
         }
     } catch (e: any) {
         return { success: false, message: e.message };
@@ -103,12 +121,11 @@ export async function initiateFlutterwaveBill(payload: { userId: string, pin: st
 }
 
 export async function syncVirtualAccountPayments(userId: string, userEmail?: string) {
-    if (!FLUTTERWAVE_API_KEY) return { success: false, message: "API key is not configured correctly." };
+    if (!FLUTTERWAVE_API_KEY) return { success: false, message: "Configuration error." };
 
     try {
         const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
         const email = userEmail || profile.email;
-        
         if (!email) return { success: false, message: "No email associated with this account." };
 
         const response = await fetch(`https://api.flutterwave.com/v3/transactions?customer_email=${encodeURIComponent(email)}&status=successful`, {
@@ -153,7 +170,7 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
             return { success: true, amountAdded: totalNewAmount, message: `Successfully updated! Added ₦${totalNewAmount.toLocaleString()} to balance.` };
         }
 
-        return { success: true, amountAdded: 0, message: "Your balance is accurate and up to date." };
+        return { success: true, amountAdded: 0, message: "Your balance is up to date." };
     } catch (error: any) {
         return { success: false, message: error.message };
     }
@@ -181,10 +198,6 @@ export async function generateVirtualAccount(payload: any) {
         return { success: false, message: e.message };
     }
 }
-
-export async function makeBillPayment(payload: any) { return { success: false, message: "Service not implemented." }; }
-export async function getUtilityProviders(type: string) { return { success: false, data: [] }; }
-export async function getUtilityPlans(billerCode: string) { return { success: false, data: [] }; }
 
 export async function getCardVerificationLink(payload: { userId: string, email: string, name: string, redirectUrl: string }) {
     if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
