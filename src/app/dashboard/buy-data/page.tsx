@@ -71,6 +71,7 @@ export default function BuyDataPage() {
             amount: selectedPlan.price,
             type: selectedNetwork,
             billerCode: selectedPlan.biller_code,
+            itemCode: selectedPlan.item_code,
             isData: true
         });
 

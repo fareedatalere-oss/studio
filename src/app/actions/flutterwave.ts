@@ -16,7 +16,10 @@ export async function getBillCategories(type?: string) {
         if (data.status === 'success') {
             let filtered = data.data;
             if (type && type !== 'All') {
-                filtered = filtered.filter((item: any) => item.bill_group.toUpperCase() === type.toUpperCase());
+                filtered = filtered.filter((item: any) => 
+                    item.bill_group.toUpperCase() === type.toUpperCase() || 
+                    item.name.toUpperCase().includes(type.toUpperCase())
+                );
             }
             return { success: true, data: filtered };
         }
@@ -51,7 +54,17 @@ export async function getFlutterwaveDataPlans(providerName: string) {
     }
 }
 
-export async function initiateFlutterwaveBill(payload: { userId: string, pin: string, customer: string, amount: number, type: string, billerCode: string, isData?: boolean, narration?: string }) {
+export async function initiateFlutterwaveBill(payload: { 
+    userId: string, 
+    pin: string, 
+    customer: string, 
+    amount: number, 
+    type: string, 
+    billerCode: string, 
+    itemCode?: string,
+    isData?: boolean, 
+    narration?: string 
+}) {
     if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     
     const MY_CHARGE = 3;
@@ -62,7 +75,7 @@ export async function initiateFlutterwaveBill(payload: { userId: string, pin: st
         if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
         
         const currentBalance = Number(userProfile.nairaBalance || 0);
-        if (currentBalance < totalDebit) throw new Error(`Insufficient funds. Your balance is ₦${currentBalance.toLocaleString()}. You need ₦${totalDebit.toLocaleString()} including fees.`);
+        if (currentBalance < totalDebit) throw new Error(`Insufficient funds. Your balance is ₦${currentBalance.toLocaleString()}.`);
 
         const response = await fetch('https://api.flutterwave.com/v3/bills', {
             method: 'POST',
@@ -74,7 +87,8 @@ export async function initiateFlutterwaveBill(payload: { userId: string, pin: st
                 country: "NG",
                 customer: payload.customer,
                 amount: payload.amount,
-                type: payload.isData ? payload.billerCode : payload.type,
+                type: payload.billerCode, // Force use of biller_code
+                item_code: payload.itemCode || undefined, // Required for Data recharges
                 reference: `ipay-bill-${Date.now()}`
             }),
         });
@@ -163,7 +177,15 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
 }
 
 export async function initiateFlutterwaveAirtime(payload: { userId: string, pin: string, customer: string, amount: number, type: string }) {
-    return initiateFlutterwaveBill({ ...payload, billerCode: 'AIRTIME' });
+    // Dynamically find airtime code for Nigeria
+    const networkBillerCodes: any = {
+        'MTN': 'BIL099',
+        'AIRTEL': 'BIL100',
+        'GLO': 'BIL102',
+        '9MOBILE': 'BIL103'
+    };
+    const billerCode = networkBillerCodes[payload.type.toUpperCase()] || 'BIL099';
+    return initiateFlutterwaveBill({ ...payload, billerCode });
 }
 
 export async function generateVirtualAccount(payload: any) {
