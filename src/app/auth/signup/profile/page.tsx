@@ -26,7 +26,6 @@ export default function CompleteProfilePage() {
   const [isLoading, setIsLoading] = useState(false);
   
   useEffect(() => {
-    // If there's no user and we're not loading, they shouldn't be here.
     if (!userLoading && !user) {
         toast({
             title: 'Authentication Error',
@@ -64,21 +63,12 @@ export default function CompleteProfilePage() {
     try {
         await account.updateName(username);
 
-        // Prepare the profile data.
-        // Note: We avoid saving 'email' directly to the document to prevent "Unknown attribute" errors if the collection is misconfigured.
+        // ONLY sending the attributes allowed by the user's schema
         const profileData = {
-            uid: user.$id,
             username: username,
             country: country,
             pin: pin,
             avatar: '',
-            createdAt: new Date().toISOString(),
-            nairaBalance: 0,
-            rewardBalance: 0,
-            clickCount: 0,
-            hasReferral: false,
-            isBanned: false,
-            isMarketplaceSubscribed: false
         };
 
         // Create the new profile document using the user's ID as the document ID
@@ -100,7 +90,7 @@ export default function CompleteProfilePage() {
         console.error("Profile setup error:", error);
         let errorMessage = `A critical error occurred while creating your profile: ${error.message}`;
         if (error.code === 404 && error.message.includes('Collection not found')) {
-            errorMessage = 'The profiles collection has not been created in your Appwrite database. Please check your setup.';
+            errorMessage = 'The profiles collection has not been created in your Appwrite database.';
         } else if (error.type === 'document_already_exists' || error.code === 409) {
              errorMessage = 'A profile for this user already exists. Redirecting to dashboard.';
              router.push('/dashboard');
