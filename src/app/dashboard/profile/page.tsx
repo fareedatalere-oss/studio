@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
@@ -7,7 +6,7 @@ import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { LogOut, PenSquare, Settings, Headset } from 'lucide-react';
+import { LogOut, PenSquare, Settings, Headset, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,8 +29,13 @@ export default function ProfilePage() {
         setProfileLoading(false);
     } else if (!userLoading) {
         setProfileLoading(false);
+        // If we have an authenticated user but no profile document, they must finish setup.
+        // This prevents the "@New User" fake account appearance.
+        if (authUser && !userProfileFromHook) {
+            router.replace('/auth/signup/profile');
+        }
     }
-  }, [userProfileFromHook, userLoading]);
+  }, [userProfileFromHook, userLoading, authUser, router]);
 
   const isLoading = userLoading || profileLoading;
 
@@ -50,7 +54,7 @@ export default function ProfilePage() {
             avatar: fileUrl
         });
         setUserProfile((prev: any) => ({ ...prev, avatar: fileUrl }));
-        recheckUser();
+        await recheckUser();
         toast({ title: 'Avatar Updated!', description: 'Your new avatar is now live.' });
     } catch (error: any) {
         console.error("Avatar upload failed:", error);
@@ -62,12 +66,13 @@ export default function ProfilePage() {
 
   const handleLogout = async () => {
     try {
-        await account.deleteSession('current');
+        // Attempt to delete session, but ignore error if session is already gone
+        await account.deleteSession('current').catch(() => {});
         toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
-        // No need to call recheckUser, the router push will trigger a re-render and the hook will detect the logged out state.
         router.push('/auth/signin');
     } catch (error) {
-        toast({ title: 'Logout Failed', description: 'Could not log you out. Please try again.', variant: 'destructive' });
+        // Force redirect even on critical error
+        router.push('/auth/signin');
     }
   };
 
@@ -76,6 +81,15 @@ export default function ProfilePage() {
     { label: 'Contact Support', icon: Headset, href: '/dashboard/profile/support' },
     { label: 'My Posts', icon: PenSquare, href: '/dashboard/profile/posts' },
   ];
+
+  if (isLoading) {
+      return (
+          <div className="container py-8 flex flex-col items-center justify-center space-y-4">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <p className="text-muted-foreground animate-pulse">Syncing profile...</p>
+          </div>
+      );
+  }
 
   return (
     <div className="container py-8">
@@ -101,7 +115,7 @@ export default function ProfilePage() {
                 </div>
             ) : (
                 <>
-                    <h1 className="text-2xl font-bold">@{(userProfile?.username || authUser?.name) || 'New User'}</h1>
+                    <h1 className="text-2xl font-bold">@{userProfile?.username || 'User'}</h1>
                     <p className="text-sm text-muted-foreground">{authUser?.email}</p>
                 </>
             )}
