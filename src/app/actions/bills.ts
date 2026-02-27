@@ -5,18 +5,17 @@ import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTI
 import { ID } from 'appwrite';
 
 /**
- * Handles the local debit logic for Cable and Electric bills.
- * This does not connect to an external provider as requested, 
- * but strictly debits the user and logs the transaction.
+ * Handles the local debit logic for Cable, Electric, and Data bills.
+ * Strictly debits the user and logs the transaction locally.
  */
 
 export async function processLocalBillPayment(payload: {
     userId: string;
     pin: string;
-    customer: string;
+    customer: string; // Phone number for data, Meter for electric, IUC for cable
     amount: number;
     fee: number;
-    type: 'tv_subscription' | 'electricity';
+    type: 'tv_subscription' | 'electricity' | 'data';
     narration: string;
 }) {
     try {
@@ -43,12 +42,12 @@ export async function processLocalBillPayment(payload: {
         // 4. Log Transaction
         await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
             userId: payload.userId,
-            type: payload.type,
+            type: payload.type === 'data' ? 'data' : payload.type,
             amount: totalToDebit,
             status: 'completed',
             recipientName: payload.narration,
             recipientDetails: payload.customer,
-            narration: `Bill Payment Processed. Fee of ₦${payload.fee} included.`,
+            narration: `Processed locally. Fee of ₦${payload.fee} included.`,
             sessionId: `local-bill-${Date.now()}`,
         });
 
