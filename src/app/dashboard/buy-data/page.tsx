@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { getPaystackBillers, initiatePaystackBillPayment } from '@/app/actions/paystack';
+import { getFlutterwaveDataPlans, initiateFlutterwaveBill } from '@/app/actions/flutterwave';
 
 const CORE_PROVIDERS = [
     { name: 'MTN', searchKey: 'MTN' },
@@ -26,12 +27,10 @@ export default function BuyDataPage() {
     const { toast } = useToast();
     const { user } = useUser();
 
-    const [paystackBillers, setPaystackBillers] = useState<any[]>([]);
-    const [isLoadingBillers, setIsLoadingBillers] = useState(true);
-    
     const [selectedNetwork, setSelectedNetwork] = useState('');
     const [plans, setPlans] = useState<any[]>([]);
     const [planSearch, setPlanSearch] = useState('');
+    const [isLoadingPlans, setIsLoadingPlans] = useState(false);
 
     const [phoneNumber, setPhoneNumber] = useState('');
     const [selectedPlan, setSelectedPlan] = useState<any>(null);
@@ -39,65 +38,40 @@ export default function BuyDataPage() {
     const [isPurchasing, setIsPurchasing] = useState(false);
 
     useEffect(() => {
-        getPaystackBillers().then(res => {
-            if (res.success && res.data) {
-                setPaystackBillers(res.data);
-            }
-            setIsLoadingBillers(false);
-        });
-    }, []);
-
-    useEffect(() => {
         if (!selectedNetwork) {
             setPlans([]);
             return;
         }
 
-        const network = CORE_PROVIDERS.find(p => p.name === selectedNetwork);
-        const biller = paystackBillers.find(b => 
-            b.name.toUpperCase().includes(network?.searchKey || '') && 
-            b.name.toUpperCase().includes('DATA')
-        );
-
-        if (biller && biller.metadata?.items) {
-            const sortedPlans = [...biller.metadata.items].sort((a, b) => a.price - b.price);
-            setPlans(sortedPlans);
-        } else {
-            // Robust fallback for Nigerian data plans sorted low to high
-            const fallbacks = [
-                { name: '500MB (Weekly)', price: 500 },
-                { name: '1GB (Monthly)', price: 1000 },
-                { name: '2.5GB (Monthly)', price: 1500 },
-                { name: '5GB (Monthly)', price: 2500 },
-                { name: '10GB (Monthly)', price: 4000 },
-                { name: '20GB (Monthly)', price: 7500 },
-                { name: '40GB (Monthly)', price: 12000 }
-            ];
-            setPlans(fallbacks);
-        }
+        const fetchPlans = async () => {
+            setIsLoadingPlans(true);
+            const result = await getFlutterwaveDataPlans(selectedNetwork);
+            if (result.success) {
+                setPlans(result.data);
+            } else {
+                toast({ variant: 'destructive', title: "Error", description: result.message });
+            }
+            setIsLoadingPlans(false);
+        };
+        fetchPlans();
         setSelectedPlan(null);
-    }, [selectedNetwork, paystackBillers]);
+    }, [selectedNetwork, toast]);
 
     const filteredPlans = plans.filter(p => p.name.toLowerCase().includes(planSearch.toLowerCase()));
 
     const handlePurchase = async () => {
         if (!user || !selectedPlan || !selectedNetwork) return;
         
-        const network = CORE_PROVIDERS.find(p => p.name === selectedNetwork);
-        const biller = paystackBillers.find(b => 
-            b.name.toUpperCase().includes(network?.searchKey || '') && 
-            b.name.toUpperCase().includes('DATA')
-        );
-
         setIsPurchasing(true);
 
-        const result = await initiatePaystackBillPayment({
+        const result = await initiateFlutterwaveBill({
             userId: user.$id,
             pin,
             customer: phoneNumber,
             amount: selectedPlan.price,
-            type: biller?.slug || `${selectedNetwork.toLowerCase()}_data`,
-            description: `${selectedNetwork} Data: ${selectedPlan.name}`
+            type: selectedNetwork,
+            billerCode: selectedPlan.biller_code,
+            isData: true
         });
 
         setIsPurchasing(false);
@@ -106,19 +80,19 @@ export default function BuyDataPage() {
             toast({ title: "Data Purchase Successful" });
             router.push('/dashboard');
         } else {
-            toast({ variant: 'destructive', title: "Purchase Failed", description: result.message || "Paystack declined the request." });
+            toast({ variant: 'destructive', title: "Purchase Failed", description: result.message });
         }
     };
 
     return (
         <div className="container py-8">
-            <Link href="/dashboard" className="flex items-center gap-2 mb-4 text-sm font-medium hover:text-primary transition-colors">
+            <Link href="/dashboard" className="flex items-center gap-2 mb-4 text-sm font-medium hover:text-primary">
                 <ArrowLeft className="h-4 w-4" /> Back to Dashboard
             </Link>
             <Card className="w-full max-w-md mx-auto shadow-lg border-t-4 border-t-primary">
                 <CardHeader className="text-center pb-2">
-                    <CardTitle className="text-2xl font-bold">Buy Data Bundle</CardTitle>
-                    <CardDescription>Select your network and a data plan</CardDescription>
+                    <CardTitle className="text-2xl font-bold">Buy Data Bundle (Flutterwave)</CardTitle>
+                    <CardDescription>Select network and a real-time data plan</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 pt-4">
                     <div className="space-y-2">
@@ -129,9 +103,7 @@ export default function BuyDataPage() {
                             </SelectTrigger>
                             <SelectContent>
                                 {CORE_PROVIDERS.map(p => (
-                                    <SelectItem key={p.name} value={p.name} className="font-bold">
-                                        {p.name}
-                                    </SelectItem>
+                                    <SelectItem key={p.name} value={p.name} className="font-bold">{p.name}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -140,7 +112,6 @@ export default function BuyDataPage() {
                     <div className="space-y-2">
                         <Label className="text-xs uppercase font-black text-muted-foreground">Recipient Phone Number</Label>
                         <Input 
-                            type="tel"
                             inputMode="numeric"
                             value={phoneNumber} 
                             onChange={e => setPhoneNumber(e.target.value.replace(/\D/g, ''))} 
@@ -155,33 +126,25 @@ export default function BuyDataPage() {
                             <Label className="text-xs uppercase font-black text-muted-foreground">Select Plan (Low to High)</Label>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input 
-                                    placeholder="Search plans (e.g. 5GB)..." 
-                                    className="pl-9 h-10 text-sm" 
-                                    value={planSearch} 
-                                    onChange={e => setPlanSearch(e.target.value)} 
-                                />
+                                <Input placeholder="Search plans..." className="pl-9" value={planSearch} onChange={e => setPlanSearch(e.target.value)} />
                             </div>
-                            <div className="grid grid-cols-1 gap-2 max-h-[280px] overflow-y-auto pr-1">
-                                {isLoadingBillers ? (
+                            <div className="grid grid-cols-1 gap-2 max-h-[280px] overflow-y-auto">
+                                {isLoadingPlans ? (
                                     <div className="flex justify-center p-8"><Loader2 className="animate-spin h-6 w-6 text-primary" /></div>
                                 ) : filteredPlans.length > 0 ? filteredPlans.map((plan, idx) => (
                                     <Button 
                                         key={idx} 
                                         variant={selectedPlan === plan ? 'default' : 'outline'} 
-                                        className={selectedPlan === plan ? "justify-between h-14 border-2 border-primary" : "justify-between h-14"} 
+                                        className="justify-between h-14" 
                                         onClick={() => setSelectedPlan(plan)}
                                     >
                                         <div className="flex flex-col items-start text-left">
                                             <span className="font-bold text-sm">{plan.name}</span>
-                                            <span className="text-[10px] text-muted-foreground italic">Instant Delivery</span>
                                         </div>
                                         <span className="font-black text-base">₦{plan.price.toLocaleString()}</span>
                                     </Button>
                                 )) : (
-                                    <div className="text-center py-8">
-                                        <p className="text-sm text-muted-foreground">No matching plans found.</p>
-                                    </div>
+                                    <div className="text-center py-8 text-muted-foreground">No matching plans found.</div>
                                 )}
                             </div>
                         </div>
@@ -190,36 +153,23 @@ export default function BuyDataPage() {
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button className="w-full h-14 text-lg font-bold" disabled={!selectedPlan || phoneNumber.length !== 11}>
-                                Continue to Payment
+                                Continue
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Confirm Data Purchase</AlertDialogTitle>
-                                <AlertDialogDescription asChild>
-                                    <div className="space-y-2 text-foreground">
-                                        <div>Network: <span className="font-bold">{selectedNetwork}</span></div>
-                                        <div>Plan: <span className="font-bold">{selectedPlan?.name}</span></div>
-                                        <div>Recipient: <span className="font-bold">{phoneNumber}</span></div>
-                                        <div className="pt-2 text-primary font-bold text-lg border-t">Total: ₦{selectedPlan?.price.toLocaleString()}</div>
-                                    </div>
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <div className="space-y-2 pt-4">
-                                <Label className="font-bold">Enter 5-Digit Transaction PIN</Label>
-                                <Input 
-                                    type="password" 
-                                    inputMode="numeric"
-                                    value={pin} 
-                                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} 
-                                    maxLength={5} 
-                                    placeholder="*****" 
-                                    className="text-center text-2xl tracking-[1rem] h-14" 
-                                />
+                            <AlertDialogHeader><AlertDialogTitle>Confirm Purchase</AlertDialogTitle></AlertDialogHeader>
+                            <div className="space-y-2 text-sm">
+                                <div>Network: <span className="font-bold">{selectedNetwork}</span></div>
+                                <div>Plan: <span className="font-bold">{selectedPlan?.name}</span></div>
+                                <div className="pt-2 text-primary font-bold text-lg border-t">Total: ₦{selectedPlan?.price.toLocaleString()}</div>
                             </div>
-                            <AlertDialogFooter className="pt-4">
+                            <div className="space-y-2 pt-4">
+                                <Label className="font-bold">Transaction PIN</Label>
+                                <Input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} placeholder="*****" className="text-center h-14 text-2xl tracking-[1rem]" />
+                            </div>
+                            <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handlePurchase} disabled={isPurchasing || pin.length !== 5} className="font-bold">
+                                <AlertDialogAction onClick={handlePurchase} disabled={isPurchasing || pin.length !== 5}>
                                     {isPurchasing ? <Loader2 className="animate-spin" /> : 'Confirm & Pay'}
                                 </AlertDialogAction>
                             </AlertDialogFooter>

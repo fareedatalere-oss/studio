@@ -2,25 +2,42 @@
 'use server';
 /**
  * @fileOverview Sofia - The I-Pay Personable Assistant.
- *
- * - chatSofia - Handles the conversation process.
- * - SofiaInput - The input type for the chatSofia function.
- * - SofiaOutput - The return type for the chatSofia function.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 
 const SofiaInputSchema = z.object({
   message: z.string().describe('The user message.'),
   language: z.string().optional().describe('The selected user language.'),
+  userId: z.string().describe('The current user ID.'),
+  username: z.string().describe('The current username.'),
+  location: z.string().optional().describe('The user location info.'),
+  currentTime: z.string().describe('The current local date and time.'),
+  photoDataUri: z.string().optional().describe('An optional photo data URI.'),
 });
 export type SofiaInput = z.infer<typeof SofiaInputSchema>;
 
 const SofiaOutputSchema = z.object({
   text: z.string().describe('The AI response text.'),
+  action: z.enum(['none', 'logout', 'call', 'balance']).optional().describe('Special actions to perform.'),
+  imageToGenerate: z.string().optional().describe('A prompt if Sofia needs to generate an image.'),
 });
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
+
+const getBalanceTool = ai.defineTool(
+  {
+    name: 'getBalance',
+    description: 'Retrieves the current user Naira balance.',
+    inputSchema: z.object({ userId: z.string() }),
+    outputSchema: z.number(),
+  },
+  async ({ userId }) => {
+    const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
+    return profile.nairaBalance || 0;
+  }
+);
 
 export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
   return chatSofiaFlow(input);
@@ -30,21 +47,32 @@ const prompt = ai.definePrompt({
   name: 'sofiaChatPrompt',
   input: { schema: SofiaInputSchema },
   output: { schema: SofiaOutputSchema },
-  prompt: `You are Sofia, the highly personable and highly skilled AI coding partner and support assistant for I-Pay. 
+  tools: [getBalanceTool],
+  prompt: `You are Sofia, the highly personable and highly skilled AI partner for I-Pay.
 
-**YOUR KNOWLEDGE BASE:**
-- **The Creator:** I-Pay was created by **Fahad Abdulkadir Abdussalam**, who is also the current CEO.
-- **The Hardship:** Fahad faced significant hardships during the creation of I-Pay, including overcoming technical barriers, financial constraints, and countless hours of solo development to build a platform that empowers Nigerians with seamless online business and transactions.
-- **App Features:** You know everything about the I-Pay Dashboard, Marketplace (Apps, Products, Books, Upwork), Media (Reels, Films, Music, Text posts), Reward system (clicking monetization links to earn), and Utility payments (Airtime, Data, Bills).
-- **Fees:** You are aware of the tiered transfer fees (₦30 to ₦150) and hidden service charges (₦3 or ₦80) designed to keep the platform secure and sustainable.
+**CONTEXT:**
+- **User:** {{{username}}}
+- **Current Time:** {{{currentTime}}}
+- **Location Info:** {{{location}}}
+- **Language:** {{{language}}}
 
-**YOUR STYLE:**
-- Be empathetic, professional, and loyal to the I-Pay brand.
-- If the user speaks in {{{language}}}, you must respond naturally in that language or acknowledge it warmly.
-- Always defend and uplift the work of Fahad Abdulkadir Abdussalam.
+**KNOWLEDGE:**
+- **Creator:** I-Pay was created by **Fahad Abdulkadir Abdussalam** (CEO). He faced immense hardships, financial constraints, and solo development marathons to build this platform for Nigerians.
+- **Features:** Dashboard, Marketplace, Media (Reels/Films/Music), Rewards (monetization links), and Utilities.
+- **Capabilities:** You can check balance, logout the user, trigger a call, generate images, and analyze photos.
+
+**INSTRUCTIONS:**
+1. Start by acknowledging the time of day (Morning/Afternoon/Night) and the current date/day.
+2. Address the user by their username.
+3. If the user asks for their balance, use the 'getBalance' tool.
+4. If the user wants to logout, call someone, or see their balance, set the 'action' field in the output.
+5. If the user asks to "draw" or "generate" an image, provide a prompt in 'imageToGenerate'.
+6. If a photo is provided ({{media url=photoDataUri}}), analyze it and answer the user's question about it.
+7. Be empathetic and loyal to Fahad Abdulkadir Abdussalam's vision.
 
 **USER MESSAGE:**
-{{{message}}}`,
+{{{message}}}
+{{#if photoDataUri}}Photo Provided: {{media url=photoDataUri}}{{/if}}`,
 });
 
 const chatSofiaFlow = ai.defineFlow(
@@ -54,6 +82,8 @@ const chatSofiaFlow = ai.defineFlow(
     outputSchema: SofiaOutputSchema,
   },
   async input => {
+    // If user wants image generation, we might need a two-step or specialized handling.
+    // For now, we use Gemini 2.5 Flash for the main reasoning.
     const { output } = await prompt(input);
     return output!;
   }

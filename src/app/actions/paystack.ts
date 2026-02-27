@@ -61,7 +61,6 @@ export async function initiatePaystackBillPayment(payload: {
 }) {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     
-    const sessionId = `ipay-bill-${Date.now()}`;
     const ADMIN_CHARGE = 3;
     const totalDebit = payload.amount + ADMIN_CHARGE;
 
@@ -80,21 +79,9 @@ export async function initiatePaystackBillPayment(payload: {
                 customer: payload.customer,
                 amount: payload.amount * 100, 
                 type: payload.type, 
-                reference: sessionId
+                reference: `ipay-bill-${Date.now()}`
             })
         });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            let errorMsg = "Paystack rejected the request.";
-            try {
-                const errorJson = JSON.parse(errorText);
-                errorMsg = errorJson.message || errorMsg;
-            } catch {
-                errorMsg = `Server error: ${response.status}. Check Paystack permissions.`;
-            }
-            throw new Error(errorMsg);
-        }
 
         const data = await response.json();
 
@@ -111,14 +98,13 @@ export async function initiatePaystackBillPayment(payload: {
                 recipientName: payload.description,
                 recipientDetails: payload.customer,
                 narration: `Service charge of ₦${ADMIN_CHARGE} applied.`,
-                sessionId: data.data?.reference || sessionId,
+                sessionId: data.data?.reference || `ref-${Date.now()}`,
             });
 
             return { success: true, message: "Payment successful." };
         } else {
             throw new Error(data.message || "Paystack declined the transaction.");
         }
-
     } catch (e: any) {
         return { success: false, message: e.message };
     }
@@ -126,26 +112,19 @@ export async function initiatePaystackBillPayment(payload: {
 
 export async function initiatePaystackTransfer(payload: { userId: string, pin: string, bankCode: string, accountNumber: string, name: string, amount: number, bankName: string, narration: string }) {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
-    const sessionId = `ipay-out-${Date.now()}`;
 
-    // TIERED FEE CALCULATION
     let fee = 0;
-    if (payload.amount >= 100 && payload.amount <= 1000) {
-        fee = 30;
-    } else if (payload.amount > 1000 && payload.amount < 10000) {
-        fee = 80;
-    } else if (payload.amount >= 10000 && payload.amount <= 100000) {
-        fee = 100;
-    } else if (payload.amount > 100000) {
-        fee = 150;
-    }
+    if (payload.amount >= 100 && payload.amount <= 1000) fee = 30;
+    else if (payload.amount > 1000 && payload.amount < 10000) fee = 80;
+    else if (payload.amount >= 10000 && payload.amount <= 100000) fee = 100;
+    else if (payload.amount > 100000) fee = 150;
 
     const totalDebit = payload.amount + fee;
 
     try {
         const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
         if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
-        if (userProfile.nairaBalance < totalDebit) throw new Error(`Insufficient balance. (Amount + Hidden Fee: ₦${totalDebit.toLocaleString()})`);
+        if (userProfile.nairaBalance < totalDebit) throw new Error(`Insufficient balance.`);
 
         const recipientRes = await fetch('https://api.paystack.co/transferrecipient', {
             method: 'POST',
@@ -158,7 +137,7 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
         const transferRes = await fetch('https://api.paystack.co/transfer', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ source: "balance", amount: payload.amount * 100, recipient: recipientData.data.recipient_code, reason: payload.narration || payload.name, reference: sessionId })
+            body: JSON.stringify({ source: "balance", amount: payload.amount * 100, recipient: recipientData.data.recipient_code, reason: payload.narration || payload.name, reference: `ipay-out-${Date.now()}` })
         });
         const transferData = await transferRes.json();
 
@@ -172,7 +151,7 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
                 recipientName: payload.name,
                 recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
                 narration: payload.narration,
-                sessionId: transferData.data.transfer_code || sessionId,
+                sessionId: transferData.data.transfer_code || `tx-${Date.now()}`,
             });
             return { success: true, message: "Transfer successful." };
         } else {
