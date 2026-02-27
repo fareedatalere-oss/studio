@@ -4,8 +4,11 @@
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 
-// Ensure token is cleaned of any unexpected spaces
-const DATAHOUSE_TOKEN = (process.env.DATAHOUSE_TOKEN || '').trim(); 
+/**
+ * Strictly hardcoded token as provided by user to avoid environment issues.
+ * Token: 80ca2a529de4afa096c4eabefeb275dafe3a8941
+ */
+const DATAHOUSE_TOKEN = '80ca2a529de4afa096c4eabefeb275dafe3a8941'; 
 const BASE_URL = 'https://datahouse.com.ng/api';
 
 const getNetworkId = (name: string): number => {
@@ -30,8 +33,10 @@ export async function processDatahouseRecharge(payload: {
     try {
         const totalToDebit = Number(payload.amount) + Number(payload.fee);
 
+        // 1. Fetch user profile
         const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
 
+        // 2. Security & Balance Checks
         if (profile.pin !== payload.pin) {
             throw new Error('Incorrect transaction PIN.');
         }
@@ -41,18 +46,15 @@ export async function processDatahouseRecharge(payload: {
             throw new Error(`Insufficient funds. Your balance is ₦${currentBalance.toLocaleString()}.`);
         }
 
-        if (!DATAHOUSE_TOKEN) {
-            throw new Error("Provider configuration missing. Please check your token settings.");
-        }
-
         let endpoint = '';
         let body: any = {};
 
+        // 3. Prepare Datahouse Payload
         if (payload.type === 'airtime') {
             endpoint = `${BASE_URL}/topup/`;
             body = {
                 network: getNetworkId(payload.description),
-                amount: payload.amount,
+                amount: Number(payload.amount),
                 mobile_number: payload.customer,
                 Port: true,
                 airtime_type: "Share and Sell"
@@ -61,7 +63,7 @@ export async function processDatahouseRecharge(payload: {
             endpoint = `${BASE_URL}/data/`;
             body = {
                 network: getNetworkId(payload.description),
-                plan: payload.providerId,
+                plan: Number(payload.providerId),
                 mobile_number: payload.customer,
                 Port: true
             };
@@ -69,23 +71,24 @@ export async function processDatahouseRecharge(payload: {
             endpoint = `${BASE_URL}/cabletv/`;
             body = {
                 cablename: payload.description.toUpperCase().includes('GOTV') ? 1 : (payload.description.toUpperCase().includes('DSTV') ? 2 : 3),
-                cableplan: payload.providerId,
+                cableplan: Number(payload.providerId),
                 smart_card_number: payload.customer
             };
         } else if (payload.type === 'electric') {
             endpoint = `${BASE_URL}/billpayment/`;
             body = {
-                disco_name: payload.providerId,
+                disco_name: Number(payload.providerId),
                 meter_number: payload.customer,
-                amount: payload.amount,
+                amount: Number(payload.amount),
                 Meter_Type: 1
             };
         }
 
+        // 4. Send request with strictly formatted header (NO EXTRA SPACES)
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
-                'Authorization': `Token ${DATAHOUSE_TOKEN}`,
+                'Authorization': `Token ${DATAHOUSE_TOKEN.trim()}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(body)
@@ -93,7 +96,7 @@ export async function processDatahouseRecharge(payload: {
 
         const result = await response.json();
 
-        // Enhanced success check based on Datahouse response patterns
+        // 5. Check Success
         const isSuccess = response.ok && (
             String(result.Status).toLowerCase() === 'success' || 
             String(result.status).toLowerCase() === 'success' || 
@@ -102,10 +105,12 @@ export async function processDatahouseRecharge(payload: {
         );
 
         if (isSuccess) {
+            // Debit User
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, {
                 nairaBalance: currentBalance - totalToDebit
             });
 
+            // Log Transaction
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: payload.userId,
                 type: payload.type === 'cable' ? 'tv_subscription' : (payload.type === 'electric' ? 'electricity' : payload.type),
@@ -119,7 +124,7 @@ export async function processDatahouseRecharge(payload: {
 
             return { success: true, message: "Transaction successful." };
         } else {
-            // Precise error capturing to resolve "Invalid token header" or other provider issues
+            // Precise error capturing
             const errorDetail = result.error || result.msg || result.message || result.Status || result.detail || "Provider declined the request.";
             throw new Error(`Provider Error: ${errorDetail}`);
         }
