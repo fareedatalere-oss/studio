@@ -12,6 +12,7 @@ export function IPayLogo(props: SVGProps<SVGSVGElement>) {
     return <Skeleton className="h-8 w-8 rounded-md" {...props} />;
   }
 
+  // Priority 1: Use Logo from Appwrite Config
   if (config?.logoUrl) {
     const width = props.width || 24;
     const height = props.height || 24;
@@ -26,24 +27,21 @@ export function IPayLogo(props: SVGProps<SVGSVGElement>) {
     );
   }
 
+  // Priority 2: Use Local logo.png if it exists in public folder
+  const width = props.width || 24;
+  const height = props.height || 24;
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M8 12h2" />
-      <path d="M10 8v8" />
-      <path d="M14 14v-2a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2" />
-      <path d="M14 8h-2" />
-      <circle cx="12" cy="12" r="10" />
-    </svg>
+    <Image
+      src="/logo.png"
+      alt="I-Pay Logo"
+      width={Number(width)}
+      height={Number(height)}
+      className={props.className?.toString()}
+      onError={(e) => {
+          // Priority 3: Fallback to SVG icon if both images fail
+          const target = e.target as HTMLElement;
+          target.style.display = 'none';
+      }}
+    />
   );
 }
