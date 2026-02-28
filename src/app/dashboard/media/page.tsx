@@ -14,7 +14,7 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@/tabs';
+} from '@/components/ui/tabs';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -173,7 +173,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
 
     const observer = new IntersectionObserver(
         ([entry]) => {
-            if (entry.isIntersecting) {
+            if (entry.interintersecting) {
                 videoElement.play().catch(() => {});
             } else {
                 videoElement.pause();
@@ -440,7 +440,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
         )}
       </div>
       
-      {/* Left Sidebar - Poster Info & Like Button */}
+      {/* Left Sidebar - Poster Info, Like & Follow */}
       <div className={cn("absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-start gap-6 p-2 z-20 transition-all", isRotated && "hidden")}>
             <div className="flex flex-col items-center gap-2">
                 <Avatar className="ring-2 ring-primary h-14 w-14 shadow-xl">
