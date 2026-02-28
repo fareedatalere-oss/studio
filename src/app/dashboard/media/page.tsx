@@ -173,7 +173,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
 
     const observer = new IntersectionObserver(
         ([entry]) => {
-            if (entry.interintersecting) {
+            if (entry.isIntersecting) {
                 videoElement.play().catch(() => {});
             } else {
                 videoElement.pause();
