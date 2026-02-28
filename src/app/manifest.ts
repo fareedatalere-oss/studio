@@ -1,3 +1,4 @@
+
 import { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
@@ -11,13 +12,13 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#0284c7',
     icons: [
       {
-        src: 'https://picsum.photos/seed/ipay-logo/192/192',
+        src: 'https://picsum.photos/seed/ipay-pwa-192/192/192',
         sizes: '192x192',
         type: 'image/png',
         purpose: 'maskable',
       },
       {
-        src: 'https://picsum.photos/seed/ipay-logo/512/512',
+        src: 'https://picsum.photos/seed/ipay-pwa-512/512/512',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any',

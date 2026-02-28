@@ -57,6 +57,8 @@
       "description": "Represents a notification for a user.",
       "type": "object",
       "properties": {
+        "userId": { "type": "string", "description": "The UID of the user who receives the notification." },
+        "senderId": { "type": "string", "description": "The UID of the user who triggered the notification." },
         "title": { "type": "string" },
         "description": { "type": "string" },
         "type": { "type": "string", "enum": ["system", "social", "like", "comment", "message", "follow"] },
@@ -64,7 +66,7 @@
         "createdAt": { "type": "string", "format": "date-time" },
         "link": { "type": "string", "description": "An optional link for the notification to navigate to."}
       },
-      "required": ["title", "description", "type", "isRead", "createdAt"]
+      "required": ["userId", "title", "description", "type", "isRead", "createdAt"]
     },
     "Transaction": {
       "title": "Transaction",
@@ -148,137 +150,6 @@
             "createdAt": { "type": "string", "format": "date-time" }
         },
         "required": ["postId", "userId", "text", "createdAt"]
-    },
-    "MarketApp": {
-      "title": "Marketplace App",
-      "description": "Represents an application listed on the marketplace.",
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "iconUrl": { "type": "string", "format": "uri" },
-        "screenshots": { "type": "array", "items": { "type": "string", "format": "uri" } },
-        "platform": { "type": "string", "enum": ["android", "ios"] },
-        "description": { "type": "string" },
-        "appFileUrl": { "type": "string", "format": "uri" },
-        "price": { "type": "number" },
-        "priceType": { "type": "string", "enum": ["free", "paid"] },
-        "sellerId": { "type": "string" },
-        "isBanned": { "type": "boolean", "default": false },
-        "isHidden": { "type": "boolean", "default": false }
-      },
-      "required": ["name", "iconUrl", "platform", "description", "appFileUrl", "price", "priceType", "sellerId"]
-    },
-    "MarketProduct": {
-      "title": "Marketplace Product",
-      "description": "Represents a physical or digital product sold on the marketplace.",
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "imageUrl": { "type": "string", "format": "uri" },
-        "price": { "type": "number" },
-        "contactType": { "type": "string", "enum": ["call"] },
-        "contactInfo": { "type": "string", "description": "Phone number if contact type is call" },
-        "sellerId": { "type": "string" },
-        "isBanned": { "type": "boolean", "default": false },
-        "isHidden": { "type": "boolean", "default": false }
-      },
-      "required": ["name", "imageUrl", "price", "contactType", "sellerId"]
-    },
-    "MarketBook": {
-      "title": "Marketplace Book",
-      "description": "Represents a book sold on the marketplace.",
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "content": { "type": "array", "items": { "type": "string" }, "description": "The content of the book, structured as an array of pages for page-by-page editing, or a single element for full-page editing." },
-        "coverUrl": { "type": "string", "format": "uri" },
-        "price": { "type": "number" },
-        "priceType": { "type": "string", "enum": ["free", "paid"] },
-        "sellerId": { "type": "string" },
-        "status": { "type": "string", "enum": ["draft", "published"], "description": "The publishing status of the book." },
-        "pageByPage": { "type": "boolean", "description": "True if the book is meant to be read page by page." },
-        "isBanned": { "type": "boolean", "default": false },
-        "isHidden": { "type": "boolean", "default": false }
-      },
-      "required": ["name", "coverUrl", "priceType", "sellerId", "status"]
-    },
-    "UpworkProfile": {
-      "title": "Upwork Freelancer Profile",
-      "description": "Represents a freelancer's profile on the Upwork section.",
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "title": { "type": "string" },
-        "description": { "type": "string" },
-        "phoneNumber": { "type": "string" },
-        "address": { "type": "string" },
-        "avatarUrl": { "type": "string", "format": "uri" },
-        "certificateUrl": { "type": "string", "format": "uri" },
-        "sellerId": { "type": "string" },
-        "isBanned": { "type": "boolean", "default": false }
-      },
-      "required": ["name", "title", "description", "phoneNumber", "address", "avatarUrl", "certificateUrl", "sellerId"]
-    }
-  },
-  "auth": {
-    "providers": ["email"]
-  },
-  "firestore": {
-    "/users/{userId}": {
-      "schema": {
-        "$ref": "#/entities/UserProfile"
-      },
-      "description": "Stores public user profile information, keyed by user ID."
-    },
-    "/users/{userId}/notifications/{notificationId}": {
-      "schema": {
-        "$ref": "#/entities/Notification"
-      },
-      "description": "Stores notifications for a specific user."
-    },
-    "/users/{userId}/transactions/{transactionId}": {
-      "schema": {
-        "$ref": "#/entities/Transaction"
-      },
-      "description": "Stores a user's transaction history."
-    },
-    "/chats/{chatId}": {
-      "schema": { "$ref": "#/entities/Chat" },
-      "description": "Stores metadata for a single chat session between users."
-    },
-    "/messages/{messageId}": {
-      "schema": { "$ref": "#/entities/ChatMessage" },
-      "description": "Stores all messages from all chats in a single collection for querying."
-    },
-    "/posts/{postId}": {
-      "schema": { "$ref": "#/entities/Post" },
-      "description": "Stores all media posts from users."
-    },
-    "/postComments/{commentId}": {
-      "schema": { "$ref": "#/entities/PostComment" },
-      "description": "Stores comments for a specific post."
-    },
-    "/apps/{appId}": {
-      "schema": { "$ref": "#/entities/MarketApp" },
-      "description": "Stores marketplace app listings."
-    },
-    "/products/{productId}": {
-      "schema": { "$ref": "#/entities/MarketProduct" },
-      "description": "Stores marketplace product listings."
-    },
-    "/books/{bookId}": {
-      "schema": { "$ref": "#/entities/MarketBook" },
-      "description": "Stores marketplace book listings."
-    },
-    "/upworkProfiles/{profileId}": {
-      "schema": { "$ref": "#/entities/UpworkProfile" },
-      "description": "Stores freelancer profiles for the Upwork section."
-    },
-     "/app_config/{configId}": {
-        "schema": { "$ref": "#/entities/SupportInfo" },
-        "description": "Stores application-wide configuration like support details."
     }
   }
 }

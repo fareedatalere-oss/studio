@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -61,7 +62,7 @@ const PresenceIndicator = ({ userId }: { userId: string }) => {
     }, [userId]);
 
     if (presence.isOnline) {
-        return <p className="text-xs text-green-500">Online</p>;
+        return <p className="text-xs text-green-500 font-bold">Online</p>;
     }
 
     if (presence.lastSeen) {
@@ -148,7 +149,7 @@ const VoiceNotePlayer = ({ src }: { src: string }) => {
 export default function ChatThreadPage() {
     const params = useParams();
     const router = useRouter();
-    const { user: currentUser } = useUser();
+    const { user: currentUser, profile: currentUserProfile } = useUser();
     const { toast } = useToast();
 
     const otherUserId = params.id as string;
@@ -350,13 +351,12 @@ export default function ChatThreadPage() {
                     status: 'sent',
                 }
             );
-            // Replace optimistic message with server message to ensure all props are correct
+            // Replace optimistic message with server message
             setMessages(prev => prev.map(m => m.$id === tempId ? finalDoc : m));
             
             await updateChatList(messageText);
             await triggerMessageNotification(messageText);
         } catch (error: any) {
-            // Remove optimistic message if server fails
             setMessages(prev => prev.filter(m => m.$id !== tempId));
             console.error('Failed to send message:', error);
             toast({ title: 'Error', description: `Failed to send message: ${error.message}`, variant: 'destructive' });
@@ -619,56 +619,59 @@ export default function ChatThreadPage() {
 
     return (
         <div className="flex flex-col h-full bg-white text-gray-900">
-            <header className="sticky top-16 md:top-0 bg-white border-b flex items-center p-3 gap-3 z-10">
+            <header className="sticky top-16 md:top-0 bg-white border-b flex items-center p-3 gap-3 z-10 shadow-sm">
                 <Button variant="ghost" size="icon" onClick={() => router.back()}>
                     <ArrowLeft />
                 </Button>
                 {otherUser ? (
                     <>
-                        <Avatar>
+                        <Avatar className="h-10 w-10 border border-primary/20">
                             <AvatarImage src={otherUser.avatar} />
                             <AvatarFallback>{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div>
-                            <h2 className="font-semibold">{otherUser.username}</h2>
-                            <PresenceIndicator userId={otherUser.$id} />
+                            <h2 className="font-bold text-sm leading-none">{otherUser.username}</h2>
+                            <PresenceIndicator userId={otherUserId} />
                         </div>
                     </>
                 ) : (
                     <div className="flex items-center gap-3">
-                        <Loader2 className="animate-spin" />
-                        <span>Loading...</span>
+                        <Loader2 className="animate-spin h-4 w-4" />
+                        <span className="text-xs">Connecting...</span>
                     </div>
                 )}
             </header>
 
-            <main className="flex-1 overflow-y-auto p-4 space-y-2">
+            <main className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-50/50">
                 {loading ? (
                      <div className="flex justify-center items-center h-full">
-                        <Loader2 className="h-8 w-8 animate-spin" />
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
                 ) : messages.map(message => (
                     <div
                         key={message.$id}
                         className={cn(
-                            "group flex items-end gap-2 max-w-xs md:max-w-md",
+                            "group flex items-end gap-2 max-w-[85%] md:max-w-[70%]",
                             message.senderId === currentUser?.$id ? "ml-auto flex-row-reverse" : "mr-auto"
                         )}
                     >
                         <div
                             className={cn(
-                                "p-2 rounded-lg",
+                                "p-3 rounded-2xl shadow-sm",
                                 message.senderId === currentUser?.$id
                                     ? "bg-primary text-primary-foreground rounded-br-none"
-                                    : "bg-muted rounded-bl-none"
+                                    : "bg-white border rounded-bl-none"
                             )}
                         >
                             {renderMessageContent(message)}
+                            <div className={cn("text-[9px] mt-1 opacity-70 flex justify-end", message.senderId === currentUser?.$id ? "text-primary-foreground" : "text-muted-foreground")}>
+                                {format(new Date(message.$createdAt), 'HH:mm')}
+                            </div>
                         </div>
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical /></Button>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent>
                                     <DropdownMenuItem onClick={() => handleForwardClick(message)}>
@@ -701,7 +704,7 @@ export default function ChatThreadPage() {
                  <div ref={messagesEndRef} />
             </main>
 
-            <footer className="sticky bottom-16 md:top-0 bg-white border-t p-3">
+            <footer className="sticky bottom-16 md:bottom-0 bg-white border-t p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
                 {recordingStatus === 'recording' && (
                     <div className="flex items-center w-full gap-2">
                         <Button
@@ -733,9 +736,9 @@ export default function ChatThreadPage() {
                         >
                             <Trash2 className="h-5 w-5 text-destructive" />
                         </Button>
-                        <audio src={audioPreviewUrl} controls className="flex-1" />
+                        <audio src={audioPreviewUrl} controls className="flex-1 h-10" />
                         <Button type="button" size="icon" onClick={handleSendAudio} disabled={sending}>
-                             {sending ? <Loader2 className="animate-spin" /> : <Send />}
+                             {sending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4" />}
                         </Button>
                     </div>
                 )}
@@ -747,15 +750,16 @@ export default function ChatThreadPage() {
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
                             disabled={sending}
+                            className="h-11 bg-neutral-100 border-none focus-visible:ring-primary rounded-full px-4"
                         />
-                        <Button type="button" variant="ghost" size="icon" onClick={() => mediaInputRef.current?.click()} disabled={sending}>
-                            <Paperclip />
+                        <Button type="button" variant="ghost" size="icon" onClick={() => mediaInputRef.current?.click()} disabled={sending} className="h-11 w-11 rounded-full">
+                            <Paperclip className="h-5 w-5" />
                         </Button>
-                        <Button type="button" variant="ghost" size="icon" onClick={startRecording} disabled={sending}>
-                            <Mic />
+                        <Button type="button" variant="ghost" size="icon" onClick={startRecording} disabled={sending} className="h-11 w-11 rounded-full">
+                            <Mic className="h-5 w-5" />
                         </Button>
-                        <Button type="submit" size="icon" disabled={sending || !newMessage.trim()}>
-                            {sending ? <Loader2 className="animate-spin" /> : <Send />}
+                        <Button type="submit" size="icon" disabled={sending || !newMessage.trim()} className="h-11 w-11 rounded-full shadow-md">
+                            {sending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}
                         </Button>
                     </form>
                 )}
@@ -768,22 +772,22 @@ export default function ChatThreadPage() {
                 accept="image/*,video/*"
             />
             <Sheet open={!!messageToForward} onOpenChange={(isOpen) => !isOpen && setMessageToForward(null)}>
-                <SheetContent side="bottom" className="h-[60vh]">
+                <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl">
                     <SheetHeader>
-                        <SheetTitle>Forward message to...</SheetTitle>
+                        <SheetTitle className="text-center font-black uppercase tracking-widest text-sm">Forward to...</SheetTitle>
                     </SheetHeader>
                     <div className="py-4 space-y-2 overflow-y-auto h-full">
                         {loadingRecentChats ? <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div> : recentChats.map(chat => (
-                            <div key={chat.$id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted">
+                            <div key={chat.$id} className="flex items-center justify-between p-3 rounded-2xl hover:bg-muted/50 border border-transparent hover:border-border transition-all">
                                 <div className="flex items-center gap-3">
                                     <Avatar>
                                         <AvatarImage src={chat.otherUser.avatar} />
                                         <AvatarFallback>{chat.otherUser.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
                                     </Avatar>
-                                    <p className="font-semibold">{chat.otherUser.username}</p>
+                                    <p className="font-bold">{chat.otherUser.username}</p>
                                 </div>
-                                <Button size="sm" onClick={() => handleSendForward(chat.$id)}>
-                                    <Send className="h-4 w-4 mr-2" />
+                                <Button size="sm" onClick={() => handleSendForward(chat.$id)} className="rounded-full">
+                                    <Send className="h-3 w-3 mr-2" />
                                     Send
                                 </Button>
                             </div>

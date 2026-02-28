@@ -1,6 +1,7 @@
+
 'use client';
 import Link from 'next/link';
-import { Bot, Bell, Home, PlaySquare, Store, User, MessageSquare, Download } from 'lucide-react';
+import { Bot, Bell, Home, PlaySquare, Store, User, MessageSquare, Download, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -28,6 +29,7 @@ export default function DashboardLayout({
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -36,6 +38,7 @@ export default function DashboardLayout({
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      setShowInstallBanner(true);
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -47,6 +50,7 @@ export default function DashboardLayout({
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') {
       setDeferredPrompt(null);
+      setShowInstallBanner(false);
       toast({ title: "Installing I-Pay...", description: "The app is being added to your home screen." });
     }
   };
@@ -54,7 +58,7 @@ export default function DashboardLayout({
   const fetchUnreadCounts = useCallback(async () => {
     if (!user) return;
     try {
-      // Total unread alerts (follows, likes, system)
+      // Total unread alerts
       const totalRes = await databases.listDocuments(
         DATABASE_ID,
         COLLECTION_ID_NOTIFICATIONS,
@@ -83,10 +87,9 @@ export default function DashboardLayout({
     }
   }, [user]);
 
-  // Logic to "Force" a system update notification to the bell
   const checkSystemUpdate = useCallback(async () => {
     if (!user) return;
-    const UPDATE_ID = 'ipay_system_update_v1_1'; // Unique key for this specific update
+    const UPDATE_ID = 'ipay_system_update_v1_2';
     if (typeof window !== 'undefined') {
         const hasSeen = localStorage.getItem(UPDATE_ID);
         if (!hasSeen) {
@@ -95,7 +98,7 @@ export default function DashboardLayout({
                     userId: user.$id,
                     type: 'system',
                     title: 'System Updated!',
-                    description: 'New Logo Applied, PWA Native Support enabled, and Admin Login fixed. Please install the app for the best experience!',
+                    description: 'Real-time notifications fixed and Native App installation enabled. Download I-Pay as a normal app now!',
                     isRead: false,
                     createdAt: new Date().toISOString(),
                     link: '/dashboard/notifications'
@@ -103,7 +106,7 @@ export default function DashboardLayout({
                 localStorage.setItem(UPDATE_ID, 'true');
                 fetchUnreadCounts();
             } catch (e) {
-                console.log("Update notification already exists or failed to create");
+                console.log("Update notification failed");
             }
         }
     }
@@ -128,14 +131,12 @@ export default function DashboardLayout({
     }
   }, [user, fetchUnreadCounts, checkSystemUpdate]);
 
-  // Master Switch Logic
   useEffect(() => {
     if (proof && !proof.main_switch && user && !MANAGER_EMAILS.includes(user.email.toLowerCase())) {
         router.replace('/');
     }
   }, [proof, user, router]);
 
-  // Banned Logic
   useEffect(() => {
     if (!loading && profile && profile.isBanned) {
       toast({
@@ -167,17 +168,29 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
+      {/* PWA Install Banner */}
+      {showInstallBanner && (
+        <div className="bg-primary text-primary-foreground p-3 flex items-center justify-between shadow-lg sticky top-0 z-[60]">
+          <div className="flex items-center gap-3">
+            <IPayLogo className="h-8 w-8 rounded-md bg-white p-1" />
+            <div>
+              <p className="text-xs font-black uppercase tracking-tight">Install I-Pay App</p>
+              <p className="text-[10px] opacity-90">Get the full native experience on your home screen.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" onClick={handleInstallClick} className="h-8 text-[10px] font-bold uppercase">Install</Button>
+            <Button size="icon" variant="ghost" onClick={() => setShowInstallBanner(false)} className="h-8 w-8"><X className="h-4 w-4" /></Button>
+          </div>
+        </div>
+      )}
+
       <header className="sticky top-0 z-40 border-b bg-background shadow-sm">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/dashboard">
                 <IPayLogo className="h-10 w-10" />
             </Link>
-            {deferredPrompt && (
-              <Button variant="outline" size="sm" onClick={handleInstallClick} className="hidden sm:flex animate-bounce border-primary text-primary">
-                <Download className="mr-2 h-4 w-4" /> Install App
-              </Button>
-            )}
             <Button asChild variant="ghost" size="icon" onClick={(e) => handleTabClick(e, 'feat_ai')}>
               <Link href="/dashboard/ai-chat">
                 <Bot className="h-5 w-5" />
@@ -190,7 +203,7 @@ export default function DashboardLayout({
               <Link href="/dashboard/notifications">
                 <Bell className="h-5 w-5" />
                  {unreadCount > 0 && (
-                  <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px] font-bold">
+                  <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px] font-bold animate-pulse">
                     {unreadCount > 99 ? '9+' : unreadCount}
                   </Badge>
                 )}
