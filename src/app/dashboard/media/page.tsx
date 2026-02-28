@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
@@ -56,6 +57,7 @@ import { databases, DATABASE_ID, COLLECTION_ID_POSTS, COLLECTION_ID_PROFILES, CO
 import { Query, ID } from 'appwrite';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 const CommentItem = ({ comment }: { comment: any }) => (
   <div className="flex items-start gap-3">
@@ -174,6 +176,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
     const observer = new IntersectionObserver(
         ([entry]) => {
             if (entry.isIntersecting) {
+                videoElement.muted = isMuted;
                 videoElement.play().catch(() => {});
             } else {
                 videoElement.pause();
@@ -184,7 +187,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
 
     observer.observe(postElement);
     return () => observer.disconnect();
-  }, []);
+  }, [isMuted]);
 
   useEffect(() => {
     setPost(initialPost);
@@ -361,20 +364,23 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
                 if (!ctx) return;
                 ctx.drawImage(image, 0, 0);
                 
-                // Drawing the Watermark Icon
+                // Drawing Circular I-Pay Icon Watermark
                 const iconSize = Math.max(40, image.width / 15);
                 const padding = 20;
                 
-                // Simple Circle Watermark with "IP" text
                 ctx.beginPath();
                 ctx.arc(canvas.width - iconSize/2 - padding, canvas.height - iconSize/2 - padding, iconSize/2, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(2, 132, 199, 0.8)'; // Primary Blue
+                ctx.fillStyle = 'rgba(2, 132, 199, 0.9)'; // Primary Blue
                 ctx.fill();
-                ctx.font = `bold ${iconSize/3}px Arial`;
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                ctx.font = `bold ${iconSize/2.5}px Arial`;
                 ctx.fillStyle = 'white';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText("I-Pay", canvas.width - iconSize/2 - padding, canvas.height - iconSize/2 - padding);
+                ctx.fillText("I-P", canvas.width - iconSize/2 - padding, canvas.height - iconSize/2 - padding);
 
                 const link = document.createElement('a');
                 link.href = canvas.toDataURL('image/png');
@@ -424,7 +430,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
           <Image src={post.mediaUrl} alt={post.description || 'Post image'} fill className="object-contain" priority />
         )}
         {(post.type === 'reels' || post.type === 'film') && post.mediaUrl && (
-           <video ref={videoRef} src={post.mediaUrl} controls loop playsInline preload="auto" className={cn("w-full h-full object-contain", isRotated && "object-cover")} />
+           <video ref={videoRef} src={post.mediaUrl} controls loop playsInline preload="auto" muted={isMuted} className={cn("w-full h-full object-contain", isRotated && "object-cover")} />
         )}
         {post.type === 'music' && (
             <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full bg-muted/20">
@@ -435,7 +441,8 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
                     </div>
                 </div>
                 <h2 className="text-3xl font-black uppercase tracking-tighter text-foreground">{post.description || 'Untitled Track'}</h2>
-                {post.mediaUrl && <audio ref={audioRef} onPlay={handleAudioPlay} controls src={post.mediaUrl} className="mt-10 w-full max-w-sm"></audio>}
+                <p className="text-xs font-bold text-primary mb-4 uppercase tracking-widest">{post.category}</p>
+                {post.mediaUrl && <audio ref={audioRef} onPlay={handleAudioPlay} controls src={post.mediaUrl} muted={isMuted} className="mt-10 w-full max-w-sm"></audio>}
             </div>
         )}
       </div>
@@ -569,6 +576,7 @@ const PostFeed = ({ posts, isMuted, onMuteChange }: { posts: any[]; isMuted: boo
 }
 
 export default function MediaPage() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isFeedMuted, setIsFeedMuted] = useState(true);
   const [allPosts, setAllPosts] = useState<any[]>([]);
@@ -624,10 +632,16 @@ export default function MediaPage() {
 
     const getPostsForType = (type: string) => filteredPosts.filter(p => p.type === type);
 
+    const handleTabChange = (value: string) => {
+        if (value === 'music') {
+            router.push('/dashboard/media/music');
+        }
+    }
+
   return (
     <div className="relative h-screen bg-background overflow-hidden">
       
-      <Tabs defaultValue="reels" className="h-full flex flex-col">
+      <Tabs defaultValue="reels" onValueChange={handleTabChange} className="h-full flex flex-col">
         <header className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-background/60 via-background/30 to-transparent pt-12 pb-8">
           <div className="container px-0">
             <TabsList className="grid w-full grid-cols-5 bg-transparent h-12">

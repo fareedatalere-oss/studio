@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Library, Music, Settings, UploadCloud, ImageIcon, X } from 'lucide-react';
+import { ArrowLeft, Library, Music, Settings, UploadCloud, ImageIcon, X, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,12 +16,16 @@ import { databases, DATABASE_ID, COLLECTION_ID_POSTS, storage, BUCKET_ID_UPLOADS
 import { ID } from 'appwrite';
 import Image from 'next/image';
 
+const musicCategories = ["Hip/rappers", "Gargajiya", "English vision", "Indian cemp"];
+
 export default function UploadMusicPage() {
   const { toast } = useToast();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
   
+  const [step, setStep] = useState(0); // 0: Category, 1: Files
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [description, setDescription] = useState('');
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [iconFile, setIconFile] = useState<File | null>(null);
@@ -56,8 +61,8 @@ export default function UploadMusicPage() {
   };
 
   const handlePost = async () => {
-    if (!audioFile || !authUser || !userProfile) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Missing file or user data.' });
+    if (!audioFile || !authUser || !userProfile || !selectedCategory) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Missing information or category.' });
         return;
     }
     setIsPosting(true);
@@ -78,17 +83,19 @@ export default function UploadMusicPage() {
             username: userProfile.username,
             userAvatar: userProfile.avatar,
             type: 'music',
+            category: selectedCategory,
             mediaUrl: mediaUrl,
-            thumbnailUrl: thumbnailUrl, // Storing icon URL
+            thumbnailUrl: thumbnailUrl,
             description: description,
             allowComments: allowComments,
             allowDownload: allowDownload,
             likes: [],
             commentCount: 0,
+            createdAt: new Date().toISOString()
         };
         await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
-        toast({ title: 'Music Posted!', description: 'Your track is now live.' });
-        router.push('/dashboard/media');
+        toast({ title: 'Music Posted!', description: `Your track has been added to ${selectedCategory}.` });
+        router.push('/dashboard/media/music');
         
     } catch (error: any) {
         console.error("Post creation failed:", error);
@@ -97,98 +104,121 @@ export default function UploadMusicPage() {
     }
   };
 
+  if (step === 0) {
+      return (
+        <div className="container py-8">
+            <Link href="/dashboard/media" className="flex items-center gap-2 mb-4 text-sm font-black uppercase">
+                <ArrowLeft className="h-4 w-4" /> Back to Media
+            </Link>
+            <Card className="w-full max-w-lg mx-auto shadow-xl border-t-4 border-t-primary">
+                <CardHeader className="text-center">
+                    <CardTitle className="text-2xl font-black uppercase tracking-tighter">Choose Category</CardTitle>
+                    <CardDescription>Select the genre for your music track</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-3">
+                    {musicCategories.map((cat) => (
+                        <Button 
+                            key={cat} 
+                            onClick={() => { setSelectedCategory(cat); setStep(1); }}
+                            variant="outline" 
+                            className="h-16 justify-between text-lg font-bold uppercase tracking-tight group hover:bg-primary hover:text-white"
+                        >
+                            {cat}
+                            <ChevronRight className="h-5 w-5 opacity-30 group-hover:opacity-100" />
+                        </Button>
+                    ))}
+                </CardContent>
+            </Card>
+        </div>
+      );
+  }
+
   return (
     <div className="container py-8">
-      <Link href="/dashboard/media" className="flex items-center gap-2 mb-4 text-sm">
-        <ArrowLeft className="h-4 w-4" />
-        Back to Media
-      </Link>
-      <Card className="w-full max-w-lg mx-auto">
+      <Button onClick={() => setStep(0)} variant="ghost" className="mb-4 font-black uppercase text-xs">
+        <ArrowLeft className="mr-2 h-4 w-4" /> Change Category ({selectedCategory})
+      </Button>
+      <Card className="w-full max-w-lg mx-auto shadow-xl border-t-4 border-t-primary">
         <CardHeader>
-          <CardTitle>Upload Music</CardTitle>
-          <CardDescription>Share a track (up to 16 minutes).</CardDescription>
+          <CardTitle className="text-2xl font-black uppercase tracking-tighter">Upload {selectedCategory}</CardTitle>
+          <CardDescription>Share your track (up to 16 minutes).</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           <div className="flex gap-4">
-             <Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full">
+             <Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full h-12 font-bold uppercase text-xs">
               <UploadCloud className="mr-2 h-4 w-4" />
-              From Device
+              Upload Audio
             </Button>
-             <Button asChild variant="secondary" className="w-full">
+             <Button asChild variant="outline" className="w-full h-12 font-bold uppercase text-xs">
                <Link href="/dashboard/media/editor/audio">
                 <Library className="mr-2 h-4 w-4" />
-                Music Library
+                Library
                </Link>
             </Button>
           </div>
-          {audioFile ? (
-            <div className='space-y-4 border-t pt-4'>
-                 <div className="border p-4 rounded-md">
+          
+          {audioFile && (
+            <div className='space-y-6 border-t pt-6'>
+                 <div className="bg-muted/30 p-4 rounded-2xl border">
                     <div className='flex items-center gap-3'>
-                        <Music className="h-8 w-8 text-muted-foreground" />
+                        <div className="bg-primary/10 p-3 rounded-full">
+                            <Music className="h-6 w-6 text-primary" />
+                        </div>
                         <div>
-                            <p className="font-semibold">{audioFile.name}</p>
-                            <p className="text-sm text-muted-foreground">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                            <p className="font-bold text-sm truncate max-w-[200px]">{audioFile.name}</p>
+                            <p className="text-[10px] uppercase font-black opacity-50">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</p>
                         </div>
                     </div>
-                    <audio controls src={URL.createObjectURL(audioFile)} className="w-full mt-2" />
+                    <audio controls src={URL.createObjectURL(audioFile)} className="w-full mt-4" />
                 </div>
                 
                 <div className="space-y-2">
-                    <Label htmlFor="music-desc">Music Description</Label>
+                    <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Track Description</Label>
                     <Textarea
-                        id="music-desc"
-                        placeholder="Add a description for your track..."
+                        placeholder="Add a catchy description for your track..."
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
+                        className="rounded-xl"
                     />
                 </div>
 
                 <div className="space-y-2">
-                    <Label>Music Icon (Thumbnail)</Label>
+                    <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Music Icon (Thumbnail)</Label>
                     <div className="flex items-center gap-4">
                         <div 
-                            className="w-24 h-24 bg-muted rounded-xl flex items-center justify-center cursor-pointer border border-dashed overflow-hidden relative"
+                            className="w-24 h-24 bg-muted rounded-2xl flex items-center justify-center cursor-pointer border-2 border-dashed overflow-hidden relative shadow-inner"
                             onClick={() => iconInputRef.current?.click()}
                         >
                             {iconPreview ? (
                                 <>
                                     <Image src={iconPreview} alt="Thumbnail" fill className="object-cover" />
-                                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                                         <X className="text-white h-6 w-6" onClick={(e) => { e.stopPropagation(); setIconFile(null); setIconPreview(null); }} />
                                     </div>
                                 </>
                             ) : (
                                 <div className="text-center p-2 text-muted-foreground">
-                                    <ImageIcon className="h-6 w-6 mx-auto mb-1" />
-                                    <span className="text-[10px] uppercase font-black">Add Icon</span>
+                                    <ImageIcon className="h-6 w-6 mx-auto mb-1 opacity-20" />
+                                    <span className="text-[8px] uppercase font-black">Add Icon</span>
                                 </div>
                             )}
                         </div>
-                        <Button type="button" variant="outline" size="sm" onClick={() => iconInputRef.current?.click()}>Upload from Device</Button>
+                        <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => iconInputRef.current?.click()}>Upload from Device</Button>
                     </div>
                     <input type="file" ref={iconInputRef} className="hidden" accept="image/*" onChange={handleIconChange} />
                 </div>
 
-                 <div className="space-y-2 pt-4">
-                    <Label className="flex items-center"><Settings className="mr-2 h-4 w-4" /> Settings</Label>
+                 <div className="space-y-4 pt-4 border-t">
+                    <Label className="flex items-center font-black uppercase text-[10px] tracking-widest opacity-70"><Settings className="mr-2 h-3 w-3" /> Permissions</Label>
                     <div className="flex items-center justify-between">
-                        <Label htmlFor="allow-comments">Allow Comments</Label>
+                        <Label htmlFor="allow-comments" className="text-sm font-semibold">Allow Comments</Label>
                         <Switch id="allow-comments" checked={allowComments} onCheckedChange={setAllowComments} />
                     </div>
                     <div className="flex items-center justify-between">
-                        <Label htmlFor="allow-download">Enable Downloads</Label>
+                        <Label htmlFor="allow-download" className="text-sm font-semibold">Enable Downloads</Label>
                         <Switch id="allow-download" checked={allowDownload} onCheckedChange={setAllowDownload} />
                     </div>
                  </div>
-            </div>
-          ) : (
-            <div
-              className="h-32 bg-muted rounded-md flex items-center justify-center border-2 border-dashed"
-            >
-              <div className="text-center text-muted-foreground">
-                <p>Upload a track to preview it here.</p>
-              </div>
             </div>
           )}
           <input
@@ -200,8 +230,8 @@ export default function UploadMusicPage() {
           />
         </CardContent>
         <CardFooter>
-          <Button onClick={handlePost} className="w-full" disabled={!audioFile || isPosting}>
-             {isPosting ? 'Posting...' : 'Post Music'}
+          <Button onClick={handlePost} className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-lg" disabled={!audioFile || isPosting}>
+             {isPosting ? <><Loader2 className="animate-spin mr-2 h-5 w-5"/> Uploading...</> : 'Post Music'}
           </Button>
         </CardFooter>
       </Card>
