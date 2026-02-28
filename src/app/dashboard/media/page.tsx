@@ -43,6 +43,7 @@ import {
   VolumeX,
   ChevronRight,
   ArrowLeft,
+  Home,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
