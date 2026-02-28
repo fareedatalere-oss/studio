@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -13,10 +14,11 @@ export default function ProjectExportPage() {
     const handleDownloadEnv = () => {
         const envContent = `
 # I-Pay Master Environment Variables
-# STRICTLY CONFIDENTIAL
+# REPLACE THE PLACEHOLDERS BELOW WITH YOUR NEW KEYS
 
-GOOGLE_GENAI_API_KEY=AIzaSyDg5Pvcz7y7Quy3zezGrJLIkCfunTsZZj8
-GEMINI_API_KEY=AIzaSyDg5Pvcz7y7Quy3zezGrJLIkCfunTsZZj8
+GOOGLE_GENAI_API_KEY=YOUR_NEW_GEMINI_KEY_HERE
+FLUTTERWAVE_SECRET_KEY=YOUR_FLUTTERWAVE_SECRET_KEY
+PAYSTACK_SECRET_KEY=YOUR_PAYSTACK_SECRET_KEY
 DATAHOUSE_TOKEN=80ca2a529de4afa096c4eabefeb275dafe3a8941
 NEXT_PUBLIC_APPWRITE_ENDPOINT=https://sfo.cloud.appwrite.io/v1
 NEXT_PUBLIC_APPWRITE_PROJECT_ID=698462e0002b93bc85d9
@@ -43,12 +45,14 @@ NEXT_PUBLIC_APP_URL=https://ipay-online.vercel.app
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div className="p-4 bg-muted rounded-lg text-sm">
+                        <p className="font-bold mb-2 uppercase text-destructive">IMPORTANT: NEW KEY REQUIRED</p>
+                        <p className="mb-4">Google has disabled your previous key. You must generate a new one in Google AI Studio.</p>
                         <p className="font-bold mb-2 uppercase">Vercel Instructions:</p>
                         <ol className="list-decimal pl-5 space-y-2">
-                            <li>Go to <strong>Your App</strong> in the manager header.</li>
-                            <li>Download the <strong>Full Project (.ZIP)</strong>.</li>
-                            <li>Download the <strong>Secrets (.ENV)</strong> below.</li>
-                            <li>Push ZIP contents to GitHub and deploy.</li>
+                            <li>Generate a new key at aistudio.google.com</li>
+                            <li>Go to Vercel > Settings > Environment Variables.</li>
+                            <li>Add GOOGLE_GENAI_API_KEY with your new key.</li>
+                            <li>Sync/Push code and Redeploy.</li>
                         </ol>
                     </div>
 
@@ -61,12 +65,12 @@ NEXT_PUBLIC_APP_URL=https://ipay-online.vercel.app
                         </Button>
                         <Button onClick={handleDownloadEnv} variant="outline" className="h-16 flex-col gap-1 border-primary text-primary">
                             <Download />
-                            <span className="font-bold uppercase text-[10px]">Download Secrets (.ENV)</span>
+                            <span className="font-bold uppercase text-[10px]">Download Secrets (.ENV Template)</span>
                         </Button>
                     </div>
                 </CardContent>
                 <CardFooter className="bg-primary text-primary-foreground p-4 justify-center font-bold text-[10px] uppercase">
-                    Master Fahad: Deployment Optimized for Friday
+                    Master Fahad: Security Updated
                 </CardFooter>
             </Card>
         </div>
