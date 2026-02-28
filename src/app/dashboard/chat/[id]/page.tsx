@@ -40,7 +40,7 @@ const PresenceIndicator = ({ userId }: { userId: string }) => {
 
         const topic = `databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${userId}`;
         const unsubscribe = client.subscribe([topic], (response) => {
-            if (isMounted && response.payload) {
+            if (isMounted && response.payload && response.events?.some(e => e.includes('.update'))) {
                 const updated = response.payload as any;
                 setPresence({ isOnline: updated.isOnline, lastSeen: updated.lastSeen });
             }
@@ -49,9 +49,9 @@ const PresenceIndicator = ({ userId }: { userId: string }) => {
         return () => { isMounted = false; unsubscribe(); };
     }, [userId]);
 
-    if (presence.isOnline) return <p className="text-xs text-green-500 font-bold">Online</p>;
-    if (presence.lastSeen) return <p className="text-xs text-muted-foreground">Last seen {formatDistanceToNow(new Date(presence.lastSeen), { addSuffix: true })}</p>;
-    return <p className="text-xs text-muted-foreground">Offline</p>;
+    if (presence.isOnline) return <p className="text-[10px] text-green-500 font-black uppercase tracking-tighter animate-pulse">Online</p>;
+    if (presence.lastSeen) return <p className="text-[10px] text-muted-foreground uppercase">Seen {formatDistanceToNow(new Date(presence.lastSeen), { addSuffix: true })}</p>;
+    return <p className="text-[10px] text-muted-foreground uppercase tracking-tighter">Offline</p>;
 };
 
 const VoiceNotePlayer = ({ src }: { src: string }) => {
@@ -319,14 +319,14 @@ export default function ChatThreadPage() {
         <div className="flex flex-col h-full bg-white text-gray-900">
             <header className="sticky top-16 md:top-0 bg-white border-b flex items-center p-3 gap-3 z-10 shadow-sm">
                 <Button variant="ghost" size="icon" onClick={() => router.back()}><ArrowLeft /></Button>
-                {otherUser ? (<><Avatar className="h-10 w-10 border border-primary/20"><AvatarImage src={otherUser.avatar} /><AvatarFallback>{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback></Avatar><div><h2 className="font-bold text-sm leading-none">{otherUser.username}</h2><PresenceIndicator userId={otherUserId} /></div></>) : <div className="flex items-center gap-3"><Loader2 className="animate-spin h-4 w-4" /><span className="text-xs">Connecting...</span></div>}
+                {otherUser ? (<><Avatar className="h-10 w-10 border border-primary/20"><AvatarImage src={otherUser.avatar} /><AvatarFallback>{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback></Avatar><div><h2 className="font-bold text-sm leading-none">{otherUser.username}</h2><PresenceIndicator userId={otherUserId} /></div></>) : <div className="flex items-center gap-3"><Loader2 className="animate-spin h-4 w-4" /><span className="text-xs font-black uppercase tracking-widest animate-pulse">Syncing...</span></div>}
             </header>
             <main className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-50/50">
                 {loading ? <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : messages.map(msg => (
                     <div key={msg.$id} className={cn("group flex items-end gap-2 max-w-[85%] md:max-w-[70%]", msg.senderId === currentUser?.$id ? "ml-auto flex-row-reverse" : "mr-auto")}>
                         <div className={cn("p-3 rounded-2xl shadow-sm", msg.senderId === currentUser?.$id ? "bg-primary text-primary-foreground rounded-br-none" : "bg-white border rounded-bl-none")}>
                             {renderMessageContent(msg)}
-                            <div className={cn("text-[9px] mt-1 opacity-70 flex justify-end", msg.senderId === currentUser?.$id ? "text-primary-foreground" : "text-muted-foreground")}>{format(new Date(msg.$createdAt), 'HH:mm')}</div>
+                            <div className={cn("text-[9px] mt-1 opacity-70 flex justify-end", msg.senderId === currentUser?.$id ? "text-primary-foreground font-bold" : "text-muted-foreground")}>{format(new Date(msg.$createdAt), 'HH:mm')}</div>
                         </div>
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                             <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent><DropdownMenuItem onClick={() => setMessageToForward(msg)}><Forward className="mr-2 h-4 w-4" /> Forward</DropdownMenuItem>{msg.senderId === currentUser?.$id && (<AlertDialog><AlertDialogTrigger asChild><DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete message?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteMessage(msg.$id)} className="bg-destructive">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>)}</DropdownMenuContent></DropdownMenu>
@@ -344,7 +344,7 @@ export default function ChatThreadPage() {
                     <form onSubmit={handleSendTextMessage} className="flex items-center gap-2"><Input type="text" placeholder="Type a message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} disabled={sending} className="h-11 bg-neutral-100 border-none rounded-full px-4" /><Button type="button" variant="ghost" size="icon" onClick={() => mediaInputRef.current?.click()} disabled={sending} className="h-11 w-11 rounded-full"><Paperclip className="h-5 w-5" /></Button><Button type="button" variant="ghost" size="icon" onClick={startRecording} disabled={sending} className="h-11 w-11 rounded-full"><Mic className="h-5 w-5" /></Button><Button type="submit" size="icon" disabled={sending || !newMessage.trim()} className="h-11 w-11 rounded-full shadow-md">{sending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}</Button></form>
                 )}
             </footer>
-             <input type="file" ref={mediaInputRef} onChange={handleMediaInputChange} className="hidden" accept="image/*,video/*" />
+             <input type="file" key={sending ? 'sending' : 'ready'} ref={mediaInputRef} onChange={handleMediaInputChange} className="hidden" accept="image/*,video/*" />
             <Sheet open={!!messageToForward} onOpenChange={o => !o && setMessageToForward(null)}>
                 <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl"><SheetHeader><SheetTitle className="text-center font-black uppercase text-sm">Forward to...</SheetTitle></SheetHeader><div className="py-4 space-y-2 overflow-y-auto h-full">{loadingRecentChats ? <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div> : recentChats.map(chat => (<div key={chat.$id} className="flex items-center justify-between p-3 rounded-2xl hover:bg-muted/50 border border-transparent hover:border-border"><div className="flex items-center gap-3"><Avatar><AvatarImage src={chat.otherUser.avatar} /><AvatarFallback>{chat.otherUser.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback></Avatar><p className="font-bold">{chat.otherUser.username}</p></div><Button size="sm" onClick={() => handleSendForward(chat.$id)} className="rounded-full"><Send className="h-3 w-3 mr-2" />Send</Button></div>))}</div></SheetContent>
             </Sheet>

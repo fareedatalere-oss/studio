@@ -188,7 +188,6 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
     };
   }, []);
 
-  // Sync internal state with props from real-time updates
   useEffect(() => {
     setPost(initialPost);
   }, [initialPost]);
@@ -250,7 +249,6 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
             likes: newLikes
         });
         
-        // Create notification for the post owner if it's a new like
         if (newIsLiked && post.userId !== currentUser.$id) {
           databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
             userId: post.userId,
@@ -300,7 +298,6 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
             databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, post.userId, { followers: newTheirFollowers })
         ]);
 
-        // Create notification for the person being followed
         if (!currentlyFollowing) {
           databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
             userId: post.userId,
@@ -439,70 +436,81 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
 
 
   return (
-    <div ref={postRef} className={cn("relative h-[calc(100vh-230px)] bg-black flex flex-col justify-between text-white snap-start", isRotated && "fixed inset-0 z-40 h-screen w-screen p-0")}>
-      {/* Header */}
-       <div className={cn("absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/50 to-transparent z-10", isRotated && "hidden")}>
+    <div ref={postRef} className={cn("relative h-full w-full bg-black flex flex-col justify-center text-white snap-start shrink-0 overflow-hidden", isRotated && "fixed inset-0 z-40 h-screen w-screen p-0")}>
+      {/* Header Overlay */}
+       <div className={cn("absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/70 to-transparent z-20", isRotated && "hidden")}>
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <Avatar>
+                    <Avatar className="ring-2 ring-primary/50">
                         <AvatarImage src={post.userAvatar || `https://picsum.photos/seed/${post.userId}/100/100`} />
                         <AvatarFallback>{post.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
                     </Avatar>
                     <div>
-                        <p className="font-semibold">{post.username}</p>
-                        <p className="text-xs text-neutral-300">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p>
+                        <p className="font-bold text-sm">@{post.username}</p>
+                        <p className="text-[10px] text-neutral-300">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p>
                     </div>
                 </div>
                  {currentUser?.$id !== post.userId && (
                     <Button 
-                        variant={isFollowing ? 'secondary' : 'outline'}
+                        variant={isFollowing ? 'secondary' : 'default'}
                         size="sm" 
-                        className="bg-transparent text-white border-white disabled:opacity-70"
+                        className="h-8 rounded-full text-xs font-bold px-4"
                         onClick={handleFollowToggle}
                         disabled={isLoadingFollow || !currentUser}
                     >
-                        {isLoadingFollow ? <Loader2 className="animate-spin" /> : isFollowing ? 'Unfollow' : 'Follow'}
+                        {isLoadingFollow ? <Loader2 className="animate-spin h-3 w-3" /> : isFollowing ? 'Unfollow' : 'Follow'}
                     </Button>
                  )}
             </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 flex items-center justify-center overflow-hidden">
+      {/* Content Layer (Fills Page) */}
+      <div className="absolute inset-0 flex items-center justify-center z-0">
         {post.type === 'text' && (
-          <div className={cn("h-full w-full flex items-center justify-center p-8 text-center", post.backgroundColor)}>
-            <h2 className="text-3xl font-bold whitespace-pre-wrap">{post.text}</h2>
+          <div className={cn("h-full w-full flex items-center justify-center p-10 text-center", post.backgroundColor)}>
+            <h2 className="text-3xl font-black leading-tight whitespace-pre-wrap">{post.text}</h2>
           </div>
         )}
         {post.type === 'image' && post.mediaUrl && (
-          <Image src={post.mediaUrl} alt={post.description || 'Post image'} fill className="object-contain" />
+          <Image src={post.mediaUrl} alt={post.description || 'Post image'} fill className="object-contain" priority />
         )}
         {(post.type === 'reels' || post.type === 'film') && post.mediaUrl && (
            <video ref={videoRef} src={post.mediaUrl} controls loop playsInline className={cn("w-full h-full object-contain", isRotated && "object-cover")} />
         )}
         {post.type === 'music' && (
-            <div className="flex flex-col items-center justify-center p-8 text-center">
-                <Music className="h-32 w-32 mb-4"/>
+            <div className="flex flex-col items-center justify-center p-8 text-center bg-zinc-900 w-full h-full">
+                <div className="relative h-48 w-48 mb-8 rounded-full overflow-hidden border-4 border-primary animate-spin-slow">
+                    <Image src="https://picsum.photos/seed/music/400/400" alt="vinyl" fill className="object-cover" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                        <Music className="h-12 w-12 text-white" />
+                    </div>
+                </div>
                 <h2 className="text-2xl font-bold">{post.description || 'Untitled Track'}</h2>
                 {post.mediaUrl && <audio ref={audioRef} onPlay={handleAudioPlay} controls src={post.mediaUrl} className="mt-8 w-full max-w-sm"></audio>}
             </div>
         )}
       </div>
       
-      {/* Actions */}
-       <div className={cn("absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-4 p-4 z-10", isRotated && "hidden")}>
-            <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1" onClick={handleLike}>
-                <Heart className={cn("h-7 w-7", isLiked && "fill-red-500 text-red-500")} />
-                <span className="text-xs">{likeCount}</span>
-            </Button>
-            <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1" onClick={() => setShowComments(true)}>
-                <MessageCircle className="h-7 w-7" />
-                <span className="text-xs">{commentCount}</span>
-            </Button>
+      {/* Right Action Sidebar (Overlay) */}
+       <div className={cn("absolute right-2 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-20", isRotated && "hidden")}>
+            <div className="flex flex-col items-center gap-1">
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/20 hover:bg-black/40 text-white" onClick={handleLike}>
+                    <Heart className={cn("h-8 w-8", isLiked && "fill-red-500 text-red-500")} />
+                </Button>
+                <span className="text-xs font-bold shadow-sm">{likeCount}</span>
+            </div>
+            
+            <div className="flex flex-col items-center gap-1">
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/20 hover:bg-black/40 text-white" onClick={() => setShowComments(true)}>
+                    <MessageCircle className="h-8 w-8" />
+                </Button>
+                <span className="text-xs font-bold shadow-sm">{commentCount}</span>
+            </div>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1">
-                  <Share className="h-7 w-7" />
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/20 hover:bg-black/40 text-white">
+                  <Share className="h-8 w-8" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="bg-background">
@@ -516,41 +524,42 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
             {post.allowDownload && post.mediaUrl && (
-                <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1" onClick={() => handleDownload(post.mediaUrl, post.description, post.type)}>
-                    <Download className="h-7 w-7" />
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/20 hover:bg-black/40 text-white" onClick={() => handleDownload(post.mediaUrl, post.description, post.type)}>
+                    <Download className="h-8 w-8" />
                 </Button>
             )}
       </div>
 
         {post.type === 'film' && (
-        <Button variant="ghost" size="icon" className="h-12 w-12 text-white flex-col gap-1 absolute right-4 bottom-20 z-20 bg-black/20 hover:bg-black/40" onClick={() => setIsRotated(!isRotated)}>
-            <RotateCw className="h-7 w-7" />
+        <Button variant="ghost" size="icon" className="h-12 w-12 text-white absolute right-4 bottom-24 z-20 bg-black/40 rounded-full hover:bg-black/60" onClick={() => setIsRotated(!isRotated)}>
+            <RotateCw className="h-6 w-6" />
         </Button>
         )}
 
-      {/* Footer */}
-      <div className={cn("p-4 bg-gradient-to-t from-black/50 to-transparent z-10", isRotated && "hidden")}>
-        <p className="text-sm">{post.description}</p>
+      {/* Footer Info Overlay */}
+      <div className={cn("absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent z-10", isRotated && "hidden")}>
+        <p className="text-sm font-medium line-clamp-2 max-w-[80%]">{post.description}</p>
       </div>
 
        <Sheet open={showComments} onOpenChange={setShowComments}>
-        <SheetContent side="bottom" className="h-[80vh] flex flex-col text-black dark:text-white">
+        <SheetContent side="bottom" className="h-[80vh] flex flex-col text-black dark:text-white rounded-t-3xl">
             <SheetHeader>
-            <SheetTitle>Comments ({commentCount})</SheetTitle>
+            <SheetTitle className="text-center font-black uppercase text-sm tracking-widest border-b pb-4">Comments ({commentCount})</SheetTitle>
             </SheetHeader>
-            <div className="flex-1 overflow-y-auto space-y-4 p-4">
+            <div className="flex-1 overflow-y-auto space-y-4 p-4 scrollbar-hide">
                 {commentsLoading ? (
                     <div className="flex justify-center items-center h-full">
-                        <Loader2 className="animate-spin" />
+                        <Loader2 className="animate-spin text-primary" />
                     </div>
                 ) : comments.length > 0 ? (
                     comments.map(comment => <CommentItem key={comment.$id} comment={comment} />)
                 ) : (
-                    <p className="text-center text-muted-foreground">No comments yet.</p>
+                    <p className="text-center text-muted-foreground py-10 italic">No comments yet. Be the first!</p>
                 )}
             </div>
-            <div className="mt-auto p-4 border-t">
+            <div className="mt-auto p-4 border-t bg-background pb-8">
                  <CommentInput postId={post.$id} postOwnerId={post.userId} onCommentPosted={onCommentPostedAction} />
             </div>
         </SheetContent>
@@ -562,11 +571,16 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
 
 const PostFeed = ({ posts, isMuted, onMuteChange }: { posts: any[]; isMuted: boolean; onMuteChange: (muted: boolean) => void; }) => {
   if (!posts || posts.length === 0) {
-    return <div className="flex items-center justify-center h-[calc(100vh-200px)] text-muted-foreground">No posts yet.</div>
+    return (
+        <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-4">
+            <Clapperboard className="h-12 w-12 opacity-20" />
+            <p className="font-bold uppercase text-xs tracking-widest">No posts found</p>
+        </div>
+    );
   }
 
   return (
-    <div className="h-full">
+    <div className="h-full w-full flex flex-col overflow-y-auto snap-y snap-mandatory scroll-smooth">
       {posts.map(post => <PostCard key={post.$id} post={post} isMuted={isMuted} onMuteChange={onMuteChange} />)}
     </div>
   )
@@ -628,39 +642,42 @@ export default function MediaPage() {
 
 
   return (
-    <div className="relative h-full">
-      <Tabs defaultValue="text" className="h-full flex flex-col">
-        <header className="sticky top-16 md:top-0 bg-background border-b z-20">
-          <div className="container px-0 sm:px-4">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="text">Text</TabsTrigger>
-              <TabsTrigger value="image">Image</TabsTrigger>
-              <TabsTrigger value="reels">Reels</TabsTrigger>
-              <TabsTrigger value="film">Film</TabsTrigger>
-              <TabsTrigger value="music">Music</TabsTrigger>
+    <div className="relative h-[calc(100vh-130px)] bg-black overflow-hidden">
+      <Tabs defaultValue="reels" className="h-full flex flex-col">
+        <header className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/80 to-transparent">
+          <div className="container px-0">
+            <TabsList className="grid w-full grid-cols-5 bg-transparent h-12 text-white/60">
+              <TabsTrigger value="text" className="data-[state=active]:bg-transparent data-[state=active]:text-white font-bold text-[10px] uppercase">Text</TabsTrigger>
+              <TabsTrigger value="image" className="data-[state=active]:bg-transparent data-[state=active]:text-white font-bold text-[10px] uppercase">Image</TabsTrigger>
+              <TabsTrigger value="reels" className="data-[state=active]:bg-transparent data-[state=active]:text-white font-bold text-[10px] uppercase">Reels</TabsTrigger>
+              <TabsTrigger value="film" className="data-[state=active]:bg-transparent data-[state=active]:text-white font-bold text-[10px] uppercase">Film</TabsTrigger>
+              <TabsTrigger value="music" className="data-[state=active]:bg-transparent data-[state=active]:text-white font-bold text-[10px] uppercase">Music</TabsTrigger>
             </TabsList>
-             <div className="relative p-2">
-                <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                    placeholder="Search posts by caption, text, or user..."
-                    className="pl-10 w-full"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                />
+             <div className="relative p-2 px-4 flex items-center gap-2">
+                <div className='relative flex-1'>
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/50" />
+                    <Input
+                        placeholder="Search posts..."
+                        className="pl-9 h-8 bg-white/10 border-none text-white placeholder:text-white/30 text-xs rounded-full"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
             </div>
           </div>
         </header>
-        <div className="flex-1 overflow-y-auto snap-y snap-mandatory">
+
+        <div className="flex-1 h-full overflow-hidden">
           {loading ? (
-             <div className="p-4"><Skeleton className="h-[calc(100vh-200px)] w-full" /></div>
+             <div className="h-full w-full flex items-center justify-center"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>
           ) : (
-            <>
+            <div className="h-full w-full">
               <TabsContent value="text" className="m-0 h-full"><PostFeed posts={getPostsForType('text')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
               <TabsContent value="image" className="m-0 h-full"><PostFeed posts={getPostsForType('image')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
               <TabsContent value="reels" className="m-0 h-full"><PostFeed posts={getPostsForType('reels')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
               <TabsContent value="film" className="m-0 h-full"><PostFeed posts={getPostsForType('film')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
               <TabsContent value="music" className="m-0 h-full"><PostFeed posts={getPostsForType('music')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
-            </>
+            </div>
           )}
         </div>
       </Tabs>
@@ -669,37 +686,36 @@ export default function MediaPage() {
         <SheetTrigger asChild>
            <Button
             size="icon"
-            variant="destructive"
-            className="fixed bottom-24 right-6 md:bottom-6 md:right-8 h-16 w-16 rounded-full z-50 shadow-lg"
+            className="fixed bottom-24 right-6 h-14 w-14 rounded-full z-50 shadow-2xl bg-primary hover:bg-primary/90 border-2 border-white/20"
           >
-            <Plus className="h-8 w-8" />
+            <Plus className="h-7 w-7" />
             <span className="sr-only">Add Media</span>
           </Button>
         </SheetTrigger>
-        <SheetContent side="bottom" className="rounded-t-lg">
+        <SheetContent side="bottom" className="rounded-t-3xl pb-10">
           <SheetHeader>
-            <SheetTitle>Create a new post</SheetTitle>
+            <SheetTitle className="text-center font-black uppercase text-sm tracking-widest pt-4">Create Master Post</SheetTitle>
           </SheetHeader>
-          <div className="grid grid-cols-3 gap-4 py-4">
-            <Link href="/dashboard/media/upload/text" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-lg p-4 bg-muted hover:bg-muted/80">
-              <Type />
-              <span>Text</span>
+          <div className="grid grid-cols-3 gap-4 py-8">
+            <Link href="/dashboard/media/upload/text" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all">
+              <Type className="h-6 w-6" />
+              <span className="text-[10px] font-bold uppercase">Text</span>
             </Link>
-            <Link href="/dashboard/media/upload/image" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-lg p-4 bg-muted hover:bg-muted/80">
-              <ImageIcon />
-              <span>Image</span>
+            <Link href="/dashboard/media/upload/image" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all">
+              <ImageIcon className="h-6 w-6" />
+              <span className="text-[10px] font-bold uppercase">Image</span>
             </Link>
-            <Link href="/dashboard/media/upload/reels" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-lg p-4 bg-muted hover:bg-muted/80">
-              <Clapperboard />
-              <span>Reels</span>
+            <Link href="/dashboard/media/upload/reels" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all">
+              <Clapperboard className="h-6 w-6" />
+              <span className="text-[10px] font-bold uppercase">Reels</span>
             </Link>
-            <Link href="/dashboard/media/upload/film" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-lg p-4 bg-muted hover:bg-muted/80">
-              <Film />
-              <span>Film</span>
+            <Link href="/dashboard/media/upload/film" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all">
+              <Film className="h-6 w-6" />
+              <span className="text-[10px] font-bold uppercase">Film</span>
             </Link>
-             <Link href="/dashboard/media/upload/music" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-lg p-4 bg-muted hover:bg-muted/80">
-              <Music />
-              <span>Music</span>
+             <Link href="/dashboard/media/upload/music" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all">
+              <Music className="h-6 w-6" />
+              <span className="text-[10px] font-bold uppercase">Music</span>
             </Link>
           </div>
         </SheetContent>
