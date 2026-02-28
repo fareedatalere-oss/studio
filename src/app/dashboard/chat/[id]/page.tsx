@@ -38,7 +38,6 @@ const PresenceIndicator = ({ userId }: { userId: string }) => {
         };
         fetchPresence();
 
-        // Robust Real-time subscription for status
         const topic = `databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${userId}`;
         const unsubscribe = client.subscribe([topic], (response) => {
             if (isMounted && response.payload) {
@@ -100,7 +99,7 @@ const VoiceNotePlayer = ({ src }: { src: string }) => {
 export default function ChatThreadPage() {
     const params = useParams();
     const router = useRouter();
-    const { user: currentUser, profile: currentUserProfile } = useUser();
+    const { user: currentUser } = useUser();
     const { toast } = useToast();
 
     const otherUserId = params.id as string;
@@ -190,6 +189,29 @@ export default function ChatThreadPage() {
         if (chatId && otherUserId) setupChat();
     }, [chatId, otherUserId, toast, markMessagesAsRead]);
 
+    // Fetch potential chats to forward to
+    useEffect(() => {
+        if (!!messageToForward && currentUser) {
+            const fetchRecent = async () => {
+                setLoadingRecentChats(true);
+                try {
+                    const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
+                        Query.equal('participants', currentUser.$id),
+                        Query.orderDesc('lastMessageAt'),
+                        Query.limit(10)
+                    ]);
+                    const withProfiles = await Promise.all(res.documents.map(async (chat) => {
+                        const otherId = chat.participants.find((p: string) => p !== currentUser.$id);
+                        const otherProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherId);
+                        return { ...chat, otherUser: otherProfile };
+                    }));
+                    setRecentChats(withProfiles);
+                } catch (e) {} finally { setLoadingRecentChats(false); }
+            };
+            fetchRecent();
+        }
+    }, [messageToForward, currentUser]);
+
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
     useEffect(() => {
@@ -204,7 +226,7 @@ export default function ChatThreadPage() {
         const data = { participants: [currentUser.$id, otherUserId], lastMessage, lastMessageAt: new Date().toISOString() };
         try { await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId, data); } 
         catch (e: any) { if (e.code === 404) await databases.createDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId, data); }
-    }
+    };
 
     const triggerMessageNotification = async (text: string) => {
         if (!currentUser || !otherUserId) return;
@@ -215,7 +237,7 @@ export default function ChatThreadPage() {
                 isRead: false, link: `/dashboard/chat/${currentUser.$id}`, createdAt: new Date().toISOString()
             });
         } catch (e) {}
-    }
+    };
 
     const handleSendTextMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -304,12 +326,30 @@ export default function ChatThreadPage() {
         if (message.mediaUrl && text.startsWith('[media:')) {
             const mediaType = text.slice(7, -1);
             if (mediaType.startsWith('image/')) return (
-                <Dialog><DialogTrigger asChild><div className="relative w-full max-w-[250px] aspect-square cursor-pointer bg-muted rounded-lg overflow-hidden"><Image src={message.mediaUrl} alt="chat" fill className="object-cover" /></div></DialogTrigger>
-                <DialogContent className="p-0 border-0 bg-black/80 w-screen h-screen max-w-none max-h-none flex items-center justify-center"><DialogTitle className="sr-only">Preview</DialogTitle><Image src={message.mediaUrl} alt="preview" fill className="object-contain" /></DialogContent></Dialog>
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <div className="relative w-full max-w-[250px] aspect-square cursor-pointer bg-muted rounded-lg overflow-hidden">
+                            <Image src={message.mediaUrl} alt="chat" fill className="object-cover" />
+                        </div>
+                    </DialogTrigger>
+                    <DialogContent className="p-0 border-0 bg-black/80 w-screen h-screen max-w-none max-h-none flex items-center justify-center">
+                        <DialogTitle className="sr-only">Preview</DialogTitle>
+                        <Image src={message.mediaUrl} alt="preview" fill className="object-contain" />
+                    </DialogContent>
+                </Dialog>
             );
             if (mediaType.startsWith('video/')) return (
-                <Dialog><DialogTrigger asChild><div className="relative w-full max-w-[250px] aspect-video cursor-pointer bg-black rounded-lg flex items-center justify-center"><PlayCircle className="h-16 w-16 text-white" /></div></DialogTrigger>
-                <DialogContent className="p-0 border-0 bg-black/90 w-screen h-screen max-w-none max-h-none flex items-center justify-center"><DialogTitle className="sr-only">Preview</DialogTitle><video src={message.mediaUrl} controls autoPlay className="max-w-full max-h-full" /></DialogContent>
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <div className="relative w-full max-w-[250px] aspect-video cursor-pointer bg-black rounded-lg flex items-center justify-center">
+                            <PlayCircle className="h-16 w-16 text-white" />
+                        </div>
+                    </DialogTrigger>
+                    <DialogContent className="p-0 border-0 bg-black/90 w-screen h-screen max-w-none max-h-none flex items-center justify-center">
+                        <DialogTitle className="sr-only">Preview</DialogTitle>
+                        <video src={message.mediaUrl} controls autoPlay className="max-w-full max-h-full" />
+                    </DialogContent>
+                </Dialog>
             );
             if (mediaType.startsWith('audio/')) return <VoiceNotePlayer src={message.mediaUrl} />;
         }
@@ -320,34 +360,144 @@ export default function ChatThreadPage() {
         <div className="flex flex-col h-full bg-white text-gray-900">
             <header className="sticky top-16 md:top-0 bg-white border-b flex items-center p-3 gap-3 z-10 shadow-sm">
                 <Button variant="ghost" size="icon" onClick={() => router.back()}><ArrowLeft /></Button>
-                {otherUser ? (<><Avatar className="h-10 w-10 border border-primary/20"><AvatarImage src={otherUser.avatar} /><AvatarFallback>{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback></Avatar><div><h2 className="font-bold text-sm leading-none">{otherUser.username}</h2><PresenceIndicator userId={otherUserId} /></div></>) : <div className="flex items-center gap-3"><Loader2 className="animate-spin h-4 w-4" /><span className="text-xs font-black uppercase tracking-widest animate-pulse">Syncing...</span></div>}
-            </header>
-            <main className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-50/50">
-                {loading ? <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : messages.map(msg => (
-                    <div key={msg.$id} className={cn("group flex items-end gap-2 max-w-[85%] md:max-w-[70%]", msg.senderId === currentUser?.$id ? "ml-auto flex-row-reverse" : "mr-auto")}>
-                        <div className={cn("p-3 rounded-2xl shadow-sm", msg.senderId === currentUser?.$id ? "bg-primary text-primary-foreground rounded-br-none" : "bg-white border rounded-bl-none")}>
-                            {renderMessageContent(msg)}
-                            <div className={cn("text-[9px] mt-1 opacity-70 flex justify-end", msg.senderId === currentUser?.$id ? "text-primary-foreground font-bold" : "text-muted-foreground")}>{format(new Date(msg.$createdAt), 'HH:mm')}</div>
+                {otherUser ? (
+                    <>
+                        <Avatar className="h-10 w-10 border border-primary/20">
+                            <AvatarImage src={otherUser.avatar} />
+                            <AvatarFallback>{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                            <h2 className="font-bold text-sm leading-none">{otherUser.username}</h2>
+                            <PresenceIndicator userId={otherUserId} />
                         </div>
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                            <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent><DropdownMenuItem onClick={() => setMessageToForward(msg)}><Forward className="mr-2 h-4 w-4" /> Forward</DropdownMenuItem>{msg.senderId === currentUser?.$id && (<AlertDialog><AlertDialogTrigger asChild><DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete message?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteMessage(msg.$id)} className="bg-destructive">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>)}</DropdownMenuContent></DropdownMenu>
-                        </div>
+                    </>
+                ) : (
+                    <div className="flex items-center gap-3">
+                        <Loader2 className="animate-spin h-4 w-4" />
+                        <span className="text-xs font-black uppercase tracking-widest animate-pulse">Syncing...</span>
                     </div>
-                ))}
-                 <div ref={messagesEndRef} />
+                )}
+            </header>
+            
+            <main className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-50/50">
+                {loading ? (
+                    <div className="flex justify-center items-center h-full">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                ) : (
+                    messages.map((msg) => (
+                        <div key={msg.$id} className={cn("group flex items-end gap-2 max-w-[85%] md:max-w-[70%]", msg.senderId === currentUser?.$id ? "ml-auto flex-row-reverse" : "mr-auto")}>
+                            <div className={cn("p-3 rounded-2xl shadow-sm", msg.senderId === currentUser?.$id ? "bg-primary text-primary-foreground rounded-br-none" : "bg-white border rounded-bl-none")}>
+                                {renderMessageContent(msg)}
+                                <div className={cn("text-[9px] mt-1 opacity-70 flex justify-end", msg.senderId === currentUser?.$id ? "text-primary-foreground font-bold" : "text-muted-foreground")}>
+                                    {format(new Date(msg.$createdAt), 'HH:mm')}
+                                </div>
+                            </div>
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent>
+                                        <DropdownMenuItem onClick={() => setMessageToForward(msg)}>
+                                            <Forward className="mr-2 h-4 w-4" /> Forward
+                                        </DropdownMenuItem>
+                                        {msg.senderId === currentUser?.$id && (
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive">
+                                                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                                    </DropdownMenuItem>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Delete message?</AlertDialogTitle>
+                                                        <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteMessage(msg.$id)} className="bg-destructive">Delete</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+                        </div>
+                    ))
+                )}
+                <div ref={messagesEndRef} />
             </main>
+
             <footer className="sticky bottom-16 md:bottom-0 bg-white border-t p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
                 {recordingStatus === 'recording' ? (
-                    <div className="flex items-center w-full gap-2"><Button type="button" variant="ghost" size="icon" onClick={cancelRecording}><Trash2 className="h-5 w-5 text-destructive" /></Button><div className="flex-1 bg-muted rounded-full h-10 flex items-center px-4"><div className="bg-red-500 h-2.5 w-2.5 rounded-full animate-pulse mr-2"></div><span className="text-sm font-mono text-muted-foreground">{Math.floor(recordingTime/60).toString().padStart(2,'0')}:{(recordingTime%60).toString().padStart(2,'0')}</span></div><Button type="button" size="icon" onClick={stopRecording}><Send className="h-5 w-5" /></Button></div>
+                    <div className="flex items-center w-full gap-2">
+                        <Button type="button" variant="ghost" size="icon" onClick={cancelRecording}>
+                            <Trash2 className="h-5 w-5 text-destructive" />
+                        </Button>
+                        <div className="flex-1 bg-muted rounded-full h-10 flex items-center px-4">
+                            <div className="bg-red-500 h-2.5 w-2.5 rounded-full animate-pulse mr-2"></div>
+                            <span className="text-sm font-mono text-muted-foreground">
+                                {Math.floor(recordingTime/60).toString().padStart(2,'0')}:{(recordingTime%60).toString().padStart(2,'0')}
+                            </span>
+                        </div>
+                        <Button type="button" size="icon" onClick={stopRecording}><Send className="h-5 w-5" /></Button>
+                    </div>
                 ) : recordingStatus === 'preview' ? (
-                     <div className="flex items-center w-full gap-2"><Button type="button" variant="ghost" size="icon" onClick={() => {setRecordingStatus('idle'); setAudioPreviewUrl(null);}}><Trash2 className="h-5 w-5 text-destructive" /></Button><audio src={audioPreviewUrl!} controls className="flex-1 h-10" /><Button type="button" size="icon" onClick={handleSendAudio} disabled={sending}>{sending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4" />}</Button></div>
+                     <div className="flex items-center w-full gap-2">
+                        <Button type="button" variant="ghost" size="icon" onClick={() => {setRecordingStatus('idle'); setAudioPreviewUrl(null);}}>
+                            <Trash2 className="h-5 w-5 text-destructive" />
+                        </Button>
+                        <audio src={audioPreviewUrl!} controls className="flex-1 h-10" />
+                        <Button type="button" size="icon" onClick={handleSendAudio} disabled={sending}>
+                            {sending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4" />}
+                        </Button>
+                    </div>
                 ) : (
-                    <form onSubmit={handleSendTextMessage} className="flex items-center gap-2"><Input type="text" placeholder="Type a message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} disabled={sending} className="h-11 bg-neutral-100 border-none rounded-full px-4" /><Button type="button" variant="ghost" size="icon" onClick={() => mediaInputRef.current?.click()} disabled={sending} className="h-11 w-11 rounded-full"><Paperclip className="h-5 w-5" /></Button><Button type="button" variant="ghost" size="icon" onClick={startRecording} disabled={sending} className="h-11 w-11 rounded-full"><Mic className="h-5 w-5" /></Button><Button type="submit" size="icon" disabled={sending || !newMessage.trim()} className="h-11 w-11 rounded-full shadow-md">{sending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}</Button></form>
+                    <form onSubmit={handleSendTextMessage} className="flex items-center gap-2">
+                        <Input type="text" placeholder="Type a message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} disabled={sending} className="h-11 bg-neutral-100 border-none rounded-full px-4" />
+                        <Button type="button" variant="ghost" size="icon" onClick={() => mediaInputRef.current?.click()} disabled={sending} className="h-11 w-11 rounded-full">
+                            <Paperclip className="h-5 w-5" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="icon" onClick={startRecording} disabled={sending} className="h-11 w-11 rounded-full">
+                            <Mic className="h-5 w-5" />
+                        </Button>
+                        <Button type="submit" size="icon" disabled={sending || !newMessage.trim()} className="h-11 w-11 rounded-full shadow-md">
+                            {sending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}
+                        </Button>
+                    </form>
                 )}
             </footer>
-             <input type="file" key={sending ? 'sending' : 'ready'} ref={mediaInputRef} onChange={handleMediaInputChange} className="hidden" accept="image/*,video/*" />
+
+            <input type="file" key={sending ? 'sending' : 'ready'} ref={mediaInputRef} onChange={handleMediaInputChange} className="hidden" accept="image/*,video/*" />
+            
             <Sheet open={!!messageToForward} onOpenChange={o => !o && setMessageToForward(null)}>
-                <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl"><SheetHeader><SheetTitle className="text-center font-black uppercase text-sm">Forward to...</SheetTitle></SheetHeader><div className="py-4 space-y-2 overflow-y-auto h-full">{loadingRecentChats ? <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div> : recentChats.map(chat => (<div key={chat.$id} className="flex items-center justify-between p-3 rounded-2xl hover:bg-muted/50 border border-transparent hover:border-border"><div className="flex items-center gap-3"><Avatar><AvatarImage src={chat.otherUser.avatar} /><AvatarFallback>{chat.otherUser.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback></Avatar><p className="font-bold">{chat.otherUser.username}</p></div><Button size="sm" onClick={() => handleSendForward(chat.$id)} className="rounded-full"><Send className="h-3 w-3 mr-2" />Send</Button></div>))}</div></SheetContent>
+                <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl">
+                    <SheetHeader>
+                        <SheetTitle className="text-center font-black uppercase text-sm">Forward to...</SheetTitle>
+                    </SheetHeader>
+                    <div className="py-4 space-y-2 overflow-y-auto h-full">
+                        {loadingRecentChats ? (
+                            <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div>
+                        ) : (
+                            recentChats.map((chat) => (
+                                <div key={chat.$id} className="flex items-center justify-between p-3 rounded-2xl hover:bg-muted/50 border border-transparent hover:border-border">
+                                    <div className="flex items-center gap-3">
+                                        <Avatar>
+                                            <AvatarImage src={chat.otherUser.avatar} />
+                                            <AvatarFallback>{chat.otherUser.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                                        </Avatar>
+                                        <p className="font-bold">{chat.otherUser.username}</p>
+                                    </div>
+                                    <Button size="sm" onClick={() => handleSendForward(chat.$id)} className="rounded-full">
+                                        <Send className="h-3 w-3 mr-2" />Send
+                                    </Button>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </SheetContent>
             </Sheet>
         </div>
     );
