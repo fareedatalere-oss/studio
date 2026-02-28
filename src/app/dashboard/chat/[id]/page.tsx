@@ -118,7 +118,7 @@ export default function ChatThreadPage() {
     const [recordingTime, setRecordingTime] = useState(0);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
-    audioChunksRef = useRef<Blob[]>([]);
+    const audioChunksRef = useRef<Blob[]>([]);
     
     const [messageToForward, setMessageToForward] = useState<Models.Document | null>(null);
     const [recentChats, setRecentChats] = useState<any[]>([]);
@@ -309,7 +309,7 @@ export default function ChatThreadPage() {
             );
             if (mediaType.startsWith('video/')) return (
                 <Dialog><DialogTrigger asChild><div className="relative w-full max-w-[250px] aspect-video cursor-pointer bg-black rounded-lg flex items-center justify-center"><PlayCircle className="h-16 w-16 text-white" /></div></DialogTrigger>
-                <DialogContent className="p-0 border-0 bg-black/90 w-screen h-screen max-w-none max-h-none flex items-center justify-center"><DialogTitle className="sr-only">Preview</DialogTitle><video src={message.mediaUrl} controls autoPlay className="max-w-full max-h-full" /></DialogContent></Dialog>
+                <DialogContent className="p-0 border-0 bg-black/90 w-screen h-screen max-w-none max-h-none flex items-center justify-center"><DialogTitle className="sr-only">Preview</DialogTitle><video src={message.mediaUrl} controls autoPlay className="max-w-full max-h-full" /></DialogContent>
             );
             if (mediaType.startsWith('audio/')) return <VoiceNotePlayer src={message.mediaUrl} />;
         }

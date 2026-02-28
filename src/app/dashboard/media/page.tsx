@@ -42,7 +42,6 @@ import {
   Volume2,
   VolumeX,
   ChevronRight,
-  ArrowLeft,
   Home,
   UserPlus,
   UserCheck,
@@ -58,7 +57,6 @@ import { databases, DATABASE_ID, COLLECTION_ID_POSTS, COLLECTION_ID_PROFILES, CO
 import { Query, ID } from 'appwrite';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 const CommentItem = ({ comment }: { comment: any }) => (
   <div className="flex items-start gap-3">
@@ -395,33 +393,12 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
   return (
     <div ref={postRef} className={cn("relative h-screen w-full bg-background flex flex-col justify-center snap-start shrink-0 overflow-hidden border-b", isRotated && "fixed inset-0 z-40 h-screen w-screen p-0 bg-black")}>
       
-      {/* Immersive Dark Layer for Non-Text Content */}
-      {(post.type === 'image' || post.type === 'reels' || post.type === 'film') && !isRotated && (
-          <div className="absolute inset-0 bg-black/95 z-0" />
-      )}
-
-      {/* Header Overlay */}
-       <div className={cn("absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent z-20 pt-12", isRotated && "hidden")}>
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <Avatar className="ring-2 ring-primary h-12 w-12">
-                        <AvatarImage src={post.userAvatar} />
-                        <AvatarFallback className="bg-primary text-primary-foreground font-black uppercase">{post.username?.charAt(0) || 'U'}</AvatarFallback>
-                    </Avatar>
-                    <div className="drop-shadow-lg">
-                        <p className="font-black text-base text-white">@{post.username}</p>
-                        <p className="text-[10px] text-white/90 font-bold uppercase tracking-tighter">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p>
-                    </div>
-                </div>
-            </div>
-      </div>
-
       {/* Content Layer */}
       <div className="absolute inset-0 flex items-center justify-center z-0">
         {post.type === 'text' && (
           <div className={cn("h-full w-full flex flex-col items-center justify-center p-10 text-center", post.backgroundColor)}>
             <div className="max-w-md w-full">
-                <h2 className={cn("text-2xl font-black leading-tight whitespace-pre-wrap drop-shadow-md", post.backgroundColor === 'bg-white' ? 'text-black' : 'text-white')}>
+                <h2 className={cn("text-2xl font-black leading-tight whitespace-pre-wrap drop-shadow-md", (post.backgroundColor === 'bg-white' || !post.backgroundColor) ? 'text-black' : 'text-white')}>
                     {isTextTooLong ? `${post.text.substring(0, TEXT_CHAR_LIMIT)}...` : post.text}
                 </h2>
                 {isTextTooLong && (
@@ -444,53 +421,62 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
         {post.type === 'music' && (
             <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full bg-muted/20">
                 <div className="relative h-64 w-64 mb-10 rounded-full overflow-hidden border-8 border-primary animate-spin-slow shadow-[0_0_50px_rgba(0,0,0,0.3)]">
-                    <Image src="https://picsum.photos/seed/music/400/400" alt="vinyl" fill className="object-cover" />
+                    <Image src="https://picsum.photos/seed/music/400/400" alt="vinyl" fill className="object-cover" unoptimized />
                     <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                         <Music className="h-16 w-16 text-white" />
                     </div>
                 </div>
-                <h2 className="text-3xl font-black uppercase tracking-tighter">{post.description || 'Untitled Track'}</h2>
+                <h2 className="text-3xl font-black uppercase tracking-tighter text-foreground">{post.description || 'Untitled Track'}</h2>
                 {post.mediaUrl && <audio ref={audioRef} onPlay={handleAudioPlay} controls src={post.mediaUrl} className="mt-10 w-full max-w-sm"></audio>}
             </div>
         )}
       </div>
       
-      {/* Right Action Sidebar */}
-       <div className={cn("absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-20", isRotated && "hidden")}>
-            
-            {/* Follow Button - Moved to Right Sidebar */}
+      {/* Left Profile Sidebar - AS REQUESTED */}
+      <div className={cn("absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-start gap-6 p-2 z-20", isRotated && "hidden")}>
+            <div className="flex flex-col items-center gap-2">
+                <Avatar className="ring-2 ring-primary h-14 w-14 shadow-xl">
+                    <AvatarImage src={post.userAvatar} />
+                    <AvatarFallback className="bg-primary text-white font-black uppercase">{post.username?.charAt(0) || 'U'}</AvatarFallback>
+                </Avatar>
+                <p className="font-black text-xs text-foreground bg-background/50 px-2 py-1 rounded-full backdrop-blur-sm shadow-sm truncate max-w-[100px]">@{post.username}</p>
+            </div>
+
             {currentUser?.$id !== post.userId && (
                 <div className="flex flex-col items-center gap-1">
                     <Button 
                         variant={isFollowing ? 'secondary' : 'default'} 
                         size="icon" 
-                        className={cn("h-14 w-14 rounded-full shadow-2xl border-2 border-white/10 transition-all", isFollowing ? 'bg-green-500/80 text-white' : 'bg-primary text-white')}
+                        className={cn("h-14 w-14 rounded-full shadow-2xl border-2 border-primary/10 transition-all", isFollowing ? 'bg-green-500 text-white' : 'bg-primary text-white')}
                         onClick={handleFollowToggle}
                         disabled={isLoadingFollow || !currentUser}
                     >
                         {isLoadingFollow ? <Loader2 className="animate-spin h-6 w-6" /> : isFollowing ? <UserCheck className="h-8 w-8" /> : <UserPlus className="h-8 w-8" />}
                     </Button>
-                    <span className="text-[10px] font-black text-white uppercase drop-shadow-md">{isFollowing ? 'Joined' : 'Follow'}</span>
+                    <span className="text-[10px] font-black text-foreground uppercase drop-shadow-sm">{isFollowing ? 'Joined' : 'Follow'}</span>
                 </div>
             )}
+      </div>
 
+      {/* Right Interaction Sidebar */}
+       <div className={cn("absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-20", isRotated && "hidden")}>
             <div className="flex flex-col items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={handleLike}>
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 hover:bg-muted/60 text-foreground shadow-xl border-2 border-border/10" onClick={handleLike}>
                     <Heart className={cn("h-8 w-8", isLiked && "fill-red-500 text-red-500")} />
                 </Button>
-                <span className="text-[10px] font-black text-white drop-shadow-md">{likeCount}</span>
+                <span className="text-[10px] font-black text-foreground drop-shadow-sm">{likeCount}</span>
             </div>
             
             <div className="flex flex-col items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={() => setShowComments(true)}>
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 hover:bg-muted/60 text-foreground shadow-xl border-2 border-border/10" onClick={() => setShowComments(true)}>
                     <MessageCircle className="h-8 w-8" />
                 </Button>
-                <span className="text-[10px] font-black text-white drop-shadow-md">{commentCount}</span>
+                <span className="text-[10px] font-black text-foreground drop-shadow-sm">{commentCount}</span>
             </div>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10">
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 hover:bg-muted/60 text-foreground shadow-xl border-2 border-border/10">
                   <Share className="h-8 w-8" />
                 </Button>
               </DropdownMenuTrigger>
@@ -508,27 +494,28 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
 
             {/* Sound Toggle */}
             {(post.type === 'reels' || post.type === 'film' || post.type === 'music') && (
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={toggleMute}>
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 hover:bg-muted/60 text-foreground shadow-xl border-2 border-border/10" onClick={toggleMute}>
                     {isMuted ? <VolumeX className="h-8 w-8" /> : <Volume2 className="h-8 w-8" />}
                 </Button>
             )}
 
             {post.allowDownload && post.mediaUrl && (
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={() => handleDownload(post.mediaUrl, post.description, post.type)}>
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 hover:bg-muted/60 text-foreground shadow-xl border-2 border-border/10" onClick={() => handleDownload(post.mediaUrl, post.description, post.type)}>
                     <Download className="h-8 w-8" />
                 </Button>
             )}
       </div>
 
         {post.type === 'film' && (
-        <Button variant="ghost" size="icon" className="h-14 w-14 text-white absolute left-6 bottom-24 z-20 bg-black/50 rounded-full hover:bg-black/70 shadow-2xl border border-white/20" onClick={() => setIsRotated(!isRotated)}>
+        <Button variant="ghost" size="icon" className="h-14 w-14 text-foreground absolute left-6 bottom-24 z-20 bg-muted/50 rounded-full hover:bg-muted/70 shadow-2xl border border-border/20" onClick={() => setIsRotated(!isRotated)}>
             <RotateCw className="h-8 w-8" />
         </Button>
         )}
 
       {/* Footer Info Overlay */}
-      <div className={cn("absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/80 to-transparent z-10", isRotated && "hidden")}>
-        <p className="text-base font-bold text-white line-clamp-3 max-w-[75%] drop-shadow-md leading-tight">{post.description}</p>
+      <div className={cn("absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-background/80 via-background/40 to-transparent z-10", isRotated && "hidden")}>
+        <p className="text-sm font-bold text-foreground line-clamp-3 max-w-[75%] drop-shadow-sm leading-tight">{post.description}</p>
+        <p className="text-[10px] text-muted-foreground mt-1 uppercase font-black">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p>
       </div>
 
        <Sheet open={showComments} onOpenChange={setShowComments}>
@@ -635,26 +622,26 @@ export default function MediaPage() {
     <div className="relative h-screen bg-background overflow-hidden">
       
       {/* Immersive Floating Home Button */}
-      <Button asChild variant="ghost" size="icon" className="fixed top-12 left-4 z-50 h-12 w-12 rounded-full bg-black/30 hover:bg-black/50 text-white border border-white/10 shadow-2xl backdrop-blur-sm">
+      <Button asChild variant="ghost" size="icon" className="fixed top-12 left-4 z-50 h-12 w-12 rounded-full bg-background/30 hover:bg-background/50 text-foreground border border-border/10 shadow-2xl backdrop-blur-sm">
         <Link href="/dashboard"><Home className="h-6 w-6" /></Link>
       </Button>
 
       <Tabs defaultValue="reels" className="h-full flex flex-col">
-        <header className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/60 via-black/30 to-transparent pt-12 pb-8">
+        <header className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-background/60 via-background/30 to-transparent pt-12 pb-8">
           <div className="container px-0">
             <TabsList className="grid w-full grid-cols-5 bg-transparent h-12">
-              <TabsTrigger value="text" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-white/80">Text</TabsTrigger>
-              <TabsTrigger value="image" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-white/80">Image</TabsTrigger>
-              <TabsTrigger value="reels" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-white/80">Reels</TabsTrigger>
-              <TabsTrigger value="film" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-white/80">Film</TabsTrigger>
-              <TabsTrigger value="music" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-white/80">Music</TabsTrigger>
+              <TabsTrigger value="text" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-foreground/80">Text</TabsTrigger>
+              <TabsTrigger value="image" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-foreground/80">Image</TabsTrigger>
+              <TabsTrigger value="reels" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-foreground/80">Reels</TabsTrigger>
+              <TabsTrigger value="film" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-foreground/80">Film</TabsTrigger>
+              <TabsTrigger value="music" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-foreground/80">Music</TabsTrigger>
             </TabsList>
              <div className="relative p-2 px-6 flex items-center gap-2 mt-2">
                 <div className='relative flex-1'>
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/60" />
                     <Input
                         placeholder="Search posts..."
-                        className="pl-10 h-10 bg-black/30 border-white/10 text-xs rounded-full focus-visible:ring-1 focus-visible:ring-primary text-white placeholder:text-white/40 backdrop-blur-md"
+                        className="pl-10 h-10 bg-background/30 border-border/10 text-xs rounded-full focus-visible:ring-1 focus-visible:ring-primary text-foreground placeholder:text-foreground/40 backdrop-blur-md"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
@@ -665,7 +652,7 @@ export default function MediaPage() {
 
         <div className="flex-1 h-full overflow-hidden">
           {loading ? (
-             <div className="h-full w-full flex items-center justify-center bg-black"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>
+             <div className="h-full w-full flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>
           ) : (
             <div className="h-full w-full">
               <TabsContent value="text" className="m-0 h-full"><PostFeed posts={getPostsForType('text')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>

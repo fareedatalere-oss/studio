@@ -10,12 +10,19 @@ const usePresence = (user: Models.User<Models.Preferences> | null) => {
 
         const updateUserPresence = async (isOnline: boolean) => {
             try {
+                // Defensive check: only update if the attributes exist in the DB
+                // Since we can't check schema dynamically easily, we catch the "Unknown attribute" error
                 await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, {
                     isOnline,
                     lastSeen: new Date().toISOString(),
                 });
-            } catch (error) {
-                console.error("Presence update failed", error);
+            } catch (error: any) {
+                // If the error is about missing attributes, we ignore it to prevent crashing
+                if (error.message?.includes('Unknown attribute')) {
+                    console.warn("Presence attributes (isOnline/lastSeen) not found in Appwrite schema.");
+                } else {
+                    console.error("Presence update failed", error);
+                }
             }
         };
 
