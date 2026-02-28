@@ -15,6 +15,7 @@ import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_POSTS, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 import Image from 'next/image';
+import { Loader2 } from 'lucide-react';
 
 const musicCategories = ["Hip/rappers", "Gargajiya", "English vision", "Indian cemp"];
 
