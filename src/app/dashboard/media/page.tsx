@@ -39,6 +39,8 @@ import {
   Link as LinkIcon,
   RotateCw,
   Search,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -51,7 +53,7 @@ import { databases, DATABASE_ID, COLLECTION_ID_POSTS, COLLECTION_ID_PROFILES, CO
 import { Query, ID } from 'appwrite';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 const CommentItem = ({ comment }: { comment: any }) => (
   <div className="flex items-start gap-3">
@@ -102,7 +104,6 @@ const CommentInput = ({ postId, postOwnerId, onCommentPosted }: { postId: string
           commentCount: newCount
       });
 
-      // Create notification for the post owner
       if (postOwnerId !== user.$id) {
         databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
           userId: postOwnerId,
@@ -139,13 +140,11 @@ const CommentInput = ({ postId, postOwnerId, onCommentPosted }: { postId: string
   )
 }
 
-
 const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isMuted: boolean; onMuteChange: (muted: boolean) => void; }) => {
   const { user: currentUser, profile: currentUserProfile, recheckUser } = useUser();
   const { toast } = useToast();
   
   const [post, setPost] = useState(initialPost);
-
   const postRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -161,6 +160,8 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [isRotated, setIsRotated] = useState(false);
   
+  const TEXT_CHAR_LIMIT = 250;
+
   useEffect(() => {
     const videoElement = videoRef.current;
     if (!videoElement) return;
@@ -171,7 +172,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
     const observer = new IntersectionObserver(
         ([entry]) => {
             if (entry.isIntersecting) {
-                videoElement.play().catch(error => console.error("Video autoplay failed:", error));
+                videoElement.play().catch(() => {});
             } else {
                 videoElement.pause();
             }
@@ -180,12 +181,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
     );
 
     observer.observe(postElement);
-
-    return () => {
-        if (postElement) {
-            observer.unobserve(postElement);
-        }
-    };
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -193,26 +189,19 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
   }, [initialPost]);
 
   useEffect(() => {
-    if (post.type !== 'reels' && post.type !== 'film') return;
-
     const videoElement = videoRef.current;
     if (videoElement) {
       videoElement.muted = isMuted;
-      
-      const handleVolumeChange = () => {
-        if (videoElement.muted !== isMuted) {
-          onMuteChange(videoElement.muted);
-        }
-      };
-
-      videoElement.addEventListener('volumechange', handleVolumeChange);
-      return () => {
-        if (videoElement) {
-          videoElement.removeEventListener('volumechange', handleVolumeChange);
-        }
-      };
     }
-  }, [isMuted, onMuteChange, post.type]);
+    const audioElement = audioRef.current;
+    if (audioElement) {
+      audioElement.muted = isMuted;
+    }
+  }, [isMuted]);
+
+  const toggleMute = () => {
+    onMuteChange(!isMuted);
+  };
 
   const handleAudioPlay = () => {
     document.querySelectorAll('audio').forEach(audioEl => {
@@ -221,15 +210,6 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
       }
     });
   };
-
-  useEffect(() => {
-    setIsLiked(post.likes?.includes(currentUser?.$id));
-    setLikeCount(post.likes?.length || 0);
-    setCommentCount(post.commentCount || 0);
-    if (currentUserProfile) {
-      setIsFollowing(currentUserProfile.following?.includes(post.userId) || false);
-    }
-  }, [post, currentUser, currentUserProfile]);
 
   const handleLike = async () => {
     if (!currentUser) return;
@@ -259,14 +239,13 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
             isRead: false,
             link: `/dashboard/media`,
             createdAt: new Date().toISOString()
-          }).catch(e => console.log("Notification trigger failed", e));
+          }).catch(() => {});
         }
 
         setPost({...post, likes: newLikes});
     } catch (error) {
         setIsLiked(!newIsLiked);
         setLikeCount(likeCount);
-        console.error("Failed to update likes:", error);
     }
   };
   
@@ -308,14 +287,13 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
             isRead: false,
             link: `/dashboard/profile/connections?tab=followers`,
             createdAt: new Date().toISOString()
-          }).catch(e => console.log("Notification trigger failed", e));
+          }).catch(() => {});
         }
         
         await recheckUser();
 
     } catch (error: any) {
         setIsFollowing(currentlyFollowing);
-        console.error("Failed to follow/unfollow user:", error);
         toast({ title: 'Error', description: `Could not complete action: ${error.message}`, variant: 'destructive' });
     } finally {
         setIsLoadingFollow(false);
@@ -337,7 +315,6 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
         );
         setComments(response.documents);
     } catch (error) {
-        console.error("Failed to fetch comments", error);
         toast({ title: "Error", description: "Could not load comments.", variant: 'destructive' });
     } finally {
         setCommentsLoading(false);
@@ -369,10 +346,9 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
   
   const handleDownload = async (url: string, filename: string, postType: string) => {
     if (!url) return;
-
     try {
         if (postType === 'image') {
-            toast({ title: "Adding watermark and preparing download..." });
+            toast({ title: "Processing download..." });
             const image = new window.Image();
             image.crossOrigin = 'anonymous';
             image.onload = () => {
@@ -380,81 +356,63 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
                 canvas.width = image.width;
                 canvas.height = image.height;
                 const ctx = canvas.getContext('2d');
-                if (!ctx) {
-                    toast({ title: "Error", description: "Could not create canvas for watermarking.", variant: "destructive" });
-                    return;
-                }
-                
+                if (!ctx) return;
                 ctx.drawImage(image, 0, 0);
-
                 const watermarkText = "From I-pay online business and transaction";
                 const fontSize = Math.max(20, image.width / 40);
                 ctx.font = `bold ${fontSize}px Arial`;
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
                 ctx.textAlign = 'center';
-
                 ctx.fillText(watermarkText, canvas.width / 2, fontSize + 20);
                 ctx.fillText(watermarkText, canvas.width / 2, canvas.height - 20);
-                
                 const link = document.createElement('a');
                 link.href = canvas.toDataURL('image/png');
                 link.download = `watermarked-${filename || 'ipay-media'}.png`;
-                document.body.appendChild(link);
                 link.click();
-                document.body.removeChild(link);
-                toast({ title: "Download started" });
             };
-            image.onerror = () => {
-                 toast({ title: "Error", description: "Could not load image. Preparing direct download instead.", variant: "destructive" });
-                 const link = document.createElement('a');
-                 link.href = url;
-                 link.target = "_blank";
-                 link.download = filename || 'ipay-media-download';
-                 document.body.appendChild(link);
-                 link.click();
-                 document.body.removeChild(link);
-            }
-            
             const response = await fetch(url);
             const blob = await response.blob();
             image.src = URL.createObjectURL(blob);
         } else {
-            toast({ title: "Preparing direct download...", description: "Watermarking is not available for video or audio files." });
             const link = document.createElement('a');
             link.href = url;
             link.target = "_blank";
             link.download = filename || 'ipay-media-download';
-            document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
         }
     } catch (error) {
-        console.error("Download error:", error);
-        toast({ title: "Download Failed", description: "An error occurred while preparing the file.", variant: "destructive" });
+        toast({ title: "Download Failed", variant: "destructive" });
     }
-};
+  };
 
+  const isTextTooLong = post.type === 'text' && post.text.length > TEXT_CHAR_LIMIT;
 
   return (
-    <div ref={postRef} className={cn("relative h-full w-full bg-black flex flex-col justify-center text-white snap-start shrink-0 overflow-hidden", isRotated && "fixed inset-0 z-40 h-screen w-screen p-0")}>
+    <div ref={postRef} className={cn("relative h-full w-full bg-background flex flex-col justify-center snap-start shrink-0 overflow-hidden border-b", isRotated && "fixed inset-0 z-40 h-screen w-screen p-0 bg-black")}>
+      
+      {/* Immersive Dark Layer for Non-Text Content */}
+      {(post.type === 'image' || post.type === 'reels' || post.type === 'film') && !isRotated && (
+          <div className="absolute inset-0 bg-black/90 z-0" />
+      )}
+
       {/* Header Overlay */}
-       <div className={cn("absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/70 to-transparent z-20", isRotated && "hidden")}>
+       <div className={cn("absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/40 to-transparent z-20", isRotated && "hidden")}>
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <Avatar className="ring-2 ring-primary/50">
-                        <AvatarImage src={post.userAvatar || `https://picsum.photos/seed/${post.userId}/100/100`} />
-                        <AvatarFallback>{post.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                    <Avatar className="ring-2 ring-primary">
+                        <AvatarImage src={post.userAvatar} />
+                        <AvatarFallback className="bg-primary text-primary-foreground">{post.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
                     </Avatar>
                     <div>
-                        <p className="font-bold text-sm">@{post.username}</p>
-                        <p className="text-[10px] text-neutral-300">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p>
+                        <p className="font-bold text-sm text-white shadow-sm">@{post.username}</p>
+                        <p className="text-[10px] text-white/80 shadow-sm">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p>
                     </div>
                 </div>
                  {currentUser?.$id !== post.userId && (
                     <Button 
                         variant={isFollowing ? 'secondary' : 'default'}
                         size="sm" 
-                        className="h-8 rounded-full text-xs font-bold px-4"
+                        className="h-8 rounded-full text-xs font-bold px-4 shadow-lg"
                         onClick={handleFollowToggle}
                         disabled={isLoadingFollow || !currentUser}
                     >
@@ -464,11 +422,38 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
             </div>
       </div>
 
-      {/* Content Layer (Fills Page) */}
+      {/* Content Layer */}
       <div className="absolute inset-0 flex items-center justify-center z-0">
         {post.type === 'text' && (
-          <div className={cn("h-full w-full flex items-center justify-center p-10 text-center", post.backgroundColor)}>
-            <h2 className="text-3xl font-black leading-tight whitespace-pre-wrap">{post.text}</h2>
+          <div className={cn("h-full w-full flex flex-col items-center justify-center p-10 text-center", post.backgroundColor)}>
+            <div className="max-w-md w-full">
+                <h2 className={cn("text-2xl font-black leading-tight whitespace-pre-wrap", post.backgroundColor === 'bg-white' ? 'text-black' : 'text-white')}>
+                    {isTextTooLong ? `${post.text.substring(0, TEXT_CHAR_LIMIT)}...` : post.text}
+                </h2>
+                {isTextTooLong && (
+                    <Dialog>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" className="mt-6 rounded-full font-bold uppercase tracking-widest bg-white/10 hover:bg-white/20 border-white/30 text-white">
+                                View More
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                            <DialogHeader>
+                                <DialogTitle className="flex items-center gap-3">
+                                    <Avatar className="h-8 w-8">
+                                        <AvatarImage src={post.userAvatar} />
+                                        <AvatarFallback>{post.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                                    </Avatar>
+                                    <span>Post by @{post.username}</span>
+                                </DialogTitle>
+                            </DialogHeader>
+                            <div className="py-6 whitespace-pre-wrap leading-relaxed text-lg">
+                                {post.text}
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                )}
+            </div>
           </div>
         )}
         {post.type === 'image' && post.mediaUrl && (
@@ -478,8 +463,8 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
            <video ref={videoRef} src={post.mediaUrl} controls loop playsInline className={cn("w-full h-full object-contain", isRotated && "object-cover")} />
         )}
         {post.type === 'music' && (
-            <div className="flex flex-col items-center justify-center p-8 text-center bg-zinc-900 w-full h-full">
-                <div className="relative h-48 w-48 mb-8 rounded-full overflow-hidden border-4 border-primary animate-spin-slow">
+            <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full bg-muted/20">
+                <div className="relative h-48 w-48 mb-8 rounded-full overflow-hidden border-4 border-primary animate-spin-slow shadow-2xl">
                     <Image src="https://picsum.photos/seed/music/400/400" alt="vinyl" fill className="object-cover" />
                     <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                         <Music className="h-12 w-12 text-white" />
@@ -491,25 +476,25 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
         )}
       </div>
       
-      {/* Right Action Sidebar (Overlay) */}
+      {/* Right Action Sidebar */}
        <div className={cn("absolute right-2 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-20", isRotated && "hidden")}>
             <div className="flex flex-col items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/20 hover:bg-black/40 text-white" onClick={handleLike}>
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/30 hover:bg-black/50 text-white shadow-lg" onClick={handleLike}>
                     <Heart className={cn("h-8 w-8", isLiked && "fill-red-500 text-red-500")} />
                 </Button>
-                <span className="text-xs font-bold shadow-sm">{likeCount}</span>
+                <span className="text-xs font-bold text-white shadow-sm">{likeCount}</span>
             </div>
             
             <div className="flex flex-col items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/20 hover:bg-black/40 text-white" onClick={() => setShowComments(true)}>
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/30 hover:bg-black/50 text-white shadow-lg" onClick={() => setShowComments(true)}>
                     <MessageCircle className="h-8 w-8" />
                 </Button>
-                <span className="text-xs font-bold shadow-sm">{commentCount}</span>
+                <span className="text-xs font-bold text-white shadow-sm">{commentCount}</span>
             </div>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/20 hover:bg-black/40 text-white">
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/30 hover:bg-black/50 text-white shadow-lg">
                   <Share className="h-8 w-8" />
                 </Button>
               </DropdownMenuTrigger>
@@ -525,26 +510,33 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
               </DropdownMenuContent>
             </DropdownMenu>
 
+            {/* Sound Toggle */}
+            {(post.type === 'reels' || post.type === 'film' || post.type === 'music') && (
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/30 hover:bg-black/50 text-white shadow-lg" onClick={toggleMute}>
+                    {isMuted ? <VolumeX className="h-8 w-8" /> : <Volume2 className="h-8 w-8" />}
+                </Button>
+            )}
+
             {post.allowDownload && post.mediaUrl && (
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/20 hover:bg-black/40 text-white" onClick={() => handleDownload(post.mediaUrl, post.description, post.type)}>
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/30 hover:bg-black/50 text-white shadow-lg" onClick={() => handleDownload(post.mediaUrl, post.description, post.type)}>
                     <Download className="h-8 w-8" />
                 </Button>
             )}
       </div>
 
         {post.type === 'film' && (
-        <Button variant="ghost" size="icon" className="h-12 w-12 text-white absolute right-4 bottom-24 z-20 bg-black/40 rounded-full hover:bg-black/60" onClick={() => setIsRotated(!isRotated)}>
+        <Button variant="ghost" size="icon" className="h-12 w-12 text-white absolute left-4 bottom-24 z-20 bg-black/40 rounded-full hover:bg-black/60 shadow-lg" onClick={() => setIsRotated(!isRotated)}>
             <RotateCw className="h-6 w-6" />
         </Button>
         )}
 
       {/* Footer Info Overlay */}
-      <div className={cn("absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent z-10", isRotated && "hidden")}>
-        <p className="text-sm font-medium line-clamp-2 max-w-[80%]">{post.description}</p>
+      <div className={cn("absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/60 to-transparent z-10", isRotated && "hidden")}>
+        <p className="text-sm font-medium text-white line-clamp-2 max-w-[80%] shadow-sm">{post.description}</p>
       </div>
 
        <Sheet open={showComments} onOpenChange={setShowComments}>
-        <SheetContent side="bottom" className="h-[80vh] flex flex-col text-black dark:text-white rounded-t-3xl">
+        <SheetContent side="bottom" className="h-[80vh] flex flex-col text-foreground rounded-t-3xl border-t-2 border-primary/20">
             <SheetHeader>
             <SheetTitle className="text-center font-black uppercase text-sm tracking-widest border-b pb-4">Comments ({commentCount})</SheetTitle>
             </SheetHeader>
@@ -560,14 +552,13 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
                 )}
             </div>
             <div className="mt-auto p-4 border-t bg-background pb-8">
-                 <CommentInput postId={post.$id} postOwnerId={post.userId} onCommentPosted={onCommentPostedAction} />
+                 <CommentInput postId={initialPost.$id} postOwnerId={initialPost.userId} onCommentPosted={onCommentPostedAction} />
             </div>
         </SheetContent>
       </Sheet>
     </div>
   );
 };
-
 
 const PostFeed = ({ posts, isMuted, onMuteChange }: { posts: any[]; isMuted: boolean; onMuteChange: (muted: boolean) => void; }) => {
   if (!posts || posts.length === 0) {
@@ -580,7 +571,7 @@ const PostFeed = ({ posts, isMuted, onMuteChange }: { posts: any[]; isMuted: boo
   }
 
   return (
-    <div className="h-full w-full flex flex-col overflow-y-auto snap-y snap-mandatory scroll-smooth">
+    <div className="h-full w-full flex flex-col overflow-y-auto snap-y snap-mandatory scroll-smooth scrollbar-hide">
       {posts.map(post => <PostCard key={post.$id} post={post} isMuted={isMuted} onMuteChange={onMuteChange} />)}
     </div>
   )
@@ -611,6 +602,8 @@ export default function MediaPage() {
         fetchAllPosts();
         
         const unsubscribe = databases.client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_POSTS}.documents`], response => {
+            if (!response.events?.some(e => e.includes('.update') || e.includes('.create') || e.includes('.delete'))) return;
+            
             const eventType = response.events[0];
             const payload = response.payload as any;
 
@@ -640,25 +633,24 @@ export default function MediaPage() {
 
     const getPostsForType = (type: string) => filteredPosts.filter(p => p.type === type);
 
-
   return (
-    <div className="relative h-[calc(100vh-130px)] bg-black overflow-hidden">
+    <div className="relative h-[calc(100vh-130px)] bg-background overflow-hidden">
       <Tabs defaultValue="reels" className="h-full flex flex-col">
-        <header className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/80 to-transparent">
+        <header className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-background/90 to-transparent">
           <div className="container px-0">
-            <TabsList className="grid w-full grid-cols-5 bg-transparent h-12 text-white/60">
-              <TabsTrigger value="text" className="data-[state=active]:bg-transparent data-[state=active]:text-white font-bold text-[10px] uppercase">Text</TabsTrigger>
-              <TabsTrigger value="image" className="data-[state=active]:bg-transparent data-[state=active]:text-white font-bold text-[10px] uppercase">Image</TabsTrigger>
-              <TabsTrigger value="reels" className="data-[state=active]:bg-transparent data-[state=active]:text-white font-bold text-[10px] uppercase">Reels</TabsTrigger>
-              <TabsTrigger value="film" className="data-[state=active]:bg-transparent data-[state=active]:text-white font-bold text-[10px] uppercase">Film</TabsTrigger>
-              <TabsTrigger value="music" className="data-[state=active]:bg-transparent data-[state=active]:text-white font-bold text-[10px] uppercase">Music</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-5 bg-transparent h-12">
+              <TabsTrigger value="text" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[10px] uppercase">Text</TabsTrigger>
+              <TabsTrigger value="image" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[10px] uppercase">Image</TabsTrigger>
+              <TabsTrigger value="reels" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[10px] uppercase">Reels</TabsTrigger>
+              <TabsTrigger value="film" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[10px] uppercase">Film</TabsTrigger>
+              <TabsTrigger value="music" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[10px] uppercase">Music</TabsTrigger>
             </TabsList>
              <div className="relative p-2 px-4 flex items-center gap-2">
                 <div className='relative flex-1'>
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/50" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
                         placeholder="Search posts..."
-                        className="pl-9 h-8 bg-white/10 border-none text-white placeholder:text-white/30 text-xs rounded-full"
+                        className="pl-9 h-8 bg-muted/50 border-none text-xs rounded-full focus-visible:ring-1 focus-visible:ring-primary"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
@@ -667,7 +659,7 @@ export default function MediaPage() {
           </div>
         </header>
 
-        <div className="flex-1 h-full overflow-hidden">
+        <div className="flex-1 h-full overflow-hidden pt-20">
           {loading ? (
              <div className="h-full w-full flex items-center justify-center"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>
           ) : (
@@ -694,26 +686,26 @@ export default function MediaPage() {
         </SheetTrigger>
         <SheetContent side="bottom" className="rounded-t-3xl pb-10">
           <SheetHeader>
-            <SheetTitle className="text-center font-black uppercase text-sm tracking-widest pt-4">Create Master Post</SheetTitle>
+            <SheetTitle className="text-center font-black uppercase text-sm tracking-widest pt-4">Create Post</SheetTitle>
           </SheetHeader>
           <div className="grid grid-cols-3 gap-4 py-8">
-            <Link href="/dashboard/media/upload/text" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all">
+            <Link href="/dashboard/media/upload/text" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all shadow-sm">
               <Type className="h-6 w-6" />
               <span className="text-[10px] font-bold uppercase">Text</span>
             </Link>
-            <Link href="/dashboard/media/upload/image" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all">
+            <Link href="/dashboard/media/upload/image" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all shadow-sm">
               <ImageIcon className="h-6 w-6" />
               <span className="text-[10px] font-bold uppercase">Image</span>
             </Link>
-            <Link href="/dashboard/media/upload/reels" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all">
+            <Link href="/dashboard/media/upload/reels" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all shadow-sm">
               <Clapperboard className="h-6 w-6" />
               <span className="text-[10px] font-bold uppercase">Reels</span>
             </Link>
-            <Link href="/dashboard/media/upload/film" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all">
+            <Link href="/dashboard/media/upload/film" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all shadow-sm">
               <Film className="h-6 w-6" />
               <span className="text-[10px] font-bold uppercase">Film</span>
             </Link>
-             <Link href="/dashboard/media/upload/music" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all">
+             <Link href="/dashboard/media/upload/music" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all shadow-sm">
               <Music className="h-6 w-6" />
               <span className="text-[10px] font-bold uppercase">Music</span>
             </Link>
