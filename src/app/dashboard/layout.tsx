@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Bot, Bell, Home, PlaySquare, Store, User, MessageSquare } from 'lucide-react';
+import { Bot, Bell, Home, PlaySquare, Store, User, MessageSquare, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -27,14 +27,34 @@ export default function DashboardLayout({
   const [isMounted, setIsMounted] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
     setIsMounted(true);
+    
+    // PWA Install Logic
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
+  
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      toast({ title: "Installing I-Pay...", description: "The app is being added to your home screen." });
+    }
+  };
   
   const fetchUnreadCounts = useCallback(async () => {
     if (!user) return;
     try {
+      // Total unread alerts (follows, likes, system)
       const totalRes = await databases.listDocuments(
         DATABASE_ID,
         COLLECTION_ID_NOTIFICATIONS,
@@ -46,6 +66,7 @@ export default function DashboardLayout({
       );
       setUnreadCount(totalRes.total);
 
+      // Unread messages specifically
       const msgRes = await databases.listDocuments(
         DATABASE_ID,
         COLLECTION_ID_NOTIFICATIONS,
@@ -105,8 +126,8 @@ export default function DashboardLayout({
   const isAdmin = user && MANAGER_EMAILS.includes(user.email.toLowerCase());
 
   const isTabOn = (key: string) => {
-      if (isAdmin) return true; // Admin sees everything
-      if (!proof) return true; // Default to on
+      if (isAdmin) return true; 
+      if (!proof) return true; 
       return proof[key] !== false;
   };
 
@@ -119,12 +140,17 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-40 border-b bg-background">
+      <header className="sticky top-0 z-40 border-b bg-background shadow-sm">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/dashboard">
-                <IPayLogo className="h-8 w-8" />
+                <IPayLogo className="h-10 w-10" />
             </Link>
+            {deferredPrompt && (
+              <Button variant="outline" size="sm" onClick={handleInstallClick} className="hidden sm:flex animate-bounce border-primary text-primary">
+                <Download className="mr-2 h-4 w-4" /> Install App
+              </Button>
+            )}
             <Button asChild variant="ghost" size="icon" onClick={(e) => handleTabClick(e, 'feat_ai')}>
               <Link href="/dashboard/ai-chat">
                 <Bot className="h-5 w-5" />
@@ -137,7 +163,7 @@ export default function DashboardLayout({
               <Link href="/dashboard/notifications">
                 <Bell className="h-5 w-5" />
                  {unreadCount > 0 && (
-                  <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px]">
+                  <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px] font-bold">
                     {unreadCount > 99 ? '9+' : unreadCount}
                   </Badge>
                 )}
@@ -145,7 +171,7 @@ export default function DashboardLayout({
               </Link>
             </Button>
             <Link href="/dashboard/profile" onClick={(e) => handleTabClick(e, 'tab_profile')}>
-              <Avatar>
+              <Avatar className="border-2 border-transparent hover:border-primary transition-all">
                 <AvatarImage src={profile?.avatar} />
                 <AvatarFallback>
                   {isMounted && !loading ? (profile?.username?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U') : null}
@@ -160,30 +186,30 @@ export default function DashboardLayout({
 
       <footer className="fixed bottom-0 z-40 w-full border-t bg-background md:hidden">
         <div className="container grid h-16 grid-cols-5 items-center justify-around text-center">
-          <Link href="/dashboard" onClick={(e) => handleTabClick(e, 'tab_home')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard' ? "text-primary" : "text-muted-foreground")}>
+          <Link href="/dashboard" onClick={(e) => handleTabClick(e, 'tab_home')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard' ? "text-primary font-bold" : "text-muted-foreground")}>
             <Home className="h-6 w-6" />
-            <span className="text-xs">Home</span>
+            <span className="text-[10px]">Home</span>
           </Link>
-          <Link href="/dashboard/chat" onClick={(e) => handleTabClick(e, 'tab_chat')} className={cn("flex flex-col items-center gap-1 relative", pathname.startsWith('/dashboard/chat') ? "text-primary" : "text-muted-foreground")}>
+          <Link href="/dashboard/chat" onClick={(e) => handleTabClick(e, 'tab_chat')} className={cn("flex flex-col items-center gap-1 relative", pathname.startsWith('/dashboard/chat') ? "text-primary font-bold" : "text-muted-foreground")}>
             <MessageSquare className="h-6 w-6" />
             {unreadMsgCount > 0 && (
-              <Badge variant="destructive" className="absolute top-0 right-2 h-4 min-w-4 justify-center p-0.5 rounded-full text-[10px]">
+              <Badge variant="destructive" className="absolute -top-1 right-2 h-4 min-w-4 justify-center p-0.5 rounded-full text-[10px] font-bold">
                 {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
               </Badge>
             )}
-            <span className="text-xs">Chat</span>
+            <span className="text-[10px]">Chat</span>
           </Link>
-          <Link href="/dashboard/media" onClick={(e) => handleTabClick(e, 'tab_media')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/media' ? "text-primary" : "text-muted-foreground")}>
+          <Link href="/dashboard/media" onClick={(e) => handleTabClick(e, 'tab_media')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/media' ? "text-primary font-bold" : "text-muted-foreground")}>
             <PlaySquare className="h-6 w-6" />
-            <span className="text-xs">Media</span>
+            <span className="text-[10px]">Media</span>
           </Link>
-          <Link href="/dashboard/market" onClick={(e) => handleTabClick(e, 'tab_market')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/market' ? "text-primary" : "text-muted-foreground")}>
+          <Link href="/dashboard/market" onClick={(e) => handleTabClick(e, 'tab_market')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/market' ? "text-primary font-bold" : "text-muted-foreground")}>
             <Store className="h-6 w-6" />
-            <span className="text-xs">Market</span>
+            <span className="text-[10px]">Market</span>
           </Link>
-          <Link href="/dashboard/profile" onClick={(e) => handleTabClick(e, 'tab_profile')} className={cn("flex flex-col items-center gap-1", pathname.startsWith('/dashboard/profile') ? "text-primary" : "text-muted-foreground")}>
+          <Link href="/dashboard/profile" onClick={(e) => handleTabClick(e, 'tab_profile')} className={cn("flex flex-col items-center gap-1", pathname.startsWith('/dashboard/profile') ? "text-primary font-bold" : "text-muted-foreground")}>
             <User className="h-6 w-6" />
-            <span className="text-xs">Profile</span>
+            <span className="text-[10px]">Profile</span>
           </Link>
         </div>
       </footer>

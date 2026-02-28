@@ -4,13 +4,17 @@ import { Toaster } from "@/components/ui/toaster";
 import { AppwriteProvider } from '@/hooks/use-appwrite';
 
 export const metadata: Metadata = {
-  title: 'I-Pay',
-  description: 'Online business and transactions',
+  title: 'I-Pay Online',
+  description: 'New world of online business and transactions',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'I-Pay',
+    title: 'I-Pay Online',
+  },
+  applicationName: 'I-Pay',
+  formatDetection: {
+    telephone: false,
   },
 };
 
@@ -20,6 +24,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({
@@ -32,14 +37,15 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
         <link rel="icon" href="/logo.png" />
         <link rel="apple-touch-icon" href="/logo.png" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
-      <body className="font-body antialiased min-h-screen bg-background">
+      <body className="font-body antialiased min-h-screen bg-background pb-safe">
         <AppwriteProvider>
           {children}
         </AppwriteProvider>
