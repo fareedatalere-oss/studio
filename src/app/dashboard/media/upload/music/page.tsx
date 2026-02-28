@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Library, Music, Settings, UploadCloud } from 'lucide-react';
+import { ArrowLeft, Library, Music, Settings, UploadCloud, ImageIcon, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,13 +13,19 @@ import { Switch } from '@/components/ui/switch';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_POSTS, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
 import { ID } from 'appwrite';
+import Image from 'next/image';
 
 export default function UploadMusicPage() {
   const { toast } = useToast();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const iconInputRef = useRef<HTMLInputElement>(null);
+  
   const [description, setDescription] = useState('');
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [iconFile, setIconFile] = useState<File | null>(null);
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
+  
   const [allowComments, setAllowComments] = useState(true);
   const [allowDownload, setAllowDownload] = useState(true);
   const [isPosting, setIsPosting] = useState(false);
@@ -41,6 +47,14 @@ export default function UploadMusicPage() {
     }
   };
 
+  const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+        const file = e.target.files[0];
+        setIconFile(file);
+        setIconPreview(URL.createObjectURL(file));
+    }
+  };
+
   const handlePost = async () => {
     if (!audioFile || !authUser || !userProfile) {
         toast({ variant: 'destructive', title: 'Error', description: 'Missing file or user data.' });
@@ -50,6 +64,12 @@ export default function UploadMusicPage() {
     toast({ title: 'Uploading track...' });
     
     try {
+        let thumbnailUrl = "";
+        if (iconFile) {
+            const iconUpload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), iconFile);
+            thumbnailUrl = getAppwriteStorageUrl(iconUpload.$id);
+        }
+
         const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), audioFile);
         const mediaUrl = getAppwriteStorageUrl(uploadResult.$id);
 
@@ -59,6 +79,7 @@ export default function UploadMusicPage() {
             userAvatar: userProfile.avatar,
             type: 'music',
             mediaUrl: mediaUrl,
+            thumbnailUrl: thumbnailUrl, // Storing icon URL
             description: description,
             allowComments: allowComments,
             allowDownload: allowDownload,
@@ -112,11 +133,43 @@ export default function UploadMusicPage() {
                     </div>
                     <audio controls src={URL.createObjectURL(audioFile)} className="w-full mt-2" />
                 </div>
-                <Textarea
-                    placeholder="Add a description for your track..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                />
+                
+                <div className="space-y-2">
+                    <Label htmlFor="music-desc">Music Description</Label>
+                    <Textarea
+                        id="music-desc"
+                        placeholder="Add a description for your track..."
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <Label>Music Icon (Thumbnail)</Label>
+                    <div className="flex items-center gap-4">
+                        <div 
+                            className="w-24 h-24 bg-muted rounded-xl flex items-center justify-center cursor-pointer border border-dashed overflow-hidden relative"
+                            onClick={() => iconInputRef.current?.click()}
+                        >
+                            {iconPreview ? (
+                                <>
+                                    <Image src={iconPreview} alt="Thumbnail" fill className="object-cover" />
+                                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                        <X className="text-white h-6 w-6" onClick={(e) => { e.stopPropagation(); setIconFile(null); setIconPreview(null); }} />
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="text-center p-2 text-muted-foreground">
+                                    <ImageIcon className="h-6 w-6 mx-auto mb-1" />
+                                    <span className="text-[10px] uppercase font-black">Add Icon</span>
+                                </div>
+                            )}
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => iconInputRef.current?.click()}>Upload from Device</Button>
+                    </div>
+                    <input type="file" ref={iconInputRef} className="hidden" accept="image/*" onChange={handleIconChange} />
+                </div>
+
                  <div className="space-y-2 pt-4">
                     <Label className="flex items-center"><Settings className="mr-2 h-4 w-4" /> Settings</Label>
                     <div className="flex items-center justify-between">

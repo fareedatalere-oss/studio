@@ -14,7 +14,7 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@/components/ui/tabs';
+} from '@/tabs';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,7 +42,6 @@ import {
   Volume2,
   VolumeX,
   ChevronRight,
-  Home,
   UserPlus,
   UserCheck,
 } from 'lucide-react';
@@ -180,7 +179,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
                 videoElement.pause();
             }
         },
-        { threshold: 0.5 }
+        { threshold: 0.6 }
     );
 
     observer.observe(postElement);
@@ -361,16 +360,25 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
                 const ctx = canvas.getContext('2d');
                 if (!ctx) return;
                 ctx.drawImage(image, 0, 0);
-                const watermarkText = "From I-pay online business and transaction";
-                const fontSize = Math.max(20, image.width / 40);
-                ctx.font = `bold ${fontSize}px Arial`;
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                
+                // Drawing the Watermark Icon
+                const iconSize = Math.max(40, image.width / 15);
+                const padding = 20;
+                
+                // Simple Circle Watermark with "IP" text
+                ctx.beginPath();
+                ctx.arc(canvas.width - iconSize/2 - padding, canvas.height - iconSize/2 - padding, iconSize/2, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(2, 132, 199, 0.8)'; // Primary Blue
+                ctx.fill();
+                ctx.font = `bold ${iconSize/3}px Arial`;
+                ctx.fillStyle = 'white';
                 ctx.textAlign = 'center';
-                ctx.fillText(watermarkText, canvas.width / 2, fontSize + 20);
-                ctx.fillText(watermarkText, canvas.width / 2, canvas.height - 20);
+                ctx.textBaseline = 'middle';
+                ctx.fillText("I-Pay", canvas.width - iconSize/2 - padding, canvas.height - iconSize/2 - padding);
+
                 const link = document.createElement('a');
                 link.href = canvas.toDataURL('image/png');
-                link.download = `watermarked-${filename || 'ipay-media'}.png`;
+                link.download = `ipay-${filename || 'media'}.png`;
                 link.click();
             };
             const response = await fetch(url);
@@ -416,12 +424,12 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
           <Image src={post.mediaUrl} alt={post.description || 'Post image'} fill className="object-contain" priority />
         )}
         {(post.type === 'reels' || post.type === 'film') && post.mediaUrl && (
-           <video ref={videoRef} src={post.mediaUrl} controls loop playsInline className={cn("w-full h-full object-contain", isRotated && "object-cover")} />
+           <video ref={videoRef} src={post.mediaUrl} controls loop playsInline preload="auto" className={cn("w-full h-full object-contain", isRotated && "object-cover")} />
         )}
         {post.type === 'music' && (
             <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full bg-muted/20">
                 <div className="relative h-64 w-64 mb-10 rounded-full overflow-hidden border-8 border-primary animate-spin-slow shadow-[0_0_50px_rgba(0,0,0,0.3)]">
-                    <Image src="https://picsum.photos/seed/music/400/400" alt="vinyl" fill className="object-cover" unoptimized />
+                    <Image src={post.thumbnailUrl || "https://picsum.photos/seed/music/400/400"} alt="music icon" fill className="object-cover" unoptimized />
                     <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                         <Music className="h-16 w-16 text-white" />
                     </div>
@@ -432,8 +440,8 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
         )}
       </div>
       
-      {/* Left Profile Sidebar - AS REQUESTED */}
-      <div className={cn("absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-start gap-6 p-2 z-20", isRotated && "hidden")}>
+      {/* Left Sidebar - Poster Info & Like Button */}
+      <div className={cn("absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-start gap-6 p-2 z-20 transition-all", isRotated && "hidden")}>
             <div className="flex flex-col items-center gap-2">
                 <Avatar className="ring-2 ring-primary h-14 w-14 shadow-xl">
                     <AvatarImage src={post.userAvatar} />
@@ -453,20 +461,20 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
                     >
                         {isLoadingFollow ? <Loader2 className="animate-spin h-6 w-6" /> : isFollowing ? <UserCheck className="h-8 w-8" /> : <UserPlus className="h-8 w-8" />}
                     </Button>
-                    <span className="text-[10px] font-black text-foreground uppercase drop-shadow-sm">{isFollowing ? 'Joined' : 'Follow'}</span>
+                    <span className="text-[10px] font-black text-foreground uppercase drop-shadow-sm">{isFollowing ? 'Unfollow' : 'Follow'}</span>
                 </div>
             )}
-      </div>
 
-      {/* Right Interaction Sidebar */}
-       <div className={cn("absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-20", isRotated && "hidden")}>
             <div className="flex flex-col items-center gap-1">
                 <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 hover:bg-muted/60 text-foreground shadow-xl border-2 border-border/10" onClick={handleLike}>
                     <Heart className={cn("h-8 w-8", isLiked && "fill-red-500 text-red-500")} />
                 </Button>
                 <span className="text-[10px] font-black text-foreground drop-shadow-sm">{likeCount}</span>
             </div>
-            
+      </div>
+
+      {/* Right Sidebar - Other Interactions */}
+       <div className={cn("absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-20", isRotated && "hidden")}>
             <div className="flex flex-col items-center gap-1">
                 <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 hover:bg-muted/60 text-foreground shadow-xl border-2 border-border/10" onClick={() => setShowComments(true)}>
                     <MessageCircle className="h-8 w-8" />
@@ -492,7 +500,6 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Sound Toggle */}
             {(post.type === 'reels' || post.type === 'film' || post.type === 'music') && (
                 <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 hover:bg-muted/60 text-foreground shadow-xl border-2 border-border/10" onClick={toggleMute}>
                     {isMuted ? <VolumeX className="h-8 w-8" /> : <Volume2 className="h-8 w-8" />}
@@ -512,7 +519,6 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
         </Button>
         )}
 
-      {/* Footer Info Overlay */}
       <div className={cn("absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-background/80 via-background/40 to-transparent z-10", isRotated && "hidden")}>
         <p className="text-sm font-bold text-foreground line-clamp-3 max-w-[75%] drop-shadow-sm leading-tight">{post.description}</p>
         <p className="text-[10px] text-muted-foreground mt-1 uppercase font-black">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p>
@@ -621,11 +627,6 @@ export default function MediaPage() {
   return (
     <div className="relative h-screen bg-background overflow-hidden">
       
-      {/* Immersive Floating Home Button */}
-      <Button asChild variant="ghost" size="icon" className="fixed top-12 left-4 z-50 h-12 w-12 rounded-full bg-background/30 hover:bg-background/50 text-foreground border border-border/10 shadow-2xl backdrop-blur-sm">
-        <Link href="/dashboard"><Home className="h-6 w-6" /></Link>
-      </Button>
-
       <Tabs defaultValue="reels" className="h-full flex flex-col">
         <header className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-background/60 via-background/30 to-transparent pt-12 pb-8">
           <div className="container px-0">
@@ -669,7 +670,7 @@ export default function MediaPage() {
         <SheetTrigger asChild>
            <Button
             size="icon"
-            className="fixed bottom-10 right-6 h-16 w-16 rounded-full z-50 shadow-[0_10px_40px_rgba(0,0,0,0.5)] bg-primary hover:bg-primary/90 border-4 border-white/20 animate-bounce-slow"
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 h-16 w-16 rounded-full z-50 shadow-[0_10px_40px_rgba(0,0,0,0.5)] bg-primary hover:bg-primary/90 border-4 border-white/20 animate-bounce-slow"
           >
             <Plus className="h-8 w-8" />
             <span className="sr-only">Add Media</span>
