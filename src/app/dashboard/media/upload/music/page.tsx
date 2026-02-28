@@ -24,7 +24,7 @@ export default function UploadMusicPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
   
-  const [step, setStep] = useState(0); // 0: Category, 1: Files
+  const [step, setStep] = useState(0); 
   const [selectedCategory, setSelectedCategory] = useState('');
   const [description, setDescription] = useState('');
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -40,12 +40,8 @@ export default function UploadMusicPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      if (file.size > 50 * 1024 * 1024) { // 50MB limit
-          toast({
-              variant: 'destructive',
-              title: 'File too large',
-              description: 'Audio files should be under 50MB.'
-          });
+      if (file.size > 50 * 1024 * 1024) {
+          toast({ variant: 'destructive', title: 'File too large', description: 'Audio files should be under 50MB.' });
           return;
       }
       setAudioFile(file);
@@ -69,24 +65,25 @@ export default function UploadMusicPage() {
     toast({ title: 'Uploading track...' });
     
     try {
-        let thumbnailUrl = "";
+        let thumbUrl = "";
         if (iconFile) {
             const iconUpload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), iconFile);
-            thumbnailUrl = getAppwriteStorageUrl(iconUpload.$id);
+            thumbUrl = getAppwriteStorageUrl(iconUpload.$id);
         }
 
         const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), audioFile);
         const mediaUrl = getAppwriteStorageUrl(uploadResult.$id);
+
+        // We store metadata in the description to avoid "Unknown attribute" errors in Appwrite
+        const encodedDescription = `CAT:${selectedCategory}|ICON:${thumbUrl}|${description}`;
 
         const newPost = {
             userId: authUser.$id,
             username: userProfile.username,
             userAvatar: userProfile.avatar,
             type: 'music',
-            category: selectedCategory,
             mediaUrl: mediaUrl,
-            thumbnailUrl: thumbnailUrl,
-            description: description,
+            description: encodedDescription,
             allowComments: allowComments,
             allowDownload: allowDownload,
             likes: [],
@@ -94,7 +91,7 @@ export default function UploadMusicPage() {
             createdAt: new Date().toISOString()
         };
         await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
-        toast({ title: 'Music Posted!', description: `Your track has been added to ${selectedCategory}.` });
+        toast({ title: 'Music Posted!', description: `Your track has been added.` });
         router.push('/dashboard/media/music');
         
     } catch (error: any) {

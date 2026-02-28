@@ -48,7 +48,23 @@ export default function MusicLibraryPage() {
             try {
                 const queries = [Query.equal('type', 'music'), Query.orderDesc('$createdAt'), Query.limit(100)];
                 const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, queries);
-                setPosts(res.documents);
+                
+                // Parse the descriptions to extract hidden category/icon data
+                const parsedPosts = res.documents.map(post => {
+                    const desc = post.description || '';
+                    const catMatch = desc.match(/CAT:([^|]+)\|/);
+                    const iconMatch = desc.match(/ICON:([^|]+)\|/);
+                    const cleanDesc = desc.split('|').pop() || desc;
+                    
+                    return {
+                        ...post,
+                        category: catMatch ? catMatch[1] : 'Uncategorized',
+                        thumbnailUrl: iconMatch ? iconMatch[1] : '',
+                        displayDescription: cleanDesc
+                    };
+                });
+                
+                setPosts(parsedPosts);
             } catch (error) {
                 toast({ variant: 'destructive', title: 'Error', description: 'Failed to load music.' });
             } finally { setLoading(false); }
@@ -61,7 +77,7 @@ export default function MusicLibraryPage() {
         if (selectedCategory !== "all") result = result.filter(p => p.category === selectedCategory);
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
-            result = result.filter(p => p.description?.toLowerCase().includes(q) || p.username?.toLowerCase().includes(q));
+            result = result.filter(p => p.displayDescription?.toLowerCase().includes(q) || p.username?.toLowerCase().includes(q));
         }
         return result;
     }, [posts, selectedCategory, searchQuery]);
@@ -147,7 +163,7 @@ function MusicPostCard({ post, isMuted, onMuteChange, currentUser, currentUserPr
                     <Image src={post.thumbnailUrl || "https://picsum.photos/seed/music/400/400"} alt="Music" fill className="object-cover" />
                     <div className="absolute inset-0 flex items-center justify-center bg-black/20"><Music className="h-16 w-16 text-white" /></div>
                 </div>
-                <h2 className="text-3xl font-black uppercase tracking-tighter leading-none mb-2">{post.description || 'Untitled Track'}</h2>
+                <h2 className="text-3xl font-black uppercase tracking-tighter leading-none mb-2">{post.displayDescription || 'Untitled Track'}</h2>
                 <Badge variant="secondary" className="font-black uppercase text-[10px] tracking-widest">{post.category}</Badge>
                 {post.mediaUrl && <audio ref={audioRef} src={post.mediaUrl} controls className="mt-10 w-full max-w-xs" muted={isMuted}></audio>}
             </div>

@@ -362,7 +362,6 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
         )}
       </div>
       
-      {/* Sidebar UI - High z-index for touchability */}
       <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-start gap-6 p-2 z-30">
             <div className="flex flex-col items-center gap-2">
                 <Avatar className="ring-2 ring-primary h-14 w-14 shadow-xl"><AvatarImage src={post.userAvatar} /><AvatarFallback className="bg-primary text-white font-black uppercase">{post.username?.charAt(0) || 'U'}</AvatarFallback></Avatar>
