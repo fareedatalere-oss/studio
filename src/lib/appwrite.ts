@@ -10,11 +10,9 @@ export const account = new Account(client);
 export const databases = new Databases(client);
 export const storage = new Storage(client);
 
-// This is the correct Database ID from your screenshot.
 export const DATABASE_ID = '69857be6001af003c986';
 export const BUCKET_ID_UPLOADS = 'uploads';
 
-// Collection IDs
 export const COLLECTION_ID_PROFILES = 'profiles';
 export const COLLECTION_ID_TRANSACTIONS = 'transactions';
 export const COLLECTION_ID_POSTS = 'posts';
@@ -28,13 +26,11 @@ export const COLLECTION_ID_UPWORK_PROFILES = 'upworkProfiles';
 export const COLLECTION_ID_APP_CONFIG = 'app_config';
 export const COLLECTION_ID_NOTIFICATIONS = 'notifications';
 
-
 export function getAppwriteStorageUrl(fileId: string) {
     if (!fileId) return '';
-    // The project ID is needed to construct the URL
     const projectId = '698462e0002b93bc85d9';
     return `https://sfo.cloud.appwrite.io/v1/storage/buckets/${BUCKET_ID_UPLOADS}/files/${fileId}/view?project=${projectId}`;
 }
 
-
+export { client };
 export default client;

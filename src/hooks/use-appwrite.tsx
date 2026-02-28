@@ -1,6 +1,6 @@
 'use client';
 
-import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
+import client, { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
 import { Models } from 'appwrite';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 
@@ -14,32 +14,30 @@ const usePresence = (user: Models.User<Models.Preferences> | null) => {
                     isOnline,
                     lastSeen: new Date().toISOString(),
                 });
-            } catch (error) {}
-        };
-
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                updateUserPresence(true);
-            } else {
-                updateUserPresence(false);
+            } catch (error) {
+                console.error("Presence update failed", error);
             }
         };
 
+        const handleVisibilityChange = () => {
+            updateUserPresence(document.visibilityState === 'visible');
+        };
+
+        // Set online immediately
         updateUserPresence(true);
 
         const interval = setInterval(() => {
             if (document.visibilityState === 'visible') {
                 updateUserPresence(true);
             }
-        }, 60 * 1000);
+        }, 45000); // Pulse every 45 seconds
 
         window.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('pagehide', () => updateUserPresence(false));
+        window.addEventListener('beforeunload', () => updateUserPresence(false));
 
         return () => {
             clearInterval(interval);
             window.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('pagehide', () => updateUserPresence(false));
             updateUserPresence(false);
         };
     }, [user]);
@@ -70,12 +68,10 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
     usePresence(user);
 
     const checkUser = useCallback(async () => {
-        // Prevents execution during SSR/Prerender which crashes Vercel
         if (typeof window === 'undefined') return;
 
-        setIsLoading(true);
         try {
-            // 1. Fetch Application Configs (Global)
+            // 1. Fetch Application Configs
             try {
                 const [mainConfig, proofConfigDoc] = await Promise.all([
                     databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main').catch(() => null),
@@ -87,8 +83,7 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                 if (proofConfigDoc) {
                     if (proofConfigDoc.data && typeof proofConfigDoc.data === 'string') {
                         try {
-                            const parsed = JSON.parse(proofConfigDoc.data);
-                            setProof(parsed);
+                            setProof(JSON.parse(proofConfigDoc.data));
                         } catch (e) {
                             setProof(proofConfigDoc);
                         }
