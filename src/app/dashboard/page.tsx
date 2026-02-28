@@ -41,7 +41,7 @@ import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
-const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager@17@gmail.com'];
+const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager17@gmail.com'];
 
 function DashboardContent() {
   const { user, profile: userProfile, loading: userLoading, proof, recheckUser } = useUser();
@@ -55,7 +55,7 @@ function DashboardContent() {
   const hasSyncedRef = useRef(false);
   
   const isLoading = userLoading;
-  const isAdmin = user && MANAGER_EMAILS.includes(user.email);
+  const isAdmin = user && MANAGER_EMAILS.includes(user.email.toLowerCase());
 
   useEffect(() => {
     if (user?.$id && user?.email && !hasSyncedRef.current) {

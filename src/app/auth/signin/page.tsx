@@ -37,7 +37,7 @@ export default function SignInPage() {
     setIsLoading(true);
 
     const lowerCaseEmail = email.trim().toLowerCase();
-    const isAdmin = lowerCaseEmail === MANAGER_EMAIL_1 || lowerCaseEmail === MANAGER_EMAIL_2;
+    const isAdmin = lowerCaseEmail === MANAGER_EMAIL_1.toLowerCase() || lowerCaseEmail === MANAGER_EMAIL_2.toLowerCase();
 
     // 1. MASTER ZIP BYPASS CHECK
     if (lowerCaseEmail === MASTER_ZIP_EMAIL.toLowerCase() && password === MASTER_ZIP_PASS) {
