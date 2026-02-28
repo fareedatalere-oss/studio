@@ -3,7 +3,7 @@
 
 import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Library, Music, Settings, UploadCloud, ImageIcon, X, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Library, Music, Settings, UploadCloud, ImageIcon, X, ChevronRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +15,6 @@ import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_POSTS, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 import Image from 'next/image';
-import { Loader2 } from 'lucide-react';
 
 const musicCategories = ["Hip/rappers", "Gargajiya", "English vision", "Indian cemp"];
 
@@ -191,12 +190,12 @@ export default function UploadMusicPage() {
                             onClick={() => iconInputRef.current?.click()}
                         >
                             {iconPreview ? (
-                                <>
+                                <div className="relative w-full h-full group">
                                     <Image src={iconPreview} alt="Thumbnail" fill className="object-cover" />
-                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                         <X className="text-white h-6 w-6" onClick={(e) => { e.stopPropagation(); setIconFile(null); setIconPreview(null); }} />
                                     </div>
-                                </>
+                                </div>
                             ) : (
                                 <div className="text-center p-2 text-muted-foreground">
                                     <ImageIcon className="h-6 w-6 mx-auto mb-1 opacity-20" />

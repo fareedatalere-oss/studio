@@ -162,7 +162,6 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<any[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
-  const [isRotated, setIsRotated] = useState(false);
 
   useEffect(() => {
     const videoElement = videoRef.current;
@@ -180,7 +179,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
                 videoElement.pause();
             }
         },
-        { threshold: 0.1 } // Faster trigger
+        { threshold: 0.1 }
     );
 
     observer.observe(postElement);
@@ -329,25 +328,27 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
     } catch (error) { toast({ title: "Download Failed", variant: "destructive" }); }
   };
 
+  const isLongText = post.type === 'text' && post.text?.length > 200;
+
   return (
-    <div ref={postRef} className={cn("relative h-screen w-full bg-background flex flex-col justify-center snap-start shrink-0 overflow-hidden border-b", isRotated && "fixed inset-0 z-40 h-screen w-screen p-0 bg-black")}>
+    <div ref={postRef} className="relative h-screen w-full bg-background flex flex-col justify-center snap-start shrink-0 overflow-hidden border-b">
       <div className="absolute inset-0 flex items-center justify-center z-0">
         {post.type === 'text' && (
-          <div className={cn("h-full w-full flex flex-col items-center justify-center p-10 text-center overflow-y-auto", post.backgroundColor)}>
-            <div className="max-w-md w-full relative">
-                <Link href={`/dashboard/media/post/${post.$id}/text`}>
-                    <Button variant="ghost" size="icon" className="absolute -left-12 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full bg-white/10 hover:bg-white/30 text-white border border-white/20">
-                        <ChevronLeft className="h-8 w-8" />
-                    </Button>
-                </Link>
+          <div className={cn("h-full w-full flex flex-col items-center justify-center p-10 text-center", post.backgroundColor)}>
+            <div className="max-w-md w-full">
                 <h2 className={cn("text-2xl font-black leading-tight whitespace-pre-wrap drop-shadow-md", (post.backgroundColor === 'bg-white' || !post.backgroundColor) ? 'text-black' : 'text-white')}>
-                    {post.text}
+                    {isLongText ? post.text.substring(0, 200) : post.text}
+                    {isLongText && (
+                        <Link href={`/dashboard/media/post/${post.$id}/text`} className="inline-block ml-2 text-primary font-black hover:scale-110 transition-transform">
+                            {" > "}
+                        </Link>
+                    )}
                 </h2>
             </div>
           </div>
         )}
         {post.type === 'image' && post.mediaUrl && <Image src={post.mediaUrl} alt={post.description || 'image'} fill className="object-contain" priority />}
-        {(post.type === 'reels' || post.type === 'film') && post.mediaUrl && <video ref={videoRef} src={post.mediaUrl} controls loop playsInline preload="auto" muted={isMuted} className={cn("w-full h-full object-contain", isRotated && "object-cover")} />}
+        {(post.type === 'reels' || post.type === 'film') && post.mediaUrl && <video ref={videoRef} src={post.mediaUrl} controls loop playsInline preload="auto" muted={isMuted} className="w-full h-full object-cover" />}
         {post.type === 'music' && (
             <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full bg-muted/20">
                 <div className="relative h-64 w-64 mb-10 rounded-full overflow-hidden border-8 border-primary animate-spin-slow shadow-2xl">
@@ -361,8 +362,8 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
         )}
       </div>
       
-      {/* Sidebar UI remains consistent */}
-      <div className={cn("absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-start gap-6 p-2 z-20 transition-all", isRotated && "hidden")}>
+      {/* Sidebar UI - High z-index for touchability */}
+      <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-start gap-6 p-2 z-30">
             <div className="flex flex-col items-center gap-2">
                 <Avatar className="ring-2 ring-primary h-14 w-14 shadow-xl"><AvatarImage src={post.userAvatar} /><AvatarFallback className="bg-primary text-white font-black uppercase">{post.username?.charAt(0) || 'U'}</AvatarFallback></Avatar>
                 <p className="font-black text-xs text-foreground bg-background/50 px-2 py-1 rounded-full backdrop-blur-sm shadow-sm truncate max-w-[100px]">@{post.username}</p>
@@ -381,9 +382,19 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
                 </Button>
                 <span className="text-[10px] font-black text-foreground">{likeCount}</span>
             </div>
+            {post.type === 'text' && (
+                <div className="flex flex-col items-center gap-1">
+                    <Button asChild variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-primary/20 hover:bg-primary/40 text-primary shadow-xl border-2 border-primary/20">
+                        <Link href={`/dashboard/media/post/${post.$id}/text`}>
+                            <ChevronLeft className="h-8 w-8" />
+                        </Link>
+                    </Button>
+                    <span className="text-[10px] font-black text-foreground uppercase">View</span>
+                </div>
+            )}
       </div>
 
-       <div className={cn("absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-20", isRotated && "hidden")}>
+       <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-30">
             <div className="flex flex-col items-center gap-1">
                 <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 hover:bg-muted/60 text-foreground shadow-xl border-2 border-border/10" onClick={() => setShowComments(true)}><MessageCircle className="h-8 w-8" /></Button>
                 <span className="text-[10px] font-black text-foreground">{commentCount}</span>
@@ -399,7 +410,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
             {post.allowDownload && post.mediaUrl && <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 hover:bg-muted/60 text-foreground shadow-xl border-2 border-border/10" onClick={() => handleDownload(post.mediaUrl, post.description, post.type)}><Download className="h-8 w-8" /></Button>}
       </div>
 
-      <div className={cn("absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-background/80 via-background/40 to-transparent z-10", isRotated && "hidden")}>
+      <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-background/80 via-background/40 to-transparent z-10">
         <p className="text-sm font-bold text-foreground line-clamp-3 max-w-[75%] leading-tight">{post.description}</p>
         <p className="text-[10px] text-muted-foreground mt-1 uppercase font-black">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p>
       </div>
