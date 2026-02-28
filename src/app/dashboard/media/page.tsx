@@ -41,6 +41,8 @@ import {
   Search,
   Volume2,
   VolumeX,
+  ChevronRight,
+  ArrowLeft,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -388,31 +390,31 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
   const isTextTooLong = post.type === 'text' && post.text.length > TEXT_CHAR_LIMIT;
 
   return (
-    <div ref={postRef} className={cn("relative h-full w-full bg-background flex flex-col justify-center snap-start shrink-0 overflow-hidden border-b", isRotated && "fixed inset-0 z-40 h-screen w-screen p-0 bg-black")}>
+    <div ref={postRef} className={cn("relative h-screen w-full bg-background flex flex-col justify-center snap-start shrink-0 overflow-hidden border-b", isRotated && "fixed inset-0 z-40 h-screen w-screen p-0 bg-black")}>
       
       {/* Immersive Dark Layer for Non-Text Content */}
       {(post.type === 'image' || post.type === 'reels' || post.type === 'film') && !isRotated && (
-          <div className="absolute inset-0 bg-black/90 z-0" />
+          <div className="absolute inset-0 bg-black/95 z-0" />
       )}
 
       {/* Header Overlay */}
-       <div className={cn("absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/40 to-transparent z-20", isRotated && "hidden")}>
+       <div className={cn("absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent z-20 pt-12", isRotated && "hidden")}>
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <Avatar className="ring-2 ring-primary">
+                    <Avatar className="ring-2 ring-primary h-12 w-12">
                         <AvatarImage src={post.userAvatar} />
-                        <AvatarFallback className="bg-primary text-primary-foreground">{post.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                        <AvatarFallback className="bg-primary text-primary-foreground font-black uppercase">{post.username?.charAt(0) || 'U'}</AvatarFallback>
                     </Avatar>
-                    <div>
-                        <p className="font-bold text-sm text-white shadow-sm">@{post.username}</p>
-                        <p className="text-[10px] text-white/80 shadow-sm">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p>
+                    <div className="drop-shadow-lg">
+                        <p className="font-black text-base text-white">@{post.username}</p>
+                        <p className="text-[10px] text-white/90 font-bold uppercase tracking-tighter">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p>
                     </div>
                 </div>
                  {currentUser?.$id !== post.userId && (
                     <Button 
                         variant={isFollowing ? 'secondary' : 'default'}
                         size="sm" 
-                        className="h-8 rounded-full text-xs font-bold px-4 shadow-lg"
+                        className="h-10 rounded-full text-xs font-black uppercase px-6 shadow-2xl border border-white/20"
                         onClick={handleFollowToggle}
                         disabled={isLoadingFollow || !currentUser}
                     >
@@ -427,31 +429,16 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
         {post.type === 'text' && (
           <div className={cn("h-full w-full flex flex-col items-center justify-center p-10 text-center", post.backgroundColor)}>
             <div className="max-w-md w-full">
-                <h2 className={cn("text-2xl font-black leading-tight whitespace-pre-wrap", post.backgroundColor === 'bg-white' ? 'text-black' : 'text-white')}>
+                <h2 className={cn("text-2xl font-black leading-tight whitespace-pre-wrap drop-shadow-md", post.backgroundColor === 'bg-white' ? 'text-black' : 'text-white')}>
                     {isTextTooLong ? `${post.text.substring(0, TEXT_CHAR_LIMIT)}...` : post.text}
                 </h2>
                 {isTextTooLong && (
-                    <Dialog>
-                        <DialogTrigger asChild>
-                            <Button variant="outline" className="mt-6 rounded-full font-bold uppercase tracking-widest bg-white/10 hover:bg-white/20 border-white/30 text-white">
-                                View More
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                            <DialogHeader>
-                                <DialogTitle className="flex items-center gap-3">
-                                    <Avatar className="h-8 w-8">
-                                        <AvatarImage src={post.userAvatar} />
-                                        <AvatarFallback>{post.username?.charAt(0).toUpperCase()}</AvatarFallback>
-                                    </Avatar>
-                                    <span>Post by @{post.username}</span>
-                                </DialogTitle>
-                            </DialogHeader>
-                            <div className="py-6 whitespace-pre-wrap leading-relaxed text-lg">
-                                {post.text}
-                            </div>
-                        </DialogContent>
-                    </Dialog>
+                    <Link href={`/dashboard/media/post/${post.$id}/text`}>
+                        <Button variant="ghost" className="mt-8 rounded-full font-black uppercase tracking-widest bg-white/10 hover:bg-white/30 border-2 border-white/20 text-white h-14 px-8 text-lg flex items-center gap-2">
+                            <span>Read More</span>
+                            <ChevronRight className="h-6 w-6" />
+                        </Button>
+                    </Link>
                 )}
             </div>
           </div>
@@ -464,46 +451,46 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
         )}
         {post.type === 'music' && (
             <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full bg-muted/20">
-                <div className="relative h-48 w-48 mb-8 rounded-full overflow-hidden border-4 border-primary animate-spin-slow shadow-2xl">
+                <div className="relative h-64 w-64 mb-10 rounded-full overflow-hidden border-8 border-primary animate-spin-slow shadow-[0_0_50px_rgba(0,0,0,0.3)]">
                     <Image src="https://picsum.photos/seed/music/400/400" alt="vinyl" fill className="object-cover" />
                     <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                        <Music className="h-12 w-12 text-white" />
+                        <Music className="h-16 w-16 text-white" />
                     </div>
                 </div>
-                <h2 className="text-2xl font-bold">{post.description || 'Untitled Track'}</h2>
-                {post.mediaUrl && <audio ref={audioRef} onPlay={handleAudioPlay} controls src={post.mediaUrl} className="mt-8 w-full max-w-sm"></audio>}
+                <h2 className="text-3xl font-black uppercase tracking-tighter">{post.description || 'Untitled Track'}</h2>
+                {post.mediaUrl && <audio ref={audioRef} onPlay={handleAudioPlay} controls src={post.mediaUrl} className="mt-10 w-full max-w-sm"></audio>}
             </div>
         )}
       </div>
       
       {/* Right Action Sidebar */}
-       <div className={cn("absolute right-2 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-20", isRotated && "hidden")}>
+       <div className={cn("absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-8 p-2 z-20", isRotated && "hidden")}>
             <div className="flex flex-col items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/30 hover:bg-black/50 text-white shadow-lg" onClick={handleLike}>
-                    <Heart className={cn("h-8 w-8", isLiked && "fill-red-500 text-red-500")} />
+                <Button variant="ghost" size="icon" className="h-16 w-16 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={handleLike}>
+                    <Heart className={cn("h-10 w-10", isLiked && "fill-red-500 text-red-500")} />
                 </Button>
-                <span className="text-xs font-bold text-white shadow-sm">{likeCount}</span>
+                <span className="text-sm font-black text-white drop-shadow-md">{likeCount}</span>
             </div>
             
             <div className="flex flex-col items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/30 hover:bg-black/50 text-white shadow-lg" onClick={() => setShowComments(true)}>
-                    <MessageCircle className="h-8 w-8" />
+                <Button variant="ghost" size="icon" className="h-16 w-16 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={() => setShowComments(true)}>
+                    <MessageCircle className="h-10 w-10" />
                 </Button>
-                <span className="text-xs font-bold text-white shadow-sm">{commentCount}</span>
+                <span className="text-sm font-black text-white drop-shadow-md">{commentCount}</span>
             </div>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/30 hover:bg-black/50 text-white shadow-lg">
-                  <Share className="h-8 w-8" />
+                <Button variant="ghost" size="icon" className="h-16 w-16 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10">
+                  <Share className="h-10 w-10" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="bg-background">
-                <DropdownMenuItem onClick={handleCopyLink}>
+                <DropdownMenuItem onClick={handleCopyLink} className="font-bold uppercase text-xs">
                   <LinkIcon className="mr-2 h-4 w-4" />
                   <span>Copy Link</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleSendEmail}>
+                <DropdownMenuItem onClick={handleSendEmail} className="font-bold uppercase text-xs">
                   <Mail className="mr-2 h-4 w-4" />
                   <span>Send to Email</span>
                 </DropdownMenuItem>
@@ -512,46 +499,46 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
 
             {/* Sound Toggle */}
             {(post.type === 'reels' || post.type === 'film' || post.type === 'music') && (
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/30 hover:bg-black/50 text-white shadow-lg" onClick={toggleMute}>
-                    {isMuted ? <VolumeX className="h-8 w-8" /> : <Volume2 className="h-8 w-8" />}
+                <Button variant="ghost" size="icon" className="h-16 w-16 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={toggleMute}>
+                    {isMuted ? <VolumeX className="h-10 w-10" /> : <Volume2 className="h-10 w-10" />}
                 </Button>
             )}
 
             {post.allowDownload && post.mediaUrl && (
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/30 hover:bg-black/50 text-white shadow-lg" onClick={() => handleDownload(post.mediaUrl, post.description, post.type)}>
-                    <Download className="h-8 w-8" />
+                <Button variant="ghost" size="icon" className="h-16 w-16 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={() => handleDownload(post.mediaUrl, post.description, post.type)}>
+                    <Download className="h-10 w-10" />
                 </Button>
             )}
       </div>
 
         {post.type === 'film' && (
-        <Button variant="ghost" size="icon" className="h-12 w-12 text-white absolute left-4 bottom-24 z-20 bg-black/40 rounded-full hover:bg-black/60 shadow-lg" onClick={() => setIsRotated(!isRotated)}>
-            <RotateCw className="h-6 w-6" />
+        <Button variant="ghost" size="icon" className="h-14 w-14 text-white absolute left-6 bottom-24 z-20 bg-black/50 rounded-full hover:bg-black/70 shadow-2xl border border-white/20" onClick={() => setIsRotated(!isRotated)}>
+            <RotateCw className="h-8 w-8" />
         </Button>
         )}
 
       {/* Footer Info Overlay */}
-      <div className={cn("absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/60 to-transparent z-10", isRotated && "hidden")}>
-        <p className="text-sm font-medium text-white line-clamp-2 max-w-[80%] shadow-sm">{post.description}</p>
+      <div className={cn("absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/80 to-transparent z-10", isRotated && "hidden")}>
+        <p className="text-base font-bold text-white line-clamp-3 max-w-[75%] drop-shadow-md leading-tight">{post.description}</p>
       </div>
 
        <Sheet open={showComments} onOpenChange={setShowComments}>
-        <SheetContent side="bottom" className="h-[80vh] flex flex-col text-foreground rounded-t-3xl border-t-2 border-primary/20">
+        <SheetContent side="bottom" className="h-[80vh] flex flex-col text-foreground rounded-t-[2.5rem] border-t-4 border-primary shadow-2xl">
             <SheetHeader>
-            <SheetTitle className="text-center font-black uppercase text-sm tracking-widest border-b pb-4">Comments ({commentCount})</SheetTitle>
+            <SheetTitle className="text-center font-black uppercase text-sm tracking-[0.2em] border-b pb-6">Comments ({commentCount})</SheetTitle>
             </SheetHeader>
-            <div className="flex-1 overflow-y-auto space-y-4 p-4 scrollbar-hide">
+            <div className="flex-1 overflow-y-auto space-y-6 p-6 scrollbar-hide">
                 {commentsLoading ? (
                     <div className="flex justify-center items-center h-full">
-                        <Loader2 className="animate-spin text-primary" />
+                        <Loader2 className="animate-spin text-primary h-10 w-10" />
                     </div>
                 ) : comments.length > 0 ? (
                     comments.map(comment => <CommentItem key={comment.$id} comment={comment} />)
                 ) : (
-                    <p className="text-center text-muted-foreground py-10 italic">No comments yet. Be the first!</p>
+                    <p className="text-center text-muted-foreground py-16 italic font-medium">No comments yet. Be the first to share your thoughts!</p>
                 )}
             </div>
-            <div className="mt-auto p-4 border-t bg-background pb-8">
+            <div className="mt-auto p-6 border-t bg-background pb-10 shadow-inner">
                  <CommentInput postId={initialPost.$id} postOwnerId={initialPost.userId} onCommentPosted={onCommentPostedAction} />
             </div>
         </SheetContent>
@@ -563,9 +550,11 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
 const PostFeed = ({ posts, isMuted, onMuteChange }: { posts: any[]; isMuted: boolean; onMuteChange: (muted: boolean) => void; }) => {
   if (!posts || posts.length === 0) {
     return (
-        <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-4">
-            <Clapperboard className="h-12 w-12 opacity-20" />
-            <p className="font-bold uppercase text-xs tracking-widest">No posts found</p>
+        <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-6">
+            <div className="p-8 bg-muted rounded-full">
+                <Clapperboard className="h-16 w-16 opacity-30" />
+            </div>
+            <p className="font-black uppercase text-sm tracking-[0.3em]">No posts found</p>
         </div>
     );
   }
@@ -634,23 +623,29 @@ export default function MediaPage() {
     const getPostsForType = (type: string) => filteredPosts.filter(p => p.type === type);
 
   return (
-    <div className="relative h-[calc(100vh-130px)] bg-background overflow-hidden">
+    <div className="relative h-screen bg-background overflow-hidden">
+      
+      {/* Immersive Floating Home Button */}
+      <Button asChild variant="ghost" size="icon" className="fixed top-12 left-4 z-50 h-12 w-12 rounded-full bg-black/30 hover:bg-black/50 text-white border border-white/10 shadow-2xl backdrop-blur-sm">
+        <Link href="/dashboard"><Home className="h-6 w-6" /></Link>
+      </Button>
+
       <Tabs defaultValue="reels" className="h-full flex flex-col">
-        <header className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-background/90 to-transparent">
+        <header className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/60 via-black/30 to-transparent pt-12 pb-8">
           <div className="container px-0">
             <TabsList className="grid w-full grid-cols-5 bg-transparent h-12">
-              <TabsTrigger value="text" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[10px] uppercase">Text</TabsTrigger>
-              <TabsTrigger value="image" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[10px] uppercase">Image</TabsTrigger>
-              <TabsTrigger value="reels" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[10px] uppercase">Reels</TabsTrigger>
-              <TabsTrigger value="film" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[10px] uppercase">Film</TabsTrigger>
-              <TabsTrigger value="music" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[10px] uppercase">Music</TabsTrigger>
+              <TabsTrigger value="text" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-white/80">Text</TabsTrigger>
+              <TabsTrigger value="image" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-white/80">Image</TabsTrigger>
+              <TabsTrigger value="reels" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-white/80">Reels</TabsTrigger>
+              <TabsTrigger value="film" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-white/80">Film</TabsTrigger>
+              <TabsTrigger value="music" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider text-white/80">Music</TabsTrigger>
             </TabsList>
-             <div className="relative p-2 px-4 flex items-center gap-2">
+             <div className="relative p-2 px-6 flex items-center gap-2 mt-2">
                 <div className='relative flex-1'>
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60" />
                     <Input
                         placeholder="Search posts..."
-                        className="pl-9 h-8 bg-muted/50 border-none text-xs rounded-full focus-visible:ring-1 focus-visible:ring-primary"
+                        className="pl-10 h-10 bg-black/30 border-white/10 text-xs rounded-full focus-visible:ring-1 focus-visible:ring-primary text-white placeholder:text-white/40 backdrop-blur-md"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
@@ -659,9 +654,9 @@ export default function MediaPage() {
           </div>
         </header>
 
-        <div className="flex-1 h-full overflow-hidden pt-20">
+        <div className="flex-1 h-full overflow-hidden">
           {loading ? (
-             <div className="h-full w-full flex items-center justify-center"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>
+             <div className="h-full w-full flex items-center justify-center bg-black"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>
           ) : (
             <div className="h-full w-full">
               <TabsContent value="text" className="m-0 h-full"><PostFeed posts={getPostsForType('text')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
@@ -678,36 +673,36 @@ export default function MediaPage() {
         <SheetTrigger asChild>
            <Button
             size="icon"
-            className="fixed bottom-24 right-6 h-14 w-14 rounded-full z-50 shadow-2xl bg-primary hover:bg-primary/90 border-2 border-white/20"
+            className="fixed bottom-10 right-6 h-16 w-16 rounded-full z-50 shadow-[0_10px_40px_rgba(0,0,0,0.5)] bg-primary hover:bg-primary/90 border-4 border-white/20 animate-bounce-slow"
           >
-            <Plus className="h-7 w-7" />
+            <Plus className="h-8 w-8" />
             <span className="sr-only">Add Media</span>
           </Button>
         </SheetTrigger>
-        <SheetContent side="bottom" className="rounded-t-3xl pb-10">
+        <SheetContent side="bottom" className="rounded-t-[3rem] pb-12 shadow-2xl border-t-4 border-primary">
           <SheetHeader>
-            <SheetTitle className="text-center font-black uppercase text-sm tracking-widest pt-4">Create Post</SheetTitle>
+            <SheetTitle className="text-center font-black uppercase text-xs tracking-[0.4em] pt-6">Create Post</SheetTitle>
           </SheetHeader>
-          <div className="grid grid-cols-3 gap-4 py-8">
-            <Link href="/dashboard/media/upload/text" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all shadow-sm">
-              <Type className="h-6 w-6" />
-              <span className="text-[10px] font-bold uppercase">Text</span>
+          <div className="grid grid-cols-3 gap-6 py-10 px-4">
+            <Link href="/dashboard/media/upload/text" onClick={() => setOpen(false)} className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all shadow-md group">
+              <Type className="h-8 w-8 group-hover:scale-110 transition-transform" />
+              <span className="text-[10px] font-black uppercase tracking-tighter">Text</span>
             </Link>
-            <Link href="/dashboard/media/upload/image" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all shadow-sm">
-              <ImageIcon className="h-6 w-6" />
-              <span className="text-[10px] font-bold uppercase">Image</span>
+            <Link href="/dashboard/media/upload/image" onClick={() => setOpen(false)} className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all shadow-md group">
+              <ImageIcon className="h-8 w-8 group-hover:scale-110 transition-transform" />
+              <span className="text-[10px] font-black uppercase tracking-tighter">Image</span>
             </Link>
-            <Link href="/dashboard/media/upload/reels" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all shadow-sm">
-              <Clapperboard className="h-6 w-6" />
-              <span className="text-[10px] font-bold uppercase">Reels</span>
+            <Link href="/dashboard/media/upload/reels" onClick={() => setOpen(false)} className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all shadow-md group">
+              <Clapperboard className="h-8 w-8 group-hover:scale-110 transition-transform" />
+              <span className="text-[10px] font-black uppercase tracking-tighter">Reels</span>
             </Link>
-            <Link href="/dashboard/media/upload/film" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all shadow-sm">
-              <Film className="h-6 w-6" />
-              <span className="text-[10px] font-bold uppercase">Film</span>
+            <Link href="/dashboard/media/upload/film" onClick={() => setOpen(false)} className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all shadow-md group">
+              <Film className="h-8 w-8 group-hover:scale-110 transition-transform" />
+              <span className="text-[10px] font-black uppercase tracking-tighter">Film</span>
             </Link>
-             <Link href="/dashboard/media/upload/music" onClick={() => setOpen(false)} className="flex flex-col items-center gap-2 rounded-2xl p-4 bg-muted hover:bg-primary hover:text-white transition-all shadow-sm">
-              <Music className="h-6 w-6" />
-              <span className="text-[10px] font-bold uppercase">Music</span>
+             <Link href="/dashboard/media/upload/music" onClick={() => setOpen(false)} className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all shadow-md group">
+              <Music className="h-8 w-8 group-hover:scale-110 transition-transform" />
+              <span className="text-[10px] font-black uppercase tracking-tighter">Music</span>
             </Link>
           </div>
         </SheetContent>

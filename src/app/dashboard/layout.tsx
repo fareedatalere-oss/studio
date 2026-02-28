@@ -30,6 +30,9 @@ export default function DashboardLayout({
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
 
+  // Check if we should hide the global navigation for immersive sections
+  const isImmersive = pathname === '/dashboard/media' || pathname === '/dashboard/market';
+
   useEffect(() => {
     setIsMounted(true);
     const handleBeforeInstallPrompt = (e: any) => {
@@ -133,7 +136,7 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      {showInstallBanner && (
+      {showInstallBanner && !isImmersive && (
         <div className="bg-primary text-primary-foreground p-3 flex items-center justify-between shadow-lg sticky top-0 z-[60]">
           <div className="flex items-center gap-3">
             <IPayLogo className="h-8 w-8 rounded-md bg-white p-1" />
@@ -149,66 +152,70 @@ export default function DashboardLayout({
         </div>
       )}
 
-      <header className="sticky top-0 z-40 border-b bg-background shadow-sm">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard"><IPayLogo className="h-10 w-10" /></Link>
-            <Button asChild variant="ghost" size="icon" onClick={(e) => handleTabClick(e, 'feat_ai')}>
-              <Link href="/dashboard/ai-chat"><Bot className="h-5 w-5" /></Link>
-            </Button>
-          </div>
-          <div className="flex items-center gap-4">
-            <Button asChild variant="ghost" size="icon" className="relative">
-              <Link href="/dashboard/notifications">
-                <Bell className="h-5 w-5" />
-                 {unreadCount > 0 && (
-                  <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px] font-bold">
-                    {unreadCount > 99 ? '9+' : unreadCount}
-                  </Badge>
-                )}
+      {!isImmersive && (
+        <header className="sticky top-0 z-40 border-b bg-background shadow-sm">
+          <div className="container flex h-16 items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/dashboard"><IPayLogo className="h-10 w-10" /></Link>
+              <Button asChild variant="ghost" size="icon" onClick={(e) => handleTabClick(e, 'feat_ai')}>
+                <Link href="/dashboard/ai-chat"><Bot className="h-5 w-5" /></Link>
+              </Button>
+            </div>
+            <div className="flex items-center gap-4">
+              <Button asChild variant="ghost" size="icon" className="relative">
+                <Link href="/dashboard/notifications">
+                  <Bell className="h-5 w-5" />
+                   {unreadCount > 0 && (
+                    <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px] font-bold">
+                      {unreadCount > 99 ? '9+' : unreadCount}
+                    </Badge>
+                  )}
+                </Link>
+              </Button>
+              <Link href="/dashboard/profile" onClick={(e) => handleTabClick(e, 'tab_profile')}>
+                <Avatar className="border-2 border-transparent hover:border-primary">
+                  <AvatarImage src={profile?.avatar} />
+                  <AvatarFallback>{isMounted && !loading ? (profile?.username?.charAt(0).toUpperCase() || 'U') : null}</AvatarFallback>
+                </Avatar>
               </Link>
-            </Button>
-            <Link href="/dashboard/profile" onClick={(e) => handleTabClick(e, 'tab_profile')}>
-              <Avatar className="border-2 border-transparent hover:border-primary">
-                <AvatarImage src={profile?.avatar} />
-                <AvatarFallback>{isMounted && !loading ? (profile?.username?.charAt(0).toUpperCase() || 'U') : null}</AvatarFallback>
-              </Avatar>
+            </div>
+          </div>
+        </header>
+      )}
+      
+      <main className={cn("flex-1", !isImmersive && "pb-20 md:pb-0")}>{children}</main>
+
+      {!isImmersive && (
+        <footer className="fixed bottom-0 z-40 w-full border-t bg-background md:hidden">
+          <div className="container grid h-16 grid-cols-5 items-center justify-around text-center">
+            <Link href="/dashboard" onClick={(e) => handleTabClick(e, 'tab_home')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard' ? "text-primary font-bold" : "text-muted-foreground")}>
+              <Home className="h-6 w-6" />
+              <span className="text-[10px]">Home</span>
+            </Link>
+            <Link href="/dashboard/chat" onClick={(e) => handleTabClick(e, 'tab_chat')} className={cn("flex flex-col items-center gap-1 relative", pathname.startsWith('/dashboard/chat') ? "text-primary font-bold" : "text-muted-foreground")}>
+              <MessageSquare className="h-6 w-6" />
+              {unreadMsgCount > 0 && (
+                <Badge variant="destructive" className="absolute -top-1 right-2 h-4 min-w-4 justify-center p-0.5 rounded-full text-[10px] font-bold">
+                  {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
+                </Badge>
+              )}
+              <span className="text-[10px]">Chat</span>
+            </Link>
+            <Link href="/dashboard/media" onClick={(e) => handleTabClick(e, 'tab_media')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/media' ? "text-primary font-bold" : "text-muted-foreground")}>
+              <PlaySquare className="h-6 w-6" />
+              <span className="text-[10px]">Media</span>
+            </Link>
+            <Link href="/dashboard/market" onClick={(e) => handleTabClick(e, 'tab_market')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/market' ? "text-primary font-bold" : "text-muted-foreground")}>
+              <Store className="h-6 w-6" />
+              <span className="text-[10px]">Market</span>
+            </Link>
+            <Link href="/dashboard/profile" onClick={(e) => handleTabClick(e, 'tab_profile')} className={cn("flex flex-col items-center gap-1", pathname.startsWith('/dashboard/profile') ? "text-primary font-bold" : "text-muted-foreground")}>
+              <User className="h-6 w-6" />
+              <span className="text-[10px]">Profile</span>
             </Link>
           </div>
-        </div>
-      </header>
-      
-      <main className="flex-1 pb-20 md:pb-0">{children}</main>
-
-      <footer className="fixed bottom-0 z-40 w-full border-t bg-background md:hidden">
-        <div className="container grid h-16 grid-cols-5 items-center justify-around text-center">
-          <Link href="/dashboard" onClick={(e) => handleTabClick(e, 'tab_home')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard' ? "text-primary font-bold" : "text-muted-foreground")}>
-            <Home className="h-6 w-6" />
-            <span className="text-[10px]">Home</span>
-          </Link>
-          <Link href="/dashboard/chat" onClick={(e) => handleTabClick(e, 'tab_chat')} className={cn("flex flex-col items-center gap-1 relative", pathname.startsWith('/dashboard/chat') ? "text-primary font-bold" : "text-muted-foreground")}>
-            <MessageSquare className="h-6 w-6" />
-            {unreadMsgCount > 0 && (
-              <Badge variant="destructive" className="absolute -top-1 right-2 h-4 min-w-4 justify-center p-0.5 rounded-full text-[10px] font-bold">
-                {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
-              </Badge>
-            )}
-            <span className="text-[10px]">Chat</span>
-          </Link>
-          <Link href="/dashboard/media" onClick={(e) => handleTabClick(e, 'tab_media')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/media' ? "text-primary font-bold" : "text-muted-foreground")}>
-            <PlaySquare className="h-6 w-6" />
-            <span className="text-[10px]">Media</span>
-          </Link>
-          <Link href="/dashboard/market" onClick={(e) => handleTabClick(e, 'tab_market')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/market' ? "text-primary font-bold" : "text-muted-foreground")}>
-            <Store className="h-6 w-6" />
-            <span className="text-[10px]">Market</span>
-          </Link>
-          <Link href="/dashboard/profile" onClick={(e) => handleTabClick(e, 'tab_profile')} className={cn("flex flex-col items-center gap-1", pathname.startsWith('/dashboard/profile') ? "text-primary font-bold" : "text-muted-foreground")}>
-            <User className="h-6 w-6" />
-            <span className="text-[10px]">Profile</span>
-          </Link>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }
