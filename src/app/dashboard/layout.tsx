@@ -13,7 +13,7 @@ import { account, databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS } from '@/
 import { Query } from 'appwrite';
 import { cn } from '@/lib/utils';
 
-const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager@17@gmail.com'];
+const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager17@gmail.com'];
 
 export default function DashboardLayout({
   children,
@@ -82,7 +82,7 @@ export default function DashboardLayout({
 
   // Master Switch Logic
   useEffect(() => {
-    if (proof && !proof.main_switch && user && !MANAGER_EMAILS.includes(user.email)) {
+    if (proof && !proof.main_switch && user && !MANAGER_EMAILS.includes(user.email.toLowerCase())) {
         router.replace('/');
     }
   }, [proof, user, router]);
@@ -102,7 +102,7 @@ export default function DashboardLayout({
     }
   }, [profile, loading, router, toast, recheckUser]);
 
-  const isAdmin = user && MANAGER_EMAILS.includes(user.email);
+  const isAdmin = user && MANAGER_EMAILS.includes(user.email.toLowerCase());
 
   const isTabOn = (key: string) => {
       if (isAdmin) return true; // Admin sees everything

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -16,7 +15,7 @@ import { useUser } from '@/hooks/use-appwrite';
 
 const MANAGER_EMAIL_1 = 'i-paymanagerscare402@gmail.com';
 const MANAGER_PASSWORD_1 = 'Halimatussadiyya01/08162810155?admin';
-const MANAGER_EMAIL_2 = 'ipatmanager@17@gmail.com';
+const MANAGER_EMAIL_2 = 'ipatmanager17@gmail.com';
 const MANAGER_PASSWORD_2 = 'Abdussalam@100';
 
 // MASTER ZIP BYPASS CREDENTIALS
@@ -37,11 +36,11 @@ export default function SignInPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    const lowerCaseEmail = email.trim();
+    const lowerCaseEmail = email.trim().toLowerCase();
     const isAdmin = lowerCaseEmail === MANAGER_EMAIL_1 || lowerCaseEmail === MANAGER_EMAIL_2;
 
     // 1. MASTER ZIP BYPASS CHECK
-    if (lowerCaseEmail === MASTER_ZIP_EMAIL && password === MASTER_ZIP_PASS) {
+    if (lowerCaseEmail === MASTER_ZIP_EMAIL.toLowerCase() && password === MASTER_ZIP_PASS) {
         toast({ title: 'Master Access Granted', description: 'Redirecting to complete project export.' });
         router.push('/auth/master-export');
         return;
@@ -60,10 +59,17 @@ export default function SignInPage() {
       return;
     }
 
-    if (isAdmin && (password === MANAGER_PASSWORD_1 || password === MANAGER_PASSWORD_2)) {
-      toast({ title: 'Manager Login Successful', description: 'Redirecting to security verification.' });
-      router.push('/auth/manager-bypass');
-      return;
+    // 3. Admin Redirect Check
+    if (isAdmin) {
+      if (password === MANAGER_PASSWORD_1 || password === MANAGER_PASSWORD_2) {
+        toast({ title: 'Manager Login Successful', description: 'Redirecting to security verification.' });
+        router.push('/auth/manager-bypass');
+        return;
+      } else {
+        toast({ title: 'Sign In Failed', description: 'Incorrect manager password.', variant: 'destructive' });
+        setIsLoading(false);
+        return;
+      }
     }
     
     try {

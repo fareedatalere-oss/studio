@@ -13,7 +13,7 @@ import { account } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 import { useUser } from '@/hooks/use-appwrite';
 
-const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager@17@gmail.com'];
+const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager17@gmail.com'];
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -65,7 +65,7 @@ export default function SignUpPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-md">
         <CardHeader className="text-center">
           <IPayLogo className="mx-auto h-12 w-12" />
           <CardTitle className="mt-4 text-2xl font-bold">Create an Account</CardTitle>
