@@ -1,13 +1,12 @@
-
 'use client';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Heart, MessageCircle, UserPlus, Store, CreditCard, Loader2 } from "lucide-react";
+import { Bell, Heart, MessageCircle, UserPlus, Store, CreditCard, Loader2, ShieldCheck } from "lucide-react";
 import { useUser } from '@/hooks/use-appwrite';
 import { useEffect, useState, useCallback } from "react";
 import { formatDistanceToNow } from 'date-fns';
 import { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_PROFILES } from "@/lib/appwrite";
-import { Query, ID } from "appwrite";
+import { Query } from "appwrite";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
@@ -22,8 +21,6 @@ export default function NotificationsPage() {
         if (!user) return;
         setLoading(true);
         try {
-            // Fetch notifications for the user. We limit to 50 and use simple sorting if possible.
-            // If this fails due to missing index, we catch and show a helpful error.
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_ID_NOTIFICATIONS,
@@ -34,9 +31,10 @@ export default function NotificationsPage() {
                 ]
             );
 
-            // Fetch profile data for all senders to show avatars and usernames
             const notificationsWithProfiles = await Promise.all(response.documents.map(async (notif) => {
-                if (!notif.senderId) return { ...notif, sender: { username: 'System', avatar: '' } };
+                if (notif.type === 'system' || !notif.senderId) {
+                    return { ...notif, sender: { username: 'I-Pay Admin', avatar: '' } };
+                }
                 try {
                     const senderProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, notif.senderId);
                     return { ...notif, sender: senderProfile };
@@ -56,7 +54,6 @@ export default function NotificationsPage() {
             }
         } catch (error: any) {
             console.error("Failed to fetch notifications:", error);
-            // Fallback for missing indexes or other errors
             try {
                  const fallbackResponse = await databases.listDocuments(
                     DATABASE_ID,
@@ -68,7 +65,7 @@ export default function NotificationsPage() {
                 toast({
                     variant: 'destructive',
                     title: 'Sync Error',
-                    description: 'Could not load alerts. Please check your internet connection.',
+                    description: 'Could not load alerts.',
                 });
             }
         } finally {
@@ -82,6 +79,7 @@ export default function NotificationsPage() {
     
     const NotificationIcon = ({ type }: { type: string }) => {
         switch(type) {
+            case 'system': return <ShieldCheck className="h-5 w-5 text-primary" />;
             case 'like': return <Heart className="h-5 w-5 text-red-500" />;
             case 'comment': return <MessageCircle className="h-5 w-5 text-blue-500" />;
             case 'message': return <MessageCircle className="h-5 w-5 text-primary" />;
@@ -121,9 +119,9 @@ export default function NotificationsPage() {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm">
-                                                <span className="font-semibold text-foreground">@{notif.sender?.username || 'User'}</span>
+                                                <span className="font-semibold text-foreground">@{notif.sender?.username || 'System'}</span>
                                                 {' '}
-                                                <span className="text-muted-foreground">{notif.description}</span>
+                                                <span className="text-muted-foreground">{notif.title ? `${notif.title}: ` : ''}{notif.description}</span>
                                             </p>
                                             <p className="text-[10px] text-muted-foreground mt-1 uppercase">
                                                 {formatDistanceToNow(new Date(notif.$createdAt), { addSuffix: true })}
@@ -131,7 +129,7 @@ export default function NotificationsPage() {
                                         </div>
                                         <Avatar className="h-10 w-10 border">
                                             <AvatarImage src={notif.sender?.avatar} />
-                                            <AvatarFallback>{notif.sender?.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                                            <AvatarFallback>{notif.type === 'system' ? 'A' : (notif.sender?.username?.charAt(0).toUpperCase())}</AvatarFallback>
                                         </Avatar>
                                     </div>
                                 </Link>

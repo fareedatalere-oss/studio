@@ -10,7 +10,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { account, databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { Query, ID } from 'appwrite';
 import { cn } from '@/lib/utils';
 
 const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager17@gmail.com'];
@@ -83,9 +83,36 @@ export default function DashboardLayout({
     }
   }, [user]);
 
+  // Logic to "Force" a system update notification to the bell
+  const checkSystemUpdate = useCallback(async () => {
+    if (!user) return;
+    const UPDATE_ID = 'ipay_system_update_v1_1'; // Unique key for this specific update
+    if (typeof window !== 'undefined') {
+        const hasSeen = localStorage.getItem(UPDATE_ID);
+        if (!hasSeen) {
+            try {
+                await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
+                    userId: user.$id,
+                    type: 'system',
+                    title: 'System Updated!',
+                    description: 'New Logo Applied, PWA Native Support enabled, and Admin Login fixed. Please install the app for the best experience!',
+                    isRead: false,
+                    createdAt: new Date().toISOString(),
+                    link: '/dashboard/notifications'
+                });
+                localStorage.setItem(UPDATE_ID, 'true');
+                fetchUnreadCounts();
+            } catch (e) {
+                console.log("Update notification already exists or failed to create");
+            }
+        }
+    }
+  }, [user, fetchUnreadCounts]);
+
   useEffect(() => {
     if (user) {
       fetchUnreadCounts();
+      checkSystemUpdate();
 
       const unsubscribe = account.client.subscribe(
         [`databases.${DATABASE_ID}.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`],
@@ -99,7 +126,7 @@ export default function DashboardLayout({
 
       return () => unsubscribe();
     }
-  }, [user, fetchUnreadCounts]);
+  }, [user, fetchUnreadCounts, checkSystemUpdate]);
 
   // Master Switch Logic
   useEffect(() => {
