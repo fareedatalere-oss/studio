@@ -30,8 +30,8 @@ export default function DashboardLayout({
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
 
-  // Check if we should hide the global navigation for immersive sections
-  const isImmersive = pathname === '/dashboard/media' || pathname === '/dashboard/market';
+  // Immersive sections now only include Media to restore global nav for Market
+  const isImmersive = pathname === '/dashboard/media';
 
   useEffect(() => {
     setIsMounted(true);
@@ -80,7 +80,7 @@ export default function DashboardLayout({
 
   const checkSystemUpdate = useCallback(async () => {
     if (!user) return;
-    const UPDATE_ID = 'ipay_system_update_v1_3';
+    const UPDATE_ID = 'ipay_system_update_v1_4';
     if (typeof window !== 'undefined') {
         const hasSeen = localStorage.getItem(UPDATE_ID);
         if (!hasSeen) {
@@ -88,8 +88,8 @@ export default function DashboardLayout({
                 await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
                     userId: user.$id,
                     type: 'system',
-                    title: 'System Updated!',
-                    description: 'Real-time notifications and User status fixed. Experience the smoother I-Pay!',
+                    title: 'Interface Fixed!',
+                    description: 'Global navigation restored for Market. Media interactions moved to the right for easier access. Real-time status logic updated.',
                     isRead: false,
                     createdAt: new Date().toISOString(),
                     link: '/dashboard/notifications'
@@ -108,6 +108,7 @@ export default function DashboardLayout({
 
       const topic = `databases.${DATABASE_ID}.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`;
       const unsubscribe = client.subscribe([topic], (response) => {
+          if (!response.events?.some(e => e.includes('.create'))) return;
           const payload = response.payload as any;
           if (payload.userId === user.$id) {
             fetchUnreadCounts();

@@ -33,16 +33,17 @@ const PresenceIndicator = ({ userId }: { userId: string }) => {
         const fetchPresence = async () => {
              try {
                 const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
-                if (isMounted && doc) setPresence({ isOnline: doc.isOnline, lastSeen: doc.lastSeen });
+                if (isMounted && doc) setPresence({ isOnline: !!doc.isOnline, lastSeen: doc.lastSeen });
             } catch (e) {}
         };
         fetchPresence();
 
+        // Robust Real-time subscription for status
         const topic = `databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${userId}`;
         const unsubscribe = client.subscribe([topic], (response) => {
-            if (isMounted && response.payload && response.events?.some(e => e.includes('.update'))) {
+            if (isMounted && response.payload) {
                 const updated = response.payload as any;
-                setPresence({ isOnline: updated.isOnline, lastSeen: updated.lastSeen });
+                setPresence({ isOnline: !!updated.isOnline, lastSeen: updated.lastSeen });
             }
         });
 
@@ -117,7 +118,7 @@ export default function ChatThreadPage() {
     const [recordingTime, setRecordingTime] = useState(0);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
-    const audioChunksRef = useRef<Blob[]>([]);
+    audioChunksRef = useRef<Blob[]>([]);
     
     const [messageToForward, setMessageToForward] = useState<Models.Document | null>(null);
     const [recentChats, setRecentChats] = useState<any[]>([]);

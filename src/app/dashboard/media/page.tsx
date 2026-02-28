@@ -44,6 +44,8 @@ import {
   ChevronRight,
   ArrowLeft,
   Home,
+  UserPlus,
+  UserCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -411,17 +413,6 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
                         <p className="text-[10px] text-white/90 font-bold uppercase tracking-tighter">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p>
                     </div>
                 </div>
-                 {currentUser?.$id !== post.userId && (
-                    <Button 
-                        variant={isFollowing ? 'secondary' : 'default'}
-                        size="sm" 
-                        className="h-10 rounded-full text-xs font-black uppercase px-6 shadow-2xl border border-white/20"
-                        onClick={handleFollowToggle}
-                        disabled={isLoadingFollow || !currentUser}
-                    >
-                        {isLoadingFollow ? <Loader2 className="animate-spin h-3 w-3" /> : isFollowing ? 'Unfollow' : 'Follow'}
-                    </Button>
-                 )}
             </div>
       </div>
 
@@ -465,25 +456,42 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
       </div>
       
       {/* Right Action Sidebar */}
-       <div className={cn("absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-8 p-2 z-20", isRotated && "hidden")}>
+       <div className={cn("absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-20", isRotated && "hidden")}>
+            
+            {/* Follow Button - Moved to Right Sidebar */}
+            {currentUser?.$id !== post.userId && (
+                <div className="flex flex-col items-center gap-1">
+                    <Button 
+                        variant={isFollowing ? 'secondary' : 'default'} 
+                        size="icon" 
+                        className={cn("h-14 w-14 rounded-full shadow-2xl border-2 border-white/10 transition-all", isFollowing ? 'bg-green-500/80 text-white' : 'bg-primary text-white')}
+                        onClick={handleFollowToggle}
+                        disabled={isLoadingFollow || !currentUser}
+                    >
+                        {isLoadingFollow ? <Loader2 className="animate-spin h-6 w-6" /> : isFollowing ? <UserCheck className="h-8 w-8" /> : <UserPlus className="h-8 w-8" />}
+                    </Button>
+                    <span className="text-[10px] font-black text-white uppercase drop-shadow-md">{isFollowing ? 'Joined' : 'Follow'}</span>
+                </div>
+            )}
+
             <div className="flex flex-col items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-16 w-16 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={handleLike}>
-                    <Heart className={cn("h-10 w-10", isLiked && "fill-red-500 text-red-500")} />
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={handleLike}>
+                    <Heart className={cn("h-8 w-8", isLiked && "fill-red-500 text-red-500")} />
                 </Button>
-                <span className="text-sm font-black text-white drop-shadow-md">{likeCount}</span>
+                <span className="text-[10px] font-black text-white drop-shadow-md">{likeCount}</span>
             </div>
             
             <div className="flex flex-col items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-16 w-16 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={() => setShowComments(true)}>
-                    <MessageCircle className="h-10 w-10" />
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={() => setShowComments(true)}>
+                    <MessageCircle className="h-8 w-8" />
                 </Button>
-                <span className="text-sm font-black text-white drop-shadow-md">{commentCount}</span>
+                <span className="text-[10px] font-black text-white drop-shadow-md">{commentCount}</span>
             </div>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-16 w-16 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10">
-                  <Share className="h-10 w-10" />
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10">
+                  <Share className="h-8 w-8" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="bg-background">
@@ -500,14 +508,14 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
 
             {/* Sound Toggle */}
             {(post.type === 'reels' || post.type === 'film' || post.type === 'music') && (
-                <Button variant="ghost" size="icon" className="h-16 w-16 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={toggleMute}>
-                    {isMuted ? <VolumeX className="h-10 w-10" /> : <Volume2 className="h-10 w-10" />}
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={toggleMute}>
+                    {isMuted ? <VolumeX className="h-8 w-8" /> : <Volume2 className="h-8 w-8" />}
                 </Button>
             )}
 
             {post.allowDownload && post.mediaUrl && (
-                <Button variant="ghost" size="icon" className="h-16 w-16 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={() => handleDownload(post.mediaUrl, post.description, post.type)}>
-                    <Download className="h-10 w-10" />
+                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-black/40 hover:bg-black/60 text-white shadow-2xl border-2 border-white/10" onClick={() => handleDownload(post.mediaUrl, post.description, post.type)}>
+                    <Download className="h-8 w-8" />
                 </Button>
             )}
       </div>
