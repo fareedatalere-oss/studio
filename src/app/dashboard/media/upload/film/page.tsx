@@ -18,7 +18,7 @@ import { ID } from 'appwrite';
 
 const filmCategories = [
     "Hausa films", 
-    "Indian hausa vision", 
+    "Indian hausa version", 
     "American film", 
     "traditional film", 
     "Nigerian film", 

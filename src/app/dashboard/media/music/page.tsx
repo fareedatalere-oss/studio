@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -19,7 +20,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import Link from 'next/link';
 import { PostCard } from '@/components/media-post-card';
 
-const categories = ["all", "Traditional song", "English vision", "Indian cemp", "Hip/rappers"];
+const categories = ["all", "Traditional song", "English version", "Indian cemp", "Hip/rappers"];
 
 export default function MusicLibraryPage() {
     const router = useRouter();

@@ -16,7 +16,7 @@ import { PostCard } from '@/components/media-post-card';
 const filmCategories = [
     "all",
     "Hausa films", 
-    "Indian hausa vision", 
+    "Indian hausa version", 
     "American film", 
     "traditional film", 
     "Nigerian film", 

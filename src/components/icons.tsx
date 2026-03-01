@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { SVGProps } from "react";
@@ -7,46 +8,45 @@ import { Skeleton } from "./ui/skeleton";
 
 /**
  * @fileOverview I-Pay Master Logo Component.
- * Optimized to prioritize the new colorful logo from Appwrite or a high-quality fallback.
+ * Optimized to match the new branding: A rounded square rainbow border with specific text.
  */
 
 export function IPayLogo(props: SVGProps<SVGSVGElement>) {
   const { config, loading } = useUser();
 
   if (loading) {
-    return <Skeleton className="h-8 w-8 rounded-md" {...props} />;
+    return <Skeleton className="h-10 w-10 rounded-xl" {...props} />;
   }
 
-  // Priority 1: Use Logo from Appwrite Config (Master Fahad's online logo)
   if (config?.logoUrl) {
-    const width = props.width || 32;
-    const height = props.height || 32;
+    const width = props.width || 40;
+    const height = props.height || 40;
     return (
       <Image
         src={config.logoUrl}
         alt="I-Pay Logo"
         width={Number(width)}
         height={Number(height)}
-        className={props.className?.toString() || "rounded-lg shadow-sm"}
+        className={props.className?.toString() || "rounded-xl shadow-md"}
         unoptimized 
       />
     );
   }
 
-  // Priority 2: Fallback to a high-quality placeholder representing the new logo
+  // Visual implementation of the user provided logo image
   return (
     <div 
-        className={props.className?.toString() || "h-10 w-10 rounded-xl flex items-center justify-center text-white font-bold relative overflow-hidden"}
+        className={props.className?.toString() || "h-12 w-12 rounded-2xl flex items-center justify-center text-white font-bold relative overflow-hidden shadow-2xl"}
         style={{ 
             width: props.width, 
             height: props.height,
-            background: 'linear-gradient(45deg, #f06, #4a90e2, #9b59b6, #f1c40f)',
-            padding: '2px'
+            background: 'linear-gradient(45deg, #facc15, #22c55e, #3b82f6, #a855f7, #ec4899)',
+            padding: '3px'
         }}
     >
-        <div className="bg-[#001f3f] w-full h-full rounded-[9px] flex items-center justify-center flex-col leading-none">
-            <span className="text-[10px] font-black tracking-tighter">I-pay</span>
-            <span className="text-[4px] uppercase opacity-70">online</span>
+        <div className="bg-[#001f3f] w-full h-full rounded-[11px] flex items-center justify-center flex-col leading-[0.8] p-1">
+            <span className="text-[12px] font-black tracking-tight">I-pay</span>
+            <span className="text-[4px] uppercase opacity-80 font-bold mt-1 text-center leading-tight">new world<br/>of online</span>
         </div>
     </div>
   );

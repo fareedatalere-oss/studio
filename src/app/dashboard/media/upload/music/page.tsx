@@ -16,7 +16,7 @@ import { databases, DATABASE_ID, COLLECTION_ID_POSTS, storage, BUCKET_ID_UPLOADS
 import { ID } from 'appwrite';
 import Image from 'next/image';
 
-const musicCategories = ["Hip/rappers", "Traditional song", "English vision", "Indian cemp"];
+const musicCategories = ["Hip/rappers", "Traditional song", "English version", "Indian cemp"];
 
 export default function UploadMusicPage() {
   const { toast } = useToast();
