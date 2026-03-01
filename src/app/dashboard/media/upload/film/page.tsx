@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, UploadCloud, Camera } from 'lucide-react';
+import { ArrowLeft, UploadCloud, Camera, ChevronRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,12 +16,22 @@ import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_POSTS, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 
+const filmCategories = [
+    "Hausa films", 
+    "Indian hausa vision", 
+    "American film", 
+    "traditional film", 
+    "Nigerian film", 
+    "hausa season films"
+];
 
 export default function UploadFilmPage() {
   const { toast } = useToast();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  
+  const [step, setStep] = useState(0); // 0: Select Category, 1: Upload
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [description, setDescription] = useState('');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [allowComments, setAllowComments] = useState(true);
@@ -32,30 +43,13 @@ export default function UploadFilmPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      video.onloadedmetadata = () => {
-        window.URL.revokeObjectURL(video.src);
-        if (video.duration < 1800) { // 30 minutes * 60 seconds
-          toast({
-              variant: 'destructive',
-              title: 'Video Too Short',
-              description: 'Films must be at least 30 minutes long.',
-          });
-          setVideoFile(null);
-          e.target.value = ''; // Reset file input
-        } else {
-           setVideoFile(file);
-        }
-      };
-      video.src = URL.createObjectURL(file);
+      setVideoFile(file);
     }
   };
 
   const handlePost = async () => {
-    if (!videoFile || !authUser || !userProfile) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Missing file or user data.' });
+    if (!videoFile || !authUser || !userProfile || !selectedCategory) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Missing information.' });
         return;
     }
     setIsPosting(true);
@@ -65,104 +59,114 @@ export default function UploadFilmPage() {
         const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), videoFile);
         const mediaUrl = getAppwriteStorageUrl(uploadResult.$id);
 
+        // Safe Metadata Encoding: CAT:Category|Description
+        const encodedDescription = `CAT:${selectedCategory}|${description}`;
+
         const newPost = {
             userId: authUser.$id,
             username: userProfile.username,
             userAvatar: userProfile.avatar,
             type: 'film',
             mediaUrl: mediaUrl,
-            description: description,
+            description: encodedDescription,
             allowComments: allowComments,
             allowDownload: allowDownload,
             likes: [],
             commentCount: 0,
         };
         await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
-        toast({
-            title: 'Film Uploaded!',
-            description: 'Your film is now live.',
-        });
+        toast({ title: 'Film Uploaded!', description: 'Your film is now live.' });
         router.push('/dashboard/media');
-
     } catch (error: any) {
-        console.error("Post creation failed:", error);
-        toast({ title: 'Post Failed', description: error.message || 'Could not upload your film.', variant: 'destructive' });
+        toast({ title: 'Post Failed', description: error.message, variant: 'destructive' });
         setIsPosting(false);
     }
   };
 
+  if (step === 0) {
+      return (
+        <div className="container py-8">
+            <Link href="/dashboard/media" className="flex items-center gap-2 mb-4 text-sm font-black uppercase">
+                <ArrowLeft className="h-4 w-4" /> Back to Media
+            </Link>
+            <Card className="w-full max-w-lg mx-auto shadow-xl border-t-4 border-t-primary">
+                <CardHeader className="text-center">
+                    <CardTitle className="text-2xl font-black uppercase tracking-tighter">Choose Film Category</CardTitle>
+                    <CardDescription>Select the type of film you are uploading</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-3">
+                    {filmCategories.map((cat) => (
+                        <Button 
+                            key={cat} 
+                            onClick={() => { setSelectedCategory(cat); setStep(1); }}
+                            variant="outline" 
+                            className="h-16 justify-between text-lg font-bold uppercase tracking-tight group hover:bg-primary hover:text-white"
+                        >
+                            {cat}
+                            <ChevronRight className="h-5 w-5 opacity-30 group-hover:opacity-100" />
+                        </Button>
+                    ))}
+                </CardContent>
+            </Card>
+        </div>
+      );
+  }
+
   return (
     <div className="container py-8">
-      <Link href="/dashboard/media" className="flex items-center gap-2 mb-4 text-sm">
-        <ArrowLeft className="h-4 w-4" />
-        Back to Media
-      </Link>
-      <Card className="w-full max-w-lg mx-auto">
+      <Button onClick={() => setStep(0)} variant="ghost" className="mb-4 font-black uppercase text-xs">
+        <ArrowLeft className="mr-2 h-4 w-4" /> Change Category ({selectedCategory})
+      </Button>
+      <Card className="w-full max-w-lg mx-auto shadow-xl border-t-4 border-t-primary">
         <CardHeader>
-          <CardTitle>Upload a Film</CardTitle>
-          <CardDescription>Share your movie (30+ minutes).</CardDescription>
+          <CardTitle className="text-2xl font-black uppercase tracking-tighter">Upload {selectedCategory}</CardTitle>
+          <CardDescription>Share your movie with the community.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {videoFile ? (
-            <div className='space-y-4'>
-                <div className="border p-4 rounded-md">
-                    <p className="font-semibold">{videoFile.name}</p>
-                    <p className="text-sm text-muted-foreground">{(videoFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                    {isPosting && <Progress value={undefined} className="mt-2" />}
+        <CardContent className="space-y-6">
+          {!videoFile ? (
+            <div className="space-y-4">
+                <Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full h-16 font-bold uppercase">
+                    <UploadCloud className="mr-2 h-6 w-6" /> Select Video File
+                </Button>
+                <p className="text-xs text-muted-foreground text-center">Supported formats: MP4, MOV, AVI</p>
+            </div>
+          ) : (
+            <div className='space-y-6'>
+                <div className="bg-muted/30 p-4 rounded-2xl border">
+                    <p className="font-bold text-sm truncate">{videoFile.name}</p>
+                    <p className="text-[10px] uppercase font-black opacity-50">{(videoFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                    {isPosting && <Progress className="mt-4" />}
                 </div>
-                <Textarea
-                    placeholder="Add a film synopsis or description..."
-                    rows={6}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                />
-                 <div className="space-y-2 pt-4">
-                    <Label className="font-semibold">Settings</Label>
+                <div className="space-y-2">
+                    <Label className="font-black uppercase text-[10px] opacity-70">Synopsis / Description</Label>
+                    <Textarea
+                        placeholder="What is this film about?"
+                        rows={6}
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        className="rounded-xl"
+                    />
+                </div>
+                 <div className="space-y-4 pt-4 border-t">
                     <div className="flex items-center justify-between">
-                        <Label htmlFor="allow-comments">Allow Comments</Label>
+                        <Label htmlFor="allow-comments" className="text-sm font-semibold">Allow Comments</Label>
                         <Switch id="allow-comments" checked={allowComments} onCheckedChange={setAllowComments} />
                     </div>
                     <div className="flex items-center justify-between">
-                        <Label htmlFor="allow-download">Enable Downloads</Label>
+                        <Label htmlFor="allow-download" className="text-sm font-semibold">Enable Downloads</Label>
                         <Switch id="allow-download" checked={allowDownload} onCheckedChange={setAllowDownload} />
                     </div>
                  </div>
             </div>
-          ) : (
-            <div className="space-y-2">
-                <Button onClick={() => cameraInputRef.current?.click()} variant="outline" className="w-full justify-start gap-2">
-                    <Camera className="h-5 w-5" /> Use Camera
-                </Button>
-                <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="w-full justify-start gap-2">
-                    <UploadCloud className="h-5 w-5" /> From Device
-                </Button>
-                <p className="text-xs text-muted-foreground text-center pt-2">High-quality video files of 30+ minutes.</p>
-            </div>
           )}
-          <input
-            type="file"
-            ref={cameraInputRef}
-            onChange={handleFileChange}
-            className="hidden"
-            accept="video/*"
-            capture="environment"
-          />
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            className="hidden"
-            accept="video/*"
-          />
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="video/*" />
         </CardContent>
         <CardFooter>
-          <Button onClick={handlePost} className="w-full" disabled={!videoFile || isPosting}>
-            {isPosting ? `Uploading...` : 'Post Film'}
+          <Button onClick={handlePost} className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-lg" disabled={!videoFile || isPosting}>
+            {isPosting ? <><Loader2 className="animate-spin mr-2 h-5 w-5"/> Uploading...</> : 'Post Film'}
           </Button>
         </CardFooter>
       </Card>
     </div>
   );
 }
-
-    

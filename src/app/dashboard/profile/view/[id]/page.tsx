@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -11,8 +12,7 @@ import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_POSTS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
 import { Query, ID, Permission, Role } from 'appwrite';
 import { useToast } from '@/hooks/use-toast';
-import { Skeleton } from '@/components/ui/skeleton';
-import { PostCard } from '@/app/dashboard/media/page';
+import { PostCard } from '@/components/media-post-card';
 import { cn } from '@/lib/utils';
 
 export default function UserPublicProfilePage() {
@@ -45,18 +45,15 @@ export default function UserPublicProfilePage() {
 
             setTargetProfile(profileDoc);
             
-            // Process music posts categories/thumbnails
             const parsedPosts = postsRes.documents.map(post => {
-                if (post.type === 'music') {
+                if (post.type === 'music' || post.type === 'film') {
                     const desc = post.description || '';
                     const catMatch = desc.match(/CAT:([^|]+)\|/);
                     const iconMatch = desc.match(/ICON:([^|]+)\|/);
-                    const cleanDesc = desc.split('|').pop() || desc;
                     return {
                         ...post,
-                        category: catMatch ? catMatch[1] : 'Uncategorized',
-                        thumbnailUrl: iconMatch ? iconMatch[1] : '',
-                        displayDescription: cleanDesc
+                        category: catMatch ? catMatch[1] : 'General',
+                        thumbnailUrl: iconMatch ? iconMatch[1] : ''
                     };
                 }
                 return post;
@@ -79,27 +76,19 @@ export default function UserPublicProfilePage() {
         if (!currentUser || !currentUserProfile || !targetUserId) return;
         const currentlyFollowing = isFollowing;
         setIsLoadingFollow(true);
-
         try {
             const myProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id);
             const theirProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, targetUserId);
-            
             const newMyFollowing = !currentlyFollowing ? [...(myProfile.following || []), targetUserId] : myProfile.following.filter((id: string) => id !== targetUserId);
             const newTheirFollowers = !currentlyFollowing ? [...(theirProfile.followers || []), currentUser.$id] : theirProfile.followers.filter((id: string) => id !== currentUser.$id);
-            
             await Promise.all([
                 databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id, { following: newMyFollowing }),
                 databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, targetUserId, { followers: newTheirFollowers })
             ]);
-
             if (!currentlyFollowing) {
                 databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
                     userId: targetUserId, senderId: currentUser.$id, type: 'follow', title: 'New Follower', description: 'started following you.', isRead: false, link: `/dashboard/profile/connections?tab=followers`, createdAt: new Date().toISOString()
-                }, [
-                    Permission.read(Role.user(targetUserId)),
-                    Permission.update(Role.user(targetUserId)),
-                    Permission.read(Role.user(currentUser.$id)),
-                ]).catch(() => {});
+                }, [Permission.read(Role.user(targetUserId)), Permission.update(Role.user(targetUserId)), Permission.read(Role.user(currentUser.$id))]).catch(() => {});
             }
             await recheckUser();
             setTargetProfile({...theirProfile, followers: newTheirFollowers});
@@ -119,13 +108,9 @@ export default function UserPublicProfilePage() {
     return (
         <div className="h-screen bg-background flex flex-col overflow-hidden">
             <header className="p-4 pt-12 flex items-center justify-between border-b bg-muted/30 backdrop-blur-md sticky top-0 z-50">
-                <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full bg-background/50 border shadow-sm">
-                    <ArrowLeft className="h-5 w-5" />
-                </Button>
+                <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full bg-background/50 border shadow-sm"><ArrowLeft className="h-5 w-5" /></Button>
                 <h1 className="font-black uppercase text-sm tracking-widest text-primary">Profile View</h1>
-                <Button asChild variant="ghost" size="icon" className="rounded-full bg-background/50 border shadow-sm">
-                    <Link href={`/dashboard/chat/${targetUserId}`}><MessageSquare className="h-5 w-5" /></Link>
-                </Button>
+                <Button asChild variant="ghost" size="icon" className="rounded-full bg-background/50 border shadow-sm"><Link href={`/dashboard/chat/${targetUserId}`}><MessageSquare className="h-5 w-5" /></Link></Button>
             </header>
 
             <div className="flex-1 overflow-y-auto">
@@ -144,12 +129,7 @@ export default function UserPublicProfilePage() {
                         </div>
                     </div>
                     {currentUser?.$id !== targetUserId && (
-                        <Button 
-                            variant={isFollowing ? 'secondary' : 'default'} 
-                            className={cn("w-full max-w-[200px] rounded-full font-black uppercase tracking-widest h-12 shadow-lg", isFollowing ? "bg-green-500 text-white" : "bg-primary")}
-                            onClick={handleFollowToggle}
-                            disabled={isLoadingFollow}
-                        >
+                        <Button variant={isFollowing ? 'secondary' : 'default'} className={cn("w-full max-w-[200px] rounded-full font-black uppercase tracking-widest h-12 shadow-lg", isFollowing ? "bg-green-500 text-white" : "bg-primary")} onClick={handleFollowToggle} disabled={isLoadingFollow}>
                             {isLoadingFollow ? <Loader2 className="animate-spin h-5 w-5" /> : isFollowing ? <><UserCheck className="mr-2 h-4 w-4" /> Unfollow</> : <><UserPlus className="mr-2 h-4 w-4" /> Follow</>}
                         </Button>
                     )}
@@ -158,12 +138,11 @@ export default function UserPublicProfilePage() {
                 <Tabs defaultValue="reels" className="w-full">
                     <TabsList className="grid w-full grid-cols-5 bg-muted h-12 rounded-none p-1 border-y">
                         {postTypes.map(type => (
-                            <TabsTrigger key={type} value={type} className="rounded-none font-black uppercase text-[9px] tracking-tighter data-[state=active]:bg-primary data-[state=active]:text-white">
+                            <TabsTrigger key={type} value={type} className="rounded-none font-black uppercase text-[9px] data-[state=active]:bg-primary data-[state=active]:text-white">
                                 {type === 'reels' ? 'Reel' : type}
                             </TabsTrigger>
                         ))}
                     </TabsList>
-                    
                     {postTypes.map(type => (
                         <TabsContent key={type} value={type} className="m-0 h-full">
                             <div className="flex flex-col snap-y snap-mandatory overflow-y-auto scroll-smooth">
@@ -172,10 +151,7 @@ export default function UserPublicProfilePage() {
                                         <PostCard key={post.$id} post={post} isMuted={isMuted} onMuteChange={setIsMuted} />
                                     ))
                                 ) : (
-                                    <div className="py-20 text-center text-muted-foreground opacity-30 flex flex-col items-center gap-4">
-                                        <Plus className="h-12 w-12" />
-                                        <p className="font-black uppercase text-xs tracking-widest">No {type} posts yet</p>
-                                    </div>
+                                    <div className="py-20 text-center text-muted-foreground opacity-30 flex flex-col items-center gap-4"><Plus className="h-12 w-12" /><p className="font-black uppercase text-xs tracking-widest">No {type} posts yet</p></div>
                                 )}
                             </div>
                         </TabsContent>

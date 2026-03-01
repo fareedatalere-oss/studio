@@ -1,22 +1,9 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-    ArrowLeft, 
-    Music, 
-    Heart, 
-    MessageCircle, 
-    Volume2, 
-    VolumeX, 
-    Loader2, 
-    Download,
-    UserPlus,
-    UserCheck,
-    Search,
-    User,
-    MessageSquare,
-} from 'lucide-react';
+import { ArrowLeft, Music, Heart, Volume2, VolumeX, Loader2, Search, UserPlus, UserCheck, User, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -29,15 +16,10 @@ import { Query } from 'appwrite';
 import { useUser } from '@/hooks/use-appwrite';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
 
-const categories = ["all", "Gargajiya", "English vision", "Indian cemp", "Hip/rappers"];
+const categories = ["all", "Traditional song", "English vision", "Indian cemp", "Hip/rappers"];
 
 export default function MusicLibraryPage() {
     const router = useRouter();
@@ -56,49 +38,32 @@ export default function MusicLibraryPage() {
             try {
                 const queries = [Query.equal('type', 'music'), Query.orderDesc('$createdAt'), Query.limit(100)];
                 const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, queries);
-                
                 const parsedPosts = res.documents.map(post => {
                     const desc = post.description || '';
                     const catMatch = desc.match(/CAT:([^|]+)\|/);
                     const iconMatch = desc.match(/ICON:([^|]+)\|/);
-                    const cleanDesc = desc.split('|').pop() || desc;
-                    
                     return {
                         ...post,
-                        category: catMatch ? catMatch[1] : 'Uncategorized',
+                        category: catMatch ? catMatch[1] : 'General',
                         thumbnailUrl: iconMatch ? iconMatch[1] : '',
-                        displayDescription: cleanDesc
+                        displayDescription: desc.split('|').pop() || desc
                     };
                 });
-                
                 setPosts(parsedPosts);
-            } catch (error) {
-                toast({ variant: 'destructive', title: 'Error', description: 'Failed to load music.' });
-            } finally { setLoading(false); }
+            } catch (error) { toast({ variant: 'destructive', title: 'Error', description: 'Failed to load music.' }); } finally { setLoading(false); }
         };
         fetchMusic();
     }, [toast]);
 
     const filteredPosts = useMemo(() => {
         let result = posts;
-        if (selectedCategory !== "all") result = result.filter(p => p.category === selectedCategory);
+        if (selectedCategory !== "all") result = result.filter(p => p.category === selectedCategory || (selectedCategory === 'Traditional song' && p.category === 'Gargajiya'));
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
             result = result.filter(p => p.displayDescription?.toLowerCase().includes(q) || p.username?.toLowerCase().includes(q));
         }
         return result;
     }, [posts, selectedCategory, searchQuery]);
-
-    const handleDownload = async (url: string, filename: string) => {
-        if (!url) return;
-        try {
-            const link = document.createElement('a');
-            link.href = url;
-            link.target = "_blank";
-            link.download = filename || 'ipay-music-download';
-            link.click();
-        } catch (error) { toast({ title: "Download Failed", variant: "destructive" }); }
-    };
 
     return (
         <div className="h-screen bg-background flex flex-col overflow-hidden">
@@ -119,14 +84,14 @@ export default function MusicLibraryPage() {
             </header>
             <main className="flex-1 overflow-y-auto snap-y snap-mandatory scrollbar-hide">
                 {loading ? <div className="h-full flex flex-col items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary mb-4" /><p className="font-black uppercase text-xs text-muted-foreground animate-pulse">Syncing Tracks...</p></div> : filteredPosts.length > 0 ? filteredPosts.map(post => (
-                    <MusicPostCard key={post.$id} post={post} isMuted={isMuted} onMuteChange={setIsMuted} currentUser={currentUser} currentUserProfile={currentUserProfile} recheckUser={recheckUser} onDownload={handleDownload} />
+                    <MusicPostCard key={post.$id} post={post} isMuted={isMuted} onMuteChange={setIsMuted} currentUser={currentUser} currentUserProfile={currentUserProfile} recheckUser={recheckUser} />
                 )) : <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-10 text-center"><Music className="h-16 w-16 opacity-20 mb-4" /><p className="font-black uppercase text-sm tracking-widest">No tracks found</p></div>}
             </main>
         </div>
     );
 }
 
-function MusicPostCard({ post, isMuted, onMuteChange, currentUser, currentUserProfile, recheckUser, onDownload }: any) {
+function MusicPostCard({ post, isMuted, onMuteChange, currentUser, currentUserProfile, recheckUser }: any) {
     const audioRef = useRef<HTMLAudioElement>(null);
     const postRef = useRef<HTMLDivElement>(null);
     const [isLiked, setIsLiked] = useState(() => post.likes?.includes(currentUser?.$id));
@@ -177,11 +142,11 @@ function MusicPostCard({ post, isMuted, onMuteChange, currentUser, currentUserPr
     return (
         <div ref={postRef} className="relative h-screen w-full flex flex-col justify-center snap-start shrink-0 overflow-hidden bg-background">
             <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-muted/5">
-                <div className="relative h-64 w-64 mb-10 rounded-full overflow-hidden border-8 border-primary animate-spin-slow shadow-2xl">
+                <div className="relative h-64 w-64 mb-10 rounded-full overflow-hidden border-8 border-primary animate-spin-slow">
                     <Image src={post.thumbnailUrl || "https://picsum.photos/seed/music/400/400"} alt="Music" fill className="object-cover" />
                     <div className="absolute inset-0 flex items-center justify-center bg-black/20"><Music className="h-16 w-16 text-white" /></div>
                 </div>
-                <h2 className="text-3xl font-black uppercase tracking-tighter leading-none mb-2">{post.displayDescription || 'Untitled Track'}</h2>
+                <h2 className="text-3xl font-black uppercase tracking-tighter leading-none mb-2">{post.displayDescription}</h2>
                 <Badge variant="secondary" className="font-black uppercase text-[10px] tracking-widest">{post.category}</Badge>
                 {post.mediaUrl && <audio ref={audioRef} src={post.mediaUrl} controls className="mt-10 w-full max-w-xs" muted={isMuted}></audio>}
             </div>
@@ -191,23 +156,15 @@ function MusicPostCard({ post, isMuted, onMuteChange, currentUser, currentUserPr
                         <DropdownMenuTrigger asChild>
                             <Avatar className="ring-2 ring-primary h-14 w-14 shadow-xl cursor-pointer">
                                 <AvatarImage src={post.userAvatar} />
-                                <AvatarFallback className="bg-primary text-white font-black uppercase">{post.username?.charAt(0) || 'U'}</AvatarFallback>
+                                <AvatarFallback className="bg-primary text-white font-black">{post.username?.charAt(0) || 'U'}</AvatarFallback>
                             </Avatar>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-40 font-black uppercase text-[10px] tracking-widest">
-                            <DropdownMenuItem asChild>
-                                <Link href={`/dashboard/chat/${post.userId}`} className="flex items-center gap-2">
-                                    <MessageSquare className="h-4 w-4" /> Chat
-                                </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                                <Link href={`/dashboard/profile/view/${post.userId}`} className="flex items-center gap-2">
-                                    <User className="h-4 w-4" /> View
-                                </Link>
-                            </DropdownMenuItem>
+                        <DropdownMenuContent align="start" className="w-40 font-black uppercase text-[10px]">
+                            <DropdownMenuItem asChild><Link href={`/dashboard/chat/${post.userId}`}><MessageSquare className="h-4 w-4 mr-2" /> Chat</Link></DropdownMenuItem>
+                            <DropdownMenuItem asChild><Link href={`/dashboard/profile/view/${post.userId}`}><User className="h-4 w-4 mr-2" /> View</Link></DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <p className="font-black text-xs text-foreground bg-background/50 px-2 py-1 rounded-full backdrop-blur-sm shadow-sm truncate max-w-[100px]">@{post.username}</p>
+                    <p className="font-black text-xs bg-background/50 px-2 py-1 rounded-full truncate max-w-[100px]">@{post.username}</p>
                 </div>
                 <div className="flex flex-col items-center gap-1">
                     <Button variant={isFollowing ? 'secondary' : 'default'} size="icon" className="h-14 w-14 rounded-full shadow-2xl" onClick={handleFollow} disabled={isLoadingFollow}>
@@ -221,11 +178,9 @@ function MusicPostCard({ post, isMuted, onMuteChange, currentUser, currentUserPr
                 </div>
             </div>
             <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-20">
-                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 shadow-xl border"><MessageCircle className="h-8 w-8" /></Button>
                 <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 shadow-xl border" onClick={() => onMuteChange(!isMuted)}>{isMuted ? <VolumeX className="h-8 w-8" /> : <Volume2 className="h-8 w-8" />}</Button>
-                {post.allowDownload && <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 shadow-xl border" onClick={() => onDownload(post.mediaUrl, post.description)}><Download className="h-8 w-8" /></Button>}
             </div>
-            <div className="absolute bottom-8 left-0 right-0 px-8 text-center"><p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p></div>
+            <div className="absolute bottom-8 left-0 right-0 px-8 text-center"><p className="text-[10px] font-black text-muted-foreground uppercase">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p></div>
         </div>
     );
 }
