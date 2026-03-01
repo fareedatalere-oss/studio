@@ -15,6 +15,7 @@ import {
     UserCheck,
     Search,
     User,
+    MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -34,6 +35,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import Link from 'next/link';
 
 const categories = ["all", "Gargajiya", "English vision", "Indian cemp", "Hip/rappers"];
 
@@ -55,7 +57,6 @@ export default function MusicLibraryPage() {
                 const queries = [Query.equal('type', 'music'), Query.orderDesc('$createdAt'), Query.limit(100)];
                 const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, queries);
                 
-                // Parse the descriptions to extract hidden category/icon data
                 const parsedPosts = res.documents.map(post => {
                     const desc = post.description || '';
                     const catMatch = desc.match(/CAT:([^|]+)\|/);
@@ -88,6 +89,17 @@ export default function MusicLibraryPage() {
         return result;
     }, [posts, selectedCategory, searchQuery]);
 
+    const handleDownload = async (url: string, filename: string) => {
+        if (!url) return;
+        try {
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = "_blank";
+            link.download = filename || 'ipay-music-download';
+            link.click();
+        } catch (error) { toast({ title: "Download Failed", variant: "destructive" }); }
+    };
+
     return (
         <div className="h-screen bg-background flex flex-col overflow-hidden">
             <header className="p-4 pt-12 bg-background border-b z-30 shadow-sm">
@@ -107,14 +119,14 @@ export default function MusicLibraryPage() {
             </header>
             <main className="flex-1 overflow-y-auto snap-y snap-mandatory scrollbar-hide">
                 {loading ? <div className="h-full flex flex-col items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary mb-4" /><p className="font-black uppercase text-xs text-muted-foreground animate-pulse">Syncing Tracks...</p></div> : filteredPosts.length > 0 ? filteredPosts.map(post => (
-                    <MusicPostCard key={post.$id} post={post} isMuted={isMuted} onMuteChange={setIsMuted} currentUser={currentUser} currentUserProfile={currentUserProfile} recheckUser={recheckUser} />
+                    <MusicPostCard key={post.$id} post={post} isMuted={isMuted} onMuteChange={setIsMuted} currentUser={currentUser} currentUserProfile={currentUserProfile} recheckUser={recheckUser} onDownload={handleDownload} />
                 )) : <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-10 text-center"><Music className="h-16 w-16 opacity-20 mb-4" /><p className="font-black uppercase text-sm tracking-widest">No tracks found</p></div>}
             </main>
         </div>
     );
 }
 
-function MusicPostCard({ post, isMuted, onMuteChange, currentUser, currentUserProfile, recheckUser }: any) {
+function MusicPostCard({ post, isMuted, onMuteChange, currentUser, currentUserProfile, recheckUser, onDownload }: any) {
     const audioRef = useRef<HTMLAudioElement>(null);
     const postRef = useRef<HTMLDivElement>(null);
     const [isLiked, setIsLiked] = useState(() => post.likes?.includes(currentUser?.$id));
@@ -185,7 +197,7 @@ function MusicPostCard({ post, isMuted, onMuteChange, currentUser, currentUserPr
                         <DropdownMenuContent align="start" className="w-40 font-black uppercase text-[10px] tracking-widest">
                             <DropdownMenuItem asChild>
                                 <Link href={`/dashboard/chat/${post.userId}`} className="flex items-center gap-2">
-                                    <MessageCircle className="h-4 w-4" /> Chat
+                                    <MessageSquare className="h-4 w-4" /> Chat
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
@@ -211,7 +223,7 @@ function MusicPostCard({ post, isMuted, onMuteChange, currentUser, currentUserPr
             <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-20">
                 <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 shadow-xl border"><MessageCircle className="h-8 w-8" /></Button>
                 <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 shadow-xl border" onClick={() => onMuteChange(!isMuted)}>{isMuted ? <VolumeX className="h-8 w-8" /> : <Volume2 className="h-8 w-8" />}</Button>
-                {post.allowDownload && <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 shadow-xl border" onClick={() => handleDownload(post.mediaUrl, post.description, 'music')}><Download className="h-8 w-8" /></Button>}
+                {post.allowDownload && <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 shadow-xl border" onClick={() => onDownload(post.mediaUrl, post.description)}><Download className="h-8 w-8" /></Button>}
             </div>
             <div className="absolute bottom-8 left-0 right-0 px-8 text-center"><p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p></div>
         </div>
