@@ -8,7 +8,7 @@ import { Skeleton } from "./ui/skeleton";
 
 /**
  * @fileOverview I-Pay Master Logo Component.
- * Optimized to match the new branding: A rounded square rainbow border with specific text.
+ * Visual implementation of the rainbow gradient square branding.
  */
 
 export function IPayLogo(props: SVGProps<SVGSVGElement>) {
@@ -33,7 +33,7 @@ export function IPayLogo(props: SVGProps<SVGSVGElement>) {
     );
   }
 
-  // Visual implementation of the user provided logo image
+  // Visual implementation matching the branding image
   return (
     <div 
         className={props.className?.toString() || "h-12 w-12 rounded-2xl flex items-center justify-center text-white font-bold relative overflow-hidden shadow-2xl"}
