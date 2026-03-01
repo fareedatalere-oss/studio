@@ -45,6 +45,7 @@ import {
   ChevronLeft,
   UserPlus,
   UserCheck,
+  User,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -147,7 +148,7 @@ const CommentInput = ({ postId, postOwnerId, onCommentPosted }: { postId: string
   )
 }
 
-const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isMuted: boolean; onMuteChange: (muted: boolean) => void; }) => {
+export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isMuted: boolean; onMuteChange: (muted: boolean) => void; }) => {
   const { user: currentUser, profile: currentUserProfile, recheckUser } = useUser();
   const { toast } = useToast();
   
@@ -375,7 +376,26 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
       
       <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-start gap-6 p-2 z-30">
             <div className="flex flex-col items-center gap-2">
-                <Avatar className="ring-2 ring-primary h-14 w-14 shadow-xl"><AvatarImage src={post.userAvatar} /><AvatarFallback className="bg-primary text-white font-black uppercase">{post.username?.charAt(0) || 'U'}</AvatarFallback></Avatar>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Avatar className="ring-2 ring-primary h-14 w-14 shadow-xl cursor-pointer">
+                            <AvatarImage src={post.userAvatar} />
+                            <AvatarFallback className="bg-primary text-white font-black uppercase">{post.username?.charAt(0) || 'U'}</AvatarFallback>
+                        </Avatar>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-40 font-black uppercase text-[10px] tracking-widest">
+                        <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/chat/${post.userId}`} className="flex items-center gap-2">
+                                <MessageSquare className="h-4 w-4" /> Chat
+                            </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/profile/view/${post.userId}`} className="flex items-center gap-2">
+                                <User className="h-4 w-4" /> View
+                            </Link>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
                 <p className="font-black text-xs text-foreground bg-background/50 px-2 py-1 rounded-full backdrop-blur-sm shadow-sm truncate max-w-[100px]">@{post.username}</p>
             </div>
             {currentUser?.$id !== post.userId && (

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -14,7 +13,8 @@ import {
     Download,
     UserPlus,
     UserCheck,
-    Search
+    Search,
+    User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -28,6 +28,12 @@ import { Query } from 'appwrite';
 import { useUser } from '@/hooks/use-appwrite';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const categories = ["all", "Gargajiya", "English vision", "Indian cemp", "Hip/rappers"];
 
@@ -169,8 +175,27 @@ function MusicPostCard({ post, isMuted, onMuteChange, currentUser, currentUserPr
             </div>
             <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-start gap-6 p-2 z-20">
                 <div className="flex flex-col items-center gap-2">
-                    <Avatar className="ring-2 ring-primary h-14 w-14 shadow-xl"><AvatarImage src={post.userAvatar} /><AvatarFallback className="bg-primary text-white font-black">{post.username?.charAt(0)}</AvatarFallback></Avatar>
-                    <p className="font-black text-xs text-foreground bg-background/50 px-2 py-1 rounded-full backdrop-blur-sm">@{post.username}</p>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Avatar className="ring-2 ring-primary h-14 w-14 shadow-xl cursor-pointer">
+                                <AvatarImage src={post.userAvatar} />
+                                <AvatarFallback className="bg-primary text-white font-black uppercase">{post.username?.charAt(0) || 'U'}</AvatarFallback>
+                            </Avatar>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-40 font-black uppercase text-[10px] tracking-widest">
+                            <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/chat/${post.userId}`} className="flex items-center gap-2">
+                                    <MessageCircle className="h-4 w-4" /> Chat
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/profile/view/${post.userId}`} className="flex items-center gap-2">
+                                    <User className="h-4 w-4" /> View
+                                </Link>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <p className="font-black text-xs text-foreground bg-background/50 px-2 py-1 rounded-full backdrop-blur-sm shadow-sm truncate max-w-[100px]">@{post.username}</p>
                 </div>
                 <div className="flex flex-col items-center gap-1">
                     <Button variant={isFollowing ? 'secondary' : 'default'} size="icon" className="h-14 w-14 rounded-full shadow-2xl" onClick={handleFollow} disabled={isLoadingFollow}>
@@ -186,7 +211,7 @@ function MusicPostCard({ post, isMuted, onMuteChange, currentUser, currentUserPr
             <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-20">
                 <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 shadow-xl border"><MessageCircle className="h-8 w-8" /></Button>
                 <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 shadow-xl border" onClick={() => onMuteChange(!isMuted)}>{isMuted ? <VolumeX className="h-8 w-8" /> : <Volume2 className="h-8 w-8" />}</Button>
-                {post.allowDownload && <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 shadow-xl border"><Download className="h-8 w-8" /></Button>}
+                {post.allowDownload && <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 shadow-xl border" onClick={() => handleDownload(post.mediaUrl, post.description, 'music')}><Download className="h-8 w-8" /></Button>}
             </div>
             <div className="absolute bottom-8 left-0 right-0 px-8 text-center"><p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</p></div>
         </div>
