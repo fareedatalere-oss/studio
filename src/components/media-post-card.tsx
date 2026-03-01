@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Heart, MessageCircle, Download, Send, Loader2, Music, Volume2, VolumeX, User, MessageSquare, Plus, ChevronLeft } from 'lucide-react';
+import { Heart, MessageCircle, Download, Send, Loader2, Music, Volume2, VolumeX, User, MessageSquare, Plus, ChevronLeft, UserPlus, UserCheck } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Image from 'next/image';
