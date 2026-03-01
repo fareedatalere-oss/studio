@@ -189,7 +189,6 @@ export default function ChatThreadPage() {
         if (chatId && otherUserId) setupChat();
     }, [chatId, otherUserId, toast, markMessagesAsRead]);
 
-    // Fetch potential chats to forward to
     useEffect(() => {
         if (!!messageToForward && currentUser) {
             const fetchRecent = async () => {

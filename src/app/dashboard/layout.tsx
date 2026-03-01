@@ -6,7 +6,7 @@ import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useUser } from '@/hooks/use-appwrite';
 import { Badge } from '@/components/ui/badge';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import client, { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
@@ -29,8 +29,11 @@ export default function DashboardLayout({
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isPulsing, setIsPulsing] = useState(false);
+  
+  const lastCountRef = useRef(0);
 
-  // Immersive sections now only include Media to restore global nav for Market
+  // Immersive sections logic
   const isImmersive = pathname === '/dashboard/media' || pathname.startsWith('/dashboard/media/music') || pathname.includes('/text');
 
   useEffect(() => {
@@ -71,44 +74,32 @@ export default function DashboardLayout({
           Query.limit(1)
         ])
       ]);
-      setUnreadCount(totalRes.total);
+      
+      const newTotal = totalRes.total;
+      setUnreadCount(newTotal);
       setUnreadMsgCount(msgRes.total);
+
+      // Trigger "Alarm" pulse if count increased
+      if (newTotal > lastCountRef.current) {
+        setIsPulsing(true);
+        setTimeout(() => setIsPulsing(false), 3000);
+      }
+      lastCountRef.current = newTotal;
+
     } catch (error) {
       console.error("Failed to fetch unread counts:", error);
     }
   }, [user]);
 
-  const checkSystemUpdate = useCallback(async () => {
-    if (!user?.$id) return;
-    const UPDATE_ID = 'ipay_system_update_v1_5';
-    if (typeof window !== 'undefined') {
-        const hasSeen = localStorage.getItem(UPDATE_ID);
-        if (!hasSeen) {
-            try {
-                await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
-                    userId: user.$id,
-                    type: 'system',
-                    title: 'Real-time Alerts Fixed!',
-                    description: 'The notification bell and chat badges now update instantly when you receive new alerts or messages.',
-                    isRead: false,
-                    createdAt: new Date().toISOString(),
-                    link: '/dashboard/notifications'
-                });
-                localStorage.setItem(UPDATE_ID, 'true');
-                fetchUnreadCounts();
-            } catch (e) {}
-        }
-    }
-  }, [user, fetchUnreadCounts]);
-
   useEffect(() => {
     if (user) {
       fetchUnreadCounts();
-      checkSystemUpdate();
 
-      // Listen for window focus to refresh counts (e.g. returning to the app)
-      window.addEventListener('focus', fetchUnreadCounts);
+      // Refresh on window focus (instant sync when returning to app)
+      const handleFocus = () => fetchUnreadCounts();
+      window.addEventListener('focus', handleFocus);
 
+      // Real-time subscription for INSTANT alerts
       const topic = `databases.${DATABASE_ID}.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`;
       const unsubscribe = client.subscribe([topic], (response) => {
           const events = response.events || [];
@@ -122,10 +113,10 @@ export default function DashboardLayout({
 
       return () => {
           unsubscribe();
-          window.removeEventListener('focus', fetchUnreadCounts);
+          window.removeEventListener('focus', handleFocus);
       };
     }
-  }, [user, fetchUnreadCounts, checkSystemUpdate]);
+  }, [user, fetchUnreadCounts]);
 
   useEffect(() => {
     if (proof && !proof.main_switch && user && !MANAGER_EMAILS.includes(user.email.toLowerCase())) {
@@ -171,10 +162,18 @@ export default function DashboardLayout({
               </Button>
             </div>
             <div className="flex items-center gap-4">
-              <Button asChild variant="ghost" size="icon" className="relative">
+              <Button asChild variant="ghost" size="icon" className={cn("relative transition-transform", isPulsing && "scale-110")}>
                 <Link href="/dashboard/notifications">
-                  <Bell className="h-5 w-5" />
+                  <Bell className={cn("h-5 w-5", isPulsing && "text-primary animate-bounce")} />
                    {unreadCount > 0 && (
+                    <Badge variant="destructive" className={cn(
+                        "absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px] font-bold border-2 border-white",
+                        isPulsing && "animate-ping"
+                    )}>
+                      {unreadCount > 99 ? '9+' : unreadCount}
+                    </Badge>
+                  )}
+                  {unreadCount > 0 && isPulsing && (
                     <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px] font-bold border-2 border-white">
                       {unreadCount > 99 ? '9+' : unreadCount}
                     </Badge>
@@ -204,7 +203,7 @@ export default function DashboardLayout({
             <Link href="/dashboard/chat" onClick={(e) => handleTabClick(e, 'tab_chat')} className={cn("flex flex-col items-center gap-1 relative", pathname.startsWith('/dashboard/chat') ? "text-primary font-bold" : "text-muted-foreground")}>
               <MessageSquare className="h-6 w-6" />
               {unreadMsgCount > 0 && (
-                <Badge variant="destructive" className="absolute -top-1 right-2 h-4 min-w-4 justify-center p-0.5 rounded-full text-[10px] font-bold border-2 border-white">
+                <Badge variant="destructive" className="absolute -top-1 right-2 h-4 min-w-4 justify-center p-0.5 rounded-full text-[10px] font-bold border-2 border-white animate-pulse">
                   {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
                 </Badge>
               )}
