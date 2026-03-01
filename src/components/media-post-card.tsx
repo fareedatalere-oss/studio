@@ -220,8 +220,8 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
                         </Avatar>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-40 font-black uppercase text-[10px]">
-                        <DropdownMenuItem asChild><Link href={`/dashboard/chat/${post.userId}`}><MessageSquare className="h-4 w-4 mr-2" /> Chat</Link></DropdownMenuItem>
-                        <DropdownMenuItem asChild><Link href={`/dashboard/profile/view/${post.userId}`}><User className="h-4 w-4 mr-2" /> View</Link></DropdownMenuItem>
+                        <DropdownMenuItem asChild><Link href={`/dashboard/chat/${post.userId}`} className="flex items-center gap-2"><MessageSquare className="h-4 w-4" /> Chat</Link></DropdownMenuItem>
+                        <DropdownMenuItem asChild><Link href={`/dashboard/profile/view/${post.userId}`} className="flex items-center gap-2"><User className="h-4 w-4" /> View</Link></DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
                 <p className="font-black text-xs bg-background/50 px-2 py-1 rounded-full backdrop-blur-sm truncate max-w-[100px]">@{post.username}</p>

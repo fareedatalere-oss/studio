@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -59,7 +58,10 @@ export default function MediaPage() {
 
   return (
     <div className="relative h-screen bg-background overflow-hidden">
-      <Tabs defaultValue="reels" onValueChange={(val) => val === 'music' && router.push('/dashboard/media/music')} className="h-full flex flex-col">
+      <Tabs defaultValue="reels" onValueChange={(val) => {
+          if (val === 'music') router.push('/dashboard/media/music');
+          if (val === 'film') router.push('/dashboard/media/film');
+      }} className="h-full flex flex-col">
         <header className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-background/60 via-background/30 to-transparent pt-12 pb-8">
           <div className="container px-0">
             <TabsList className="grid w-full grid-cols-5 bg-transparent h-12">

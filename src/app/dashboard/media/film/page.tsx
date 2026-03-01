@@ -1,0 +1,116 @@
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, Film, Loader2, Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS } from '@/lib/appwrite';
+import { Query } from 'appwrite';
+import { useToast } from '@/hooks/use-toast';
+import { PostCard } from '@/components/media-post-card';
+
+const filmCategories = [
+    "all",
+    "Hausa films", 
+    "Indian hausa vision", 
+    "American film", 
+    "traditional film", 
+    "Nigerian film", 
+    "hausa season films"
+];
+
+export default function FilmHubPage() {
+    const router = useRouter();
+    const { toast } = useToast();
+
+    const [selectedCategory, setSelectedCategory] = useState("all");
+    const [posts, setPosts] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [isMuted, setIsMuted] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    useEffect(() => {
+        const fetchFilms = async () => {
+            setLoading(true);
+            try {
+                const queries = [Query.equal('type', 'film'), Query.orderDesc('$createdAt'), Query.limit(100)];
+                const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, queries);
+                const parsedPosts = res.documents.map(post => {
+                    const desc = post.description || '';
+                    const catMatch = desc.match(/CAT:([^|]+)\|/);
+                    return {
+                        ...post,
+                        category: catMatch ? catMatch[1] : 'General',
+                        displayDescription: desc.split('|').pop() || desc
+                    };
+                });
+                setPosts(parsedPosts);
+            } catch (error) { 
+                toast({ variant: 'destructive', title: 'Error', description: 'Failed to load films.' }); 
+            } finally { 
+                setLoading(false); 
+            }
+        };
+        fetchFilms();
+    }, [toast]);
+
+    const filteredPosts = useMemo(() => {
+        let result = posts;
+        if (selectedCategory !== "all") {
+            result = result.filter(p => p.category === selectedCategory);
+        }
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            result = result.filter(p => p.displayDescription?.toLowerCase().includes(q) || p.username?.toLowerCase().includes(q));
+        }
+        return result;
+    }, [posts, selectedCategory, searchQuery]);
+
+    return (
+        <div className="h-screen bg-background flex flex-col overflow-hidden">
+            <header className="p-4 pt-12 bg-background border-b z-30 shadow-sm">
+                <div className="flex items-center gap-4 mb-4">
+                    <Button onClick={() => router.push('/dashboard/media')} variant="ghost" size="icon" className="rounded-full bg-muted/50 border"><ArrowLeft className="h-5 w-5" /></Button>
+                    <div className="flex-1"><h1 className="font-black uppercase text-sm tracking-widest text-primary">Film Hub</h1></div>
+                </div>
+                <div className="relative mb-4"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search films..." className="pl-10 rounded-full h-10 bg-muted/50 border-none" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></div>
+                <ScrollArea className="w-full whitespace-nowrap">
+                    <div className="flex gap-2 pb-2">
+                        {filmCategories.map((cat) => (
+                            <Button 
+                                key={cat} 
+                                variant={selectedCategory === cat ? 'default' : 'outline'} 
+                                size="sm" 
+                                onClick={() => setSelectedCategory(cat)} 
+                                className={cn("rounded-full font-black uppercase text-[10px] tracking-tighter h-8", selectedCategory === cat ? "bg-primary" : "bg-muted/30 border-none")}
+                            >
+                                {cat}
+                            </Button>
+                        ))}
+                    </div>
+                    <ScrollBar orientation="horizontal" className="hidden" />
+                </ScrollArea>
+            </header>
+            <main className="flex-1 overflow-y-auto snap-y snap-mandatory scrollbar-hide">
+                {loading ? (
+                    <div className="h-full flex flex-col items-center justify-center">
+                        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                        <p className="font-black uppercase text-xs text-muted-foreground animate-pulse">Syncing Cinemas...</p>
+                    </div>
+                ) : filteredPosts.length > 0 ? (
+                    filteredPosts.map(post => (
+                        <PostCard key={post.$id} post={post} isMuted={isMuted} onMuteChange={setIsMuted} />
+                    ))
+                ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-10 text-center">
+                        <Film className="h-16 w-16 opacity-20 mb-4" />
+                        <p className="font-black uppercase text-sm tracking-widest">No films found</p>
+                    </div>
+                )}
+            </main>
+        </div>
+    );
+}
