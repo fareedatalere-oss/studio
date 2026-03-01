@@ -74,7 +74,7 @@ export default function UploadMusicPage() {
         const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), audioFile);
         const mediaUrl = getAppwriteStorageUrl(uploadResult.$id);
 
-        // We store metadata in the description to avoid "Unknown attribute" errors in Appwrite
+        // Metadata is stored in the description to avoid schema "Unknown attribute" errors
         const encodedDescription = `CAT:${selectedCategory}|ICON:${thumbUrl}|${description}`;
 
         const newPost = {
@@ -87,9 +87,9 @@ export default function UploadMusicPage() {
             allowComments: allowComments,
             allowDownload: allowDownload,
             likes: [],
-            commentCount: 0,
-            createdAt: new Date().toISOString()
+            commentCount: 0
         };
+        
         await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
         toast({ title: 'Music Posted!', description: `Your track has been added.` });
         router.push('/dashboard/media/music');
