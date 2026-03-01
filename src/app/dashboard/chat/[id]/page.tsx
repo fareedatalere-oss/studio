@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import client, { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, getAppwriteStorageUrl, storage, BUCKET_ID_UPLOADS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
-import { Models, ID, Query } from 'appwrite';
+import { Models, ID, Query, Permission, Role } from 'appwrite';
 import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, ImageIcon, PlayCircle, Trash2, Play, Pause, Forward } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -117,6 +117,7 @@ export default function ChatThreadPage() {
     const [recordingTime, setRecordingTime] = useState(0);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+    audioChunksRef.current = [];
     const audioChunksRef = useRef<Blob[]>([]);
     
     const [messageToForward, setMessageToForward] = useState<Models.Document | null>(null);
@@ -234,7 +235,11 @@ export default function ChatThreadPage() {
                 userId: otherUserId, senderId: currentUser.$id, type: 'message',
                 title: 'New Message', description: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
                 isRead: false, link: `/dashboard/chat/${currentUser.$id}`, createdAt: new Date().toISOString()
-            });
+            }, [
+                Permission.read(Role.user(otherUserId)),
+                Permission.update(Role.user(otherUserId)),
+                Permission.read(Role.user(currentUser.$id)),
+            ]);
         } catch (e) {
             console.error("Failed to trigger notification doc:", e);
         }

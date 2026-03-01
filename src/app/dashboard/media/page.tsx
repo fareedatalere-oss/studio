@@ -53,7 +53,7 @@ import { useUser } from '@/hooks/use-appwrite';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { databases, DATABASE_ID, COLLECTION_ID_POSTS, COLLECTION_ID_PROFILES, COLLECTION_ID_POST_COMMENTS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
-import { Query, ID } from 'appwrite';
+import { Query, ID, Permission, Role } from 'appwrite';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -117,7 +117,11 @@ const CommentInput = ({ postId, postOwnerId, onCommentPosted }: { postId: string
           isRead: false,
           link: `/dashboard/media`,
           createdAt: new Date().toISOString()
-        }).catch(e => console.log("Notification trigger failed", e));
+        }, [
+            Permission.read(Role.user(postOwnerId)),
+            Permission.update(Role.user(postOwnerId)),
+            Permission.read(Role.user(user.$id)),
+        ]).catch(e => console.log("Notification trigger failed", e));
       }
 
       setText('');
@@ -221,7 +225,11 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
         if (newIsLiked && post.userId !== currentUser.$id) {
           databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
             userId: post.userId, senderId: currentUser.$id, type: 'like', title: 'New Like', description: 'liked your post.', isRead: false, link: `/dashboard/media`, createdAt: new Date().toISOString()
-          }).catch(() => {});
+          }, [
+              Permission.read(Role.user(post.userId)),
+              Permission.update(Role.user(post.userId)),
+              Permission.read(Role.user(currentUser.$id)),
+          ]).catch(() => {});
         }
         setPost({...post, likes: newLikes});
     } catch (error) {
@@ -253,7 +261,11 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
         if (!currentlyFollowing) {
           databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
             userId: post.userId, senderId: currentUser.$id, type: 'follow', title: 'New Follower', description: 'started following you.', isRead: false, link: `/dashboard/profile/connections?tab=followers`, createdAt: new Date().toISOString()
-          }).catch(() => {});
+          }, [
+              Permission.read(Role.user(post.userId)),
+              Permission.update(Role.user(post.userId)),
+              Permission.read(Role.user(currentUser.$id)),
+          ]).catch(() => {});
         }
         await recheckUser();
     } catch (error: any) {
