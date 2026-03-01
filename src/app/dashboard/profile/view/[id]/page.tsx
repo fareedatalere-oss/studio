@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, UserPlus, UserCheck, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Loader2, UserPlus, UserCheck, MessageSquare, Plus } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,6 +13,7 @@ import { Query, ID, Permission, Role } from 'appwrite';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PostCard } from '@/app/dashboard/media/page';
+import { cn } from '@/lib/utils';
 
 export default function UserPublicProfilePage() {
     const params = useParams();
