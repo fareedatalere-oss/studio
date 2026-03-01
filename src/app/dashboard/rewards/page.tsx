@@ -96,7 +96,7 @@ export default function RewardsPage() {
         const requiredClicks = userProfile.hasReferral ? 1200 : 1000;
 
         if (newClickCount > 0 && newClickCount % requiredClicks === 0) {
-            const earnedAmount = 1500; // Updated reward: ₦1,500
+            const earnedAmount = 1500; 
             newRewardBalance += earnedAmount;
             toast({ title: '₦1,500 Reward Earned!', description: `You reached ${requiredClicks} clicks!` });
         }

@@ -50,7 +50,7 @@ NEXT_PUBLIC_APP_URL=https://ipay-online.vercel.app
                         <p className="font-bold mb-2 uppercase">Vercel Instructions:</p>
                         <ol className="list-decimal pl-5 space-y-2">
                             <li>Generate a new key at aistudio.google.com</li>
-                            <li>Go to Vercel > Settings > Environment Variables.</li>
+                            <li>Go to Vercel {" > "} Settings {" > "} Environment Variables.</li>
                             <li>Add GOOGLE_GENAI_API_KEY with your new key.</li>
                             <li>Sync/Push code and Redeploy.</li>
                         </ol>

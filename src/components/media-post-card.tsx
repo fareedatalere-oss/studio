@@ -1,10 +1,11 @@
+
 'use client';
 
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Heart, MessageCircle, Share, MoreVertical, Download, Send, Loader2, Mail, Link as LinkIcon, UserPlus, UserCheck, User, MessageSquare, ChevronLeft, Music, Volume2, VolumeX, Plus } from 'lucide-react';
+import { Heart, MessageCircle, Download, Send, Loader2, Music, Volume2, VolumeX, User, MessageSquare, Plus, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Image from 'next/image';
@@ -146,7 +147,6 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
         if (clickCountRef.current >= 2) {
             if (!isLiked) handleLike();
         } else {
-            // Toggle UI visibility on single click in the center
             if (post.type === 'reels' || post.type === 'film') {
                 setUiVisible(!uiVisible);
             }
