@@ -31,7 +31,7 @@ export default function DashboardLayout({
   const [showInstallBanner, setShowInstallBanner] = useState(false);
 
   // Immersive sections now only include Media to restore global nav for Market
-  const isImmersive = pathname === '/dashboard/media';
+  const isImmersive = pathname === '/dashboard/media' || pathname.startsWith('/dashboard/media/music') || pathname.includes('/text');
 
   useEffect(() => {
     setIsMounted(true);
@@ -56,7 +56,7 @@ export default function DashboardLayout({
   };
   
   const fetchUnreadCounts = useCallback(async () => {
-    if (!user) return;
+    if (!user?.$id) return;
     try {
       const [totalRes, msgRes] = await Promise.all([
         databases.listDocuments(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, [
@@ -79,8 +79,8 @@ export default function DashboardLayout({
   }, [user]);
 
   const checkSystemUpdate = useCallback(async () => {
-    if (!user) return;
-    const UPDATE_ID = 'ipay_system_update_v1_4';
+    if (!user?.$id) return;
+    const UPDATE_ID = 'ipay_system_update_v1_5';
     if (typeof window !== 'undefined') {
         const hasSeen = localStorage.getItem(UPDATE_ID);
         if (!hasSeen) {
@@ -88,8 +88,8 @@ export default function DashboardLayout({
                 await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
                     userId: user.$id,
                     type: 'system',
-                    title: 'Interface Fixed!',
-                    description: 'Global navigation restored for Market. Media interactions moved to the right for easier access. Real-time status logic updated.',
+                    title: 'Real-time Alerts Fixed!',
+                    description: 'The notification bell and chat badges now update instantly when you receive new alerts or messages.',
                     isRead: false,
                     createdAt: new Date().toISOString(),
                     link: '/dashboard/notifications'
@@ -106,16 +106,24 @@ export default function DashboardLayout({
       fetchUnreadCounts();
       checkSystemUpdate();
 
+      // Listen for window focus to refresh counts (e.g. returning to the app)
+      window.addEventListener('focus', fetchUnreadCounts);
+
       const topic = `databases.${DATABASE_ID}.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`;
       const unsubscribe = client.subscribe([topic], (response) => {
-          if (!response.events?.some(e => e.includes('.create'))) return;
-          const payload = response.payload as any;
-          if (payload.userId === user.$id) {
-            fetchUnreadCounts();
+          const events = response.events || [];
+          if (events.some(e => e.includes('.create') || e.includes('.update') || e.includes('.delete'))) {
+              const payload = response.payload as any;
+              if (payload.userId === user.$id) {
+                fetchUnreadCounts();
+              }
           }
       });
 
-      return () => unsubscribe();
+      return () => {
+          unsubscribe();
+          window.removeEventListener('focus', fetchUnreadCounts);
+      };
     }
   }, [user, fetchUnreadCounts, checkSystemUpdate]);
 
@@ -167,7 +175,7 @@ export default function DashboardLayout({
                 <Link href="/dashboard/notifications">
                   <Bell className="h-5 w-5" />
                    {unreadCount > 0 && (
-                    <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px] font-bold">
+                    <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px] font-bold border-2 border-white">
                       {unreadCount > 99 ? '9+' : unreadCount}
                     </Badge>
                   )}
@@ -196,13 +204,13 @@ export default function DashboardLayout({
             <Link href="/dashboard/chat" onClick={(e) => handleTabClick(e, 'tab_chat')} className={cn("flex flex-col items-center gap-1 relative", pathname.startsWith('/dashboard/chat') ? "text-primary font-bold" : "text-muted-foreground")}>
               <MessageSquare className="h-6 w-6" />
               {unreadMsgCount > 0 && (
-                <Badge variant="destructive" className="absolute -top-1 right-2 h-4 min-w-4 justify-center p-0.5 rounded-full text-[10px] font-bold">
+                <Badge variant="destructive" className="absolute -top-1 right-2 h-4 min-w-4 justify-center p-0.5 rounded-full text-[10px] font-bold border-2 border-white">
                   {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
                 </Badge>
               )}
               <span className="text-[10px]">Chat</span>
             </Link>
-            <Link href="/dashboard/media" onClick={(e) => handleTabClick(e, 'tab_media')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/media' ? "text-primary font-bold" : "text-muted-foreground")}>
+            <Link href="/dashboard/media" onClick={(e) => handleTabClick(e, 'tab_media')} className={cn("flex flex-col items-center gap-1", (pathname === '/dashboard/media' || pathname.startsWith('/dashboard/media/')) ? "text-primary font-bold" : "text-muted-foreground")}>
               <PlaySquare className="h-6 w-6" />
               <span className="text-[10px]">Media</span>
             </Link>
