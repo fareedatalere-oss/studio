@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Heart, MessageCircle, Share, MoreVertical, Download, Send, Loader2, Mail, Link as LinkIcon, UserPlus, UserCheck, User, MessageSquare, ChevronLeft, Music } from 'lucide-react';
+import { Heart, MessageCircle, Share, MoreVertical, Download, Send, Loader2, Mail, Link as LinkIcon, UserPlus, UserCheck, User, MessageSquare, ChevronLeft, Music, Volume2, VolumeX, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Image from 'next/image';
@@ -147,6 +146,7 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
         if (clickCountRef.current >= 2) {
             if (!isLiked) handleLike();
         } else {
+            // Toggle UI visibility on single click in the center
             if (post.type === 'reels' || post.type === 'film') {
                 setUiVisible(!uiVisible);
             }
@@ -220,8 +220,8 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
                         </Avatar>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-40 font-black uppercase text-[10px]">
-                        <DropdownMenuItem asChild><Link href={`/dashboard/chat/${post.userId}`}><MessageSquare className="mr-2 h-4 w-4" /> Chat</Link></DropdownMenuItem>
-                        <DropdownMenuItem asChild><Link href={`/dashboard/profile/view/${post.userId}`}><User className="mr-2 h-4 w-4" /> View</Link></DropdownMenuItem>
+                        <DropdownMenuItem asChild><Link href={`/dashboard/chat/${post.userId}`}><MessageSquare className="h-4 w-4 mr-2" /> Chat</Link></DropdownMenuItem>
+                        <DropdownMenuItem asChild><Link href={`/dashboard/profile/view/${post.userId}`}><User className="h-4 w-4 mr-2" /> View</Link></DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
                 <p className="font-black text-xs bg-background/50 px-2 py-1 rounded-full backdrop-blur-sm truncate max-w-[100px]">@{post.username}</p>
@@ -238,6 +238,13 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
                 <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 shadow-xl border-2" onClick={handleLike}><Heart className={cn("h-8 w-8", isLiked && "fill-red-500 text-red-500")} /></Button>
                 <span className="text-[10px] font-black">{likeCount}</span>
             </div>
+            {post.type === 'text' && (
+                <Button asChild variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 shadow-xl border-2">
+                    <Link href={`/dashboard/media/post/${post.$id}/text`}>
+                        <ChevronLeft className="h-8 w-8" />
+                    </Link>
+                </Button>
+            )}
       </div>
 
        <div className={cn("absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-30 transition-opacity duration-300", !uiVisible && "opacity-0 pointer-events-none")}>

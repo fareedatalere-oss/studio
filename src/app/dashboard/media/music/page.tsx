@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -57,7 +56,9 @@ export default function MusicLibraryPage() {
 
     const filteredPosts = useMemo(() => {
         let result = posts;
-        if (selectedCategory !== "all") result = result.filter(p => p.category === selectedCategory || (selectedCategory === 'Traditional song' && p.category === 'Gargajiya'));
+        if (selectedCategory !== "all") {
+            result = result.filter(p => p.category === selectedCategory || (selectedCategory === 'Traditional song' && (p.category === 'Gargajiya' || p.category === 'Traditional song')));
+        }
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
             result = result.filter(p => p.displayDescription?.toLowerCase().includes(q) || p.username?.toLowerCase().includes(q));
