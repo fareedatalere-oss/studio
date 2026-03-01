@@ -368,7 +368,7 @@ const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isM
                 </div>
                 <h2 className="text-3xl font-black uppercase tracking-tighter text-foreground">{post.description || 'Untitled Track'}</h2>
                 <p className="text-xs font-bold text-primary mb-4 uppercase tracking-widest">{post.category}</p>
-                {post.mediaUrl && <audio ref={audioRef} onPlay={handleAudioPlay} controls src={post.mediaUrl} muted={isMuted} className="mt-10 w-full max-w-sm"></audio>}
+                {post.mediaUrl && <audio ref={audioRef} onPlay={handleAudioPlay} controls src={post.mediaUrl} muted={isMuted} className="mt-10 w-full max-sm"></audio>}
             </div>
         )}
       </div>
