@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -240,7 +241,6 @@ function MarketContent() {
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
       
-      {/* Fixed Immersive Header */}
       <div className="p-4 pt-12 flex items-center justify-between gap-4 bg-muted/30 backdrop-blur-md border-b">
         <Button asChild variant="ghost" size="icon" className="h-10 w-10 rounded-full bg-background/50 border shadow-sm">
             <Link href="/dashboard"><Home className="h-5 w-5" /></Link>
@@ -386,7 +386,7 @@ function MarketContent() {
 
 export default function MarketPage() {
     return (
-        <Suspense fallback={<div className="h-screen flex justify-center items-center"><Loader2 className="animate-spin h-12 w-12 text-primary" /></div>}>
+        <Suspense fallback={<div className="h-screen flex justify-center items-center bg-background"><Loader2 className="animate-spin h-12 w-12 text-primary" /></div>}>
             <MarketContent />
         </Suspense>
     );
