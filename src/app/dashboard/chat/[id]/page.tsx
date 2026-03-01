@@ -235,7 +235,9 @@ export default function ChatThreadPage() {
                 title: 'New Message', description: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
                 isRead: false, link: `/dashboard/chat/${currentUser.$id}`, createdAt: new Date().toISOString()
             });
-        } catch (e) {}
+        } catch (e) {
+            console.error("Failed to trigger notification doc:", e);
+        }
     };
 
     const handleSendTextMessage = async (e: React.FormEvent) => {
@@ -264,11 +266,11 @@ export default function ChatThreadPage() {
         try {
             const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
             const mediaUrl = getAppwriteStorageUrl(upload.$id);
-            const type = file.type.startsWith('image/') ? 'Image' : file.type.startsWith('video/') ? 'Video' : 'Audio';
+            const typeLabel = file.type.startsWith('image/') ? 'Image' : file.type.startsWith('video/') ? 'Video' : 'Audio';
             const final = await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), { chatId, senderId: currentUser.$id, mediaUrl, text: `[media:${file.type}]`, status: 'sent' });
             setMessages(prev => [...prev, final]);
-            await updateChatList(`[${type}] Sent a ${type.toLowerCase()}`);
-            await triggerMessageNotification(`Sent a ${type.toLowerCase()}`);
+            await updateChatList(`[${typeLabel}] Sent a ${typeLabel.toLowerCase()}`);
+            await triggerMessageNotification(`Sent a ${typeLabel.toLowerCase()}`);
         } catch (error: any) { toast({ title: 'Error', description: 'Media failed to send.', variant: 'destructive' }); } 
         finally { setSending(false); }
     };
@@ -484,10 +486,10 @@ export default function ChatThreadPage() {
                                 <div key={chat.$id} className="flex items-center justify-between p-3 rounded-2xl hover:bg-muted/50 border border-transparent hover:border-border">
                                     <div className="flex items-center gap-3">
                                         <Avatar>
-                                            <AvatarImage src={chat.otherUser.avatar} />
-                                            <AvatarFallback>{chat.otherUser.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                                            <AvatarImage src={chat.otherUser?.avatar} />
+                                            <AvatarFallback>{chat.otherUser?.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
                                         </Avatar>
-                                        <p className="font-bold">{chat.otherUser.username}</p>
+                                        <p className="font-bold">{chat.otherUser?.username}</p>
                                     </div>
                                     <Button size="sm" onClick={() => handleSendForward(chat.$id)} className="rounded-full">
                                         <Send className="h-3 w-3 mr-2" />Send

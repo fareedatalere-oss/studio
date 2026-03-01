@@ -10,7 +10,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import client, { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
-import { Query, ID } from 'appwrite';
+import { Query } from 'appwrite';
 import { cn } from '@/lib/utils';
 
 const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager17@gmail.com'];
@@ -170,11 +170,6 @@ export default function DashboardLayout({
                         "absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px] font-bold border-2 border-white",
                         isPulsing && "animate-ping"
                     )}>
-                      {unreadCount > 99 ? '9+' : unreadCount}
-                    </Badge>
-                  )}
-                  {unreadCount > 0 && isPulsing && (
-                    <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px] font-bold border-2 border-white">
                       {unreadCount > 99 ? '9+' : unreadCount}
                     </Badge>
                   )}
