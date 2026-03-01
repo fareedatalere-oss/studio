@@ -117,7 +117,6 @@ export default function ChatThreadPage() {
     const [recordingTime, setRecordingTime] = useState(0);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
-    audioChunksRef.current = [];
     const audioChunksRef = useRef<Blob[]>([]);
     
     const [messageToForward, setMessageToForward] = useState<Models.Document | null>(null);
@@ -291,7 +290,11 @@ export default function ChatThreadPage() {
             const recorder = new MediaRecorder(stream);
             setMediaRecorder(recorder);
             audioChunksRef.current = [];
-            recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    audioChunksRef.current.push(e.data);
+                }
+            };
             recorder.onstop = () => {
                 const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                 setAudioBlob(blob);
