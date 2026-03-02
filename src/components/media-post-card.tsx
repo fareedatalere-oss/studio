@@ -114,7 +114,10 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
     const videoElement = videoRef.current;
     if (!videoElement) return;
     const observer = new IntersectionObserver(([entry]) => {
-        if (entry.isIntersecting) { videoElement.muted = isMuted; videoElement.play().catch(() => {}); }
+        if (entry.isIntersecting) { 
+            videoElement.muted = isMuted; 
+            videoElement.play().catch(() => {}); 
+        }
         else videoElement.pause();
     }, { threshold: 0.1 });
     if (postRef.current) observer.observe(postRef.current);
@@ -196,7 +199,19 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
           </div>
         )}
         {post.type === 'image' && post.mediaUrl && <Image src={post.mediaUrl} alt="image" fill className="object-contain" priority />}
-        {(post.type === 'reels' || post.type === 'film') && post.mediaUrl && <video ref={videoRef} src={post.mediaUrl} controls={false} loop playsInline preload="auto" muted={isMuted} className="w-full h-full object-cover" />}
+        {(post.type === 'reels' || post.type === 'film') && post.mediaUrl && (
+            <video 
+                ref={videoRef} 
+                src={post.mediaUrl} 
+                controls={false} 
+                loop 
+                playsInline 
+                preload="auto" 
+                autoPlay
+                muted={isMuted} 
+                className="w-full h-full object-cover" 
+            />
+        )}
         {post.type === 'music' && (
             <div className="flex flex-col items-center justify-center p-8 text-center w-full h-full bg-muted/20">
                 <div className="relative h-64 w-64 mb-10 rounded-full overflow-hidden border-8 border-primary animate-spin-slow">

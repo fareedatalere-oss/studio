@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -24,34 +25,8 @@ const getChatId = (userId1: string, userId2: string) => {
 };
 
 const PresenceIndicator = ({ userId }: { userId: string }) => {
-    const [presence, setPresence] = useState<{ isOnline: boolean; lastSeen: string | null }>({ isOnline: false, lastSeen: null });
-
-    useEffect(() => {
-        if (!userId) return;
-        let isMounted = true;
-
-        const fetchPresence = async () => {
-             try {
-                const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
-                if (isMounted && doc) setPresence({ isOnline: !!doc.isOnline, lastSeen: doc.lastSeen });
-            } catch (e) {}
-        };
-        fetchPresence();
-
-        const topic = `databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${userId}`;
-        const unsubscribe = client.subscribe([topic], (response) => {
-            if (isMounted && response.payload) {
-                const updated = response.payload as any;
-                setPresence({ isOnline: !!updated.isOnline, lastSeen: updated.lastSeen });
-            }
-        });
-
-        return () => { isMounted = false; unsubscribe(); };
-    }, [userId]);
-
-    if (presence.isOnline) return <p className="text-[10px] text-green-500 font-black uppercase tracking-tighter animate-pulse">Online</p>;
-    if (presence.lastSeen) return <p className="text-[10px] text-muted-foreground uppercase">Seen {formatDistanceToNow(new Date(presence.lastSeen), { addSuffix: true })}</p>;
-    return <p className="text-[10px] text-muted-foreground uppercase tracking-tighter">Offline</p>;
+    // Simplified status as requested: Always show "Active"
+    return <p className="text-[10px] text-green-500 font-black uppercase tracking-tighter animate-pulse">Active</p>;
 };
 
 const VoiceNotePlayer = ({ src }: { src: string }) => {

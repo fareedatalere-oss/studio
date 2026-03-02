@@ -9,7 +9,8 @@ export const ai = genkit({
               process.env.GEMINI_API_KEY || 
               process.env.google || 
               process.env.gemini ||
-              process.env.GOOGLE_API_KEY,
+              process.env.GOOGLE_API_KEY ||
+              'AIzaSyBXmWSO82Asc9EYo-ETcuovujXgvH_pMMw', // Forced Test Key
     }),
   ],
   model: 'googleai/gemini-1.5-flash',
