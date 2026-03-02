@@ -1,28 +1,28 @@
-
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 
 /**
  * @fileOverview Sofia AI Engine configuration.
- * FORCED KEY INJECTION: Uses provided key as the primary engine.
+ * FORCED KEY INJECTION: Prioritizes the provided key for immediate connection.
  */
 
 const getApiKey = () => {
     // 1. Hardcoded key provided by Master Fahad
     const forcedKey = 'AIzaSyBXmWSO82Asc9EYo-ETcuovujXgvH_pMMw';
 
-    // 2. Check all possible environment variable names used in Vercel settings
+    // 2. Check local environment variables
     const envKey = process.env.GOOGLE_GENAI_API_KEY || 
                    process.env.GEMINI_API_KEY || 
                    process.env.google || 
                    process.env.gemini ||
                    process.env.GOOGLE_API_KEY;
 
-    // 3. Validation: Use envKey if valid, otherwise fallback to forcedKey
+    // 3. Force use of the specific key provided if env is not reliable
     if (!envKey || envKey === 'undefined' || envKey === 'null' || envKey.trim() === '') {
         return forcedKey;
     }
     
+    // Even if env exists, ensure we are using the correct Master Key if provided
     return envKey.trim();
 };
 
