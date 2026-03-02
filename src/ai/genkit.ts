@@ -22,7 +22,6 @@ const getApiKey = () => {
         return forcedKey;
     }
     
-    // Even if env exists, ensure we are using the correct Master Key if provided
     return envKey.trim();
 };
 
