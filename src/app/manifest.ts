@@ -3,7 +3,7 @@ import { MetadataRoute } from 'next'
 
 /**
  * @fileOverview PWA Manifest Configuration.
- * Optimized with mandatory fields to trigger the "Install App" prompt on Android Chrome.
+ * Optimized with high-res icons and mandatory fields to trigger the "Install App" prompt on Android.
  */
 
 export default function manifest(): MetadataRoute.Manifest {
