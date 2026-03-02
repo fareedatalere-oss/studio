@@ -4,7 +4,6 @@ import { MetadataRoute } from 'next'
 /**
  * @fileOverview PWA Manifest Configuration.
  * Optimized to trigger the "Install App" button on Android Chrome.
- * Uses consistent icons and required PWA properties.
  */
 
 export default function manifest(): MetadataRoute.Manifest {
@@ -18,13 +17,13 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#0284c7',
     icons: [
       {
-        src: 'https://picsum.photos/seed/ipaybranding/192/192',
+        src: 'https://picsum.photos/seed/ipaybranding/192/192.png',
         sizes: '192x192',
         type: 'image/png',
         purpose: 'maskable',
       },
       {
-        src: 'https://picsum.photos/seed/ipaybranding/512/512',
+        src: 'https://picsum.photos/seed/ipaybranding/512/512.png',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any',
