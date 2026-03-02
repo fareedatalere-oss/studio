@@ -6,36 +6,18 @@ import { googleAI } from '@genkit-ai/google-genai';
  * FORCED KEY INJECTION: Prioritizes the provided key for immediate connection.
  */
 
-const getApiKey = () => {
-    // 1. Hardcoded key provided by Master Fahad
-    const forcedKey = 'AIzaSyBXmWSO82Asc9EYo-ETcuovujXgvH_pMMw';
+const FORCED_KEY = 'AIzaSyBXmWSO82Asc9EYo-ETcuovujXgvH_pMMw';
 
-    // 2. Check local environment variables
-    const envKey = process.env.GOOGLE_GENAI_API_KEY || 
-                   process.env.GEMINI_API_KEY || 
-                   process.env.google || 
-                   process.env.gemini ||
-                   process.env.GOOGLE_API_KEY;
-
-    // 3. Force use of the specific key provided if env is not reliable
-    if (!envKey || envKey === 'undefined' || envKey === 'null' || envKey.trim() === '') {
-        return forcedKey;
-    }
-    
-    return envKey.trim();
-};
-
-const apiKey = getApiKey();
-
-// Programmatically set the default environment variable for global SDK access
+// Ensure the environment variables are set for the SDK
 if (typeof process !== 'undefined' && process.env) {
-    process.env.GOOGLE_GENAI_API_KEY = apiKey;
+    process.env.GOOGLE_GENAI_API_KEY = FORCED_KEY;
+    process.env.GEMINI_API_KEY = FORCED_KEY;
 }
 
 export const ai = genkit({
   plugins: [
     googleAI({
-      apiKey: apiKey,
+      apiKey: FORCED_KEY,
     }),
   ],
   model: 'googleai/gemini-1.5-flash',
