@@ -3,7 +3,8 @@ import { MetadataRoute } from 'next'
 
 /**
  * @fileOverview PWA Manifest Configuration.
- * Optimized with stable icons to trigger the "Install App" button on Android Chrome.
+ * Optimized to trigger the "Install App" button on Android Chrome.
+ * Uses consistent icons and required PWA properties.
  */
 
 export default function manifest(): MetadataRoute.Manifest {
@@ -13,7 +14,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'I-Pay: New world of online business and transactions',
     start_url: '/',
     display: 'standalone',
-    background_color: '#001f3f',
+    background_color: '#ffffff',
     theme_color: '#0284c7',
     icons: [
       {
