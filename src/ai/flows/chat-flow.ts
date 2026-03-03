@@ -58,6 +58,7 @@ export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
 
 const prompt = ai.definePrompt({
   name: 'sofiaChatPrompt',
+  model: 'googleai/gemini-1.5-flash-latest',
   input: { schema: SofiaInputSchema },
   output: { schema: SofiaOutputSchema },
   tools: [getBalanceTool],
