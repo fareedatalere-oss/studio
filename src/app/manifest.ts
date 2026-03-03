@@ -18,13 +18,13 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#0284c7',
     icons: [
       {
-        src: 'https://picsum.photos/seed/ipaylogo/192/192',
+        src: '/logo.png',
         sizes: '192x192',
         type: 'image/png',
         purpose: 'maskable',
       },
       {
-        src: 'https://picsum.photos/seed/ipaylogo/512/512',
+        src: '/logo.png',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any',
