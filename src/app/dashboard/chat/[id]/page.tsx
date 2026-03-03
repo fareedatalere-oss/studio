@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -25,8 +24,40 @@ const getChatId = (userId1: string, userId2: string) => {
 };
 
 const PresenceIndicator = ({ userId }: { userId: string }) => {
-    // Simplified status as requested: Always show "Active"
-    return <p className="text-[10px] text-green-500 font-black uppercase tracking-tighter animate-pulse">Active</p>;
+    const [status, setStatus] = useState<{ isOnline: boolean; lastSeen: string | null } | null>(null);
+
+    useEffect(() => {
+        const fetchStatus = async () => {
+            try {
+                const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
+                setStatus({ isOnline: doc.isOnline, lastSeen: doc.lastSeen });
+            } catch (e) {}
+        };
+        fetchStatus();
+
+        const unsubscribe = client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${userId}`, response => {
+            const payload = response.payload as any;
+            setStatus({ isOnline: payload.isOnline, lastSeen: payload.lastSeen });
+        });
+
+        return () => unsubscribe();
+    }, [userId]);
+
+    if (!status) return <p className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">Syncing...</p>;
+
+    if (status.isOnline) {
+        return <p className="text-[10px] text-green-500 font-black uppercase tracking-tighter animate-pulse">Active Now</p>;
+    }
+
+    if (status.lastSeen) {
+        return (
+            <p className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">
+                Last seen {formatDistanceToNow(new Date(status.lastSeen), { addSuffix: true })}
+            </p>
+        );
+    }
+
+    return <p className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">Offline</p>;
 };
 
 const VoiceNotePlayer = ({ src }: { src: string }) => {
