@@ -19,7 +19,6 @@ import { useToast } from "@/hooks/use-toast";
 import { getCardVerificationLink, chargeTokenizedCard, syncVirtualAccountPayments } from '@/app/actions/flutterwave';
 import { useRouter } from 'next/navigation';
 import {
-  Bot,
   Newspaper,
   Plane,
   CreditCard,
@@ -176,7 +175,6 @@ function DashboardContent() {
     { key: 'feat_electric', label: 'Electric Bill', icon: Lightbulb, href: '/dashboard/electric-bill' },
     { key: 'feat_multipurpose', label: 'Multi Purpose', icon: CreditCard, href: '/dashboard/multi-purpose' },
     { key: 'feat_traveling', label: 'Traveling', icon: Plane, href: '/dashboard/travelling' },
-    { key: 'feat_ai', label: 'AI', icon: Bot, href: '/dashboard/ai-chat' },
     { key: 'feat_refund', label: 'Refund', icon: Undo2, onClick: handleFundAccountClick },
     { key: 'feat_news', label: 'News', icon: Newspaper, href: '/dashboard/news' },
   ];

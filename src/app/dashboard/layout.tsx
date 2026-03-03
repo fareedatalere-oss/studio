@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Bot, Bell, Home, PlaySquare, Store, User, MessageSquare, Download, X } from 'lucide-react';
+import { Bell, Home, PlaySquare, Store, User, MessageSquare, Download, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -157,9 +157,6 @@ export default function DashboardLayout({
           <div className="container flex h-16 items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/dashboard"><IPayLogo className="h-10 w-10" /></Link>
-              <Button asChild variant="ghost" size="icon" onClick={(e) => handleTabClick(e, 'feat_ai')}>
-                <Link href="/dashboard/ai-chat"><Bot className="h-5 w-5" /></Link>
-              </Button>
             </div>
             <div className="flex items-center gap-4">
               <Button asChild variant="ghost" size="icon" className={cn("relative transition-transform", isPulsing && "scale-110")}>
