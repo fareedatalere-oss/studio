@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -7,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Loader2, MoreVertical, Trash2, UserX } from 'lucide-react';
+import { Search, Loader2, MoreVertical, Trash2 } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES } from '@/lib/appwrite';
 import { Query } from 'appwrite';
@@ -55,10 +56,6 @@ const RecentChatItem = ({ chat, currentUser, onAction }: { chat: any, currentUse
         };
         fetchUnread();
     }, [chat.$id, currentUser.$id]);
-
-    const handleBlockUser = async (userId: string, username: string) => {
-         toast({ title: "Feature coming soon", description: `Blocking for ${username} will be available shortly.` });
-    };
 
     const handleDeleteForMe = async (chatId: string) => {
         toast({ title: 'Deleting Chat...', description: `Removing chat from your list.` });
@@ -131,7 +128,6 @@ const RecentChatItem = ({ chat, currentUser, onAction }: { chat: any, currentUse
                         <Button variant="ghost" size="icon" className="shrink-0"><MoreVertical className="h-4 w-4"/></Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleBlockUser(chat.otherUser.$id, displayName)}>Block User</DropdownMenuItem>
                         <AlertDialogTrigger asChild>
                             <DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive">Delete Chat</DropdownMenuItem>
                         </AlertDialogTrigger>
@@ -193,7 +189,7 @@ export default function ChatPage() {
         setLoading(prev => ({ ...prev, recent: true }));
         try {
             const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
-                Query.equal('participants', currentUser.$id),
+                Query.contains('participants', currentUser.$id),
                 Query.orderDesc('lastMessageAt')
             ]);
 
@@ -210,11 +206,12 @@ export default function ChatPage() {
 
             setRecentChats(chatsWithData.filter(Boolean));
         } catch (e: any) {
-            toast({ title: "Error", description: `Could not load recent chats: ${e.message}`, variant: 'destructive' });
+            console.error("Recent chats error:", e);
+            setRecentChats([]);
         } finally {
             setLoading(prev => ({ ...prev, recent: false }));
         }
-    }, [currentUser, toast]);
+    }, [currentUser]);
 
 
     useEffect(() => {

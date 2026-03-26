@@ -1,11 +1,12 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import client, { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, getAppwriteStorageUrl, storage, BUCKET_ID_UPLOADS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
-import { Models, ID, Query, Permission, Role } from 'appwrite';
-import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, ImageIcon, PlayCircle, Trash2, Play, Pause, Forward } from 'lucide-react';
+import { Models, ID, Query } from 'appwrite';
+import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, PlayCircle, Trash2, Play, Pause, Forward } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -21,43 +22,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 const getChatId = (userId1: string, userId2: string) => {
     const sortedIds = [userId1, userId2].sort();
     return `${sortedIds[0].substring(0, 15)}_${sortedIds[1].substring(0, 15)}`;
-};
-
-const PresenceIndicator = ({ userId }: { userId: string }) => {
-    const [status, setStatus] = useState<{ isOnline: boolean; lastSeen: string | null } | null>(null);
-
-    useEffect(() => {
-        const fetchStatus = async () => {
-            try {
-                const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
-                setStatus({ isOnline: doc.isOnline, lastSeen: doc.lastSeen });
-            } catch (e) {}
-        };
-        fetchStatus();
-
-        const unsubscribe = client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_PROFILES}.documents.${userId}`, response => {
-            const payload = response.payload as any;
-            setStatus({ isOnline: payload.isOnline, lastSeen: payload.lastSeen });
-        });
-
-        return () => unsubscribe();
-    }, [userId]);
-
-    if (!status) return <p className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">Syncing...</p>;
-
-    if (status.isOnline) {
-        return <p className="text-[10px] text-green-500 font-black uppercase tracking-tighter animate-pulse">Active Now</p>;
-    }
-
-    if (status.lastSeen) {
-        return (
-            <p className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">
-                Last seen {formatDistanceToNow(new Date(status.lastSeen), { addSuffix: true })}
-            </p>
-        );
-    }
-
-    return <p className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">Offline</p>;
 };
 
 const VoiceNotePlayer = ({ src }: { src: string }) => {
@@ -142,17 +106,8 @@ export default function ChatThreadPage() {
             if (response.documents.length > 0) {
                 await Promise.all(response.documents.map(msg => databases.updateDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, msg.$id, { status: 'read' })));
             }
-            const notifRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, [
-                Query.equal('userId', currentUser.$id),
-                Query.equal('senderId', otherUserId),
-                Query.equal('type', 'message'),
-                Query.equal('isRead', false)
-            ]);
-            if (notifRes.documents.length > 0) {
-                await Promise.all(notifRes.documents.map(notif => databases.updateDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, notif.$id, { isRead: true })));
-            }
         } catch (e) {}
-    }, [chatId, currentUser, otherUserId]);
+    }, [chatId, currentUser]);
 
     useEffect(() => {
         if (!chatId) return;
@@ -201,7 +156,7 @@ export default function ChatThreadPage() {
                 setLoadingRecentChats(true);
                 try {
                     const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
-                        Query.equal('participants', currentUser.$id),
+                        Query.contains('participants', currentUser.$id),
                         Query.orderDesc('lastMessageAt'),
                         Query.limit(10)
                     ]);
@@ -240,11 +195,7 @@ export default function ChatThreadPage() {
                 userId: otherUserId, senderId: currentUser.$id, type: 'message',
                 title: 'New Message', description: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
                 isRead: false, link: `/dashboard/chat/${currentUser.$id}`, createdAt: new Date().toISOString()
-            }, [
-                Permission.read(Role.user(otherUserId)),
-                Permission.update(Role.user(otherUserId)),
-                Permission.read(Role.user(currentUser.$id)),
-            ]);
+            });
         } catch (e) {
             console.error("Failed to trigger notification doc:", e);
         }
@@ -383,7 +334,6 @@ export default function ChatThreadPage() {
                         </Avatar>
                         <div>
                             <h2 className="font-bold text-sm leading-none">{otherUser.username}</h2>
-                            <PresenceIndicator userId={otherUserId} />
                         </div>
                     </>
                 ) : (

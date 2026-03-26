@@ -1,6 +1,7 @@
+
 'use client';
 import Link from 'next/link';
-import { Bell, Home, PlaySquare, Store, User, MessageSquare, Download, X } from 'lucide-react';
+import { Bell, Home, PlaySquare, Store, User, MessageSquare, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -23,7 +24,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
-  const { user, profile, loading, proof, recheckUser } = useUser();
+  const { user, profile, loading, proof } = useUser();
   const [isMounted, setIsMounted] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
@@ -38,6 +39,14 @@ export default function DashboardLayout({
 
   useEffect(() => {
     setIsMounted(true);
+    
+    // Request notification permission
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+            Notification.requestPermission();
+        }
+    }
+
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -79,10 +88,17 @@ export default function DashboardLayout({
       setUnreadCount(newTotal);
       setUnreadMsgCount(msgRes.total);
 
-      // Trigger "Alarm" pulse if count increased
+      // Trigger native browser notification if count increased
       if (newTotal > lastCountRef.current) {
         setIsPulsing(true);
         setTimeout(() => setIsPulsing(false), 3000);
+        
+        if (Notification.permission === 'granted') {
+            new Notification("I-Pay Online", {
+                body: "You have a new alert or message.",
+                icon: "/logo.png"
+            });
+        }
       }
       lastCountRef.current = newTotal;
 
@@ -95,26 +111,16 @@ export default function DashboardLayout({
     if (user) {
       fetchUnreadCounts();
 
-      // Refresh on window focus (instant sync when returning to app)
-      const handleFocus = () => fetchUnreadCounts();
-      window.addEventListener('focus', handleFocus);
-
       // Real-time subscription for INSTANT alerts
       const topic = `databases.${DATABASE_ID}.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`;
       const unsubscribe = client.subscribe([topic], (response) => {
-          const events = response.events || [];
-          if (events.some(e => e.includes('.create') || e.includes('.update') || e.includes('.delete'))) {
-              const payload = response.payload as any;
-              if (payload.userId === user.$id) {
-                fetchUnreadCounts();
-              }
+          const payload = response.payload as any;
+          if (payload.userId === user.$id) {
+            fetchUnreadCounts();
           }
       });
 
-      return () => {
-          unsubscribe();
-          window.removeEventListener('focus', handleFocus);
-      };
+      return () => unsubscribe();
     }
   }, [user, fetchUnreadCounts]);
 

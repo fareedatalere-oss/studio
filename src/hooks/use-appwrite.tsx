@@ -1,54 +1,9 @@
+
 'use client';
 
 import client, { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
 import { Models } from 'appwrite';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-
-const usePresence = (user: Models.User<Models.Preferences> | null) => {
-    useEffect(() => {
-        if (!user || typeof window === 'undefined') return;
-
-        const updateUserPresence = async (isOnline: boolean) => {
-            try {
-                // Defensive check: only update if the attributes exist in the DB
-                // Since we can't check schema dynamically easily, we catch the "Unknown attribute" error
-                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, {
-                    isOnline,
-                    lastSeen: new Date().toISOString(),
-                });
-            } catch (error: any) {
-                // If the error is about missing attributes, we ignore it to prevent crashing
-                if (error.message?.includes('Unknown attribute')) {
-                    console.warn("Presence attributes (isOnline/lastSeen) not found in Appwrite schema.");
-                } else {
-                    console.error("Presence update failed", error);
-                }
-            }
-        };
-
-        const handleVisibilityChange = () => {
-            updateUserPresence(document.visibilityState === 'visible');
-        };
-
-        // Set online immediately
-        updateUserPresence(true);
-
-        const interval = setInterval(() => {
-            if (document.visibilityState === 'visible') {
-                updateUserPresence(true);
-            }
-        }, 45000); // Pulse every 45 seconds
-
-        window.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('beforeunload', () => updateUserPresence(false));
-
-        return () => {
-            clearInterval(interval);
-            window.removeEventListener('visibilitychange', handleVisibilityChange);
-            updateUserPresence(false);
-        };
-    }, [user]);
-};
 
 type AppwriteContextType = {
     user: Models.User<Models.Preferences> | null;
@@ -71,8 +26,6 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
     const [config, setConfig] = useState<any | null>(null);
     const [proof, setProof] = useState<any | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-
-    usePresence(user);
 
     const checkUser = useCallback(async () => {
         if (typeof window === 'undefined') return;
