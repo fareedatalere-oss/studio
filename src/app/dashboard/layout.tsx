@@ -36,30 +36,31 @@ export default function DashboardLayout({
   // Immersive sections logic
   const isImmersive = pathname === '/dashboard/media' || pathname.startsWith('/dashboard/media/music') || pathname.includes('/text');
 
-  // Background Media Preloader
+  // AGGRESSIVE BACKGROUND MEDIA PRELOADER
   useEffect(() => {
     if (!user) return;
     
     const preloadMedia = async () => {
         try {
-            const posts = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [Query.limit(10), Query.orderDesc('$createdAt')]);
+            const posts = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [Query.limit(20), Query.orderDesc('$createdAt')]);
             posts.documents.forEach(post => {
                 if (post.mediaUrl) {
                     if (post.type === 'image') {
                         const img = new Image();
                         img.src = post.mediaUrl;
                     } else if (post.type === 'reels' || post.type === 'film' || post.type === 'music') {
-                        const video = document.createElement('video');
-                        video.src = post.mediaUrl;
-                        video.preload = 'auto';
+                        // Create a hidden video/audio element to force browser caching
+                        const element = document.createElement(post.type === 'music' ? 'audio' : 'video');
+                        element.src = post.mediaUrl;
+                        element.preload = 'auto';
+                        element.load();
                     }
                 }
             });
         } catch (e) {}
     };
     
-    // Run preloading silently in the background
-    const timer = setTimeout(preloadMedia, 3000);
+    const timer = setTimeout(preloadMedia, 2000);
     return () => clearTimeout(timer);
   }, [user]);
 
@@ -114,14 +115,13 @@ export default function DashboardLayout({
       setUnreadCount(newTotal);
       setUnreadMsgCount(msgRes.total);
 
-      // Trigger native browser notification if count increased
       if (newTotal > lastCountRef.current) {
         setIsPulsing(true);
         setTimeout(() => setIsPulsing(false), 3000);
         
         if (Notification.permission === 'granted') {
-            new Notification("I-Pay Online", {
-                body: "You have a new alert or message.",
+            new Notification("I-Pay Alert", {
+                body: "Check your notifications.",
                 icon: "/logo.png"
             });
         }
@@ -136,8 +136,6 @@ export default function DashboardLayout({
   useEffect(() => {
     if (user) {
       fetchUnreadCounts();
-
-      // Real-time subscription for INSTANT alerts
       const topic = `databases.${DATABASE_ID}.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`;
       const unsubscribe = client.subscribe([topic], (response) => {
           const payload = response.payload as any;
@@ -145,16 +143,9 @@ export default function DashboardLayout({
             fetchUnreadCounts();
           }
       });
-
       return () => unsubscribe();
     }
   }, [user, fetchUnreadCounts]);
-
-  useEffect(() => {
-    if (proof && !proof.main_switch && user && !MANAGER_EMAILS.includes(user.email.toLowerCase())) {
-        router.replace('/');
-    }
-  }, [proof, user, router]);
 
   const isAdmin = user && MANAGER_EMAILS.includes(user.email.toLowerCase());
   const isTabOn = (key: string) => (isAdmin || !proof) ? true : proof[key] !== false;
@@ -173,8 +164,8 @@ export default function DashboardLayout({
           <div className="flex items-center gap-3">
             <IPayLogo className="h-8 w-8 rounded-md bg-white p-1" />
             <div>
-              <p className="text-xs font-black uppercase tracking-tight">Install I-Pay App</p>
-              <p className="text-[10px] opacity-90">Get the native experience on your home screen.</p>
+              <p className="text-xs font-black uppercase tracking-tight">Download I-Pay App</p>
+              <p className="text-[10px] opacity-90">Get the full experience instantly.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -195,11 +186,8 @@ export default function DashboardLayout({
                 <Link href="/dashboard/notifications">
                   <Bell className={cn("h-5 w-5", isPulsing && "text-primary animate-bounce")} />
                    {unreadCount > 0 && (
-                    <Badge variant="destructive" className={cn(
-                        "absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px] font-bold border-2 border-white",
-                        isPulsing && "animate-ping"
-                    )}>
-                      {unreadCount > 99 ? '9+' : unreadCount}
+                    <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0 rounded-full text-[10px] font-bold border-2 border-white">
+                      {unreadCount > 9 ? '9+' : unreadCount}
                     </Badge>
                   )}
                 </Link>
@@ -227,7 +215,7 @@ export default function DashboardLayout({
             <Link href="/dashboard/chat" onClick={(e) => handleTabClick(e, 'tab_chat')} className={cn("flex flex-col items-center gap-1 relative", pathname.startsWith('/dashboard/chat') ? "text-primary font-bold" : "text-muted-foreground")}>
               <MessageSquare className="h-6 w-6" />
               {unreadMsgCount > 0 && (
-                <Badge variant="destructive" className="absolute -top-1 right-2 h-4 min-w-4 justify-center p-0.5 rounded-full text-[10px] font-bold border-2 border-white animate-pulse">
+                <Badge variant="destructive" className="absolute -top-1 right-2 h-4 min-w-4 justify-center p-0.5 rounded-full text-[10px] font-bold border-2 border-white">
                   {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
                 </Badge>
               )}

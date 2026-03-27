@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Video, Users, Calendar, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Video, Users, Calendar, ArrowRight, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -18,49 +18,49 @@ export default function MeetingLandingPage() {
             <Video className="h-10 w-10 text-primary" />
           </div>
           <h1 className="text-3xl font-black uppercase tracking-tighter">Meeting Hub</h1>
-          <p className="text-muted-foreground font-medium">Connect with friends and community members</p>
+          <p className="text-muted-foreground font-medium">Internal Communication Center</p>
         </header>
 
         <div className="grid gap-4">
-          <Button asChild className="h-24 flex items-center justify-between px-8 rounded-3xl group" variant="default">
+          <Button asChild className="h-24 flex items-center justify-between px-8 rounded-3xl group shadow-lg" variant="default">
             <Link href="/dashboard/meeting/book">
               <div className="flex items-center gap-4 text-left">
                 <div className="bg-white/20 p-3 rounded-2xl group-hover:scale-110 transition-transform">
-                  <Video className="h-6 w-6" />
+                  <Video className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <p className="font-black uppercase tracking-widest">Book a Meeting</p>
-                  <p className="text-[10px] opacity-80">Host a personal or general session</p>
+                  <p className="font-black uppercase tracking-widest text-white">Book a Meeting</p>
+                  <p className="text-[10px] text-white/80">Generate a new session</p>
                 </div>
               </div>
-              <ArrowRight className="h-5 w-5 opacity-50" />
+              <ArrowRight className="h-5 w-5 text-white/50" />
             </Link>
           </Button>
 
-          <Button asChild className="h-24 flex items-center justify-between px-8 rounded-3xl group" variant="outline">
+          <Button asChild className="h-24 flex items-center justify-between px-8 rounded-3xl group shadow-md" variant="outline">
             <Link href="/dashboard/meeting/enter">
               <div className="flex items-center gap-4 text-left text-foreground">
                 <div className="bg-muted p-3 rounded-2xl group-hover:scale-110 transition-transform">
-                  <Users className="h-6 w-6" />
+                  <Users className="h-6 w-6 text-primary" />
                 </div>
                 <div>
                   <p className="font-black uppercase tracking-widest">Enter a Meeting</p>
-                  <p className="text-[10px] text-muted-foreground">Join an existing session via ID</p>
+                  <p className="text-[10px] text-muted-foreground">Join existing via ID</p>
                 </div>
               </div>
               <ArrowRight className="h-5 w-5 opacity-50" />
             </Link>
           </Button>
 
-          <Button asChild className="h-24 flex items-center justify-between px-8 rounded-3xl group" variant="secondary">
+          <Button asChild className="h-24 flex items-center justify-between px-8 rounded-3xl group shadow-md" variant="secondary">
             <Link href="/dashboard/meeting/schedules">
               <div className="flex items-center gap-4 text-left">
                 <div className="bg-muted p-3 rounded-2xl group-hover:scale-110 transition-transform">
-                  <Calendar className="h-6 w-6" />
+                  <Calendar className="h-6 w-6 text-primary" />
                 </div>
                 <div>
                   <p className="font-black uppercase tracking-widest">View Schedules</p>
-                  <p className="text-[10px] text-muted-foreground">Community attendance & timing</p>
+                  <p className="text-[10px] text-muted-foreground">Community attendance</p>
                 </div>
               </div>
               <ArrowRight className="h-5 w-5 opacity-50" />
