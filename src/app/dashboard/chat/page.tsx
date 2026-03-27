@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -8,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Loader2, MoreVertical, Trash2 } from 'lucide-react';
+import { Search, Loader2, MoreVertical, Trash2, Video } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES } from '@/lib/appwrite';
 import { Query } from 'appwrite';
@@ -251,7 +250,7 @@ export default function ChatPage() {
         if (loading.all) return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
         if (filteredAllUsers.length === 0) return <p className="text-center text-muted-foreground p-8">No users found.</p>;
         return (
-            <div className="space-y-2">
+            <div className="space-y-2 pb-24">
                 {filteredAllUsers.map(user => <AllUserItem key={user.$id} user={user} />)}
             </div>
         );
@@ -261,14 +260,14 @@ export default function ChatPage() {
         if (loading.recent) return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
         if (filteredRecentChats.length === 0) return <p className="text-center text-muted-foreground p-8">You have no recent conversations.</p>;
         return (
-            <div className="space-y-2">
+            <div className="space-y-2 pb-24">
                 {filteredRecentChats.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} onAction={fetchRecentChats} />)}
             </div>
         );
     };
 
     return (
-        <div className="flex flex-col h-full bg-white text-gray-900">
+        <div className="flex flex-col h-full bg-white text-gray-900 relative">
             <Tabs defaultValue="recent" className="flex flex-col h-full">
                 <header className="sticky top-16 md:top-0 bg-white border-b p-3 z-10">
                     <TabsList className="grid w-full grid-cols-2 bg-muted text-gray-600">
@@ -295,6 +294,19 @@ export default function ChatPage() {
                     </TabsContent>
                 </main>
             </Tabs>
+
+            {/* Let's talk on meeting button */}
+            <div className="fixed bottom-20 left-0 right-0 p-4 flex justify-center z-50 pointer-events-none md:bottom-4">
+                <Button 
+                    asChild 
+                    className="rounded-full h-14 px-8 shadow-2xl font-black uppercase tracking-widest gap-2 bg-primary pointer-events-auto animate-in slide-in-from-bottom-4"
+                >
+                    <a href="https://meet.google.com/new" target="_blank" rel="noopener noreferrer">
+                        <Video className="h-5 w-5" />
+                        Let's talk on meeting
+                    </a>
+                </Button>
+            </div>
         </div>
     );
 }

@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Loader2, ClipboardCopy } from 'lucide-react';
+import { ArrowLeft, Loader2, ClipboardCopy, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +12,7 @@ import { generateVirtualAccount } from '@/app/actions/flutterwave';
 import { useUser } from '@/hooks/use-appwrite';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 import { useRouter } from 'next/navigation';
+import { Query } from 'appwrite';
 
 export default function GetAccountNumberPage() {
   const { toast } = useToast();
@@ -47,15 +47,13 @@ export default function GetAccountNumberPage() {
           }));
         })
         .catch(error => {
-          // It's okay if the profile doesn't have these fields yet, just log for debugging.
           setFormData(prev => ({ ...prev, email: user.email }));
-          console.log("Could not pre-fill all profile data, user might need to enter it manually.", error.message);
+          console.log("Could not pre-fill all profile data", error.message);
         })
         .finally(() => {
             setIsPageLoading(false);
         });
     } else if (!userLoading) {
-        // If there's no user and we're not loading, stop loading the page.
         setIsPageLoading(false);
     }
   }, [user, userLoading]);
@@ -101,8 +99,25 @@ export default function GetAccountNumberPage() {
     setIsGenerating(true);
 
     try {
+        // SECURITY CHECK: Duplicate BVN/NIN check
+        const duplicateCheck = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTION_ID_PROFILES,
+            [Query.equal('bvn', formData.bvn)]
+        );
+
+        if (duplicateCheck.total > 0 && duplicateCheck.documents[0].$id !== user.$id) {
+            toast({
+                variant: 'destructive',
+                title: 'Already Available',
+                description: 'This BVN/NIN is already registered with another account.',
+            });
+            setIsGenerating(false);
+            return;
+        }
+
         const result = await generateVirtualAccount({
-            email: user.email, // Always use the authenticated user's email
+            email: user.email, 
             firstname: formData.firstName,
             lastname: formData.lastName,
             phonenumber: formData.phone,
@@ -115,11 +130,8 @@ export default function GetAccountNumberPage() {
                 bank: result.data.bank_name,
             };
 
-            // Update user's main name in Appwrite Auth
             await account.updateName(`${formData.firstName} ${formData.lastName}`);
             
-            // Save account number and other details to the profile.
-            // Note: We avoid saving the 'email' field to the document itself to prevent "Unknown attribute" errors.
             await databases.updateDocument(
                 DATABASE_ID,
                 COLLECTION_ID_PROFILES,
@@ -135,7 +147,6 @@ export default function GetAccountNumberPage() {
                 }
             );
 
-            // Force a refetch of the user profile data across the app
             await recheckUser();
 
             setGeneratedAccount(accountInfo);
