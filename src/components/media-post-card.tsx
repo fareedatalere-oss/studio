@@ -62,11 +62,7 @@ const CommentInput = ({ postId, postOwnerId, onCommentPosted }: { postId: string
       if (postOwnerId !== user.$id) {
         databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
           userId: postOwnerId, senderId: user.$id, type: 'comment', title: 'New Comment', description: `commented on your post.`, isRead: false, link: `/dashboard/media`, createdAt: new Date().toISOString()
-        }, [
-            Permission.read(Role.user(postOwnerId)),
-            Permission.update(Role.user(postOwnerId)),
-            Permission.read(Role.user(user.$id)),
-        ]).catch(() => {});
+        }).catch(() => {});
       }
 
       setText('');
@@ -137,7 +133,7 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
         if (newIsLiked && post.userId !== currentUser.$id) {
           databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
             userId: post.userId, senderId: currentUser.$id, type: 'like', title: 'New Like', description: 'liked your post.', isRead: false, link: `/dashboard/media`, createdAt: new Date().toISOString()
-          }, [Permission.read(Role.user(post.userId)), Permission.update(Role.user(post.userId)), Permission.read(Role.user(currentUser.$id))]).catch(() => {});
+          }).catch(() => {});
         }
     } catch (e) { setIsLiked(!newIsLiked); setLikeCount(likeCount); }
   };
@@ -220,7 +216,7 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
                 </div>
                 <h2 className="text-3xl font-black uppercase tracking-tighter">{post.description?.split('|').pop() || 'Untitled'}</h2>
                 <p className="text-xs font-bold text-primary mb-4 uppercase">{post.category || 'Music'}</p>
-                {post.mediaUrl && <audio ref={audioRef} controls src={post.mediaUrl} muted={isMuted} className="mt-10 w-full max-w-xs"></audio>}
+                {post.mediaUrl && <audio ref={audioRef} controls src={post.mediaUrl} preload="auto" muted={isMuted} className="mt-10 w-full max-w-xs"></audio>}
             </div>
         )}
       </div>

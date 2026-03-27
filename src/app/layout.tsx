@@ -3,6 +3,7 @@ import type {Metadata, Viewport} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AppwriteProvider } from '@/hooks/use-appwrite';
+import Script from 'next/script';
 
 export const metadata: Metadata = {
   title: 'I-Pay Online',
@@ -51,6 +52,19 @@ export default function RootLayout({
           {children}
         </AppwriteProvider>
         <Toaster />
+        <Script id="register-sw" strategy="afterInteractive">
+          {`
+            if ('serviceWorker' in navigator) {
+              window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js').then(function(registration) {
+                  console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                }, function(err) {
+                  console.log('ServiceWorker registration failed: ', err);
+                });
+              });
+            }
+          `}
+        </Script>
       </body>
     </html>
   );
