@@ -77,6 +77,12 @@ function DashboardContent() {
   };
 
   const handleActionClick = (key: string, href?: string, callback?: Function) => {
+      if (key === 'feat_get_reward') {
+          toast({ variant: 'destructive', title: 'Feature Updating', description: "This feature isn't working right away it's updating kindly try again later", duration: 6000 });
+          router.push('/dashboard/rewards');
+          return;
+      }
+
       if (!isFeatOn(key)) {
           toast({ variant: 'destructive', title: "Not Available", description: "Currently not available please try again later" });
           return;

@@ -295,16 +295,16 @@ export default function ChatPage() {
                 </main>
             </Tabs>
 
-            {/* Let's talk on meeting button */}
+            {/* Meeting Button */}
             <div className="fixed bottom-20 left-0 right-0 p-4 flex justify-center z-50 pointer-events-none md:bottom-4">
                 <Button 
                     asChild 
                     className="rounded-full h-14 px-8 shadow-2xl font-black uppercase tracking-widest gap-2 bg-primary pointer-events-auto animate-in slide-in-from-bottom-4"
                 >
-                    <a href="https://meet.google.com/new" target="_blank" rel="noopener noreferrer">
+                    <Link href="/dashboard/meeting">
                         <Video className="h-5 w-5" />
                         Let's talk on meeting
-                    </a>
+                    </Link>
                 </Button>
             </div>
         </div>

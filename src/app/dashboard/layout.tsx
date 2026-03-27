@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { Bell, Home, PlaySquare, Store, User, MessageSquare, X } from 'lucide-react';
@@ -10,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import client, { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
+import client, { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_POSTS } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { cn } from '@/lib/utils';
 
@@ -36,6 +35,33 @@ export default function DashboardLayout({
 
   // Immersive sections logic
   const isImmersive = pathname === '/dashboard/media' || pathname.startsWith('/dashboard/media/music') || pathname.includes('/text');
+
+  // Background Media Preloader
+  useEffect(() => {
+    if (!user) return;
+    
+    const preloadMedia = async () => {
+        try {
+            const posts = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [Query.limit(10), Query.orderDesc('$createdAt')]);
+            posts.documents.forEach(post => {
+                if (post.mediaUrl) {
+                    if (post.type === 'image') {
+                        const img = new Image();
+                        img.src = post.mediaUrl;
+                    } else if (post.type === 'reels' || post.type === 'film' || post.type === 'music') {
+                        const video = document.createElement('video');
+                        video.src = post.mediaUrl;
+                        video.preload = 'auto';
+                    }
+                }
+            });
+        } catch (e) {}
+    };
+    
+    // Run preloading silently in the background
+    const timer = setTimeout(preloadMedia, 3000);
+    return () => clearTimeout(timer);
+  }, [user]);
 
   useEffect(() => {
     setIsMounted(true);
