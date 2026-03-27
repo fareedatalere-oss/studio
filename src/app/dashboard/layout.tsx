@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import client, { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_POSTS } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { cn } from '@/lib/utils';
+import { MeetingAlarm } from '@/components/meeting-alarm';
 
 const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager17@gmail.com'];
 
@@ -33,10 +34,8 @@ export default function DashboardLayout({
   
   const lastCountRef = useRef(0);
 
-  // Immersive sections logic
   const isImmersive = pathname === '/dashboard/media' || pathname.startsWith('/dashboard/media/music') || pathname.includes('/text');
 
-  // AGGRESSIVE BACKGROUND MEDIA PRELOADER
   useEffect(() => {
     if (!user) return;
     
@@ -49,7 +48,6 @@ export default function DashboardLayout({
                         const img = new Image();
                         img.src = post.mediaUrl;
                     } else if (post.type === 'reels' || post.type === 'film' || post.type === 'music') {
-                        // Create a hidden video/audio element to force browser caching
                         const element = document.createElement(post.type === 'music' ? 'audio' : 'video');
                         element.src = post.mediaUrl;
                         element.preload = 'auto';
@@ -67,7 +65,6 @@ export default function DashboardLayout({
   useEffect(() => {
     setIsMounted(true);
     
-    // Request notification permission
     if (typeof window !== 'undefined' && 'Notification' in window) {
         if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
             Notification.requestPermission();
@@ -159,6 +156,7 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
+      <MeetingAlarm />
       {showInstallBanner && !isImmersive && (
         <div className="bg-primary text-primary-foreground p-3 flex items-center justify-between shadow-lg sticky top-0 z-[60]">
           <div className="flex items-center gap-3">

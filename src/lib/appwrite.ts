@@ -25,6 +25,9 @@ export const COLLECTION_ID_BOOKS = 'books';
 export const COLLECTION_ID_UPWORK_PROFILES = 'upworkProfiles';
 export const COLLECTION_ID_APP_CONFIG = 'app_config';
 export const COLLECTION_ID_NOTIFICATIONS = 'notifications';
+export const COLLECTION_ID_MEETINGS = 'meetings'; // New Collection for Meeting Hub
+
+export const MEETING_BOT_ID = 'ipay_meeting_system';
 
 export function getAppwriteStorageUrl(fileId: string) {
     if (!fileId) return '';
