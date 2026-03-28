@@ -56,6 +56,22 @@ export default function MeetingInvitePage() {
     router.push('/dashboard/meeting/book/confirm');
   };
 
+  const toggleUserSelection = (userId: string) => {
+    if (selectedUsers.includes(userId)) {
+        setSelectedUsers(selectedUsers.filter(id => id !== userId));
+    } else {
+        if (meetingData.type === 'personal' && selectedUsers.length >= 5) {
+            toast({ 
+                variant: 'destructive', 
+                title: 'Limit Reached', 
+                description: 'Personal meetings are limited to 5 users.' 
+            });
+            return;
+        }
+        setSelectedUsers([...selectedUsers, userId]);
+    }
+  };
+
   const filteredUsers = users.filter(u => 
     u.username?.toLowerCase().includes(search.toLowerCase())
   );
@@ -69,7 +85,9 @@ export default function MeetingInvitePage() {
       <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
         <CardHeader className="bg-primary/5 pb-8 text-center">
           <CardTitle className="text-2xl font-black uppercase tracking-tighter">Step 4: Invite People</CardTitle>
-          <CardDescription className="font-bold">How should people join your meeting?</CardDescription>
+          <CardDescription className="font-bold">
+            {meetingData?.type === 'personal' ? 'Select up to 5 people' : 'Choose participants'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-8">
           <div className="grid grid-cols-2 gap-4">
@@ -111,10 +129,7 @@ export default function MeetingInvitePage() {
                       "flex items-center justify-between p-3 rounded-2xl cursor-pointer transition-all border-2",
                       selectedUsers.includes(user.$id) ? "border-primary bg-primary/5" : "border-transparent bg-muted/20"
                     )}
-                    onClick={() => {
-                      if (selectedUsers.includes(user.$id)) setSelectedUsers(selectedUsers.filter(id => id !== user.$id));
-                      else setSelectedUsers([...selectedUsers, user.$id]);
-                    }}
+                    onClick={() => toggleUserSelection(user.$id)}
                   >
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10"><AvatarImage src={user.avatar} /><AvatarFallback>{user.username?.charAt(0)}</AvatarFallback></Avatar>
@@ -129,7 +144,7 @@ export default function MeetingInvitePage() {
         </CardContent>
         <CardFooter className="p-8 bg-muted/30">
           <Button onClick={handleFinish} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-xl">
-            Review & Confirm
+            Review & Confirm ({selectedUsers.length})
           </Button>
         </CardFooter>
       </Card>

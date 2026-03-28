@@ -120,7 +120,7 @@ export default function BookMeetingPage() {
                   <RadioGroupItem value="personal" id="personal" className="sr-only" />
                 </div>
                 <p className="font-black text-xs uppercase tracking-tighter">Personal</p>
-                <p className="text-[9px] leading-tight text-muted-foreground font-bold">4 Users • 1 Hour • Free Booking</p>
+                <p className="text-[9px] leading-tight text-muted-foreground font-bold">5 People • 1 Hour • Free Booking</p>
               </div>
 
               <div className={cn(
@@ -132,7 +132,7 @@ export default function BookMeetingPage() {
                   <RadioGroupItem value="general" id="general" className="sr-only" />
                 </div>
                 <p className="font-black text-xs uppercase tracking-tighter">General</p>
-                <p className="text-[9px] leading-tight text-muted-foreground font-bold">Unlimited Users • 3 Hours • Small Entry Fee</p>
+                <p className="text-[9px] leading-tight text-muted-foreground font-bold">Unlimited • 3 Hours • Small Fee</p>
               </div>
             </RadioGroup>
           </div>

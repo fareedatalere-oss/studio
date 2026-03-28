@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -7,7 +6,8 @@ import Image from 'next/image';
 import { 
     Mic, Video as VideoIcon, PhoneOff, Settings, 
     MoreVertical, Loader2, Camera, ImageIcon, 
-    PlayCircle, StopCircle, UserX, X, MessageSquare, Monitor, Eraser, Send
+    PlayCircle, StopCircle, UserX, X, MessageSquare, Monitor, Eraser, Send,
+    Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -30,6 +30,7 @@ export default function MeetingRoomPage() {
     const [meeting, setMeeting] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [isInRoom, setIsInRoom] = useState(false);
+    const [timeLeft, setTimeLeft] = useState<number | null>(null);
     
     // UI States
     const [participants, setParticipants] = useState<any[]>([]);
@@ -54,9 +55,23 @@ export default function MeetingRoomPage() {
             const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
             setMeeting(doc);
             setBoardContent(doc.boardContent || '');
+            
             if (doc.status === 'ended') {
                 toast({ title: 'Meeting Ended' });
                 router.replace('/dashboard/meeting');
+                return;
+            }
+
+            // Calculate Remaining Time
+            const limit = doc.type === 'personal' ? 3600 : 10800; // 1h or 3h
+            if (doc.startedAt) {
+                const elapsed = Math.floor((Date.now() - new Date(doc.startedAt).getTime()) / 1000);
+                const remaining = limit - elapsed;
+                if (remaining <= 0) {
+                    await endMeeting();
+                } else {
+                    setTimeLeft(remaining);
+                }
             }
         } catch (e) {
             router.replace('/dashboard/meeting');
@@ -65,10 +80,16 @@ export default function MeetingRoomPage() {
         }
     }, [meetingId, router, toast]);
 
+    const endMeeting = async () => {
+        try {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'ended' });
+            router.replace('/dashboard');
+        } catch (e) {}
+    };
+
     useEffect(() => {
         fetchMeeting();
 
-        // Real-time status & Board sync
         const unsub = client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${meetingId}`, response => {
             const payload = response.payload as any;
             if (payload.status === 'ended') {
@@ -78,18 +99,58 @@ export default function MeetingRoomPage() {
             setBoardContent(payload.boardContent || '');
         });
 
-        // Mock Participants Sync (In production, this listens to a presence collection)
-        setParticipants([{ id: user?.$id, username: profile?.username, avatar: profile?.avatar, isHost: true }]);
+        // Mock Participants Sync (Current User)
+        setParticipants([{ id: user?.$id, username: profile?.username, avatar: profile?.avatar, isHost: meeting?.hostId === user?.$id }]);
 
         return () => unsub();
-    }, [meetingId, router, fetchMeeting, user?.$id, profile?.username, profile?.avatar]);
+    }, [meetingId, router, fetchMeeting, user?.$id, profile?.username, profile?.avatar, meeting?.hostId]);
+
+    // Timer Interval
+    useEffect(() => {
+        if (!isInRoom || timeLeft === null) return;
+        const interval = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev === null || prev <= 1) {
+                    clearInterval(interval);
+                    endMeeting();
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [isInRoom, timeLeft]);
 
     const startSession = async () => {
         if (!user || !meeting) return;
-        if (meeting.hostId === user.$id) {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'started' });
+
+        // Capacity Check for Personal
+        if (meeting.type === 'personal') {
+            const currentCount = participants.length;
+            if (currentCount >= 5 && meeting.hostId !== user.$id) {
+                toast({ 
+                    variant: 'destructive', 
+                    title: 'Meeting Full', 
+                    description: 'This personal meeting has reached its limit of 5 people.' 
+                });
+                return;
+            }
+        }
+
+        if (meeting.hostId === user.$id && !meeting.startedAt) {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
+                status: 'started',
+                startedAt: new Date().toISOString()
+            });
         }
         setIsInRoom(true);
+    };
+
+    const formatTime = (seconds: number) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     };
 
     const startRecording = async (type: 'audio' | 'video') => {
@@ -183,6 +244,10 @@ export default function MeetingRoomPage() {
                     <CardContent className="pt-8 space-y-4">
                         <h1 className="text-3xl font-black uppercase tracking-tighter">{meeting.name}</h1>
                         <p className="text-sm font-bold text-muted-foreground">{meeting.description}</p>
+                        <div className="flex items-center justify-center gap-2 text-xs font-black uppercase text-primary">
+                            <Clock className="h-3 w-3" />
+                            <span>{meeting.type === 'personal' ? '1 Hour Limit' : '3 Hour Session'}</span>
+                        </div>
                         <Button onClick={startSession} className="w-full h-16 rounded-full font-black uppercase tracking-widest text-lg shadow-xl mt-4">
                             {meeting.hostId === user?.$id ? 'Start Meeting' : 'Enter Meeting'}
                         </Button>
@@ -200,11 +265,13 @@ export default function MeetingRoomPage() {
                 </div>
             )}
 
-            {/* HEADER - MATCHING NOTEBOOK SKETCH */}
             <header className="relative z-20 p-4 bg-black/60 backdrop-blur-md border-b border-white/10 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <div className="bg-red-500 h-2.5 w-2.5 rounded-full animate-pulse shadow-[0_0_10px_red]"></div>
-                    <h2 className="text-white font-black uppercase text-[10px] tracking-widest truncate max-w-[100px]">{meeting.name}</h2>
+                    <div className="flex flex-col">
+                        <h2 className="text-white font-black uppercase text-[10px] tracking-widest truncate max-w-[100px]">{meeting.name}</h2>
+                        {timeLeft !== null && <p className="text-white font-mono text-[8px]">{formatTime(timeLeft)} remaining</p>}
+                    </div>
                 </div>
                 <div className="flex gap-2">
                     <Button 
@@ -228,7 +295,6 @@ export default function MeetingRoomPage() {
                 </div>
             </header>
 
-            {/* MAIN STAGE - CIRCULAR ICONS GRID */}
             <main className="flex-1 relative z-10 p-6 flex flex-col items-center justify-center">
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-8 max-w-4xl w-full justify-items-center">
                     {participants.map((p) => (
@@ -250,7 +316,7 @@ export default function MeetingRoomPage() {
                                         </Button>
                                         <Button variant="secondary" className="w-full rounded-2xl h-12 font-black uppercase text-xs gap-2" asChild>
                                             <Link href={`/dashboard/meeting/room/${meetingId}/chat/${p.id}`}>
-                                                <MessageSquare className="h-4 w-4" /> Chat Private
+                                                <MessageSquare className="h-4 w-4" /> Private Text
                                             </Link>
                                         </Button>
                                     </div>
@@ -265,7 +331,6 @@ export default function MeetingRoomPage() {
                 </div>
             </main>
 
-            {/* BOARD & CONTROLS FOOTER */}
             <footer className="relative z-20 p-6 bg-gradient-to-t from-black to-transparent flex items-center justify-between gap-4">
                 <Dialog open={isBoardOpen} onOpenChange={setIsBoardOpen}>
                     <DialogTrigger asChild>
@@ -289,13 +354,13 @@ export default function MeetingRoomPage() {
                             {meeting.hostId === user?.$id ? (
                                 <Textarea 
                                     className="h-full resize-none border-none text-lg font-bold placeholder:opacity-30" 
-                                    placeholder="Admin: Write something on the board..."
+                                    placeholder="Admin only: Write on the board..."
                                     value={boardDraft}
                                     onChange={(e) => setBoardContent(e.target.value)}
                                 />
                             ) : (
                                 <div className="h-full w-full bg-muted/30 rounded-3xl p-6 overflow-y-auto">
-                                    <p className="whitespace-pre-wrap font-bold text-lg leading-relaxed">{boardDraft || "The board is currently empty."}</p>
+                                    <p className="whitespace-pre-wrap font-bold text-lg leading-relaxed">{boardDraft || "Board is currently empty."}</p>
                                 </div>
                             )}
                         </div>
@@ -304,7 +369,7 @@ export default function MeetingRoomPage() {
 
                 {meeting.hostId === user?.$id ? (
                     <Button 
-                        onClick={() => databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'ended' })} 
+                        onClick={endMeeting} 
                         className="h-16 flex-1 rounded-full font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 shadow-2xl"
                     >
                         End Meeting for All
@@ -321,7 +386,6 @@ export default function MeetingRoomPage() {
                 </div>
             </footer >
 
-            {/* FULL SCREEN VIEWING OVERLAY */}
             {viewingUser && (
                 <div className="fixed inset-0 z-50 bg-black animate-in fade-in zoom-in duration-300">
                     <div className="relative h-full w-full">
