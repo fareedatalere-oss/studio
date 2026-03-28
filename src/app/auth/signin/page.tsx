@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,33 @@ export default function SignInPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+        toast({ title: "Installing...", description: "I-Pay is being added to your device." });
+      }
+    } else {
+      toast({ 
+        title: "Install Not Detected", 
+        description: "App may already be installed. Use 'Add to Home Screen' in browser settings if not.",
+        duration: 5000
+      });
+    }
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,7 +128,13 @@ export default function SignInPage() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <IPayLogo className="mx-auto h-12 w-12" />
+          <div 
+            onClick={handleInstallApp} 
+            className="mx-auto cursor-pointer hover:scale-110 transition-transform duration-300 active:scale-95 inline-block p-1"
+            title="Click to Install I-Pay"
+          >
+            <IPayLogo className="h-16 w-16" />
+          </div>
           <CardTitle className="mt-4 text-2xl font-bold">Welcome Back</CardTitle>
           <CardDescription>Enter your credentials to sign in.</CardDescription>
         </CardHeader>
