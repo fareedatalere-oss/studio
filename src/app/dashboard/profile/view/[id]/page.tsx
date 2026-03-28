@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_POSTS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
-import { Query, ID, Permission, Role } from 'appwrite';
+import { Query, ID } from 'appwrite';
 import { useToast } from '@/hooks/use-toast';
 import { PostCard } from '@/components/media-post-card';
 import { cn } from '@/lib/utils';
@@ -85,9 +85,8 @@ export default function UserPublicProfilePage() {
                 databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, targetUserId, { followers: newTheirFollowers })
             ]);
             if (!currentlyFollowing) {
-                // Including 'tittle' to satisfy required Appwrite attribute
                 databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
-                    userId: targetUserId, senderId: currentUser.$id, type: 'follow', tittle: 'New Follower', description: 'started following you.', isRead: false, link: `/dashboard/profile/connections?tab=followers`, createdAt: new Date().toISOString()
+                    userId: targetUserId, senderId: currentUser.$id, type: 'follow', description: 'started following you.', isRead: false, link: `/dashboard/profile/connections?tab=followers`, createdAt: new Date().toISOString()
                 }).catch(() => {});
             }
             await recheckUser();

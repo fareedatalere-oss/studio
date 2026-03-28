@@ -86,7 +86,7 @@ export default function ChatThreadPage() {
     const [recordingTime, setRecordingTime] = useState(0);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
-    const audioChunksRef = useRef<Blob[]>([]);
+    audioChunksRef = useRef<Blob[]>([]);
     
     const [messageToForward, setMessageToForward] = useState<Models.Document | null>(null);
     const [recentChats, setRecentChats] = useState<any[]>([]);
@@ -192,7 +192,6 @@ export default function ChatThreadPage() {
         try {
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
                 userId: otherUserId, senderId: currentUser.$id, type: 'message',
-                tittle: 'New Message', // Satisfying required 'tittle' attribute in Appwrite
                 description: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
                 isRead: false, link: `/dashboard/chat/${currentUser.$id}`, createdAt: new Date().toISOString()
             });
