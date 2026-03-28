@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { ArrowLeft, Loader2, Clipboard, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -98,7 +99,7 @@ export default function MeetingConfirmPage() {
       const chatMsg = `Hello @${user.name}! Your meeting "${meetingData.name}" is booked for ${meetingData.date} at ${meetingData.time}. \n\nType: ${meetingData.type.toUpperCase()}\nDescription: ${meetingData.description}\n\nUse the buttons below to manage this session.`;
       
       try {
-        await databases.createDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId, {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId, {
             participants: [user.$id, MEETING_BOT_ID],
             lastMessage: `Meeting Booked: ${meetingData.name}`,
             lastMessageAt: new Date().toISOString()
