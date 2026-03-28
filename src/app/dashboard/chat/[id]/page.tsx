@@ -192,7 +192,7 @@ export default function ChatThreadPage() {
         try {
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
                 userId: otherUserId, senderId: currentUser.$id, type: 'message',
-                // title is removed to match user's simplified database schema
+                tittle: 'New Message', // Satisfying required 'tittle' attribute in Appwrite
                 description: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
                 isRead: false, link: `/dashboard/chat/${currentUser.$id}`, createdAt: new Date().toISOString()
             });

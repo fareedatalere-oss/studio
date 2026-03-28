@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -60,8 +59,9 @@ const CommentInput = ({ postId, postOwnerId, onCommentPosted }: { postId: string
       await databases.updateDocument(DATABASE_ID, COLLECTION_ID_POSTS, postId, { commentCount: newCount });
 
       if (postOwnerId !== user.$id) {
+        // Including 'tittle' to satisfy required Appwrite attribute
         databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
-          userId: postOwnerId, senderId: user.$id, type: 'comment', title: 'New Comment', description: `commented on your post.`, isRead: false, link: `/dashboard/media`, createdAt: new Date().toISOString()
+          userId: postOwnerId, senderId: user.$id, type: 'comment', tittle: 'New Comment', description: `commented on your post.`, isRead: false, link: `/dashboard/media`, createdAt: new Date().toISOString()
         }).catch(() => {});
       }
 
@@ -131,8 +131,9 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
         const newLikes = newIsLiked ? [...currentLikes, currentUser.$id] : currentLikes.filter((id: string) => id !== currentUser.$id);
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_POSTS, post.$id, { likes: newLikes });
         if (newIsLiked && post.userId !== currentUser.$id) {
+          // Including 'tittle' to satisfy required Appwrite attribute
           databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
-            userId: post.userId, senderId: currentUser.$id, type: 'like', title: 'New Like', description: 'liked your post.', isRead: false, link: `/dashboard/media`, createdAt: new Date().toISOString()
+            userId: post.userId, senderId: currentUser.$id, type: 'like', tittle: 'New Like', description: 'liked your post.', isRead: false, link: `/dashboard/media`, createdAt: new Date().toISOString()
           }).catch(() => {});
         }
     } catch (e) { setIsLiked(!newIsLiked); setLikeCount(likeCount); }

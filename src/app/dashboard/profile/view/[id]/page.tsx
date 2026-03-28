@@ -85,9 +85,10 @@ export default function UserPublicProfilePage() {
                 databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, targetUserId, { followers: newTheirFollowers })
             ]);
             if (!currentlyFollowing) {
+                // Including 'tittle' to satisfy required Appwrite attribute
                 databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
-                    userId: targetUserId, senderId: currentUser.$id, type: 'follow', title: 'New Follower', description: 'started following you.', isRead: false, link: `/dashboard/profile/connections?tab=followers`, createdAt: new Date().toISOString()
-                }, [Permission.read(Role.user(targetUserId)), Permission.update(Role.user(targetUserId)), Permission.read(Role.user(currentUser.$id))]).catch(() => {});
+                    userId: targetUserId, senderId: currentUser.$id, type: 'follow', tittle: 'New Follower', description: 'started following you.', isRead: false, link: `/dashboard/profile/connections?tab=followers`, createdAt: new Date().toISOString()
+                }).catch(() => {});
             }
             await recheckUser();
             setTargetProfile({...theirProfile, followers: newTheirFollowers});

@@ -82,11 +82,12 @@ export default function MeetingConfirmPage() {
 
       if (meetingData.inviteMethod === 'list' && meetingData.invitedUsers?.length > 0) {
         for (const inviteeId of meetingData.invitedUsers) {
-          // Send internal notification without "title" to match database schema
+          // Sending 'tittle' to satisfy the required attribute in Appwrite schema
           await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
             userId: inviteeId,
             senderId: user.$id,
             type: 'system',
+            tittle: 'Meeting Invitation',
             description: `I-Pay Meeting: You are invited to "${meetingData.name}" on ${meetingData.date} at ${meetingData.time}.`,
             isRead: false,
             link: `/dashboard/meeting/enter?id=${meetingId}`,
