@@ -19,6 +19,7 @@ import { Query, Models } from 'appwrite';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import Link from 'next/link';
 
 export default function MeetingRoomPage() {
     const params = useParams();
@@ -62,8 +63,7 @@ export default function MeetingRoomPage() {
                 return;
             }
 
-            // Calculate Remaining Time
-            const limit = doc.type === 'personal' ? 3600 : 10800; // 1h or 3h
+            const limit = doc.type === 'personal' ? 3600 : 10800;
             if (doc.startedAt) {
                 const elapsed = Math.floor((Date.now() - new Date(doc.startedAt).getTime()) / 1000);
                 const remaining = limit - elapsed;
@@ -99,13 +99,13 @@ export default function MeetingRoomPage() {
             setBoardContent(payload.boardContent || '');
         });
 
-        // Mock Participants Sync (Current User)
-        setParticipants([{ id: user?.$id, username: profile?.username, avatar: profile?.avatar, isHost: meeting?.hostId === user?.$id }]);
+        if (user?.$id) {
+            setParticipants([{ id: user.$id, username: profile?.username, avatar: profile?.avatar, isHost: meeting?.hostId === user.$id }]);
+        }
 
         return () => unsub();
     }, [meetingId, router, fetchMeeting, user?.$id, profile?.username, profile?.avatar, meeting?.hostId]);
 
-    // Timer Interval
     useEffect(() => {
         if (!isInRoom || timeLeft === null) return;
         const interval = setInterval(() => {
@@ -124,7 +124,6 @@ export default function MeetingRoomPage() {
     const startSession = async () => {
         if (!user || !meeting) return;
 
-        // Capacity Check for Personal
         if (meeting.type === 'personal') {
             const currentCount = participants.length;
             if (currentCount >= 5 && meeting.hostId !== user.$id) {
@@ -138,11 +137,16 @@ export default function MeetingRoomPage() {
         }
 
         if (meeting.hostId === user.$id && !meeting.startedAt) {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
-                status: 'started',
-                startedAt: new Date().toISOString()
-            });
+            try {
+                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
+                    status: 'started',
+                    startedAt: new Date().toISOString()
+                });
+            } catch (e) {
+                console.error("Host failed to update meeting status", e);
+            }
         }
+        
         setIsInRoom(true);
     };
 
@@ -244,9 +248,15 @@ export default function MeetingRoomPage() {
                     <CardContent className="pt-8 space-y-4">
                         <h1 className="text-3xl font-black uppercase tracking-tighter">{meeting.name}</h1>
                         <p className="text-sm font-bold text-muted-foreground">{meeting.description}</p>
-                        <div className="flex items-center justify-center gap-2 text-xs font-black uppercase text-primary">
-                            <Clock className="h-3 w-3" />
-                            <span>{meeting.type === 'personal' ? '1 Hour Limit' : '3 Hour Session'}</span>
+                        <div className="flex items-center justify-center gap-4 text-xs font-black uppercase">
+                            <div className="flex items-center gap-1 text-primary">
+                                <Clock className="h-3 w-3" />
+                                <span>{meeting.type === 'personal' ? '1 Hour' : '3 Hours'}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                                <CalendarIcon className="h-3 w-3" />
+                                <span>{meeting.date} @ {meeting.time}</span>
+                            </div>
                         </div>
                         <Button onClick={startSession} className="w-full h-16 rounded-full font-black uppercase tracking-widest text-lg shadow-xl mt-4">
                             {meeting.hostId === user?.$id ? 'Start Meeting' : 'Enter Meeting'}
@@ -304,7 +314,7 @@ export default function MeetingRoomPage() {
                                     <div className="relative cursor-pointer transition-transform hover:scale-110">
                                         <Avatar className="h-20 w-20 border-4 border-primary/40 p-1">
                                             <AvatarImage src={p.avatar || `https://picsum.photos/seed/${p.id}/200`} />
-                                            <AvatarFallback className="font-black text-xl">{p.username?.charAt(0)}</AvatarFallback>
+                                            <AvatarFallback className="font-black text-xl uppercase bg-primary text-white">{p.username?.charAt(0)}</AvatarFallback>
                                         </Avatar>
                                         {p.isHost && <div className="absolute -top-1 -right-1 bg-yellow-500 rounded-full p-1 border-2 border-black"><Settings className="h-3 w-3 text-black" /></div>}
                                     </div>
