@@ -1,9 +1,10 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, Clipboard, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Loader2, Clipboard, CheckCircle2, ShieldCheck, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -80,13 +81,24 @@ export default function MeetingConfirmPage() {
 
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, payload);
 
+      // Create "Decline" Notification for Host
+      await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
+        userId: user.$id,
+        senderId: user.$id,
+        type: 'system',
+        description: `Meeting booked: "${meetingData.name}". Click to decline if needed.`,
+        isRead: false,
+        link: `/dashboard/meeting/room/${meetingId}`,
+        createdAt: new Date().toISOString()
+      });
+
       if (meetingData.inviteMethod === 'list' && meetingData.invitedUsers?.length > 0) {
         for (const inviteeId of meetingData.invitedUsers) {
           await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
             userId: inviteeId,
             senderId: user.$id,
-            type: 'system',
-            description: `I-Pay Meeting: You are invited to "${meetingData.name}" on ${meetingData.date} at ${meetingData.time}.`,
+            type: 'social',
+            description: `invited you to meeting: "${meetingData.name}" on ${meetingData.date} at ${meetingData.time}.`,
             isRead: false,
             link: `/dashboard/meeting/enter?id=${meetingId}`,
             createdAt: new Date().toISOString()
@@ -120,35 +132,9 @@ export default function MeetingConfirmPage() {
         }
       }
 
-      const hostChatId = getChatId(user.$id, MEETING_BOT_ID);
-      const hostSummary = `Meeting Booked Successfully!\n\nName: ${meetingData.name}\nSchedule: ${meetingData.date} @ ${meetingData.time}\nType: ${meetingData.type.toUpperCase()}\n\nYour device will ring automatically at the set time. Gaskiya.`;
-      
-      try {
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, hostChatId, {
-            participants: [user.$id, MEETING_BOT_ID],
-            lastMessage: `Booked: ${meetingData.name}`,
-            lastMessageAt: new Date().toISOString()
-        });
-      } catch (e: any) {
-        if (e.code === 404) {
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_CHATS, hostChatId, {
-                participants: [user.$id, MEETING_BOT_ID],
-                lastMessage: `Booked: ${meetingData.name}`,
-                lastMessageAt: new Date().toISOString()
-            });
-        }
-      }
-
-      await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
-        chatId: hostChatId,
-        senderId: MEETING_BOT_ID,
-        text: hostSummary,
-        status: 'sent'
-      });
-
       setConfirmedId(meetingId);
       sessionStorage.removeItem('pendingMeeting');
-      toast({ title: 'Meeting Confirmed!', description: 'Invitations sent.' });
+      toast({ title: 'Meeting Confirmed!', description: 'All invitations and system alerts have been sent.' });
 
     } catch (error: any) {
       console.error(error);
@@ -213,20 +199,10 @@ export default function MeetingConfirmPage() {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-[10px] font-black uppercase opacity-50 px-2">Permissions</p>
-            <div className="flex flex-wrap gap-2">
-              {meetingData?.rules?.allowChat && <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black uppercase rounded-full border border-primary/20 shadow-sm">Chat On</span>}
-              {meetingData?.rules?.allowVoice && <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black uppercase rounded-full border border-primary/20 shadow-sm">Voice On</span>}
-              {meetingData?.rules?.allowVideo && <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black uppercase rounded-full border border-primary/20 shadow-sm">Video On</span>}
-              {meetingData?.rules?.hideFace && <span className="px-3 py-1 bg-destructive/10 text-destructive text-[10px] font-black uppercase rounded-full border border-destructive/20 shadow-sm">Faces Hidden</span>}
-            </div>
-          </div>
-
           <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
             <ShieldCheck className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
             <p className="text-[10px] font-bold text-amber-800 leading-tight italic">
-              "Gaskiya": By confirming, invitations will be sent instantly to both Chat and Alerts. Your device will ring automatically at the set time.
+              Invitations will include the direct meeting link. You will receive a notification to "Decline" if you need to cancel.
             </p>
           </div>
         </CardContent>

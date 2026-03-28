@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Loader2, UserPlus, UserCheck, MessageSquare, Plus } from 'lucide-react';
@@ -26,6 +27,7 @@ export default function UserPublicProfilePage() {
     const [loading, setLoading] = useState(true);
     const [isMuted, setIsMuted] = useState(true);
     const [isLoadingFollow, setIsLoadingFollow] = useState(false);
+    const hasNotifiedView = useRef(false);
 
     const isFollowing = currentUserProfile?.following?.includes(targetUserId);
 
@@ -59,13 +61,28 @@ export default function UserPublicProfilePage() {
             });
 
             setPosts(parsedPosts);
+
+            // Send "View Profile" Notification
+            if (currentUser && currentUser.$id !== targetUserId && !hasNotifiedView.current) {
+                hasNotifiedView.current = true;
+                databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
+                    userId: targetUserId,
+                    senderId: currentUser.$id,
+                    type: 'social',
+                    description: 'viewed your profile.',
+                    isRead: false,
+                    link: `/dashboard/profile/view/${currentUser.$id}`,
+                    createdAt: new Date().toISOString()
+                }).catch(() => {});
+            }
+
         } catch (error) {
             console.error(error);
             toast({ variant: 'destructive', title: 'Error', description: 'Could not load profile.' });
         } finally {
             setLoading(false);
         }
-    }, [targetUserId, toast]);
+    }, [targetUserId, toast, currentUser]);
 
     useEffect(() => {
         fetchData();

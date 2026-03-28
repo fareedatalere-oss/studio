@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { Bell, Home, PlaySquare, Store, User, MessageSquare, X } from 'lucide-react';
@@ -34,7 +35,7 @@ export default function DashboardLayout({
   
   const lastCountRef = useRef(0);
 
-  const isImmersive = pathname === '/dashboard/media' || pathname.startsWith('/dashboard/media/music') || pathname.includes('/text');
+  const isImmersive = pathname === '/dashboard/media' || pathname.startsWith('/dashboard/media/music') || pathname.includes('/text') || pathname.includes('/room/');
 
   useEffect(() => {
     if (!user) return;
@@ -117,8 +118,8 @@ export default function DashboardLayout({
         setTimeout(() => setIsPulsing(false), 3000);
         
         if (Notification.permission === 'granted') {
-            new Notification("I-Pay Alert", {
-                body: "Check your notifications.",
+            new Notification("I-Pay Online", {
+                body: "You have a new update in your dashboard.",
                 icon: "/logo.png"
             });
         }
