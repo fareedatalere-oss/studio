@@ -1,7 +1,6 @@
-
 'use client';
 import Link from 'next/link';
-import { Bell, Home, PlaySquare, Store, User, MessageSquare, X } from 'lucide-react';
+import { Bell, Home, PlaySquare, Store, User, MessageSquare, X, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -46,7 +45,7 @@ export default function DashboardLayout({
             posts.documents.forEach(post => {
                 if (post.mediaUrl) {
                     if (post.type === 'image') {
-                        const img = new Image();
+                        const img = new window.Image();
                         img.src = post.mediaUrl;
                     } else if (post.type === 'reels' || post.type === 'film' || post.type === 'music') {
                         const element = document.createElement(post.type === 'music' ? 'audio' : 'video');
@@ -179,6 +178,9 @@ export default function DashboardLayout({
           <div className="container flex h-16 items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/dashboard"><IPayLogo className="h-10 w-10" /></Link>
+              <Button asChild variant="ghost" size="icon" className="md:flex hidden bg-primary/5 text-primary rounded-full">
+                <Link href="/dashboard/ai-chat" title="AI Assistant"><Bot className="h-5 w-5" /></Link>
+              </Button>
             </div>
             <div className="flex items-center gap-4">
               <Button asChild variant="ghost" size="icon" className={cn("relative transition-transform", isPulsing && "scale-110")}>

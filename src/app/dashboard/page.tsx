@@ -34,6 +34,7 @@ import {
   Undo2,
   Tv,
   Lightbulb,
+  Bot,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
@@ -170,6 +171,7 @@ function DashboardContent() {
   };
 
   const actions = [
+    { key: 'feat_ai', label: 'Sofia AI', icon: Bot, href: '/dashboard/ai-chat' },
     { key: 'feat_send', label: 'Send', icon: Send, href: '/dashboard/transfer' },
     { key: 'feat_deposit', label: 'Deposit', icon: ArrowDownCircle, href: '/dashboard/deposit' },
     { key: 'feat_refresh', label: 'Refresh', icon: RefreshCw, onClick: handleRefresh },
@@ -253,7 +255,7 @@ function DashboardContent() {
                 <Button
                     variant="default"
                     size="icon"
-                    className={cn("h-16 w-16 rounded-full mx-auto flex items-center justify-center", !isFeatOn(action.key) && "opacity-50 grayscale")}
+                    className={cn("h-16 w-16 rounded-full mx-auto flex items-center justify-center", !isFeatOn(action.key) && "opacity-50 grayscale", action.label === 'Sofia AI' && "bg-primary shadow-[0_0_15px_rgba(2,132,199,0.5)]")}
                     disabled={isProcessing}
                 >
                     {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-6 w-6 animate-spin" /> : <action.icon className="h-6 w-6" />}
