@@ -39,7 +39,7 @@ export async function getBillCategories(type?: string) {
     if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     try {
         const response = await fetch('https://api.flutterwave.com/v3/bill-categories', {
-            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` }
+            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY.trim()}` }
         });
         const data = await response.json();
         if (data.status === 'success') {
@@ -62,7 +62,7 @@ export async function getFlutterwaveDataPlans(providerName: string) {
     if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     try {
         const response = await fetch('https://api.flutterwave.com/v3/bill-categories?data=1', {
-            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` }
+            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY.trim()}` }
         });
         const data = await response.json();
         if (data.status === 'success') {
@@ -109,7 +109,7 @@ export async function initiateFlutterwaveBill(payload: {
         const response = await fetch('https://api.flutterwave.com/v3/bills', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`,
+                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY.trim()}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -158,7 +158,7 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
         if (!email) return { success: false, message: "No email associated with this account." };
 
         const response = await fetch(`https://api.flutterwave.com/v3/transactions?customer_email=${encodeURIComponent(email)}&status=successful`, {
-            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` },
+            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY.trim()}` },
             cache: 'no-store',
         });
         
@@ -221,7 +221,7 @@ export async function getCardVerificationLink(payload: { userId: string, email: 
     try {
         const response = await fetch('https://api.flutterwave.com/v3/payments', {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`, 'Content-Type': 'application/json' },
+            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY.trim()}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 tx_ref: `card-ver-${payload.userId}-${Date.now()}`,
                 amount: '100',
@@ -243,7 +243,7 @@ export async function verifyCardPayment(transactionId: string, userId: string) {
     if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     try {
         const response = await fetch(`https://api.flutterwave.com/v3/transactions/${transactionId}/verify`, {
-            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}` }
+            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY.trim()}` }
         });
         const data = await response.json();
         if (data.status === 'success' && data.data.status === 'successful') {
@@ -265,7 +265,7 @@ export async function chargeTokenizedCard(payload: { userId: string, amount: num
 
         const response = await fetch('https://api.flutterwave.com/v3/tokenized-charges', {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`, 'Content-Type': 'application/json' },
+            headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY.trim()}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ token: profile.fwCardToken, currency: 'NGN', amount: payload.amount, email: profile.email, tx_ref: `fund-${payload.userId}-${Date.now()}` }),
         });
         

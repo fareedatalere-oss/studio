@@ -122,23 +122,10 @@ export default function MeetingRoomPage() {
     }, [isInRoom, timeLeft]);
 
     const startSession = async () => {
-        if (!user || !meeting) return;
-
-        if (meeting.type === 'personal') {
-            const currentCount = participants.length;
-            if (currentCount >= 5 && meeting.hostId !== user.$id) {
-                toast({ 
-                    variant: 'destructive', 
-                    title: 'Meeting Full', 
-                    description: 'This personal meeting has reached its limit of 5 people.' 
-                });
-                return;
-            }
-        }
-
+        // FORCE ENTRY - Instant transition
         setIsInRoom(true);
 
-        if (meeting.hostId === user.$id && !meeting.startedAt) {
+        if (user && meeting && meeting.hostId === user.$id && !meeting.startedAt) {
             try {
                 await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
                     status: 'started',
