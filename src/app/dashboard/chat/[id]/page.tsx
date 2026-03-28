@@ -86,7 +86,7 @@ export default function ChatThreadPage() {
     const [recordingTime, setRecordingTime] = useState(0);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
-    audioChunksRef = useRef<Blob[]>([]);
+    const audioChunksRef = useRef<Blob[]>([]);
     
     const [messageToForward, setMessageToForward] = useState<Models.Document | null>(null);
     const [recentChats, setRecentChats] = useState<any[]>([]);
