@@ -121,7 +121,7 @@ export default function NotificationsPage() {
                                             <p className="text-sm">
                                                 <span className="font-semibold text-foreground">@{notif.sender?.username || 'System'}</span>
                                                 {' '}
-                                                <span className="text-muted-foreground">{notif.title ? `${notif.title}: ` : ''}{notif.description}</span>
+                                                <span className="text-muted-foreground">{notif.description}</span>
                                             </p>
                                             <p className="text-[10px] text-muted-foreground mt-1 uppercase">
                                                 {formatDistanceToNow(new Date(notif.$createdAt), { addSuffix: true })}

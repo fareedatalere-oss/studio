@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "UserProfile": {
@@ -59,14 +58,13 @@
       "properties": {
         "userId": { "type": "string", "description": "The UID of the user who receives the notification." },
         "senderId": { "type": "string", "description": "The UID of the user who triggered the notification." },
-        "title": { "type": "string" },
         "description": { "type": "string" },
         "type": { "type": "string", "enum": ["system", "social", "like", "comment", "message", "follow"] },
         "isRead": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" },
         "link": { "type": "string", "description": "An optional link for the notification to navigate to."}
       },
-      "required": ["userId", "title", "description", "type", "isRead", "createdAt"]
+      "required": ["userId", "description", "type", "isRead", "createdAt"]
     },
     "Transaction": {
       "title": "Transaction",

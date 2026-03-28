@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -193,7 +192,8 @@ export default function ChatThreadPage() {
         try {
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
                 userId: otherUserId, senderId: currentUser.$id, type: 'message',
-                title: 'New Message', description: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
+                // title is removed to match user's simplified database schema
+                description: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
                 isRead: false, link: `/dashboard/chat/${currentUser.$id}`, createdAt: new Date().toISOString()
             });
         } catch (e) {
