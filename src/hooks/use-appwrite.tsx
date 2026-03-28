@@ -1,9 +1,9 @@
-
 'use client';
 
 import client, { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
 import { Models } from 'appwrite';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 
 type AppwriteContextType = {
     user: Models.User<Models.Preferences> | null;
@@ -16,16 +16,15 @@ type AppwriteContextType = {
 
 const AppwriteContext = createContext<AppwriteContextType>({ user: null, profile: null, config: null, proof: null, loading: true, recheckUser: async () => {} });
 
-export const useAppwrite = () => {
-    return useContext(AppwriteContext);
-};
-
 export function AppwriteProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null);
     const [profile, setProfile] = useState<any | null>(null);
     const [config, setConfig] = useState<any | null>(null);
     const [proof, setProof] = useState<any | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    
+    const router = useRouter();
+    const pathname = usePathname();
 
     const checkUser = useCallback(async () => {
         if (typeof window === 'undefined') return;
@@ -61,6 +60,31 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                     try {
                         const profileDoc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id);
                         setProfile(profileDoc);
+
+                        // Master Session Check (1 Hour Rule)
+                        const lastActive = localStorage.getItem('ipay_last_active');
+                        const now = Date.now();
+                        if (lastActive) {
+                            const diff = now - parseInt(lastActive);
+                            if (diff > 3600000) { // 1 Hour
+                                await account.deleteSession('current');
+                                localStorage.removeItem('ipay_last_active');
+                                setUser(null);
+                                setProfile(null);
+                                router.push('/auth/signin');
+                                return;
+                            }
+                        }
+                        
+                        // Update Activity
+                        localStorage.setItem('ipay_last_active', now.toString());
+
+                        // PIN Lock Check
+                        const pinVerified = sessionStorage.getItem('ipay_pin_verified');
+                        if (!pinVerified && pathname.startsWith('/dashboard') && !pathname.includes('/auth')) {
+                            router.replace('/auth/pin-lock');
+                        }
+
                     } catch (pError: any) {
                         setProfile(null);
                     }
@@ -78,7 +102,7 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [router, pathname]);
 
     useEffect(() => {
         checkUser();
@@ -101,6 +125,5 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
 };
 
 export const useUser = () => {
-    const { user, profile, config, proof, loading, recheckUser } = useAppwrite();
-    return { user, profile, config, proof, loading, recheckUser };
+    return useContext(AppwriteContext);
 };
