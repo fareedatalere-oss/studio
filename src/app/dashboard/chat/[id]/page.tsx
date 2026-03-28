@@ -29,17 +29,23 @@ const VoiceNotePlayer = ({ src }: { src: string }) => {
     const [progress, setProgress] = useState(0);
     const [duration, setDuration] = useState(0);
 
-    const handleTimeUpdate = () => { if (audioRef.current) setProgress(audioRef.current.currentTime / audioRef.current.duration); };
-    const handleLoadedMetadata = () => { if (audioRef.current) setDuration(audioRef.current.duration); };
+    const handleTimeUpdate = () => { 
+        if (audioRef.current && audioRef.current.duration) {
+            setProgress(audioRef.current.currentTime / audioRef.current.duration);
+        }
+    };
+    const handleLoadedMetadata = () => { 
+        if (audioRef.current) setDuration(audioRef.current.duration || 0); 
+    };
     const togglePlay = () => {
         if (audioRef.current) {
             if (isPlaying) audioRef.current.pause();
-            else audioRef.current.play();
+            else audioRef.current.play().catch(() => {});
             setIsPlaying(!isPlaying);
         }
     };
     const handleScrub = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (audioRef.current) {
+        if (audioRef.current && duration > 0) {
             const scrubTime = (e.nativeEvent.offsetX / e.currentTarget.offsetWidth) * duration;
             audioRef.current.currentTime = scrubTime;
         }
@@ -52,13 +58,15 @@ const VoiceNotePlayer = ({ src }: { src: string }) => {
     }, []);
 
     return (
-        <div className="flex items-center gap-2 w-full max-w-[250px]">
+        <div className="flex items-center gap-2 w-full max-w-[250px] bg-black/5 p-2 rounded-xl">
             <audio ref={audioRef} src={src} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} className="hidden" />
-            <Button variant="ghost" size="icon" className="h-10 w-10" onClick={togglePlay}>{isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}</Button>
-            <div className="flex-1 flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={togglePlay}>
+                {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+            </Button>
+            <div className="flex-1 flex items-center pr-2">
                  <div className="relative w-full h-1.5 bg-muted rounded-full cursor-pointer" onClick={handleScrub}>
-                    <div className="absolute top-0 left-0 h-full bg-primary rounded-full" style={{ width: `${progress * 100}%`}} />
-                     <div className="absolute top-1/2 -translate-y-1/2 h-3 w-3 bg-primary rounded-full" style={{ left: `calc(${progress * 100}% - 6px)`}} />
+                    <div className="absolute top-0 left-0 h-full bg-primary rounded-full" style={{ width: `${(progress || 0) * 100}%`}} />
+                     <div className="absolute top-1/2 -translate-y-1/2 h-3 w-3 bg-primary rounded-full" style={{ left: `calc(${(progress || 0) * 100}% - 6px)`}} />
                 </div>
             </div>
         </div>
@@ -143,7 +151,7 @@ export default function ChatThreadPage() {
                 setMessages(response.documents);
                 markMessagesAsRead();
             } catch (error: any) {
-                toast({ title: 'Error', description: `Could not load chat.`, variant: 'destructive' });
+                toast({ title: 'Syncing Error', description: `Wait, connecting to chat...`, variant: 'default' });
             } finally { setLoading(false); }
         };
         if (chatId && otherUserId) setupChat();
@@ -264,7 +272,12 @@ export default function ChatThreadPage() {
     };
 
     const stopRecording = () => mediaRecorder?.stop();
-    const cancelRecording = () => { if (mediaRecorder) mediaRecorder.stream.getTracks().forEach(t => t.stop()); setRecordingStatus('idle'); };
+    const cancelRecording = () => { 
+        if (mediaRecorder) {
+            mediaRecorder.stream.getTracks().forEach(t => t.stop());
+        }
+        setRecordingStatus('idle'); 
+    };
     const handleSendAudio = () => {
         if (audioBlob) {
             handleSendMediaMessage(new File([audioBlob], `voice-note.webm`, { type: 'audio/webm' }));
