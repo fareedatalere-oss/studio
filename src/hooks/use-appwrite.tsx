@@ -1,3 +1,4 @@
+
 'use client';
 
 import client, { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
@@ -61,29 +62,36 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                         const profileDoc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id);
                         setProfile(profileDoc);
 
-                        // Master Session Check (1 Hour Rule)
-                        const lastActive = localStorage.getItem('ipay_last_active');
+                        // MASTER SESSION LOGIC
+                        const lastActiveStr = localStorage.getItem('ipay_last_active');
                         const now = Date.now();
-                        if (lastActive) {
-                            const diff = now - parseInt(lastActive);
-                            if (diff > 3600000) { // 1 Hour
+                        const pinVerified = sessionStorage.getItem('ipay_pin_verified') === 'true';
+
+                        if (lastActiveStr) {
+                            const lastActive = parseInt(lastActiveStr);
+                            const diff = now - lastActive;
+
+                            // 1 Hour Rule: Force Logout
+                            if (diff > 3600000) {
                                 await account.deleteSession('current');
                                 localStorage.removeItem('ipay_last_active');
+                                sessionStorage.removeItem('ipay_pin_verified');
                                 setUser(null);
                                 setProfile(null);
-                                router.push('/auth/signin');
+                                if (!pathname.includes('/auth')) router.replace('/auth/signin');
+                                return;
+                            }
+
+                            // Challenge PIN if user is returning (closing/reopening tab or away for a bit)
+                            // and they are authenticated but haven't verified for this specific session.
+                            if (!pinVerified && pathname.startsWith('/dashboard') && !pathname.includes('/auth')) {
+                                router.replace('/auth/pin-lock');
                                 return;
                             }
                         }
                         
                         // Update Activity
                         localStorage.setItem('ipay_last_active', now.toString());
-
-                        // PIN Lock Check
-                        const pinVerified = sessionStorage.getItem('ipay_pin_verified');
-                        if (!pinVerified && pathname.startsWith('/dashboard') && !pathname.includes('/auth')) {
-                            router.replace('/auth/pin-lock');
-                        }
 
                     } catch (pError: any) {
                         setProfile(null);

@@ -63,15 +63,19 @@ export default function CompleteProfilePage() {
     try {
         await account.updateName(username);
 
-        // ONLY sending the attributes allowed by the user's schema
         const profileData = {
             username: username,
             country: country,
             pin: pin,
             avatar: '',
+            nairaBalance: 0,
+            rewardBalance: 0,
+            clickCount: 0,
+            createdAt: new Date().toISOString(),
+            email: user.email,
+            uid: user.$id
         };
 
-        // Create the new profile document using the user's ID as the document ID
         await databases.createDocument(
             DATABASE_ID,
             COLLECTION_ID_PROFILES,
@@ -79,6 +83,10 @@ export default function CompleteProfilePage() {
             profileData
         );
         
+        // Mark as verified for auto-landing
+        sessionStorage.setItem('ipay_pin_verified', 'true');
+        localStorage.setItem('ipay_last_active', Date.now().toString());
+
         toast({
             title: 'Profile Complete!',
             description: 'Welcome to I-Pay. You are now being redirected.',
@@ -93,6 +101,7 @@ export default function CompleteProfilePage() {
             errorMessage = 'The profiles collection has not been created in your Appwrite database.';
         } else if (error.type === 'document_already_exists' || error.code === 409) {
              errorMessage = 'A profile for this user already exists. Redirecting to dashboard.';
+             sessionStorage.setItem('ipay_pin_verified', 'true');
              router.push('/dashboard');
         }
         toast({

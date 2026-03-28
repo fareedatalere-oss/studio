@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -109,6 +110,11 @@ export default function SignInPage() {
         setIsLoading(false);
         return;
       }
+      
+      // Force verify session so PIN Lock doesn't show immediately after login
+      sessionStorage.setItem('ipay_pin_verified', 'true');
+      localStorage.setItem('ipay_last_active', Date.now().toString());
+      
       await recheckUser();
       toast({ title: 'Success', description: 'Signed in successfully!' });
       router.push('/dashboard');
