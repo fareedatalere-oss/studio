@@ -243,7 +243,7 @@ export default function AiChatPage() {
     toast({ title: "Message Deleted" });
   }
 
-  const handleAction = (action?: string, targetId?: string) => {
+  const handleAction = (action?: string, email?: string) => {
     if (!action || action === 'none') return;
     
     switch (action) {
@@ -252,17 +252,17 @@ export default function AiChatPage() {
             account.deleteSession('current').then(() => router.push('/auth/signin'));
             break;
         case 'call':
-            window.location.href = `tel:${targetId || ''}`;
+            window.location.href = `tel:${email || ''}`;
             break;
         case 'sms':
-            window.location.href = `sms:${targetId || ''}`;
+            window.location.href = `sms:${email || ''}`;
             break;
         case 'market':
             router.push('/dashboard/market');
             break;
         case 'chat':
-            if (targetId) {
-                router.push(`/dashboard/chat/${targetId}`);
+            if (email) {
+                router.push(`/dashboard/chat/${email}`);
             } else {
                 router.push('/dashboard/chat');
             }
@@ -323,7 +323,7 @@ export default function AiChatPage() {
       const sofiaMsg: Message = { role: 'sofia', text: response.text, timestamp: Date.now() };
       setMessages(prev => [...prev, sofiaMsg]);
       speakText(response.text);
-      handleAction(response.action, response.targetId);
+      handleAction(response.action, response.email);
       
       if (response.imageToGenerate) {
           toast({ title: "Creating Image...", description: "Sofia is generating visuals for you." });

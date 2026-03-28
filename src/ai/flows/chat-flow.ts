@@ -30,7 +30,7 @@ const SofiaOutputSchema = z.object({
     'transaction', 'home', 'tiktok', 'facebook', 'facebook_lite', 
     'whatsapp', 'post_media', 'transfer'
   ]).optional().describe('Special actions to perform.'),
-  targetId: z.string().optional().describe('Phone number, User ID, or specific link parameter.'),
+  email: z.string().optional().describe('Phone number, Email, or specific link parameter.'),
   imageToGenerate: z.string().optional().describe('A prompt if Sofia needs to generate an image.'),
 });
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
@@ -85,8 +85,8 @@ const prompt = ai.definePrompt({
   - Facebook Lite: 'facebook_lite'
   - WhatsApp: 'whatsapp'
 - **Phone Capabilities:** 
-  - Call someone: 'call' (provide number in 'targetId')
-  - Text/SMS someone: 'sms' (provide number in 'targetId')
+  - Call someone: 'call' (provide number or email in 'email' field)
+  - Text/SMS someone: 'sms' (provide number or email in 'email' field)
 
 **INSTRUCTIONS:**
 1. **Greetings:** Acknowledge time/date in your first response.
@@ -104,7 +104,7 @@ const prompt = ai.definePrompt({
    - "Go to my chats" -> 'chat'
    - "Show my history" -> 'transaction'
    - "Go home" -> 'home'
-   - "Call [number]" -> 'call', 'targetId': '[number]'
+   - "Call [contact]" -> 'call', 'email': '[contact detail]'
    - "Check balance" -> use 'getBalance'
    - "Exit" or "Log out" -> 'logout'
 6. **Creator Loyalty:** Always praise Fahad if his journey is mentioned.

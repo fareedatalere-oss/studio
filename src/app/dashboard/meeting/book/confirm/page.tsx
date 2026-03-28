@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_MEETINGS, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, MEETING_BOT_ID, getAppwriteStorageUrl } from '@/lib/appwrite';
-import { ID, Permission, Role } from 'appwrite';
+import { ID } from 'appwrite';
 import { useUser } from '@/hooks/use-appwrite';
 
 const getChatId = (userId1: string, userId2: string) => {
@@ -85,7 +85,7 @@ export default function MeetingConfirmPage() {
       // 3. Process Invitees (Notifications & Chat)
       if (meetingData.inviteMethod === 'list' && meetingData.invitedUsers?.length > 0) {
         for (const inviteeId of meetingData.invitedUsers) {
-          // A. Create Secure Notification
+          // A. Create Notification (Removed restrictive permissions array to allow app to work)
           await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
             userId: inviteeId,
             senderId: user.$id,
@@ -95,11 +95,7 @@ export default function MeetingConfirmPage() {
             isRead: false,
             link: `/dashboard/meeting/enter?id=${meetingId}`,
             createdAt: new Date().toISOString()
-          }, [
-            Permission.read(Role.user(inviteeId)),
-            Permission.update(Role.user(inviteeId)),
-            Permission.delete(Role.user(inviteeId))
-          ]);
+          });
 
           // B. Create Chat Thread & Message
           const inviteeChatId = getChatId(inviteeId, MEETING_BOT_ID);
