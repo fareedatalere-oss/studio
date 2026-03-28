@@ -8,8 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_MEETINGS, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, MEETING_BOT_ID, getAppwriteStorageUrl } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { ID, Permission, Role } from 'appwrite';
 import { useUser } from '@/hooks/use-appwrite';
+
+const getChatId = (userId1: string, userId2: string) => {
+    const sortedIds = [userId1, userId2].sort();
+    return `${sortedIds[0].substring(0, 15)}_${sortedIds[1].substring(0, 15)}`;
+};
 
 function dataURLtoFile(dataurl: string, filename: string): File {
     const arr = dataurl.split(',');
@@ -51,7 +56,7 @@ export default function MeetingConfirmPage() {
       const meetingId = ID.unique();
       const meetingLink = `${window.location.origin}/dashboard/meeting/enter?id=${meetingId}`;
       
-      // 1. Upload Wall Image to Storage first (Fixes character limit error)
+      // 1. Upload Wall Image to Storage
       let finalWallUrl = '';
       if (meetingData.wallUrl && meetingData.wallUrl.startsWith('data:')) {
           const file = dataURLtoFile(meetingData.wallUrl, `meeting-wall-${meetingId}.png`);
@@ -77,45 +82,84 @@ export default function MeetingConfirmPage() {
       // 2. Create Meeting Record
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, payload);
 
-      // 3. Send Notifications to invitees
-      if (meetingData.inviteMethod === 'list') {
-        const notifPromises = meetingData.invitedUsers.map((id: string) => 
-          databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
-            userId: id,
+      // 3. Process Invitees (Notifications & Chat)
+      if (meetingData.inviteMethod === 'list' && meetingData.invitedUsers?.length > 0) {
+        for (const inviteeId of meetingData.invitedUsers) {
+          // A. Create Secure Notification
+          await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
+            userId: inviteeId,
             senderId: user.$id,
             type: 'system',
             title: 'Meeting Invite',
-            description: `You're invited to "${meetingData.name}" on ${meetingData.date} at ${meetingData.time}.`,
+            description: `You are invited to "${meetingData.name}" on ${meetingData.date} at ${meetingData.time}.`,
             isRead: false,
             link: `/dashboard/meeting/enter?id=${meetingId}`,
             createdAt: new Date().toISOString()
-          })
-        );
-        await Promise.all(notifPromises);
+          }, [
+            Permission.read(Role.user(inviteeId)),
+            Permission.update(Role.user(inviteeId)),
+            Permission.delete(Role.user(inviteeId))
+          ]);
+
+          // B. Create Chat Thread & Message
+          const inviteeChatId = getChatId(inviteeId, MEETING_BOT_ID);
+          const inviteeBotMsg = `Hello! You have a new meeting invitation.\n\nMeeting: ${meetingData.name}\nHost: @${user.name}\nDate: ${meetingData.date}\nTime: ${meetingData.time}\n\nJoin here: ${meetingLink}`;
+          
+          try {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, inviteeChatId, {
+                participants: [inviteeId, MEETING_BOT_ID],
+                lastMessage: `Invitation: ${meetingData.name}`,
+                lastMessageAt: new Date().toISOString()
+            });
+          } catch (e: any) {
+            if (e.code === 404) {
+                await databases.createDocument(DATABASE_ID, COLLECTION_ID_CHATS, inviteeChatId, {
+                    participants: [inviteeId, MEETING_BOT_ID],
+                    lastMessage: `Invitation: ${meetingData.name}`,
+                    lastMessageAt: new Date().toISOString()
+                });
+            }
+          }
+
+          await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
+            chatId: inviteeChatId,
+            senderId: MEETING_BOT_ID,
+            text: inviteeBotMsg,
+            status: 'sent'
+          });
+        }
       }
 
-      // 4. System Chat Logic
-      const chatId = `${user.$id}_${MEETING_BOT_ID}`;
-      const chatMsg = `Hello @${user.name}! Your meeting "${meetingData.name}" is booked for ${meetingData.date} at ${meetingData.time}. \n\nType: ${meetingData.type.toUpperCase()}\nDescription: ${meetingData.description}\n\nUse the buttons below to manage this session.`;
+      // 4. Host System Chat Confirmation
+      const hostChatId = getChatId(user.$id, MEETING_BOT_ID);
+      const hostSummary = `Meeting Booked Successfully!\n\nName: ${meetingData.name}\nSchedule: ${meetingData.date} @ ${meetingData.time}\nType: ${meetingData.type.toUpperCase()}\n\nYour device will ring automatically at the set time. Gaskiya.`;
       
       try {
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId, {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, hostChatId, {
             participants: [user.$id, MEETING_BOT_ID],
-            lastMessage: `Meeting Booked: ${meetingData.name}`,
+            lastMessage: `Booked: ${meetingData.name}`,
             lastMessageAt: new Date().toISOString()
         });
-      } catch (e) {}
+      } catch (e: any) {
+        if (e.code === 404) {
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_CHATS, hostChatId, {
+                participants: [user.$id, MEETING_BOT_ID],
+                lastMessage: `Booked: ${meetingData.name}`,
+                lastMessageAt: new Date().toISOString()
+            });
+        }
+      }
 
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
-        chatId: chatId,
+        chatId: hostChatId,
         senderId: MEETING_BOT_ID,
-        text: chatMsg,
+        text: hostSummary,
         status: 'sent'
       });
 
       setConfirmedId(meetingId);
       sessionStorage.removeItem('pendingMeeting');
-      toast({ title: 'Meeting Confirmed!', description: 'Your friends have been notified.' });
+      toast({ title: 'Meeting Confirmed!', description: 'Your friends have been notified via Chat and Alerts.' });
 
     } catch (error: any) {
       console.error(error);
@@ -141,7 +185,7 @@ export default function MeetingConfirmPage() {
           </div>
           <h2 className="text-3xl font-black uppercase tracking-tighter mb-2">Gaskiya!</h2>
           <p className="text-muted-foreground text-sm font-bold mb-8">
-            Meeting is fully scheduled. The system will ring your screen when it's time to start.
+            Meeting is fully scheduled. All participants have been notified in their chat and alerts.
           </p>
           
           <div className="p-4 rounded-2xl bg-muted/50 border mb-8 flex items-center justify-between">
@@ -193,7 +237,7 @@ export default function MeetingConfirmPage() {
           <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
             <ShieldCheck className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
             <p className="text-[10px] font-bold text-amber-800 leading-tight italic">
-              "Gaskiya": By confirming, you agree that your wallet will be billed (if General) and invitations will be sent instantly. Your device will ring automatically at the set time.
+              "Gaskiya": By confirming, invitations will be sent instantly to both Chat and Alerts. Your device will ring automatically at the set time.
             </p>
           </div>
         </CardContent>
