@@ -6,9 +6,23 @@ import { ArrowLeft, Loader2, Clipboard, CheckCircle2, ShieldCheck } from 'lucide
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, MEETING_BOT_ID } from '@/lib/appwrite';
+import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_MEETINGS, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, MEETING_BOT_ID, getAppwriteStorageUrl } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 import { useUser } from '@/hooks/use-appwrite';
+
+function dataURLtoFile(dataurl: string, filename: string): File {
+    const arr = dataurl.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    if (!mimeMatch) throw new Error('Invalid data URL');
+    const mime = mimeMatch[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+}
 
 export default function MeetingConfirmPage() {
   const router = useRouter();
@@ -36,12 +50,20 @@ export default function MeetingConfirmPage() {
       const meetingId = ID.unique();
       const meetingLink = `${window.location.origin}/dashboard/meeting/enter?id=${meetingId}`;
       
+      // 1. Upload Wall Image to Storage first (Fixes character limit error)
+      let finalWallUrl = '';
+      if (meetingData.wallUrl && meetingData.wallUrl.startsWith('data:')) {
+          const file = dataURLtoFile(meetingData.wallUrl, `meeting-wall-${meetingId}.png`);
+          const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
+          finalWallUrl = getAppwriteStorageUrl(upload.$id);
+      }
+
       const payload = {
         hostId: user.$id,
         name: meetingData.name,
         description: meetingData.description,
         type: meetingData.type,
-        wallUrl: meetingData.wallUrl || '',
+        wallUrl: finalWallUrl,
         date: meetingData.date,
         time: meetingData.time,
         rules: JSON.stringify(meetingData.rules),
@@ -51,10 +73,10 @@ export default function MeetingConfirmPage() {
         status: 'pending'
       };
 
-      // 1. Create Meeting Record
+      // 2. Create Meeting Record
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, payload);
 
-      // 2. Send Notifications to invitees
+      // 3. Send Notifications to invitees
       if (meetingData.inviteMethod === 'list') {
         const notifPromises = meetingData.invitedUsers.map((id: string) => 
           databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
@@ -71,7 +93,7 @@ export default function MeetingConfirmPage() {
         await Promise.all(notifPromises);
       }
 
-      // 3. System Chat Logic: I-Pay Meeting speaks to host
+      // 4. System Chat Logic
       const chatId = `${user.$id}_${MEETING_BOT_ID}`;
       const chatMsg = `Hello @${user.name}! Your meeting "${meetingData.name}" is booked for ${meetingData.date} at ${meetingData.time}. \n\nType: ${meetingData.type.toUpperCase()}\nDescription: ${meetingData.description}\n\nUse the buttons below to manage this session.`;
       
@@ -92,9 +114,10 @@ export default function MeetingConfirmPage() {
 
       setConfirmedId(meetingId);
       sessionStorage.removeItem('pendingMeeting');
-      toast({ title: 'Meeting Confirmed!', description: 'Invitees have been notified.' });
+      toast({ title: 'Meeting Confirmed!', description: 'Your friends have been notified.' });
 
     } catch (error: any) {
+      console.error(error);
       toast({ variant: 'destructive', title: 'Booking Failed', description: error.message });
     } finally {
       setIsSubmitting(false);
@@ -159,10 +182,10 @@ export default function MeetingConfirmPage() {
           <div className="space-y-2">
             <p className="text-[10px] font-black uppercase opacity-50 px-2">Permissions</p>
             <div className="flex flex-wrap gap-2">
-              {meetingData?.rules.allowChat && <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black uppercase rounded-full">Chat On</span>}
-              {meetingData?.rules.allowVoice && <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black uppercase rounded-full">Voice On</span>}
-              {meetingData?.rules.allowVideo && <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black uppercase rounded-full">Video On</span>}
-              {meetingData?.rules.hideFace && <span className="px-3 py-1 bg-destructive/10 text-destructive text-[10px] font-black uppercase rounded-full">Faces Hidden</span>}
+              {meetingData?.rules?.allowChat && <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black uppercase rounded-full border border-primary/20 shadow-sm">Chat On</span>}
+              {meetingData?.rules?.allowVoice && <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black uppercase rounded-full border border-primary/20 shadow-sm">Voice On</span>}
+              {meetingData?.rules?.allowVideo && <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black uppercase rounded-full border border-primary/20 shadow-sm">Video On</span>}
+              {meetingData?.rules?.hideFace && <span className="px-3 py-1 bg-destructive/10 text-destructive text-[10px] font-black uppercase rounded-full border border-destructive/20 shadow-sm">Faces Hidden</span>}
             </div>
           </div>
 
@@ -175,7 +198,7 @@ export default function MeetingConfirmPage() {
         </CardContent>
         <CardFooter className="p-8 bg-muted/30">
           <Button onClick={handleFinalize} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-xl" disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="animate-spin" /> : "Confirm Meeting"}
+            {isSubmitting ? <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Processing...</> : "Confirm Meeting"}
           </Button>
         </CardFooter>
       </Card>
