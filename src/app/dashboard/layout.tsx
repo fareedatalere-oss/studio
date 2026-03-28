@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import client, { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_POSTS } from '@/lib/appwrite';
+import client, { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { cn } from '@/lib/utils';
 import { MeetingAlarm } from '@/components/meeting-alarm';
@@ -35,32 +35,6 @@ export default function DashboardLayout({
   const lastCountRef = useRef(0);
 
   const isImmersive = pathname === '/dashboard/media' || pathname.startsWith('/dashboard/media/music') || pathname.includes('/text') || pathname.includes('/room/');
-
-  useEffect(() => {
-    if (!user) return;
-    
-    const preloadMedia = async () => {
-        try {
-            const posts = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [Query.limit(20), Query.orderDesc('$createdAt')]);
-            posts.documents.forEach(post => {
-                if (post.mediaUrl) {
-                    if (post.type === 'image') {
-                        const img = new window.Image();
-                        img.src = post.mediaUrl;
-                    } else if (post.type === 'reels' || post.type === 'film' || post.type === 'music') {
-                        const element = document.createElement(post.type === 'music' ? 'audio' : 'video');
-                        element.src = post.mediaUrl;
-                        element.preload = 'auto';
-                        element.load();
-                    }
-                }
-            });
-        } catch (e) {}
-    };
-    
-    const timer = setTimeout(preloadMedia, 2000);
-    return () => clearTimeout(timer);
-  }, [user]);
 
   useEffect(() => {
     setIsMounted(true);

@@ -32,7 +32,6 @@ export default function GetAccountNumberPage() {
   const [countdown, setCountdown] = useState(15);
   const [isPageLoading, setIsPageLoading] = useState(true);
 
-  // Effect to pre-fill form with existing profile data
   useEffect(() => {
     if (user) {
       databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id)
@@ -48,7 +47,6 @@ export default function GetAccountNumberPage() {
         })
         .catch(error => {
           setFormData(prev => ({ ...prev, email: user.email }));
-          console.log("Could not pre-fill all profile data", error.message);
         })
         .finally(() => {
             setIsPageLoading(false);
@@ -58,7 +56,6 @@ export default function GetAccountNumberPage() {
     }
   }, [user, userLoading]);
 
-  // Effect for countdown timer after account generation
   useEffect(() => {
     if (generatedAccount && countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -91,7 +88,7 @@ export default function GetAccountNumberPage() {
       toast({
         variant: 'destructive',
         title: 'All Fields Required',
-        description: 'Please fill out all the details to generate an account.',
+        description: 'Please fill out all the details.',
       });
       return;
     }
@@ -99,23 +96,6 @@ export default function GetAccountNumberPage() {
     setIsGenerating(true);
 
     try {
-        // SECURITY CHECK: Duplicate BVN/NIN check
-        const duplicateCheck = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTION_ID_PROFILES,
-            [Query.equal('bvn', formData.bvn)]
-        );
-
-        if (duplicateCheck.total > 0 && duplicateCheck.documents[0].$id !== user.$id) {
-            toast({
-                variant: 'destructive',
-                title: 'Already Available',
-                description: 'This BVN/NIN is already registered with another account.',
-            });
-            setIsGenerating(false);
-            return;
-        }
-
         const result = await generateVirtualAccount({
             email: user.email, 
             firstname: formData.firstName,
@@ -143,25 +123,20 @@ export default function GetAccountNumberPage() {
                     lastName: formData.lastName,
                     phone: formData.phone,
                     bvn: formData.bvn,
-                    username: `${formData.firstName.toLowerCase()}${formData.lastName.toLowerCase()}`, 
                 }
             );
 
             await recheckUser();
-
             setGeneratedAccount(accountInfo);
-             toast({
-                title: "Account Generated!",
-                description: "Redirecting to dashboard shortly.",
-            });
+            toast({ title: "Account Generated!" });
         } else {
-            throw new Error(result.message || 'An unknown error occurred while generating the account.');
+            throw new Error(result.message || 'Could not generate account. Please check your BVN/NIN.');
         }
     } catch (error: any) {
          toast({
           variant: 'destructive',
-          title: 'Account Generation Failed',
-          description: error.message || 'We could not generate your account number. Please try again.',
+          title: 'Failed',
+          description: error.message || 'Network error occurred.',
         });
     } finally {
         setIsGenerating(false);
@@ -170,36 +145,30 @@ export default function GetAccountNumberPage() {
   
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast({ title: 'Copied to clipboard!' });
+    toast({ title: 'Copied!' });
   };
-
 
   if (generatedAccount) {
     return (
         <div className="container py-8">
-            <Card className="w-full max-w-lg mx-auto">
+            <Card className="w-full max-w-lg mx-auto rounded-[2.5rem]">
                 <CardHeader>
-                    <CardTitle>Account Generated Successfully!</CardTitle>
-                    <CardDescription>
-                        Here are your new account details. Redirecting to the dashboard in {countdown} seconds...
+                    <CardTitle className="text-center">Success!</CardTitle>
+                    <CardDescription className="text-center">
+                        Redirecting in {countdown}s...
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="space-y-1">
-                        <Label>Bank Name</Label>
-                        <p className="font-semibold text-lg">{generatedAccount.bank}</p>
+                    <div className="p-6 bg-primary/5 rounded-3xl text-center">
+                        <Label className="uppercase text-[10px] font-black opacity-50">Account Number</Label>
+                        <p className="font-black text-2xl tracking-tighter">{generatedAccount.number}</p>
+                        <p className="text-sm font-bold text-primary">{generatedAccount.bank}</p>
+                        <Button variant="ghost" size="sm" onClick={() => copyToClipboard(generatedAccount.number)} className="mt-2 h-8 rounded-full">
+                            <ClipboardCopy className="h-3 w-3 mr-2" /> Copy
+                        </Button>
                     </div>
-                    <div className="space-y-1">
-                        <Label>Account Number</Label>
-                        <div className="flex items-center gap-2">
-                             <p className="font-mono font-semibold text-xl flex-1">{generatedAccount.number}</p>
-                             <Button variant="outline" size="icon" onClick={() => copyToClipboard(generatedAccount.number)}>
-                                <ClipboardCopy className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </div>
-                    <Button asChild className="w-full mt-4">
-                        <Link href="/dashboard">Go to Dashboard Now</Link>
+                    <Button asChild className="w-full h-14 rounded-full font-black uppercase">
+                        <Link href="/dashboard">Go to Dashboard</Link>
                     </Button>
                 </CardContent>
             </Card>
@@ -209,53 +178,33 @@ export default function GetAccountNumberPage() {
 
   return (
     <div className="container py-8">
-      <Link href="/dashboard" className="flex items-center gap-2 mb-4 text-sm">
-        <ArrowLeft className="h-4 w-4" />
-        Back to Dashboard
+      <Link href="/dashboard" className="flex items-center gap-2 mb-4 text-sm font-black uppercase">
+        <ArrowLeft className="h-4 w-4" /> Back
       </Link>
-      <Card className="w-full max-w-lg mx-auto">
+      <Card className="w-full max-w-lg mx-auto rounded-[2.5rem]">
         <CardHeader>
-          <CardTitle>Generate Account Number</CardTitle>
-          <CardDescription>
-            Provide your details to generate a new permanent account number.
-          </CardDescription>
+          <CardTitle className="font-black uppercase tracking-tighter">Identity Check</CardTitle>
+          <CardDescription className="font-bold">Provide your real details for Flutterwave verification.</CardDescription>
         </CardHeader>
         <CardContent>
           {isPageLoading ? (
-            <div className="flex justify-center items-center h-48">
-                <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
+            <div className="flex justify-center p-12"><Loader2 className="h-10 w-10 animate-spin" /></div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={formData.email} onChange={handleChange} placeholder="m@example.com" required readOnly/>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1"><Label className="text-[10px] font-black uppercase opacity-50">First Name</Label><Input id="firstName" value={formData.firstName} onChange={handleChange} required /></div>
+                    <div className="space-y-1"><Label className="text-[10px] font-black uppercase opacity-50">Last Name</Label><Input id="lastName" value={formData.lastName} onChange={handleChange} required /></div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name</Label>
-                    <Input id="firstName" value={formData.firstName} onChange={handleChange} required />
+                <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase opacity-50">NIN/BVN (11 digits)</Label>
+                    <Input id="bvn" value={formData.bvn} onChange={handleChange} required maxLength={11} minLength={11} className="font-mono text-lg" />
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input id="lastName" value={formData.lastName} onChange={handleChange} required />
+                <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase opacity-50">Phone Number</Label>
+                    <Input id="phone" type="tel" value={formData.phone} onChange={handleChange} required className="font-mono text-lg" />
                 </div>
-                </div>
-                <div className="space-y-2">
-                <Label htmlFor="bvn">NIN/BVN (11 digits)</Label>
-                <Input id="bvn" value={formData.bvn} onChange={handleChange} required maxLength={11} minLength={11} />
-                </div>
-                <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" type="tel" value={formData.phone} onChange={handleChange} required />
-                </div>
-                <Button type="submit" className="w-full" disabled={isGenerating}>
-                {isGenerating ? (
-                    <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generating...
-                    </>
-                ) : 'Get Account Number'}
+                <Button type="submit" className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-xl mt-4" disabled={isGenerating}>
+                {isGenerating ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Generating...</> : 'Get Account Number'}
                 </Button>
             </form>
            )}

@@ -5,6 +5,36 @@ import { ID, Query } from 'appwrite';
 const FLUTTERWAVE_API_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
 const API_KEY_ERROR_MESSAGE = 'Configuration error. Please contact an administrator.';
 
+export async function generateVirtualAccount(payload: any) {
+    if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    
+    try {
+        const response = await fetch('https://api.flutterwave.com/v3/virtual-account-numbers', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY.trim()}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ 
+                ...payload, 
+                is_permanent: true, 
+                tx_ref: `v-acc-${Date.now()}` 
+            }),
+        });
+
+        const data = await response.json();
+        if (data.status === 'success') {
+            return { success: true, data: data.data };
+        } else {
+            return { success: false, message: data.message || "Flutterwave declined the request." };
+        }
+    } catch (e: any) {
+        console.error("Flutterwave API Error:", e);
+        return { success: false, message: "Network error. Please check your connection and try again." };
+    }
+}
+
 export async function getBillCategories(type?: string) {
     if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     try {
@@ -86,8 +116,8 @@ export async function initiateFlutterwaveBill(payload: {
                 country: "NG",
                 customer: payload.customer,
                 amount: payload.amount,
-                type: payload.billerCode, // Force use of biller_code
-                item_code: payload.itemCode || payload.billerCode, // Required for recharges
+                type: payload.billerCode,
+                item_code: payload.itemCode || payload.billerCode,
                 reference: `ipay-bill-${Date.now()}`
             }),
         });
@@ -176,7 +206,6 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
 }
 
 export async function initiateFlutterwaveAirtime(payload: { userId: string, pin: string, customer: string, amount: number, type: string }) {
-    // Dynamically find airtime code for Nigeria
     const networkBillerCodes: any = {
         'MTN': 'BIL099',
         'AIRTEL': 'BIL100',
@@ -185,25 +214,6 @@ export async function initiateFlutterwaveAirtime(payload: { userId: string, pin:
     };
     const billerCode = networkBillerCodes[payload.type.toUpperCase()] || 'BIL099';
     return initiateFlutterwaveBill({ ...payload, billerCode, itemCode: billerCode });
-}
-
-export async function generateVirtualAccount(payload: any) {
-    if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
-    try {
-        const response = await fetch('https://api.flutterwave.com/v3/virtual-account-numbers', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${FLUTTERWAVE_API_KEY}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ ...payload, is_permanent: true, tx_ref: `v-acc-${Date.now()}` }),
-        });
-        const data = await response.json();
-        if (data.status === 'success') return { success: true, data: data.data };
-        return { success: false, message: data.message };
-    } catch (e: any) {
-        return { success: false, message: e.message };
-    }
 }
 
 export async function getCardVerificationLink(payload: { userId: string, email: string, name: string, redirectUrl: string }) {
@@ -261,14 +271,12 @@ export async function chargeTokenizedCard(payload: { userId: string, amount: num
         
         const data = await response.json();
         
-        // STRICT VERIFICATION: Must check for 'success' AND 'successful' status
         if (data.status === 'success' && data.data && data.data.status === 'successful') {
             const currentBal = Number(profile.nairaBalance || 0);
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { 
                 nairaBalance: currentBal + payload.amount 
             });
 
-            // LOG CONFIRMED TRANSACTION
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: payload.userId,
                 type: 'deposit',

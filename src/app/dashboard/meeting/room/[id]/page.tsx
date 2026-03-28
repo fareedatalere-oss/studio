@@ -7,7 +7,7 @@ import {
     Mic, Video as VideoIcon, PhoneOff, Settings, 
     MoreVertical, Loader2, Camera, ImageIcon, 
     PlayCircle, StopCircle, UserX, X, MessageSquare, Monitor, Eraser, Send,
-    Clock
+    Clock, Calendar as CalendarIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -104,7 +104,7 @@ export default function MeetingRoomPage() {
         }
 
         return () => unsub();
-    }, [meetingId, router, fetchMeeting, user?.$id, profile?.username, profile?.avatar, meeting?.hostId]);
+    }, [meetingId, user?.$id, profile?.username, profile?.avatar]);
 
     useEffect(() => {
         if (!isInRoom || timeLeft === null) return;
@@ -136,6 +136,8 @@ export default function MeetingRoomPage() {
             }
         }
 
+        setIsInRoom(true);
+
         if (meeting.hostId === user.$id && !meeting.startedAt) {
             try {
                 await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
@@ -146,8 +148,6 @@ export default function MeetingRoomPage() {
                 console.error("Host failed to update meeting status", e);
             }
         }
-        
-        setIsInRoom(true);
     };
 
     const formatTime = (seconds: number) => {
@@ -240,26 +240,26 @@ export default function MeetingRoomPage() {
             <div className="h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
                 <Card className="max-w-md w-full rounded-[3rem] overflow-hidden shadow-2xl border-none">
                     <div className="relative h-48 w-full bg-muted">
-                        {meeting.wallUrl && <Image src={meeting.wallUrl} alt="Wall" fill className="object-cover" />}
+                        {meeting?.wallUrl && <Image src={meeting.wallUrl} alt="Wall" fill className="object-cover" />}
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                             <VideoIcon className="h-16 w-16 text-white" />
                         </div>
                     </div>
                     <CardContent className="pt-8 space-y-4">
-                        <h1 className="text-3xl font-black uppercase tracking-tighter">{meeting.name}</h1>
-                        <p className="text-sm font-bold text-muted-foreground">{meeting.description}</p>
+                        <h1 className="text-3xl font-black uppercase tracking-tighter">{meeting?.name}</h1>
+                        <p className="text-sm font-bold text-muted-foreground">{meeting?.description}</p>
                         <div className="flex items-center justify-center gap-4 text-xs font-black uppercase">
                             <div className="flex items-center gap-1 text-primary">
                                 <Clock className="h-3 w-3" />
-                                <span>{meeting.type === 'personal' ? '1 Hour' : '3 Hours'}</span>
+                                <span>{meeting?.type === 'personal' ? '1 Hour' : '3 Hours'}</span>
                             </div>
                             <div className="flex items-center gap-1 text-muted-foreground">
                                 <CalendarIcon className="h-3 w-3" />
-                                <span>{meeting.date} @ {meeting.time}</span>
+                                <span>{meeting?.date} @ {meeting?.time}</span>
                             </div>
                         </div>
                         <Button onClick={startSession} className="w-full h-16 rounded-full font-black uppercase tracking-widest text-lg shadow-xl mt-4">
-                            {meeting.hostId === user?.$id ? 'Start Meeting' : 'Enter Meeting'}
+                            {meeting?.hostId === user?.$id ? 'Start Meeting' : 'Enter Meeting'}
                         </Button>
                     </CardContent>
                 </Card>
@@ -269,7 +269,7 @@ export default function MeetingRoomPage() {
 
     return (
         <div className="h-screen w-full relative overflow-hidden bg-black flex flex-col font-body">
-            {meeting.wallUrl && (
+            {meeting?.wallUrl && (
                 <div className="absolute inset-0 z-0 opacity-20">
                     <Image src={meeting.wallUrl} alt="Wall" fill className="object-cover blur-md scale-110" />
                 </div>
@@ -279,7 +279,7 @@ export default function MeetingRoomPage() {
                 <div className="flex items-center gap-2">
                     <div className="bg-red-500 h-2.5 w-2.5 rounded-full animate-pulse shadow-[0_0_10px_red]"></div>
                     <div className="flex flex-col">
-                        <h2 className="text-white font-black uppercase text-[10px] tracking-widest truncate max-w-[100px]">{meeting.name}</h2>
+                        <h2 className="text-white font-black uppercase text-[10px] tracking-widest truncate max-w-[100px]">{meeting?.name}</h2>
                         {timeLeft !== null && <p className="text-white font-mono text-[8px]">{formatTime(timeLeft)} remaining</p>}
                     </div>
                 </div>
@@ -352,7 +352,7 @@ export default function MeetingRoomPage() {
                         <DialogHeader className="border-b pb-4">
                             <div className="flex items-center justify-between">
                                 <DialogTitle className="font-black uppercase tracking-widest text-sm">Meeting Board</DialogTitle>
-                                {meeting.hostId === user?.$id && (
+                                {meeting?.hostId === user?.$id && (
                                     <div className="flex gap-2">
                                         <Button size="icon" variant="ghost" onClick={clearBoard}><Eraser className="h-4 w-4 text-destructive" /></Button>
                                         <Button size="icon" variant="ghost" onClick={updateBoard}><Send className="h-4 w-4 text-primary" /></Button>
@@ -361,7 +361,7 @@ export default function MeetingRoomPage() {
                             </div>
                         </DialogHeader>
                         <div className="flex-1 py-6">
-                            {meeting.hostId === user?.$id ? (
+                            {meeting?.hostId === user?.$id ? (
                                 <Textarea 
                                     className="h-full resize-none border-none text-lg font-bold placeholder:opacity-30" 
                                     placeholder="Admin only: Write on the board..."
@@ -377,7 +377,7 @@ export default function MeetingRoomPage() {
                     </DialogContent>
                 </Dialog>
 
-                {meeting.hostId === user?.$id ? (
+                {meeting?.hostId === user?.$id ? (
                     <Button 
                         onClick={endMeeting} 
                         className="h-16 flex-1 rounded-full font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 shadow-2xl"

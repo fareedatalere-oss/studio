@@ -1,19 +1,29 @@
-/**
- * @fileOverview I-Pay Master Service Worker.
- * Required for PWA "Installable" status on Android and Chrome.
- */
-
-const CACHE_NAME = 'ipay-v1';
+// I-Pay Master Service Worker
+const CACHE_NAME = 'ipay-online-cache-v1';
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(clients.claim());
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(['/', '/logo.png', '/manifest.json']);
+    })
+  );
 });
 
 self.addEventListener('fetch', (event) => {
-  // Required fetch handler for PWA installability
-  event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+  // Required by Chrome/Android to enable "Install App" prompt
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      return response || fetch(event.request);
+    })
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))
+      );
+    })
+  );
 });
