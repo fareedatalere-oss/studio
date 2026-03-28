@@ -56,7 +56,6 @@ export default function MeetingConfirmPage() {
       const meetingId = ID.unique();
       const meetingLink = `${window.location.origin}/dashboard/meeting/enter?id=${meetingId}`;
       
-      // 1. Upload Wall Image to Storage
       let finalWallUrl = '';
       if (meetingData.wallUrl && meetingData.wallUrl.startsWith('data:')) {
           const file = dataURLtoFile(meetingData.wallUrl, `meeting-wall-${meetingId}.png`);
@@ -79,25 +78,20 @@ export default function MeetingConfirmPage() {
         status: 'pending'
       };
 
-      // 2. Create Meeting Record
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, payload);
 
-      // 3. Process Invitees (Notifications & Chat)
       if (meetingData.inviteMethod === 'list' && meetingData.invitedUsers?.length > 0) {
         for (const inviteeId of meetingData.invitedUsers) {
-          // A. Create Notification (Removed restrictive permissions array to allow app to work)
           await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
             userId: inviteeId,
             senderId: user.$id,
             type: 'system',
-            title: 'Meeting Invite',
-            description: `You are invited to "${meetingData.name}" on ${meetingData.date} at ${meetingData.time}.`,
+            description: `I-Pay Meeting: You are invited to "${meetingData.name}" on ${meetingData.date} at ${meetingData.time}.`,
             isRead: false,
             link: `/dashboard/meeting/enter?id=${meetingId}`,
             createdAt: new Date().toISOString()
           });
 
-          // B. Create Chat Thread & Message
           const inviteeChatId = getChatId(inviteeId, MEETING_BOT_ID);
           const inviteeBotMsg = `Hello! You have a new meeting invitation.\n\nMeeting: ${meetingData.name}\nHost: @${user.name}\nDate: ${meetingData.date}\nTime: ${meetingData.time}\n\nJoin here: ${meetingLink}`;
           
@@ -126,7 +120,6 @@ export default function MeetingConfirmPage() {
         }
       }
 
-      // 4. Host System Chat Confirmation
       const hostChatId = getChatId(user.$id, MEETING_BOT_ID);
       const hostSummary = `Meeting Booked Successfully!\n\nName: ${meetingData.name}\nSchedule: ${meetingData.date} @ ${meetingData.time}\nType: ${meetingData.type.toUpperCase()}\n\nYour device will ring automatically at the set time. Gaskiya.`;
       
@@ -155,7 +148,7 @@ export default function MeetingConfirmPage() {
 
       setConfirmedId(meetingId);
       sessionStorage.removeItem('pendingMeeting');
-      toast({ title: 'Meeting Confirmed!', description: 'Your friends have been notified via Chat and Alerts.' });
+      toast({ title: 'Meeting Confirmed!', description: 'Invitations sent.' });
 
     } catch (error: any) {
       console.error(error);
@@ -181,7 +174,7 @@ export default function MeetingConfirmPage() {
           </div>
           <h2 className="text-3xl font-black uppercase tracking-tighter mb-2">Gaskiya!</h2>
           <p className="text-muted-foreground text-sm font-bold mb-8">
-            Meeting is fully scheduled. All participants have been notified in their chat and alerts.
+            Meeting is fully scheduled. Participants have been notified via Chat and Alerts.
           </p>
           
           <div className="p-4 rounded-2xl bg-muted/50 border mb-8 flex items-center justify-between">
