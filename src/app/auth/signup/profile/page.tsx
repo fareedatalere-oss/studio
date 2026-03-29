@@ -18,7 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 export default function CompleteProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user, loading: userLoading } = useUser();
+  const { user, loading: userLoading, recheckUser } = useUser();
 
   const [username, setUsername] = useState('');
   const [country, setCountry] = useState('');
@@ -27,14 +27,9 @@ export default function CompleteProfilePage() {
   
   useEffect(() => {
     if (!userLoading && !user) {
-        toast({
-            title: 'Authentication Error',
-            description: 'You need to sign up first.',
-            variant: 'destructive',
-        });
         router.replace('/auth/signup');
     }
-  }, [user, userLoading, router, toast]);
+  }, [user, userLoading, router]);
 
   const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -45,16 +40,13 @@ export default function CompleteProfilePage() {
 
   const handleProfileSetup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) {
-        toast({ title: 'Error', description: 'User not found.', variant: 'destructive'});
-        return;
-    }
+    if (!user) return;
 
     if (!username || !country || pin.length !== 5) {
       toast({
+        variant: 'destructive',
         title: 'Error',
         description: 'Username, country, and a 5-digit PIN are required.',
-        variant: 'destructive',
       });
       return;
     }
@@ -63,17 +55,12 @@ export default function CompleteProfilePage() {
     try {
         await account.updateName(username);
 
-        // STRICT FIX: Removed 'createdAt' as it was causing "Unknown attribute" errors
+        // FORCE FIX: Sending ONLY the requested attributes to prevent "Invalid Attribute" errors
         const profileData = {
             username: username,
             country: country,
             pin: pin,
-            avatar: '',
-            nairaBalance: 0,
-            rewardBalance: 0,
-            clickCount: 0,
-            email: user.email,
-            uid: user.$id
+            avatar: ''
         };
 
         await databases.createDocument(
@@ -86,6 +73,8 @@ export default function CompleteProfilePage() {
         sessionStorage.setItem('ipay_pin_verified', 'true');
         localStorage.setItem('ipay_last_active', Date.now().toString());
 
+        await recheckUser();
+
         toast({
             title: 'Profile Complete!',
             description: 'Welcome to I-Pay.',
@@ -95,20 +84,16 @@ export default function CompleteProfilePage() {
 
     } catch (error: any) {
         console.error("Profile setup error:", error);
-        let errorMessage = error.message || 'A critical error occurred.';
-        
-        if (error.code === 404 && error.message.includes('Collection not found')) {
-            errorMessage = 'The profiles collection has not been created in Appwrite.';
-        } else if (error.type === 'document_already_exists' || error.code === 409) {
-             errorMessage = 'A profile already exists. Redirecting...';
+        if (error.code === 409 || error.type === 'document_already_exists') {
              sessionStorage.setItem('ipay_pin_verified', 'true');
              router.push('/dashboard');
+             return;
         }
         
         toast({
-            title: 'Setup Failed',
-            description: errorMessage,
             variant: 'destructive',
+            title: 'Setup Failed',
+            description: error.message || 'A database error occurred.',
         });
     } finally {
         setIsLoading(false);
@@ -118,18 +103,7 @@ export default function CompleteProfilePage() {
   if (userLoading || !user) {
       return (
           <div className="flex min-h-screen items-center justify-center bg-background p-4">
-              <Card className="w-full max-w-md">
-                  <CardHeader>
-                       <Skeleton className="h-8 w-48 mx-auto" />
-                       <Skeleton className="h-4 w-64 mx-auto" />
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                      <Skeleton className="h-10 w-full" />
-                      <Skeleton className="h-10 w-full" />
-                      <Skeleton className="h-10 w-full" />
-                      <Skeleton className="h-10 w-full" />
-                  </CardContent>
-              </Card>
+              <Loader2 className="animate-spin h-12 w-12 text-primary" />
           </div>
       )
   }
@@ -194,3 +168,7 @@ export default function CompleteProfilePage() {
     </div>
   );
 }
+
+const Loader2 = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+);
