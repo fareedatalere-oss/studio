@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -50,14 +51,26 @@ export default function SignUpPage() {
     }
 
     try {
+      // FORCE CLEANUP: Ensure no stale sessions block sign up
       await account.deleteSession('current').catch(() => {});
+      
+      // Attempt registration
       await account.create(ID.unique(), email, password);
+      
+      // Attempt auto-login after creation
       await account.createEmailPasswordSession(email, password);
+      
       await recheckUser();
-      toast({ title: 'Account Created!', description: "Next, complete your profile." });
+      
+      toast({ title: 'Account Created!', description: "Success! Now, let's setup your profile." });
       router.push('/auth/signup/profile');
     } catch (error: any) {
-      toast({ title: 'Sign Up Failed', description: error.message || 'An error occurred.', variant: 'destructive' });
+      console.error("Signup error:", error);
+      let msg = error.message || 'An unexpected error occurred.';
+      if (msg.includes('fetch')) {
+          msg = "Network connection failed. Please check your internet and try again.";
+      }
+      toast({ title: 'Sign Up Failed', description: msg, variant: 'destructive' });
     } finally {
         setIsLoading(false);
     }
@@ -65,7 +78,7 @@ export default function SignUpPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-md">
+      <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <IPayLogo className="mx-auto h-12 w-12" />
           <CardTitle className="mt-4 text-2xl font-bold">Create an Account</CardTitle>

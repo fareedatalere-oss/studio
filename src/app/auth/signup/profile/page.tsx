@@ -63,6 +63,7 @@ export default function CompleteProfilePage() {
     try {
         await account.updateName(username);
 
+        // STRICT FIX: Removed 'createdAt' as it was causing "Unknown attribute" errors
         const profileData = {
             username: username,
             country: country,
@@ -71,7 +72,6 @@ export default function CompleteProfilePage() {
             nairaBalance: 0,
             rewardBalance: 0,
             clickCount: 0,
-            createdAt: new Date().toISOString(),
             email: user.email,
             uid: user.$id
         };
@@ -83,27 +83,28 @@ export default function CompleteProfilePage() {
             profileData
         );
         
-        // Mark as verified for auto-landing
         sessionStorage.setItem('ipay_pin_verified', 'true');
         localStorage.setItem('ipay_last_active', Date.now().toString());
 
         toast({
             title: 'Profile Complete!',
-            description: 'Welcome to I-Pay. You are now being redirected.',
+            description: 'Welcome to I-Pay.',
         });
 
         router.push('/dashboard');
 
     } catch (error: any) {
         console.error("Profile setup error:", error);
-        let errorMessage = `A critical error occurred while creating your profile: ${error.message}`;
+        let errorMessage = error.message || 'A critical error occurred.';
+        
         if (error.code === 404 && error.message.includes('Collection not found')) {
-            errorMessage = 'The profiles collection has not been created in your Appwrite database.';
+            errorMessage = 'The profiles collection has not been created in Appwrite.';
         } else if (error.type === 'document_already_exists' || error.code === 409) {
-             errorMessage = 'A profile for this user already exists. Redirecting to dashboard.';
+             errorMessage = 'A profile already exists. Redirecting...';
              sessionStorage.setItem('ipay_pin_verified', 'true');
              router.push('/dashboard');
         }
+        
         toast({
             title: 'Setup Failed',
             description: errorMessage,
@@ -179,7 +180,7 @@ export default function CompleteProfilePage() {
                 value={pin}
                 onChange={handlePinChange}
                 maxLength={5}
-                placeholder="e.g. 12345"
+                placeholder="*****"
                 required
                 disabled={isLoading}
               />
