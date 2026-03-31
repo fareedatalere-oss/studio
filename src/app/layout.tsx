@@ -45,7 +45,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/logo.png" />
         <link rel="manifest" href="/manifest.json" />
         
-        {/* PWA Requirements */}
+        {/* PWA Meta Tags */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="mobile-web-app-capable" content="yes" />
@@ -56,13 +56,13 @@ export default function RootLayout({
         </AppwriteProvider>
         <Toaster />
         
-        {/* Force Service Worker Registration */}
+        {/* Force Service Worker Registration for Installation */}
         <Script id="register-sw" strategy="afterInteractive">
           {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
                 navigator.serviceWorker.register('/sw.js').then(function(reg) {
-                  console.log('I-Pay Service Worker Registered');
+                  console.log('I-Pay Service Worker Registered: ', reg.scope);
                 }).catch(function(err) {
                   console.log('SW Registration failed: ', err);
                 });
