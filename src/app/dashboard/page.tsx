@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { getCardVerificationLink, chargeTokenizedCard, syncVirtualAccountPayments } from '@/app/actions/flutterwave';
+import { chargeTokenizedCard, syncVirtualAccountPayments } from '@/app/actions/flutterwave';
 import { useRouter } from 'next/navigation';
 import {
   Newspaper,
@@ -117,28 +117,8 @@ function DashboardContent() {
 
   const handleFundAccountClick = async () => {
     if (!user || !userProfile) return;
-    setIsProcessing(true);
-
-    if (userProfile.fwCardToken) {
-        setIsFundDialogOpen(true);
-        setIsProcessing(false);
-    } else {
-        toast({ title: 'Redirecting to add card...' });
-        const redirectUrl = `${window.location.origin}/dashboard/fund/verify`;
-        const result = await getCardVerificationLink({
-            userId: user.$id,
-            email: user.email,
-            name: userProfile.username || user.name,
-            redirectUrl: redirectUrl,
-        });
-
-        if (result.success && result.data.link) {
-            router.push(result.data.link);
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.message || 'Could not start card verification.' });
-            setIsProcessing(false);
-        }
-    }
+    // For now, redirect to deposit page as default funding mechanism
+    router.push('/dashboard/deposit');
   };
 
   const handleFundWithToken = async () => {
@@ -249,18 +229,18 @@ function DashboardContent() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-3 md:grid-cols-4 gap-4 text-center">
+        <div className="grid grid-cols-3 md:grid-cols-4 gap-y-8 gap-x-4 text-center">
           {actions.map((action) => (
              <div key={action.label} className="flex flex-col items-center gap-1 cursor-pointer" onClick={() => handleActionClick(action.key, action.href, action.onClick)}>
                 <Button
                     variant="default"
                     size="icon"
-                    className={cn("h-16 w-16 rounded-full mx-auto flex items-center justify-center", !isFeatOn(action.key) && "opacity-50 grayscale", action.label === 'Sofia AI' && "bg-primary shadow-[0_0_15px_rgba(2,132,199,0.5)]")}
+                    className={cn("h-12 w-12 rounded-full mx-auto flex items-center justify-center transition-all active:scale-90 shadow-md", !isFeatOn(action.key) && "opacity-50 grayscale", action.label === 'Sofia AI' && "bg-primary shadow-[0_0_15px_rgba(2,132,199,0.5)]")}
                     disabled={isProcessing}
                 >
-                    {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-6 w-6 animate-spin" /> : <action.icon className="h-6 w-6" />}
+                    {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-5 w-5 animate-spin" /> : <action.icon className="h-5 w-5" />}
                 </Button>
-                <span className="mt-2 block text-xs font-medium">{action.label}</span>
+                <span className="mt-2 block text-[10px] font-bold uppercase tracking-tight text-foreground/80 leading-tight">{action.label}</span>
             </div>
           ))}
         </div>
