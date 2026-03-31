@@ -1,6 +1,7 @@
+
 'use client';
 import Link from 'next/link';
-import { Bell, Home, PlaySquare, Store, User, MessageSquare, X, Bot } from 'lucide-react';
+import { Bell, Home, PlaySquare, Store, User, MessageSquare, X, Bot, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -56,7 +57,7 @@ export default function DashboardLayout({
   
   const handleInstallClick = async () => {
     if (!deferredPrompt) {
-        toast({ title: "Check Menu", description: "Use your browser menu and click 'Add to Home Screen'." });
+        toast({ title: "Install App", description: "Open your browser menu and click 'Add to Home Screen' to download I-Pay." });
         return;
     }
     deferredPrompt.prompt();
@@ -64,7 +65,7 @@ export default function DashboardLayout({
     if (outcome === 'accepted') {
       setDeferredPrompt(null);
       setShowInstallBanner(false);
-      toast({ title: "Installing I-Pay...", description: "Adding to home screen." });
+      toast({ title: "Installing I-Pay...", description: "Adding to your device." });
     }
   };
   
@@ -135,17 +136,19 @@ export default function DashboardLayout({
     <div className="flex min-h-screen flex-col">
       <MeetingAlarm />
       {showInstallBanner && !isImmersive && (
-        <div className="bg-primary text-primary-foreground p-3 flex items-center justify-between shadow-lg sticky top-0 z-[60]">
+        <div className="bg-primary text-primary-foreground p-3 flex items-center justify-between shadow-2xl sticky top-0 z-[60] border-b-2 border-white/20">
           <div className="flex items-center gap-3">
-            <IPayLogo className="h-8 w-8 rounded-md bg-white p-1" />
+            <IPayLogo className="h-10 w-10 rounded-xl bg-white p-1" />
             <div>
               <p className="text-xs font-black uppercase tracking-tight">Download I-Pay App</p>
-              <p className="text-[10px] opacity-90">Get the full experience instantly.</p>
+              <p className="text-[9px] font-bold opacity-90 leading-none">Safe • Fast • Official</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={handleInstallClick} className="h-8 text-[10px] font-bold uppercase">Install</Button>
-            <Button size="icon" variant="ghost" onClick={() => setShowInstallBanner(false)} className="h-8 w-8"><X className="h-4 w-4" /></Button>
+            <Button size="sm" variant="secondary" onClick={handleInstallClick} className="h-9 px-4 text-[10px] font-black uppercase tracking-widest bg-white text-primary hover:bg-white/90">
+                <Download className="h-3.5 w-3.5 mr-1" /> Install
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => setShowInstallBanner(false)} className="h-8 w-8 opacity-50"><X className="h-4 w-4" /></Button>
           </div>
         </div>
       )}

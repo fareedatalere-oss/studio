@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -35,25 +36,35 @@ export default function SignInPage() {
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
+      // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
+      // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
     };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
   }, []);
 
-  const handleInstallApp = async () => {
+  const handleInstallClick = async () => {
     if (deferredPrompt) {
+      // Show the install prompt
       deferredPrompt.prompt();
+      // Wait for the user to respond to the prompt
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
+        console.log('User accepted the install prompt');
         setDeferredPrompt(null);
-        toast({ title: "Installing...", description: "I-Pay is being added to your device." });
+      } else {
+        console.log('User dismissed the install prompt');
       }
     } else {
-      toast({ 
-        title: "PWA Install Guide", 
-        description: "Open your browser menu and click 'Add to Home Screen' to download the app.",
+      toast({
+        title: "How to Install",
+        description: "Click your browser menu (the three dots) and select 'Add to Home Screen' or 'Install App'.",
         duration: 5000
       });
     }
@@ -133,9 +144,9 @@ export default function SignInPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div 
-            onClick={handleInstallApp} 
+            onClick={handleInstallClick} 
             className="mx-auto cursor-pointer hover:scale-110 transition-transform duration-300 active:scale-95 inline-block p-1"
-            title="Click to Install I-Pay"
+            title="Force Download I-Pay"
           >
             <IPayLogo className="h-16 w-16" />
           </div>
