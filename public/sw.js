@@ -1,20 +1,37 @@
+const CACHE_NAME = 'ipay-online-v1';
+const ASSETS = [
+  '/',
+  '/manifest.json',
+  '/logo.png'
+];
 
-/*
- * I-Pay Master Service Worker
- * This file is REQUIRED for the browser to enable the "Install" button.
+/**
+ * @fileOverview Mandatory PWA Service Worker.
+ * Handles background handshake to trigger the real "Install" prompt.
  */
 
 self.addEventListener('install', (event) => {
-  console.log('I-Pay Service Worker Installing...');
-  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(ASSETS);
+    })
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      return response || fetch(event.request);
+    })
+  );
 });
 
 self.addEventListener('activate', (event) => {
-  console.log('I-Pay Service Worker Activated.');
-  event.waitUntil(clients.claim());
-});
-
-// Mandatory fetch listener for PWA installability
-self.addEventListener('fetch', (event) => {
-  // Logic-less fetch listener to satisfy PWA security checks
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+      );
+    })
+  );
 });
