@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -13,7 +12,6 @@ import { useUser } from '@/hooks/use-appwrite';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 import { countries } from '@/lib/countries';
 import { IPayLogo } from '@/components/icons';
-import { Skeleton } from '@/components/ui/skeleton';
 
 export default function CompleteProfilePage() {
   const router = useRouter();
