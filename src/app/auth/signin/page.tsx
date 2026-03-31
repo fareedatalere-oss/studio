@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -36,35 +35,24 @@ export default function SignInPage() {
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
-      // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
-      // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
     };
-
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
 
   const handleInstallClick = async () => {
     if (deferredPrompt) {
-      // Show the install prompt
       deferredPrompt.prompt();
-      // Wait for the user to respond to the prompt
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
-        console.log('User accepted the install prompt');
         setDeferredPrompt(null);
-      } else {
-        console.log('User dismissed the install prompt');
       }
     } else {
       toast({
-        title: "How to Install",
-        description: "Click your browser menu (the three dots) and select 'Add to Home Screen' or 'Install App'.",
+        title: "How to Download",
+        description: "Your device will prompt you to install. If not, open browser settings and click 'Install App' or 'Add to Home Screen'.",
         duration: 5000
       });
     }
@@ -121,7 +109,6 @@ export default function SignInPage() {
         return;
       }
       
-      // Force verify session so PIN Lock doesn't show immediately after login
       sessionStorage.setItem('ipay_pin_verified', 'true');
       localStorage.setItem('ipay_last_active', Date.now().toString());
       

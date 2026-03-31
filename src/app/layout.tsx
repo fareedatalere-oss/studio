@@ -45,11 +45,10 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/logo.png" />
         <link rel="manifest" href="/manifest.json" />
         
-        {/* iOS Force Install Meta */}
+        {/* PWA Requirements */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="mobile-web-app-title" content="I-Pay" />
       </head>
       <body className="font-body antialiased min-h-screen bg-background pb-safe">
         <AppwriteProvider>
@@ -57,15 +56,15 @@ export default function RootLayout({
         </AppwriteProvider>
         <Toaster />
         
-        {/* Service Worker Force Registration */}
+        {/* Force Service Worker Registration */}
         <Script id="register-sw" strategy="afterInteractive">
           {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/sw.js').then(function(registration) {
-                  console.log('I-Pay ServiceWorker registered with scope: ', registration.scope);
+                navigator.serviceWorker.register('/sw.js').then(function(reg) {
+                  console.log('I-Pay Service Worker Registered');
                 }).catch(function(err) {
-                  console.log('ServiceWorker registration failed: ', err);
+                  console.log('SW Registration failed: ', err);
                 });
               });
             }

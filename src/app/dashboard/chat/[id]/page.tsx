@@ -39,8 +39,11 @@ const VoiceNotePlayer = ({ src }: { src: string }) => {
     };
     const togglePlay = () => {
         if (audioRef.current) {
-            if (isPlaying) audioRef.current.pause();
-            else audioRef.current.play().catch(() => {});
+            if (isPlaying) {
+                audioRef.current.pause();
+            } else {
+                audioRef.current.play().catch(e => console.error("Audio Play Error:", e));
+            }
             setIsPlaying(!isPlaying);
         }
     };
@@ -58,15 +61,15 @@ const VoiceNotePlayer = ({ src }: { src: string }) => {
     }, []);
 
     return (
-        <div className="flex items-center gap-2 w-full max-w-[250px] bg-black/5 p-2 rounded-xl">
-            <audio ref={audioRef} src={src} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} className="hidden" />
-            <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={togglePlay}>
+        <div className="flex items-center gap-2 w-full min-w-[200px] max-w-[250px] bg-black/5 p-2 rounded-xl">
+            <audio ref={audioRef} src={src} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} preload="metadata" className="hidden" />
+            <Button variant="secondary" size="icon" className="h-10 w-10 shrink-0 rounded-full bg-primary text-white" onClick={togglePlay}>
                 {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
             </Button>
             <div className="flex-1 flex items-center pr-2">
                  <div className="relative w-full h-1.5 bg-muted rounded-full cursor-pointer" onClick={handleScrub}>
                     <div className="absolute top-0 left-0 h-full bg-primary rounded-full" style={{ width: `${(progress || 0) * 100}%`}} />
-                     <div className="absolute top-1/2 -translate-y-1/2 h-3 w-3 bg-primary rounded-full" style={{ left: `calc(${(progress || 0) * 100}% - 6px)`}} />
+                     <div className="absolute top-1/2 -translate-y-1/2 h-3 w-3 bg-primary rounded-full shadow-md border-2 border-white" style={{ left: `calc(${(progress || 0) * 100}% - 6px)`}} />
                 </div>
             </div>
         </div>
@@ -124,7 +127,12 @@ export default function ChatThreadPage() {
             if (payload.chatId === chatId) {
                 const events = response.events || [];
                 if (events.some(e => e.includes('.create'))) {
-                    setMessages((prev) => prev.some(m => m.$id === payload.$id) ? prev : [...prev, payload]);
+                    // DEDUPLICATION: Only add if message ID isn't already in list
+                    setMessages((prev) => {
+                        const exists = prev.some(m => m.$id === payload.$id);
+                        if (exists) return prev;
+                        return [...prev, payload];
+                    });
                     if (payload.senderId !== currentUser?.$id) markMessagesAsRead();
                 } else if (events.some(e => e.includes('.delete'))) {
                     setMessages((prev) => prev.filter(m => m.$id !== payload.$id));
@@ -215,10 +223,14 @@ export default function ChatThreadPage() {
         const text = newMessage.trim();
         setNewMessage('');
         const tempId = ID.unique();
+        
+        // Optimistic UI
         const optimistic = { $id: tempId, chatId, senderId: currentUser.$id, text, status: 'sent', $createdAt: new Date().toISOString() } as Models.Document;
         setMessages(prev => [...prev, optimistic]);
+        
         try {
             const final = await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, tempId, { chatId, senderId: currentUser.$id, text, status: 'sent' });
+            // Update the optimistic message with real one
             setMessages(prev => prev.map(m => m.$id === tempId ? final : m));
             await updateChatList(text);
             await triggerMessageNotification(text);
@@ -235,8 +247,16 @@ export default function ChatThreadPage() {
             const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
             const mediaUrl = getAppwriteStorageUrl(upload.$id);
             const typeLabel = file.type.startsWith('image/') ? 'Image' : file.type.startsWith('video/') ? 'Video' : 'Audio';
+            
+            // For media, we wait for the real creation to avoid duplicates
             const final = await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), { chatId, senderId: currentUser.$id, mediaUrl, text: `[media:${file.type}]`, status: 'sent' });
-            setMessages(prev => [...prev, final]);
+            
+            // Check if listener already added it
+            setMessages(prev => {
+                if (prev.some(m => m.$id === final.$id)) return prev;
+                return [...prev, final];
+            });
+            
             await updateChatList(`[${typeLabel}] Sent a ${typeLabel.toLowerCase()}`);
             await triggerMessageNotification(`Sent a ${typeLabel.toLowerCase()}`);
         } catch (error: any) { toast({ title: 'Error', description: 'Media failed to send.', variant: 'destructive' }); } 
@@ -306,7 +326,7 @@ export default function ChatThreadPage() {
             if (mediaType.startsWith('image/')) return (
                 <Dialog>
                     <DialogTrigger asChild>
-                        <div className="relative w-full max-w-[250px] aspect-square cursor-pointer bg-muted rounded-lg overflow-hidden">
+                        <div className="relative w-full max-w-[250px] aspect-square cursor-pointer bg-muted rounded-lg overflow-hidden border">
                             <Image src={message.mediaUrl} alt="chat" fill className="object-cover" />
                         </div>
                     </DialogTrigger>
@@ -331,7 +351,7 @@ export default function ChatThreadPage() {
             );
             if (mediaType.startsWith('audio/')) return <VoiceNotePlayer src={message.mediaUrl} />;
         }
-        return text && !text.startsWith('[media:') ? <p className="text-sm whitespace-pre-wrap">{text}</p> : null;
+        return text && !text.startsWith('[media:') ? <p className="text-sm whitespace-pre-wrap font-medium">{text}</p> : null;
     };
 
     return (
@@ -419,7 +439,7 @@ export default function ChatThreadPage() {
                                 {Math.floor(recordingTime/60).toString().padStart(2,'0')}:{(recordingTime%60).toString().padStart(2,'0')}
                             </span>
                         </div>
-                        <Button type="button" size="icon" onClick={stopRecording}><Send className="h-5 w-5" /></Button>
+                        <Button type="button" size="icon" onClick={stopRecording} className="rounded-full h-10 w-10"><Pause className="h-5 w-5" /></Button>
                     </div>
                 ) : recordingStatus === 'preview' ? (
                      <div className="flex items-center w-full gap-2">
@@ -427,7 +447,7 @@ export default function ChatThreadPage() {
                             <Trash2 className="h-5 w-5 text-destructive" />
                         </Button>
                         <audio src={audioPreviewUrl!} controls className="flex-1 h-10" />
-                        <Button type="button" size="icon" onClick={handleSendAudio} disabled={sending}>
+                        <Button type="button" size="icon" onClick={handleSendAudio} disabled={sending} className="rounded-full h-10 w-10">
                             {sending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4" />}
                         </Button>
                     </div>
