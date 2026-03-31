@@ -55,9 +55,10 @@ export default function RootLayout({
           {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
+                // Pointing to the physical sw.js file in the public folder
                 navigator.serviceWorker.register('/sw.js').then(function(registration) {
-                  console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                }, function(err) {
+                  console.log('I-Pay ServiceWorker registered with scope: ', registration.scope);
+                }).catch(function(err) {
                   console.log('ServiceWorker registration failed: ', err);
                 });
               });

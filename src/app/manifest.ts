@@ -1,15 +1,15 @@
 import { MetadataRoute } from 'next'
 
 /**
- * @fileOverview PWA Manifest Configuration.
- * Optimized with high-res icons and mandatory fields to trigger the "Install App" prompt on Android.
+ * @fileOverview Master PWA Manifest.
+ * Strictly configured to trigger "Install" prompts and show the logo.
  */
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'I-Pay Online',
     short_name: 'I-Pay',
-    description: 'I-Pay: New world of online business and transactions',
+    description: 'New world of online business and transactions',
     start_url: '/',
     display: 'standalone',
     orientation: 'portrait',
@@ -29,5 +29,17 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: 'any',
       },
     ],
+    shortcuts: [
+      {
+        name: 'Dashboard',
+        url: '/dashboard',
+        icons: [{ src: '/logo.png', sizes: '192x192' }]
+      },
+      {
+        name: 'Sofia AI',
+        url: '/dashboard/ai-chat',
+        icons: [{ src: '/logo.png', sizes: '192x192' }]
+      }
+    ]
   }
 }
