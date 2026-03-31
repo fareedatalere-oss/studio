@@ -24,7 +24,7 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
         const remoteTransactions = data.data || [];
         let totalNetCredited = 0;
         let foundNew = false;
-        const FEE = 30; // Flat 30 Naira fee for incoming transactions
+        const FEE = 12; // Master Instruction: Incoming transfer charge is 12 Naira
 
         for (const tx of remoteTransactions) {
             const txId = tx.id.toString();
@@ -98,7 +98,7 @@ export async function initiateFlutterwaveBill(payload: {
     userId: string, pin: string, customer: string, amount: number, billerCode: string, itemCode?: string, narration?: string 
 }) {
     if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
-    const FEE = 3; // Fixed airtime/data fee for flutterwave endpoint
+    const FEE = 3; // Fixed airtime/data fee
     const totalDebit = Number(payload.amount) + FEE;
     try {
         const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);

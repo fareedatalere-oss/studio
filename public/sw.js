@@ -1,14 +1,13 @@
 /**
- * @fileOverview I-Pay Master Service Worker.
- * Mandatory for PWA status on Android/Chrome.
- * Enables offline caching and "Add to Home Screen" functionality.
+ * @fileOverview Master PWA Service Worker for I-Pay Online.
+ * Mandatory fetch event listener to enable "Install App" prompt on Chrome/Android.
  */
 
-const CACHE_NAME = 'ipay-cache-v3';
+const CACHE_NAME = 'ipay-v1';
 const ASSETS = [
   '/',
-  '/logo.png',
-  '/manifest.json'
+  '/manifest.json',
+  '/logo.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -17,7 +16,15 @@ self.addEventListener('install', (event) => {
       return cache.addAll(ASSETS);
     })
   );
-  self.skipWaiting();
+});
+
+self.addEventListener('fetch', (event) => {
+  // Required by Chrome to trigger the install prompt
+  event.respondWith(
+    fetch(event.request).catch(() => {
+      return caches.match(event.request);
+    })
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -26,15 +33,6 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
       );
-    })
-  );
-});
-
-self.addEventListener('fetch', (event) => {
-  // Required fetch listener to trigger the "Install" prompt
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request);
     })
   );
 });

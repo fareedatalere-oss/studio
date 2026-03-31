@@ -74,7 +74,7 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                     }
 
                     // Challenge PIN if user is returning within the hour but hasn't verified this session
-                    if (!pinVerified && pathname.startsWith('/dashboard') && !pathname.includes('/auth')) {
+                    if (!pinVerified && pathname.startsWith('/dashboard') && !pathname.includes('/auth') && !pathname.includes('/receipt')) {
                         router.replace('/auth/pin-lock');
                         return;
                     }

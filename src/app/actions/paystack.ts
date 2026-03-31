@@ -38,7 +38,7 @@ export async function resolvePaystackAccount(accountNumber: string, bankCode: st
 export async function initiatePaystackTransfer(payload: { userId: string, pin: string, bankCode: string, accountNumber: string, name: string, amount: number, bankName: string, narration: string }) {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
 
-    const FEE = 30; // Flat 30 Naira fee for outgoing transfers
+    const FEE = 15; // Master Instruction: Outgoing transfer charge is 15 Naira
     const amt = Number(payload.amount);
     const totalDebit = amt + FEE;
 
