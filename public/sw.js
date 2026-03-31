@@ -1,21 +1,20 @@
-/**
- * I-Pay Master Service Worker v1.0
- * Mandatory for PWA Installation on Android/iOS.
+
+/*
+ * I-Pay Master Service Worker
+ * This file is REQUIRED for the browser to enable the "Install" button.
  */
 
-const CACHE_NAME = 'ipay-v1';
-
 self.addEventListener('install', (event) => {
+  console.log('I-Pay Service Worker Installing...');
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
+  console.log('I-Pay Service Worker Activated.');
   event.waitUntil(clients.claim());
 });
 
-// The FETCH listener is the MAGIC key that allows Chrome to show the "INSTALL" button
+// Mandatory fetch listener for PWA installability
 self.addEventListener('fetch', (event) => {
-  // We let the network handle everything, but the presence of this listener
-  // satisfies the browser's PWA security requirement.
-  event.respondWith(fetch(event.request));
+  // Logic-less fetch listener to satisfy PWA security checks
 });

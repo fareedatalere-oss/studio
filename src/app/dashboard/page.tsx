@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Suspense, useEffect, useState, useRef } from 'react';
@@ -117,7 +118,6 @@ function DashboardContent() {
 
   const handleFundAccountClick = async () => {
     if (!user || !userProfile) return;
-    // For now, redirect to deposit page as default funding mechanism
     router.push('/dashboard/deposit');
   };
 
@@ -152,16 +152,16 @@ function DashboardContent() {
 
   const actions = [
     { key: 'feat_ai', label: 'Sofia AI', icon: Bot, href: '/dashboard/ai-chat' },
-    { key: 'feat_send', label: 'Send', icon: Send, href: '/dashboard/transfer' },
+    { key: 'feat_send', label: 'Transfer', icon: Send, href: '/dashboard/transfer' },
     { key: 'feat_deposit', label: 'Deposit', icon: ArrowDownCircle, href: '/dashboard/deposit' },
     { key: 'feat_refresh', label: 'Refresh', icon: RefreshCw, onClick: handleRefresh },
-    { key: 'feat_buy_airtime', label: 'Buy Airtime', icon: Smartphone, href: '/dashboard/buy-airtime' },
-    { key: 'feat_buy_data', label: 'Buy Data', icon: Wifi, href: '/dashboard/buy-data' },
+    { key: 'feat_buy_airtime', label: 'Airtime', icon: Smartphone, href: '/dashboard/buy-airtime' },
+    { key: 'feat_buy_data', label: 'Data', icon: Wifi, href: '/dashboard/buy-data' },
     { key: 'feat_history', label: 'History', icon: History, href: '/dashboard/history' },
-    { key: 'feat_get_reward', label: 'Get Reward', icon: Gift, href: '/dashboard/rewards' },
-    { key: 'feat_cable', label: 'Cable payment', icon: Tv, href: '/dashboard/cable-payment' },
-    { key: 'feat_electric', label: 'Electric Bill', icon: Lightbulb, href: '/dashboard/electric-bill' },
-    { key: 'feat_multipurpose', label: 'Multi Purpose', icon: CreditCard, href: '/dashboard/multi-purpose' },
+    { key: 'feat_get_reward', label: 'Rewards', icon: Gift, href: '/dashboard/rewards' },
+    { key: 'feat_cable', label: 'Cable TV', icon: Tv, href: '/dashboard/cable-payment' },
+    { key: 'feat_electric', label: 'Electricity', icon: Lightbulb, href: '/dashboard/electric-bill' },
+    { key: 'feat_multipurpose', label: 'Multi-Purpose', icon: CreditCard, href: '/dashboard/multi-purpose' },
     { key: 'feat_traveling', label: 'Traveling', icon: Plane, href: '/dashboard/travelling' },
     { key: 'feat_refund', label: 'Refund', icon: Undo2, onClick: handleFundAccountClick },
     { key: 'feat_news', label: 'News', icon: Newspaper, href: '/dashboard/news' },
