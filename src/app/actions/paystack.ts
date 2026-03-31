@@ -1,6 +1,6 @@
 'use server';
 
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
@@ -38,19 +38,14 @@ export async function resolvePaystackAccount(accountNumber: string, bankCode: st
 export async function initiatePaystackTransfer(payload: { userId: string, pin: string, bankCode: string, accountNumber: string, name: string, amount: number, bankName: string, narration: string }) {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
 
-    let fee = 0;
+    const FEE = 30; // Flat 30 Naira fee for outgoing transfers
     const amt = Number(payload.amount);
-    if (amt >= 100 && amt <= 1000) fee = 30;
-    else if (amt > 1000 && amt < 10000) fee = 80;
-    else if (amt >= 10000 && amt <= 100000) fee = 100;
-    else if (amt > 100000) fee = 150;
-
-    const totalDebit = amt + fee;
+    const totalDebit = amt + FEE;
 
     try {
         const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
         if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
-        if (userProfile.nairaBalance < totalDebit) throw new Error(`Insufficient balance.`);
+        if (userProfile.nairaBalance < totalDebit) throw new Error(`Insufficient balance. Required: ₦${totalDebit.toLocaleString()}`);
 
         const recipientRes = await fetch('https://api.paystack.co/transferrecipient', {
             method: 'POST',
@@ -76,7 +71,7 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
                 status: 'completed',
                 recipientName: payload.name,
                 recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
-                narration: payload.narration,
+                narration: `Service charge of ₦${FEE} applied.`,
                 sessionId: transferData.data.transfer_code || `tx-${Date.now()}`,
             });
             return { success: true, message: "Transfer successful.", transactionId: doc.$id };
@@ -99,27 +94,6 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
     }
 }
 
-export async function initializeTransaction(payload: { email: string; userId: string }) {
-    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
-    try {
-        const response = await fetch('https://api.paystack.co/transaction/initialize', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email: payload.email,
-                amount: 25000 * 100,
-                callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/market/subscribe/verify`,
-                metadata: { user_id: payload.userId }
-            }),
-        });
-        const data = await response.json();
-        if (data.status) return { success: true, data: data.data };
-        return { success: false, message: data.message };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
-}
-
 export async function initializeDeposit(payload: { email: string; userId: string; amount: number }) {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
     try {
@@ -137,23 +111,6 @@ export async function initializeDeposit(payload: { email: string; userId: string
         const data = await response.json();
         if (data.status) return { success: true, data: data.data };
         return { success: false, message: data.message };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
-}
-
-export async function verifyMarketplaceSubscription(reference: string, userId: string) {
-    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
-    try {
-        const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
-            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}` }
-        });
-        const data = await response.json();
-        if (data.status && data.data.status === 'success') {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, { isMarketplaceSubscribed: true });
-            return { success: true, message: 'Subscription active!' };
-        }
-        return { success: false, message: 'Verification failed.' };
     } catch (error: any) {
         return { success: false, message: error.message };
     }

@@ -1,4 +1,3 @@
-
 'use client';
 
 import client, { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
@@ -32,81 +31,65 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
 
         try {
             // 1. Fetch Application Configs
-            try {
-                const [mainConfig, proofConfigDoc] = await Promise.all([
-                    databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main').catch(() => null),
-                    databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'proof').catch(() => null)
-                ]);
-                
-                if (mainConfig) setConfig(mainConfig);
-                
-                if (proofConfigDoc) {
-                    if (proofConfigDoc.data && typeof proofConfigDoc.data === 'string') {
-                        try {
-                            setProof(JSON.parse(proofConfigDoc.data));
-                        } catch (e) {
-                            setProof(proofConfigDoc);
-                        }
-                    } else {
-                        setProof(proofConfigDoc);
-                    }
+            const [mainConfig, proofConfigDoc] = await Promise.all([
+                databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main').catch(() => null),
+                databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'proof').catch(() => null)
+            ]);
+            
+            if (mainConfig) setConfig(mainConfig);
+            if (proofConfigDoc) {
+                try {
+                    setProof(JSON.parse(proofConfigDoc.data));
+                } catch (e) {
+                    setProof(proofConfigDoc);
                 }
-            } catch (configError) {}
+            }
             
             // 2. Check Auth State
-            try {
-                const currentUser = await account.get();
-                setUser(currentUser);
-                if (currentUser) {
-                    try {
-                        const profileDoc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id);
-                        setProfile(profileDoc);
+            const currentUser = await account.get().catch(() => null);
+            setUser(currentUser);
 
-                        // MASTER SESSION LOGIC
-                        const lastActiveStr = localStorage.getItem('ipay_last_active');
-                        const now = Date.now();
-                        const pinVerified = sessionStorage.getItem('ipay_pin_verified') === 'true';
+            if (currentUser) {
+                const profileDoc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id).catch(() => null);
+                setProfile(profileDoc);
 
-                        if (lastActiveStr) {
-                            const lastActive = parseInt(lastActiveStr);
-                            const diff = now - lastActive;
+                // FORCE PERSISTENCE & PIN LOGIC
+                const now = Date.now();
+                const lastActiveStr = localStorage.getItem('ipay_last_active');
+                const pinVerified = sessionStorage.getItem('ipay_pin_verified') === 'true';
 
-                            // 1 Hour Rule: Force Logout
-                            if (diff > 3600000) {
-                                await account.deleteSession('current');
-                                localStorage.removeItem('ipay_last_active');
-                                sessionStorage.removeItem('ipay_pin_verified');
-                                setUser(null);
-                                setProfile(null);
-                                if (!pathname.includes('/auth')) router.replace('/auth/signin');
-                                return;
-                            }
+                if (lastActiveStr) {
+                    const lastActive = parseInt(lastActiveStr);
+                    const diff = now - lastActive;
 
-                            // Challenge PIN if user is returning (closing/reopening tab or away for a bit)
-                            // and they are authenticated but haven't verified for this specific session.
-                            if (!pinVerified && pathname.startsWith('/dashboard') && !pathname.includes('/auth')) {
-                                router.replace('/auth/pin-lock');
-                                return;
-                            }
-                        }
-                        
-                        // Update Activity
-                        localStorage.setItem('ipay_last_active', now.toString());
-
-                    } catch (pError: any) {
+                    // 1 Hour Rule: Force Logout
+                    if (diff > 3600000) {
+                        await account.deleteSession('current').catch(() => {});
+                        localStorage.removeItem('ipay_last_active');
+                        sessionStorage.removeItem('ipay_pin_verified');
+                        setUser(null);
                         setProfile(null);
+                        if (!pathname.includes('/auth')) router.replace('/auth/signin');
+                        return;
                     }
-                } else {
-                    setUser(null);
-                    setProfile(null);
+
+                    // Challenge PIN if user is returning within the hour but hasn't verified this session
+                    if (!pinVerified && pathname.startsWith('/dashboard') && !pathname.includes('/auth')) {
+                        router.replace('/auth/pin-lock');
+                        return;
+                    }
                 }
-            } catch (authError) {
-                setUser(null);
-                setProfile(null);
+                
+                // Update Activity timestamp to keep session alive
+                localStorage.setItem('ipay_last_active', now.toString());
+            } else {
+                // If not logged in and trying to access dashboard, redirect to signin
+                if (pathname.startsWith('/dashboard') && !pathname.includes('/auth')) {
+                    router.replace('/auth/signin');
+                }
             }
         } catch (error) {
-            setUser(null);
-            setProfile(null);
+            console.error("Global Auth Error:", error);
         } finally {
             setIsLoading(false);
         }
@@ -132,6 +115,4 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
     );
 };
 
-export const useUser = () => {
-    return useContext(AppwriteContext);
-};
+export const useUser = () => useContext(AppwriteContext);

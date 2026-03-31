@@ -22,12 +22,13 @@ export async function processDatahouseRecharge(payload: {
     providerId: string | number; 
     customer: string; 
     amount: number;
-    fee: number;
     description: string;
 }) {
     let transactionDoc: any = null;
     try {
-        const totalToDebit = Number(payload.amount) + Number(payload.fee);
+        // FEE LOGIC: 3 for airtime/data, 70 for bills
+        const fee = (payload.type === 'airtime' || payload.type === 'data') ? 3 : 70;
+        const totalToDebit = Number(payload.amount) + fee;
 
         // 1. Fetch user profile
         const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
@@ -39,7 +40,7 @@ export async function processDatahouseRecharge(payload: {
 
         const currentBalance = Number(profile.nairaBalance || 0);
         if (currentBalance < totalToDebit) {
-            throw new Error(`Insufficient funds. Your balance is ₦${currentBalance.toLocaleString()}.`);
+            throw new Error(`Insufficient funds. Total cost: ₦${totalToDebit.toLocaleString()}.`);
         }
 
         let endpoint = '';
@@ -116,7 +117,7 @@ export async function processDatahouseRecharge(payload: {
                 status: 'completed',
                 recipientName: payload.description,
                 recipientDetails: payload.customer,
-                narration: `Processed via Datahouse. ID: ${result.id || 'N/A'}. Fee: ₦${payload.fee}`,
+                narration: `Processed via Datahouse. Fee: ₦${fee} applied.`,
                 sessionId: `dh-${Date.now()}`,
             });
 
