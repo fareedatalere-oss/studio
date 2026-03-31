@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -82,7 +83,7 @@ const CommentInput = ({ postId, postOwnerId, onCommentPosted }: { postId: string
   )
 }
 
-export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: any; isMuted: boolean; onMuteChange: (muted: boolean) => void; }) => {
+export const PostCard = ({ post: initialPost, isMuted, onMuteChange, forceUiVisible, onToggleUi }: { post: any; isMuted: boolean; onMuteChange: (muted: boolean) => void; forceUiVisible?: boolean; onToggleUi?: () => void; }) => {
   const { user: currentUser, profile: currentUserProfile, recheckUser } = useUser();
   const { toast } = useToast();
   
@@ -100,10 +101,12 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<any[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
-  const [uiVisible, setUiVisible] = useState(true);
+  const [localUiVisible, setLocalUiVisible] = useState(true);
   
   const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
   const clickCountRef = useRef(0);
+
+  const uiVisible = forceUiVisible ?? localUiVisible;
 
   useEffect(() => {
     const videoElement = videoRef.current;
@@ -145,9 +148,8 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
         if (clickCountRef.current >= 2) {
             if (!isLiked) handleLike();
         } else {
-            if (post.type === 'reels' || post.type === 'film') {
-                setUiVisible(!uiVisible);
-            }
+            if (onToggleUi) onToggleUi();
+            else setLocalUiVisible(!localUiVisible);
         }
         clickCountRef.current = 0;
     }, 250);
@@ -186,7 +188,7 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
     <div ref={postRef} className="relative h-screen w-full bg-background flex flex-col justify-center snap-start shrink-0 overflow-hidden border-b">
       <div className="absolute inset-0 flex items-center justify-center z-0" onClick={handleScreenClick}>
         {post.type === 'text' && (
-          <div className={cn("h-full w-full flex flex-col items-center justify-center p-10 text-center", post.backgroundColor)}>
+          <div className={cn("h-full w-full flex flex-col items-center justify-center p-10 text-center transition-all duration-300", post.backgroundColor)}>
             <h2 className={cn("text-2xl font-black leading-tight whitespace-pre-wrap drop-shadow-md", (post.backgroundColor === 'bg-white' || !post.backgroundColor) ? 'text-black' : 'text-white')}>
                 {post.text?.length > 200 ? post.text.substring(0, 200) + '...' : post.text}
                 {post.text?.length > 200 && <Link href={`/dashboard/media/post/${post.$id}/text`} className="inline-block ml-2 text-primary font-black">{">"}</Link>}
@@ -220,7 +222,7 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
         )}
       </div>
       
-      <div className={cn("absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-start gap-6 p-2 z-30 transition-opacity duration-300", !uiVisible && "opacity-0 pointer-events-none")}>
+      <div className={cn("absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-start gap-6 p-2 z-30 transition-all duration-300", !uiVisible && "opacity-0 pointer-events-none -translate-x-10")}>
             <div className="flex flex-col items-center gap-2">
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -257,7 +259,7 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange }: { post: a
             )}
       </div>
 
-       <div className={cn("absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-30 transition-opacity duration-300", !uiVisible && "opacity-0 pointer-events-none")}>
+       <div className={cn("absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-6 p-2 z-30 transition-all duration-300", !uiVisible && "opacity-0 pointer-events-none translate-x-10")}>
             <div className="flex flex-col items-center gap-1">
                 <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full bg-muted/40 shadow-xl border-2" onClick={() => setShowComments(true)}><MessageCircle className="h-8 w-8" /></Button>
                 <span className="text-[10px] font-black">{commentCount}</span>

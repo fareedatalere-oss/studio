@@ -1,7 +1,10 @@
+
 /**
- * @fileOverview Mandatory PWA Service Worker.
- * Handles the fetch event to satisfy browser PWA installation requirements.
+ * I-Pay Master Service Worker
+ * Required for PWA Installability on Android and Chrome.
  */
+
+const CACHE_NAME = 'ipay-v1';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -12,8 +15,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Required for PWA detection. Does nothing but pass through.
-  event.respondWith(fetch(event.request).catch(() => {
-      // Offline fallback can be added here
-  }));
+  // Mandatory fetch listener to satisfy PWA criteria
+  event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
 });

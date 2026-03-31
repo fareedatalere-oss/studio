@@ -1,20 +1,22 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Type, Image as ImageIcon, Clapperboard, Film, Music, Loader2, Search } from 'lucide-react';
+import { Plus, Type, Image as ImageIcon, Clapperboard, Film, Music, Loader2, Search, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { databases, DATABASE_ID, COLLECTION_ID_POSTS } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { useRouter } from 'next/navigation';
 import { PostCard } from '@/components/media-post-card';
+import { cn } from '@/lib/utils';
 
-const PostFeed = ({ posts, isMuted, onMuteChange }: { posts: any[]; isMuted: boolean; onMuteChange: (muted: boolean) => void; }) => {
+const PostFeed = ({ posts, isMuted, onMuteChange, uiVisible, onToggleUi }: { posts: any[]; isMuted: boolean; onMuteChange: (muted: boolean) => void; uiVisible: boolean; onToggleUi: () => void; }) => {
   if (!posts || posts.length === 0) return <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-6"><div className="p-8 bg-muted rounded-full"><Clapperboard className="h-16 w-16 opacity-30" /></div><p className="font-black uppercase text-sm tracking-[0.3em]">No posts found</p></div>;
-  return <div className="h-full w-full flex flex-col overflow-y-auto snap-y snap-mandatory scroll-smooth scrollbar-hide">{posts.map(post => <PostCard key={post.$id} post={post} isMuted={isMuted} onMuteChange={onMuteChange} />)}</div>;
+  return <div className="h-full w-full flex flex-col overflow-y-auto snap-y snap-mandatory scroll-smooth scrollbar-hide">{posts.map(post => <PostCard key={post.$id} post={post} isMuted={isMuted} onMuteChange={onMuteChange} forceUiVisible={uiVisible} onToggleUi={onToggleUi} />)}</div>;
 }
 
 export default function MediaPage() {
@@ -24,6 +26,7 @@ export default function MediaPage() {
   const [allPosts, setAllPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [uiVisible, setUiVisible] = useState(true);
 
   useEffect(() => {
         setLoading(true);
@@ -48,6 +51,15 @@ export default function MediaPage() {
             .finally(() => setLoading(false));
     }, []);
 
+    // FORCE BACK KEY TO HOME
+    useEffect(() => {
+        const handleBack = (e: PopStateEvent) => {
+            router.push('/dashboard');
+        };
+        window.addEventListener('popstate', handleBack);
+        return () => window.removeEventListener('popstate', handleBack);
+    }, [router]);
+
     const filteredPosts = useMemo(() => {
         if (!searchQuery) return allPosts;
         const q = searchQuery.toLowerCase();
@@ -62,8 +74,16 @@ export default function MediaPage() {
           if (val === 'music') router.push('/dashboard/media/music');
           if (val === 'film') router.push('/dashboard/media/film');
       }} className="h-full flex flex-col">
-        <header className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-background/60 via-background/30 to-transparent pt-12 pb-8">
+        <header className={cn(
+            "absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-background/60 via-background/30 to-transparent pt-12 pb-8 transition-all duration-300",
+            !uiVisible && "-translate-y-full opacity-0 pointer-events-none"
+        )}>
           <div className="container px-0">
+            <div className="flex items-center px-4 mb-2">
+                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="rounded-full bg-background/20 backdrop-blur-md">
+                    <ArrowLeft className="h-5 w-5 text-white" />
+                </Button>
+            </div>
             <TabsList className="grid w-full grid-cols-5 bg-transparent h-12">
               <TabsTrigger value="text" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider">Text</TabsTrigger>
               <TabsTrigger value="image" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider">Image</TabsTrigger>
@@ -77,17 +97,17 @@ export default function MediaPage() {
         <div className="flex-1 h-full overflow-hidden">
           {loading ? <div className="h-full w-full flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div> : (
             <div className="h-full w-full">
-              <TabsContent value="text" className="m-0 h-full"><PostFeed posts={getPostsForType('text')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
-              <TabsContent value="image" className="m-0 h-full"><PostFeed posts={getPostsForType('image')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
-              <TabsContent value="reels" className="m-0 h-full"><PostFeed posts={getPostsForType('reels')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
-              <TabsContent value="film" className="m-0 h-full"><PostFeed posts={getPostsForType('film')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
-              <TabsContent value="music" className="m-0 h-full"><PostFeed posts={getPostsForType('music')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} /></TabsContent>
+              <TabsContent value="text" className="m-0 h-full"><PostFeed posts={getPostsForType('text')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} uiVisible={uiVisible} onToggleUi={() => setUiVisible(!uiVisible)} /></TabsContent>
+              <TabsContent value="image" className="m-0 h-full"><PostFeed posts={getPostsForType('image')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} uiVisible={uiVisible} onToggleUi={() => setUiVisible(!uiVisible)} /></TabsContent>
+              <TabsContent value="reels" className="m-0 h-full"><PostFeed posts={getPostsForType('reels')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} uiVisible={uiVisible} onToggleUi={() => setUiVisible(!uiVisible)} /></TabsContent>
+              <TabsContent value="film" className="m-0 h-full"><PostFeed posts={getPostsForType('film')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} uiVisible={uiVisible} onToggleUi={() => setUiVisible(!uiVisible)} /></TabsContent>
+              <TabsContent value="music" className="m-0 h-full"><PostFeed posts={getPostsForType('music')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} uiVisible={uiVisible} onToggleUi={() => setUiVisible(!uiVisible)} /></TabsContent>
             </div>
           )}
         </div>
       </Tabs>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger asChild><Button size="icon" className="fixed bottom-10 left-1/2 -translate-x-1/2 h-16 w-16 rounded-full z-50 shadow-2xl bg-primary border-4 border-white/20 animate-bounce-slow"><Plus className="h-8 w-8" /></Button></SheetTrigger>
+        <SheetTrigger asChild><Button size="icon" className={cn("fixed bottom-10 left-1/2 -translate-x-1/2 h-16 w-16 rounded-full z-50 shadow-2xl bg-primary border-4 border-white/20 animate-bounce-slow transition-all", !uiVisible && "opacity-0 scale-0 pointer-events-none")}><Plus className="h-8 w-8" /></Button></SheetTrigger>
         <SheetContent side="bottom" className="rounded-t-[3rem] pb-12 shadow-2xl border-t-4 border-primary">
           <SheetHeader><SheetTitle className="text-center font-black uppercase text-xs tracking-[0.4em] pt-6">Create Post</SheetTitle></SheetHeader>
           <div className="grid grid-cols-3 gap-6 py-10 px-4">

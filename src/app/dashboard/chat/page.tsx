@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -98,23 +99,23 @@ const RecentChatItem = ({ chat, currentUser, onAction }: { chat: any, currentUse
     if (!chat.otherUser) return null;
 
     return (
-        <div className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted transition-colors">
-            <Link href={`/dashboard/chat/${chat.otherUser.$id}`} className="flex-1 flex items-center gap-4 overflow-hidden">
-                <Avatar className="h-12 w-12 shrink-0">
+        <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors">
+            <Link href={`/dashboard/chat/${chat.otherUser.$id}`} className="flex-1 flex items-center gap-3 overflow-hidden">
+                <Avatar className="h-10 w-10 shrink-0">
                     <AvatarImage src={chat.otherUser.avatar} />
                     <AvatarFallback>{displayName.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 overflow-hidden">
                     <div className="flex justify-between items-center gap-2">
-                        <p className="font-semibold truncate">{displayName}</p>
-                        <p className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        <p className="font-bold text-sm truncate">{displayName}</p>
+                        <p className="text-[9px] text-muted-foreground whitespace-nowrap">
                             {formatDistanceToNow(new Date(chat.lastMessageAt), { addSuffix: true })}
                         </p>
                     </div>
                     <div className="flex justify-between items-center gap-2">
-                        <p className="text-sm text-muted-foreground truncate">{chat.lastMessage}</p>
+                        <p className="text-xs text-muted-foreground truncate">{chat.lastMessage}</p>
                         {unreadCount > 0 && (
-                            <Badge variant="destructive" className="h-5 min-w-5 justify-center rounded-full p-1 text-[10px]">
+                            <Badge variant="destructive" className="h-4 min-w-4 justify-center rounded-full p-0.5 text-[8px]">
                                 {unreadCount}
                             </Badge>
                         )}
@@ -124,11 +125,11 @@ const RecentChatItem = ({ chat, currentUser, onAction }: { chat: any, currentUse
             <AlertDialog>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="shrink-0"><MoreVertical className="h-4 w-4"/></Button>
+                        <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8"><MoreVertical className="h-4 w-4"/></Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                         <AlertDialogTrigger asChild>
-                            <DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive">Delete Chat</DropdownMenuItem>
+                            <DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive text-xs">Delete Chat</DropdownMenuItem>
                         </AlertDialogTrigger>
                     </DropdownMenuContent>
                 </DropdownMenu>
@@ -150,14 +151,14 @@ const RecentChatItem = ({ chat, currentUser, onAction }: { chat: any, currentUse
 
 // All User Item Component
 const AllUserItem = ({ user }: { user: any }) => (
-    <Link href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted transition-colors">
-        <Avatar className="h-12 w-12">
+    <Link href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors">
+        <Avatar className="h-10 w-10">
             <AvatarImage src={user.avatar} />
             <AvatarFallback>{user.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
         </Avatar>
         <div className="flex-1">
-            <p className="font-semibold">{user.username}</p>
-            <p className="text-sm text-muted-foreground">{user.name}</p>
+            <p className="font-bold text-sm">{user.username}</p>
+            <p className="text-[10px] text-muted-foreground">{user.name}</p>
         </div>
     </Link>
 );
@@ -250,7 +251,7 @@ export default function ChatPage() {
         if (loading.all) return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
         if (filteredAllUsers.length === 0) return <p className="text-center text-muted-foreground p-8">No users found.</p>;
         return (
-            <div className="space-y-2 pb-24">
+            <div className="space-y-1 pb-24">
                 {filteredAllUsers.map(user => <AllUserItem key={user.$id} user={user} />)}
             </div>
         );
@@ -260,7 +261,7 @@ export default function ChatPage() {
         if (loading.recent) return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
         if (filteredRecentChats.length === 0) return <p className="text-center text-muted-foreground p-8">You have no recent conversations.</p>;
         return (
-            <div className="space-y-2 pb-24">
+            <div className="space-y-1 pb-24">
                 {filteredRecentChats.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} onAction={fetchRecentChats} />)}
             </div>
         );
@@ -270,15 +271,15 @@ export default function ChatPage() {
         <div className="flex flex-col h-full bg-white text-gray-900 relative">
             <Tabs defaultValue="recent" className="flex flex-col h-full">
                 <header className="sticky top-16 md:top-0 bg-white border-b p-3 z-10">
-                    <TabsList className="grid w-full grid-cols-2 bg-muted text-gray-600">
-                        <TabsTrigger value="recent">Recent</TabsTrigger>
-                        <TabsTrigger value="all">All Users</TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-2 bg-muted text-gray-600 h-9">
+                        <TabsTrigger value="recent" className="text-xs">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="text-xs">All Users</TabsTrigger>
                     </TabsList>
-                    <div className="relative mt-3">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <div className="relative mt-2">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="Search chats or users..."
-                            className="pl-10 text-gray-900"
+                            placeholder="Search..."
+                            className="pl-9 text-gray-900 h-9 text-sm"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -286,10 +287,10 @@ export default function ChatPage() {
                 </header>
 
                 <main className="flex-1 overflow-y-auto">
-                    <TabsContent value="recent" className="p-2">
+                    <TabsContent value="recent" className="p-2 m-0">
                         {renderRecentChats()}
                     </TabsContent>
-                    <TabsContent value="all" className="p-2">
+                    <TabsContent value="all" className="p-2 m-0">
                         {renderAllUsers()}
                     </TabsContent>
                 </main>
@@ -299,11 +300,11 @@ export default function ChatPage() {
             <div className="fixed bottom-20 left-0 right-0 p-4 flex justify-center z-50 pointer-events-none md:bottom-4">
                 <Button 
                     asChild 
-                    className="rounded-full h-14 px-8 shadow-2xl font-black uppercase tracking-widest gap-2 bg-primary pointer-events-auto animate-in slide-in-from-bottom-4"
+                    className="rounded-full h-12 px-6 shadow-2xl font-black uppercase tracking-widest gap-2 bg-primary pointer-events-auto animate-in slide-in-from-bottom-4"
                 >
                     <Link href="/dashboard/meeting">
-                        <Video className="h-5 w-5" />
-                        Let's talk on meeting
+                        <Video className="h-4 w-4" />
+                        Meeting
                     </Link>
                 </Button>
             </div>
