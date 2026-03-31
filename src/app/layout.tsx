@@ -64,7 +64,7 @@ export default function RootLayout({
                 navigator.serviceWorker.register('/sw.js').then(function(reg) {
                   console.log('I-Pay Service Worker Registered: ', reg.scope);
                 }).catch(function(err) {
-                  console.log('SW Registration failed: ', err);
+                  console.error('SW Registration failed: ', err);
                 });
               });
             }

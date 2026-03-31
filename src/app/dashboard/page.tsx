@@ -240,7 +240,7 @@ function DashboardContent() {
                 >
                     {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-5 w-5 animate-spin" /> : <action.icon className="h-5 w-5" />}
                 </Button>
-                <span className="mt-2 block text-[10px] font-bold uppercase tracking-tight text-foreground/80 leading-tight">{action.label}</span>
+                <span className="mt-2 block text-[10px] font-bold tracking-tight text-foreground/80 leading-tight">{action.label}</span>
             </div>
           ))}
         </div>
