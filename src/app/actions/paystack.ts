@@ -1,4 +1,3 @@
-
 'use server';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
@@ -31,80 +30,6 @@ export async function resolvePaystackAccount(accountNumber: string, bankCode: st
         const data = await response.json();
         if (data.status) return { success: true, data: data.data };
         return { success: false, message: data.message || "Could not resolve account name." };
-    } catch (e: any) {
-        return { success: false, message: e.message };
-    }
-}
-
-export async function getPaystackBillers() {
-    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
-    try {
-        const response = await fetch('https://api.paystack.co/billpayment', {
-            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}` },
-            next: { revalidate: 3600 }
-        });
-        const data = await response.json();
-        if (data.status) return { success: true, data: data.data };
-        return { success: false, message: data.message || "Could not fetch billers.", data: [] };
-    } catch (e: any) {
-        return { success: false, message: e.message, data: [] };
-    }
-}
-
-export async function initiatePaystackBillPayment(payload: { 
-    userId: string, 
-    pin: string, 
-    customer: string, 
-    amount: number, 
-    type: string, 
-    description: string 
-}) {
-    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
-    
-    const ADMIN_CHARGE = 3;
-    const totalDebit = payload.amount + ADMIN_CHARGE;
-
-    try {
-        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
-        if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
-        if (userProfile.nairaBalance < totalDebit) throw new Error('Insufficient balance.');
-
-        const response = await fetch('https://api.paystack.co/billpayment', {
-            method: 'POST',
-            headers: { 
-                'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                customer: payload.customer,
-                amount: payload.amount * 100, 
-                type: payload.type, 
-                reference: `ipay-bill-${Date.now()}`
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.status) {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { 
-                nairaBalance: userProfile.nairaBalance - totalDebit 
-            });
-
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
-                userId: payload.userId,
-                type: 'product_purchase',
-                amount: payload.amount,
-                status: 'completed',
-                recipientName: payload.description,
-                recipientDetails: payload.customer,
-                narration: `Service charge of ₦${ADMIN_CHARGE} applied.`,
-                sessionId: data.data?.reference || `ref-${Date.now()}`,
-            });
-
-            return { success: true, message: "Payment successful." };
-        } else {
-            throw new Error(data.message || "Paystack declined the transaction.");
-        }
     } catch (e: any) {
         return { success: false, message: e.message };
     }
@@ -144,7 +69,7 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
 
         if (transferData.status) {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { nairaBalance: userProfile.nairaBalance - totalDebit });
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+            const doc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: payload.userId,
                 type: 'transfer',
                 amount: amt,
@@ -154,8 +79,19 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
                 narration: payload.narration,
                 sessionId: transferData.data.transfer_code || `tx-${Date.now()}`,
             });
-            return { success: true, message: "Transfer successful." };
+            return { success: true, message: "Transfer successful.", transactionId: doc.$id };
         } else {
+            // Log failure
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+                userId: payload.userId,
+                type: 'transfer',
+                amount: amt,
+                status: 'failed',
+                recipientName: payload.name,
+                recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
+                narration: transferData.message,
+                sessionId: `fail-${Date.now()}`,
+            });
             throw new Error(transferData.message);
         }
     } catch (e: any) {
@@ -194,7 +130,7 @@ export async function initializeDeposit(payload: { email: string; userId: string
                 email: payload.email,
                 amount: payload.amount * 100,
                 callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
-                channels: ['bank_transfer'],
+                channels: ['bank_transfer', 'card'],
                 metadata: { user_id: payload.userId, type: 'deposit' }
             }),
         });

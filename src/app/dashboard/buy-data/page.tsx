@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -75,17 +74,16 @@ export default function BuyDataPage() {
             providerId: selectedPlan.id,
             customer: phoneNumber,
             amount: selectedPlan.price,
-            fee: 50, // ₦50 Hidden Fee
+            fee: 50, 
             description: `${selectedNetwork} Data: ${selectedPlan.name}`
         });
 
-        setIsPurchasing(false);
-
         if (result.success) {
             toast({ title: "Data Purchase Successful" });
-            router.push('/dashboard');
+            router.push(`/dashboard/receipt/${result.transactionId}`);
         } else {
             toast({ variant: 'destructive', title: "Purchase Failed", description: result.message });
+            setIsPurchasing(false);
         }
     };
 
@@ -153,8 +151,8 @@ export default function BuyDataPage() {
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button className="w-full h-14 text-lg font-bold" disabled={!selectedPlan || phoneNumber.length !== 11}>
-                                Continue
+                            <Button className="w-full h-14 text-lg font-bold" disabled={!selectedPlan || phoneNumber.length !== 11 || isPurchasing}>
+                                {isPurchasing ? <Loader2 className="animate-spin" /> : 'Continue'}
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
@@ -178,7 +176,7 @@ export default function BuyDataPage() {
                                 />
                             </div>
                             <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogCancel disabled={isPurchasing}>Cancel</AlertDialogCancel>
                                 <AlertDialogAction onClick={handlePurchase} disabled={isPurchasing || pin.length !== 5}>
                                     {isPurchasing ? <Loader2 className="animate-spin" /> : 'Confirm & Pay'}
                                 </AlertDialogAction>

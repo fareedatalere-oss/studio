@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { ArrowLeft, MessageSquare, Calendar } from "lucide-react";
+import { ArrowLeft, MessageSquare, Calendar, ChevronRight } from "lucide-react";
 import { useUser } from "@/hooks/use-appwrite";
 import { useEffect, useState } from 'react';
 import { Skeleton } from "@/components/ui/skeleton";
@@ -84,8 +84,8 @@ export default function HistoryPage() {
                             <TableRow>
                                 <TableHead className="w-[120px]">Date & Time</TableHead>
                                 <TableHead>Activity Details</TableHead>
-                                <TableHead className="hidden sm:table-cell">Status</TableHead>
-                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="hidden sm:table-cell text-right">Amount</TableHead>
+                                <TableHead className="w-[40px]"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -94,8 +94,8 @@ export default function HistoryPage() {
                                      <TableRow key={i}>
                                         <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                                         <TableCell><div className="space-y-1"><Skeleton className="h-5 w-24" /><Skeleton className="h-4 w-32" /></div></TableCell>
-                                        <TableCell className="hidden sm:table-cell"><Skeleton className="h-6 w-20" /></TableCell>
-                                        <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
+                                        <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
+                                        <TableCell></TableCell>
                                     </TableRow>
                                 ))
                             ) : transactions.length > 0 ? (
@@ -105,7 +105,7 @@ export default function HistoryPage() {
                                     const otherUserId = isMarketTx && tx.narration && tx.narration.length > 10 ? tx.narration : null;
 
                                     return (
-                                        <TableRow key={tx.$id} className="hover:bg-muted/50">
+                                        <TableRow key={tx.$id} className="hover:bg-muted/50 relative">
                                             <TableCell>
                                                 <div className="text-[10px] sm:text-xs font-black text-foreground">
                                                     {format(new Date(tx.$createdAt), 'PP')}
@@ -120,25 +120,23 @@ export default function HistoryPage() {
                                                     <div className="text-xs text-muted-foreground max-w-[180px] truncate" title={tx.recipientName}>
                                                         {tx.recipientName}
                                                     </div>
-                                                    {otherUserHandle && (
-                                                        <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge variant={getStatusVariant(tx.status)} className="capitalize text-[8px] px-1.5 py-0 h-4">{tx.status}</Badge>
+                                                        {otherUserHandle && (
                                                             <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">{otherUserHandle}</span>
-                                                            {otherUserId && (
-                                                                <Button asChild variant="ghost" size="icon" className="h-6 w-6">
-                                                                    <Link href={`/dashboard/chat/${otherUserId}`}>
-                                                                        <MessageSquare className="h-3 w-3" />
-                                                                    </Link>
-                                                                </Button>
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="hidden sm:table-cell">
-                                                <Badge variant={getStatusVariant(tx.status)} className="capitalize text-[9px] px-2 py-0">{tx.status}</Badge>
-                                            </TableCell>
-                                            <TableCell className={`text-right font-black text-sm ${getAmountClass(tx.type)}`}>
+                                            <TableCell className={`text-right font-black text-sm hidden sm:table-cell ${getAmountClass(tx.type)}`}>
                                                 {formatAmount(tx.amount, tx.type)}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Button asChild variant="ghost" size="icon" className="h-8 w-8">
+                                                    <Link href={`/dashboard/receipt/${tx.$id}`}>
+                                                        <ChevronRight className="h-4 w-4" />
+                                                    </Link>
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     );

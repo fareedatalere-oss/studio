@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -45,17 +44,16 @@ export default function BuyAirtimePage() {
             providerId: networkName,
             customer: phoneNumber,
             amount: Number(amount),
-            fee: 3, // Standard 3 Naira fee for Airtime
+            fee: 3, 
             description: `${networkName} Airtime`
         });
 
-        setIsPurchasing(false);
-
         if (result.success) {
             toast({ title: "Airtime Purchase Successful" });
-            router.push('/dashboard');
+            router.push(`/dashboard/receipt/${result.transactionId}`);
         } else {
             toast({ variant: 'destructive', title: "Purchase Failed", description: result.message });
+            setIsPurchasing(false);
         }
     };
 
@@ -110,8 +108,8 @@ export default function BuyAirtimePage() {
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button className="w-full h-14 text-lg font-bold" disabled={!networkName || phoneNumber.length !== 11 || !amount || Number(amount) < 50}>
-                                Continue
+                            <Button className="w-full h-14 text-lg font-bold" disabled={!networkName || phoneNumber.length !== 11 || !amount || Number(amount) < 50 || isPurchasing}>
+                                {isPurchasing ? <Loader2 className="animate-spin" /> : 'Continue'}
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
@@ -136,7 +134,7 @@ export default function BuyAirtimePage() {
                                 />
                             </div>
                             <AlertDialogFooter className="pt-4">
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogCancel disabled={isPurchasing}>Cancel</AlertDialogCancel>
                                 <AlertDialogAction onClick={handlePurchase} disabled={isPurchasing || pin.length !== 5} className="font-bold">
                                     {isPurchasing ? <Loader2 className="animate-spin" /> : 'Confirm & Recharge'}
                                 </AlertDialogAction>

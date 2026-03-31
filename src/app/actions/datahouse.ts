@@ -3,9 +3,6 @@
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 
-/**
- * Strictly hardcoded token as provided by user.
- */
 const DATAHOUSE_TOKEN = '80ca2a529de4afa096c4eabefeb275dafe3a8941'; 
 const BASE_URL = 'https://datahouse.com.ng/api';
 
@@ -28,6 +25,7 @@ export async function processDatahouseRecharge(payload: {
     fee: number;
     description: string;
 }) {
+    let transactionDoc: any = null;
     try {
         const totalToDebit = Number(payload.amount) + Number(payload.fee);
 
@@ -55,7 +53,7 @@ export async function processDatahouseRecharge(payload: {
                 amount: Number(payload.amount),
                 mobile_number: payload.customer,
                 Ported_number: true,
-                airtime_type: "VTU" // Changed from "SHARE AND SELL" to ensure provider acceptance
+                airtime_type: "VTU"
             };
         } else if (payload.type === 'data') {
             endpoint = `${BASE_URL}/data/`;
@@ -82,7 +80,7 @@ export async function processDatahouseRecharge(payload: {
             };
         }
 
-        // 4. Send request with strictly formatted header
+        // 4. Send request
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
@@ -93,7 +91,6 @@ export async function processDatahouseRecharge(payload: {
             body: JSON.stringify(body)
         });
 
-        // Parse response carefully
         let result: any = {};
         try {
             result = await response.json();
@@ -102,7 +99,6 @@ export async function processDatahouseRecharge(payload: {
             throw new Error(`Invalid response from provider: ${rawText.substring(0, 100)}`);
         }
 
-        // 5. Check Success
         const statusStr = String(result.Status || result.status || "").toLowerCase();
         const isSuccess = response.ok && (statusStr === 'success' || !!result.id || !!result.Status === true);
 
@@ -112,22 +108,34 @@ export async function processDatahouseRecharge(payload: {
                 nairaBalance: currentBalance - totalToDebit
             });
 
-            // Log Transaction
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+            // Log Successful Transaction
+            transactionDoc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: payload.userId,
                 type: payload.type === 'cable' ? 'tv_subscription' : (payload.type === 'electric' ? 'electricity' : payload.type),
                 amount: payload.amount,
                 status: 'completed',
                 recipientName: payload.description,
                 recipientDetails: payload.customer,
-                narration: `Processed via Datahouse. ID: ${result.id || 'N/A'}`,
+                narration: `Processed via Datahouse. ID: ${result.id || 'N/A'}. Fee: ₦${payload.fee}`,
                 sessionId: `dh-${Date.now()}`,
             });
 
-            return { success: true, message: "Transaction successful." };
+            return { success: true, message: "Transaction successful.", transactionId: transactionDoc.$id };
         } else {
-            // Captured failure detail from provider for precise debugging
             const detail = result.error || result.msg || result.message || result.Status || result.detail || JSON.stringify(result);
+            
+            // Log Failed Transaction for History
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+                userId: payload.userId,
+                type: payload.type === 'cable' ? 'tv_subscription' : (payload.type === 'electric' ? 'electricity' : payload.type),
+                amount: payload.amount,
+                status: 'failed',
+                recipientName: payload.description,
+                recipientDetails: payload.customer,
+                narration: `Decline Reason: ${detail}`,
+                sessionId: `dh-fail-${Date.now()}`,
+            });
+
             throw new Error(`Provider Declined: ${detail}`);
         }
 

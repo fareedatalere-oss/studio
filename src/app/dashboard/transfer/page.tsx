@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -47,7 +46,6 @@ export default function TransferPage() {
             setBanksLoading(true);
             const result = await getPaystackBanks();
             if (result.success) {
-                // Ensure unique banks by code
                 const uniqueBanks = Array.from(new Map(result.data.map((bank: Bank) => [bank.code, bank])).values());
                 setBanks(uniqueBanks);
             } else {
@@ -117,16 +115,15 @@ export default function TransferPage() {
                 title: 'Transfer Successful',
                 description: result.message || `Your transfer to ${resolvedName} was successful.`
             });
-            router.push('/dashboard');
+            router.push(`/dashboard/receipt/${result.transactionId}`);
         } else {
             toast({
                 variant: 'destructive',
                 title: 'Transfer Failed',
                 description: result.message || 'An unexpected error occurred during the transfer.'
             });
+            setIsLoading(false);
         }
-
-        setIsLoading(false);
     };
 
 
@@ -135,7 +132,7 @@ export default function TransferPage() {
              <div className="container py-8">
                 <Card className="w-full max-w-md mx-auto">
                     <CardHeader className='relative'>
-                        <Button variant="ghost" size="icon" className="absolute left-2 top-2" onClick={() => setStep(1)}><ArrowLeft/></Button>
+                        <Button variant="ghost" size="icon" className="absolute left-2 top-2" onClick={() => setStep(1)} disabled={isLoading}><ArrowLeft/></Button>
                         <CardTitle className="text-center pt-8">Confirm Transfer</CardTitle>
                         <CardDescription className="text-center">You are sending money to:</CardDescription>
                     </CardHeader>
@@ -147,15 +144,15 @@ export default function TransferPage() {
                         
                         <div className="space-y-2">
                             <Label htmlFor="amount">Amount (₦)</Label>
-                            <Input id="amount" type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="e.g., 5000" required/>
+                            <Input id="amount" type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="e.g., 5000" required disabled={isLoading}/>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="narration">Narration (Optional)</Label>
-                            <Input id="narration" value={narration} onChange={e => setNarration(e.target.value)} placeholder="e.g., For groceries" />
+                            <Input id="narration" value={narration} onChange={e => setNarration(e.target.value)} placeholder="e.g., For groceries" disabled={isLoading}/>
                         </div>
                          <div className="space-y-2">
                             <Label htmlFor="pin">Your 5-Digit PIN</Label>
-                            <Input id="pin" type="password" inputMode="numeric" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} required/>
+                            <Input id="pin" type="password" inputMode="numeric" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} required disabled={isLoading}/>
                         </div>
 
                         <Button onClick={handleSendMoney} className="w-full" disabled={isLoading || !amount || pin.length !== 5}>
@@ -185,11 +182,12 @@ export default function TransferPage() {
                             type="text"
                             inputMode="numeric"
                             maxLength={10}
+                            disabled={isLoading}
                         />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="bank">Destination Bank</Label>
-                         <Select onValueChange={setBankCode} value={bankCode} disabled={banksLoading}>
+                         <Select onValueChange={setBankCode} value={bankCode} disabled={banksLoading || isLoading}>
                             <SelectTrigger id="bank">
                                 <SelectValue placeholder={banksLoading ? "Loading banks..." : "Select a bank"} />
                             </SelectTrigger>
