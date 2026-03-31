@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next'
 
 /**
  * @fileOverview Master PWA Manifest.
- * Strictly configured to trigger "Install" prompts and show the logo.
+ * Configured with high-res icons and standalone display to trigger the real "Install" button.
  */
 
 export default function manifest(): MetadataRoute.Manifest {
@@ -20,13 +20,13 @@ export default function manifest(): MetadataRoute.Manifest {
         src: '/logo.png',
         sizes: '192x192',
         type: 'image/png',
-        purpose: 'maskable',
+        purpose: 'any',
       },
       {
         src: '/logo.png',
         sizes: '512x512',
         type: 'image/png',
-        purpose: 'any',
+        purpose: 'maskable',
       },
     ],
     shortcuts: [

@@ -43,14 +43,19 @@ export default function RootLayout({
         <link rel="icon" href="/logo.png" />
         <link rel="apple-touch-icon" href="/logo.png" />
         <link rel="manifest" href="/manifest.json" />
-        <meta name="mobile-web-app-capable" content="yes" />
+        
+        {/* iOS Force Install Meta */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="font-body antialiased min-h-screen bg-background pb-safe">
         <AppwriteProvider>
           {children}
         </AppwriteProvider>
         <Toaster />
+        
+        {/* Service Worker Force Registration */}
         <Script id="register-sw" strategy="afterInteractive">
           {`
             if ('serviceWorker' in navigator) {

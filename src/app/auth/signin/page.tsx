@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -53,8 +52,8 @@ export default function SignInPage() {
       }
     } else {
       toast({ 
-        title: "Install Not Detected", 
-        description: "App may already be installed. Use 'Add to Home Screen' in browser settings if not.",
+        title: "PWA Install Guide", 
+        description: "Open your browser menu and click 'Add to Home Screen' to download the app.",
         duration: 5000
       });
     }

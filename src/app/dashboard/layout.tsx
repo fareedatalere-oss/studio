@@ -55,7 +55,10 @@ export default function DashboardLayout({
   }, []);
   
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
+    if (!deferredPrompt) {
+        toast({ title: "Check Menu", description: "Use your browser menu and click 'Add to Home Screen'." });
+        return;
+    }
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') {
