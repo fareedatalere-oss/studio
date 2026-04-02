@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -12,14 +11,12 @@ import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
 import { account } from '@/lib/appwrite';
 import { ID } from 'appwrite';
-import { useUser } from '@/hooks/use-appwrite';
 
 const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager17@gmail.com'];
 
 export default function SignUpPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { recheckUser, proof } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -30,13 +27,6 @@ export default function SignUpPage() {
 
     const lowerCaseEmail = email.trim().toLowerCase();
     const isAdmin = MANAGER_EMAILS.includes(lowerCaseEmail);
-
-    // Master Switch Check
-    if (proof && !proof.main_switch && !isAdmin) {
-        toast({ variant: 'destructive', title: "App Offline", description: "I-pay app isn't available kindly try again later" });
-        setIsLoading(false);
-        return;
-    }
 
     if (!email || !password) {
       toast({ title: 'Error', description: 'Email and password are required.', variant: 'destructive' });
@@ -51,7 +41,7 @@ export default function SignUpPage() {
     }
 
     try {
-      // FORCE CLEANUP: Ensure no stale sessions block sign up
+      // Direct Auth Path - Removed 'proof' bandwidth middleman check
       await account.deleteSession('current').catch(() => {});
       
       // Attempt registration
@@ -60,7 +50,8 @@ export default function SignUpPage() {
       // Attempt auto-login after creation
       await account.createEmailPasswordSession(email, password);
       
-      await recheckUser();
+      localStorage.setItem('ipay_last_active', Date.now().toString());
+      sessionStorage.setItem('ipay_pin_verified', 'true');
       
       toast({ title: 'Account Created!', description: "Success! Now, let's setup your profile." });
       router.push('/auth/signup/profile');

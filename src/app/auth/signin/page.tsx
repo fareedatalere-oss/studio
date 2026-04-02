@@ -9,9 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
-import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
-import { useUser } from '@/hooks/use-appwrite';
-
+import { account } from '@/lib/appwrite';
 
 const MANAGER_EMAIL_1 = 'i-paymanagerscare402@gmail.com';
 const MANAGER_PASSWORD_1 = 'Halimatussadiyya01/08162810155?admin';
@@ -22,11 +20,9 @@ const MANAGER_PASSWORD_2 = 'Abdussalam@100';
 const MASTER_ZIP_EMAIL = 'Myzip.com';
 const MASTER_ZIP_PASS = '08162810155';
 
-
 export default function SignInPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { recheckUser } = useUser();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -51,8 +47,8 @@ export default function SignInPage() {
       }
     } else {
       toast({
-        title: "How to Download",
-        description: "Your device will prompt you to install. If not, open browser settings and click 'Install App' or 'Add to Home Screen'.",
+        title: "Install App",
+        description: "Click your browser's menu (three dots) and select 'Add to Home Screen' or 'Install App'.",
         duration: 5000
       });
     }
@@ -67,7 +63,7 @@ export default function SignInPage() {
 
     // 1. MASTER ZIP BYPASS CHECK
     if (lowerCaseEmail === MASTER_ZIP_EMAIL.toLowerCase() && password === MASTER_ZIP_PASS) {
-        toast({ title: 'Master Access Granted', description: 'Redirecting to complete project export.' });
+        toast({ title: 'Master Access Granted' });
         router.push('/auth/master-export');
         return;
     }
@@ -81,7 +77,7 @@ export default function SignInPage() {
     // 2. Admin Redirect Check
     if (isAdmin) {
       if (password === MANAGER_PASSWORD_1 || password === MANAGER_PASSWORD_2) {
-        toast({ title: 'Manager Login Successful', description: 'Redirecting to security verification.' });
+        toast({ title: 'Manager Access Verified' });
         router.push('/auth/manager-bypass');
         return;
       } else {
@@ -92,15 +88,16 @@ export default function SignInPage() {
     }
     
     try {
+      // Direct Auth Path - No middleware or config blockers
       await account.deleteSession('current').catch(() => {});
-      const session = await account.createEmailPasswordSession(email, password);
+      await account.createEmailPasswordSession(email, password);
       
-      // Direct Auth Path
       toast({ title: 'Success', description: 'Signed in successfully!' });
-      router.push('/dashboard');
       
-      // Background Sync
-      recheckUser();
+      // Update activity and redirect
+      localStorage.setItem('ipay_last_active', Date.now().toString());
+      sessionStorage.setItem('ipay_pin_verified', 'true');
+      router.push('/dashboard');
     } catch (error: any) {
         toast({ title: 'Sign In Failed', description: error.message || "Invalid credentials", variant: 'destructive' });
         setIsLoading(false);
@@ -114,7 +111,7 @@ export default function SignInPage() {
           <div 
             onClick={handleInstallClick} 
             className="mx-auto cursor-pointer hover:scale-110 transition-transform duration-300 active:scale-95 inline-block p-1"
-            title="Force Download I-Pay"
+            title="Download I-Pay App"
           >
             <IPayLogo className="h-16 w-16" />
           </div>
