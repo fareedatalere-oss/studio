@@ -1,6 +1,6 @@
 /**
- * @fileOverview I-Pay Mandatory Service Worker.
- * Required for the browser to recognize the app as a PWA and enable the "Install" button.
+ * I-Pay Definitive Service Worker
+ * Required for Chrome/Android "Install App" button activation.
  */
 
 self.addEventListener('install', (event) => {
@@ -12,6 +12,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass-through fetch listener required by Chrome for PWA installation
+  // A fetch listener is mandatory for PWA installation criteria.
+  // We forward all requests to the network.
   event.respondWith(fetch(event.request));
 });
