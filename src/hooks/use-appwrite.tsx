@@ -30,18 +30,30 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
         if (typeof window === 'undefined') return;
 
         try {
-            // 1. Fetch Application Configs
-            const [mainConfig, proofConfigDoc] = await Promise.all([
-                databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main').catch(() => null),
-                databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'proof').catch(() => null)
-            ]);
-            
-            if (mainConfig) setConfig(mainConfig);
-            if (proofConfigDoc) {
-                try {
-                    setProof(JSON.parse(proofConfigDoc.data));
-                } catch (e) {
-                    setProof(proofConfigDoc);
+            // 1. Fetch Application Configs with Session Caching to save Bandwidth
+            const cachedMain = sessionStorage.getItem('ipay_config_main');
+            const cachedProof = sessionStorage.getItem('ipay_config_proof');
+
+            if (cachedMain && cachedProof) {
+                setConfig(JSON.parse(cachedMain));
+                setProof(JSON.parse(cachedProof));
+            } else {
+                const [mainConfig, proofConfigDoc] = await Promise.all([
+                    databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main').catch(() => null),
+                    databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'proof').catch(() => null)
+                ]);
+                
+                if (mainConfig) {
+                    setConfig(mainConfig);
+                    sessionStorage.setItem('ipay_config_main', JSON.stringify(mainConfig));
+                }
+                if (proofConfigDoc) {
+                    let parsedProof = proofConfigDoc;
+                    try {
+                        parsedProof = JSON.parse(proofConfigDoc.data);
+                    } catch (e) {}
+                    setProof(parsedProof);
+                    sessionStorage.setItem('ipay_config_proof', JSON.stringify(parsedProof));
                 }
             }
             
@@ -80,10 +92,8 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                     }
                 }
                 
-                // Update Activity timestamp to keep session alive
                 localStorage.setItem('ipay_last_active', now.toString());
             } else {
-                // If not logged in and trying to access dashboard, redirect to signin
                 if (pathname.startsWith('/dashboard') && !pathname.includes('/auth')) {
                     router.replace('/auth/signin');
                 }
