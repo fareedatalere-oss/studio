@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -27,7 +26,7 @@ const MASTER_ZIP_PASS = '08162810155';
 export default function SignInPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { recheckUser, proof } = useUser();
+  const { recheckUser } = useUser();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -73,20 +72,13 @@ export default function SignInPage() {
         return;
     }
 
-    // 2. Master Switch Check
-    if (proof && !proof.main_switch && !isAdmin) {
-        toast({ variant: 'destructive', title: "App Offline", description: "I-pay app isn't available kindly try again later" });
-        setIsLoading(false);
-        return;
-    }
-
     if (!email || !password) {
       toast({ title: 'Error', description: 'Email and password are required.', variant: 'destructive' });
       setIsLoading(false);
       return;
     }
 
-    // 3. Admin Redirect Check
+    // 2. Admin Redirect Check
     if (isAdmin) {
       if (password === MANAGER_PASSWORD_1 || password === MANAGER_PASSWORD_2) {
         toast({ title: 'Manager Login Successful', description: 'Redirecting to security verification.' });
@@ -102,27 +94,15 @@ export default function SignInPage() {
     try {
       await account.deleteSession('current').catch(() => {});
       const session = await account.createEmailPasswordSession(email, password);
-      const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, session.userId);
-      if (profile.isBanned) {
-        await account.deleteSession('current');
-        toast({ title: 'Account Suspended', description: 'Sorry, your account is currently suspended.', variant: 'destructive', duration: 7000 });
-        setIsLoading(false);
-        return;
-      }
       
-      sessionStorage.setItem('ipay_pin_verified', 'true');
-      localStorage.setItem('ipay_last_active', Date.now().toString());
-      
-      await recheckUser();
+      // Direct Auth Path
       toast({ title: 'Success', description: 'Signed in successfully!' });
       router.push('/dashboard');
+      
+      // Background Sync
+      recheckUser();
     } catch (error: any) {
-        if (error.code === 404 && error.message.includes('document')) {
-          router.push('/auth/signup/profile');
-          return;
-        }
         toast({ title: 'Sign In Failed', description: error.message || "Invalid credentials", variant: 'destructive' });
-    } finally {
         setIsLoading(false);
     }
   };

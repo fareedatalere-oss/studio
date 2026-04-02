@@ -1,6 +1,6 @@
 /**
- * @fileOverview Master Service Worker for I-Pay Online.
- * MANDATORY: This file must exist for Android/Chrome to allow "Install App".
+ * I-Pay Master Service Worker
+ * Mandatory for PWA Installation on Android, iOS, and Chrome.
  */
 
 self.addEventListener('install', (event) => {
@@ -12,6 +12,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Mandatory fetch listener to satisfy PWA criteria
+  // Required listener to satisfy PWA installability criteria
+  // For now, we perform a simple pass-through to ensure direct app communication
   event.respondWith(fetch(event.request));
 });
