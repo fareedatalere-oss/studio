@@ -1,3 +1,4 @@
+
 'use client';
 
 import client, { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
@@ -50,7 +51,12 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                 if (proofConfigDoc) {
                     let parsedProof = proofConfigDoc;
                     try {
-                        parsedProof = JSON.parse(proofConfigDoc.data);
+                        // Support both raw object or JSON string format
+                        if (typeof proofConfigDoc.data === 'string') {
+                            parsedProof = JSON.parse(proofConfigDoc.data);
+                        } else {
+                            parsedProof = proofConfigDoc.data;
+                        }
                     } catch (e) {}
                     setProof(parsedProof);
                     sessionStorage.setItem('ipay_config_proof', JSON.stringify(parsedProof));

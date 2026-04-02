@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -48,7 +49,7 @@ export default function SignInPage() {
     } else {
       toast({
         title: "Install App",
-        description: "Click your browser's menu (three dots) and select 'Add to Home Screen' or 'Install App'.",
+        description: "Click your browser's menu (three dots) and select 'Add to Home Screen' or 'Install App' to download I-Pay.",
         duration: 5000
       });
     }
@@ -88,7 +89,7 @@ export default function SignInPage() {
     }
     
     try {
-      // Direct Auth Path - No middleware or config blockers
+      // Direct Auth Path - Bypass configuration middleman for stability
       await account.deleteSession('current').catch(() => {});
       await account.createEmailPasswordSession(email, password);
       
