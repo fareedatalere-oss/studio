@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    unoptimized: true, // Master Fahad: This forces images to load directly from Appwrite to the user, saving your bandwidth.
+    unoptimized: true, // Force images to load directly to bypass bandwidth optimization limits
     remotePatterns: [
       {
         protocol: 'https',

@@ -174,7 +174,7 @@ function DashboardContent() {
           <CardHeader className="flex flex-row items-start justify-between">
             <CardTitle>Account Details</CardTitle>
             <Button variant="outline" size="sm" onClick={handleFundAccountClick} disabled={isProcessing}>
-              {isProcessing && !isFundDialogOpen ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CircleDollarSign className="mr-2 h-4 w-4" />}
+              {isProcessing && !isFundDialogOpen ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CircleDollarSign className="mr-2 h-4 w-4" />}
               Fund Account
             </Button>
           </CardHeader>
