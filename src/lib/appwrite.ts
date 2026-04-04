@@ -21,16 +21,13 @@ import {
   where, 
   orderBy, 
   limit, 
-  onSnapshot,
-  Timestamp,
-  startAfter,
-  QueryConstraint
+  onSnapshot
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 /**
- * @fileOverview Firebase Adapter layer.
- * Bridges Appwrite-style logic to Firebase Firestore/Auth.
+ * @fileOverview Master Firebase Engine.
+ * Fully replaces Appwrite functionality with Firebase Firestore and Storage.
  */
 
 export const DATABASE_ID = 'main';
@@ -52,14 +49,13 @@ export const COLLECTION_ID_MEETINGS = 'meetings';
 
 export const MEETING_BOT_ID = 'ipay_meeting_system';
 
-// Shim for Appwrite Models
+// Internal Shim for Appwrite Models to keep UI code functional
 export namespace Models {
   export type Document = any;
 }
 
-// Utility to convert Firestore doc to Appwrite-like object
 const mapDoc = (d: any) => {
-  if (!d.exists()) throw new Error('Document not found');
+  if (!d.exists()) throw { code: 404, message: 'Document not found' };
   const data = d.data();
   return {
     ...data,
@@ -84,7 +80,7 @@ export const account = {
       const unsub = onAuthStateChanged(auth, (user) => {
         unsub();
         if (user) resolve({ ...user, $id: user.uid });
-        else reject(new Error('No active user session'));
+        else reject(new Error('No active session'));
       });
     });
   },
@@ -96,23 +92,21 @@ export const account = {
   },
   updatePassword: async (newPass: string, oldPass: string) => {
     if (auth.currentUser) return firebaseUpdatePassword(auth.currentUser, newPass);
-  },
-  client: {
-    subscribe: (topics: string[], callback: (response: any) => void) => {
-      return () => {}; 
-    }
   }
 };
 
 export const databases = {
   getDocument: async (dbId: string, collId: string, docId: string) => {
     const snap = await getDoc(doc(db, collId, docId));
-    if (!snap.exists()) throw { code: 404, message: 'Document not found' };
     return mapDoc(snap);
   },
   createDocument: async (dbId: string, collId: string, docId: string, data: any) => {
     const finalId = (!docId || docId === 'unique()') ? ID.unique() : docId;
-    const finalData = { ...data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    const finalData = { 
+        ...data, 
+        createdAt: data.createdAt || new Date().toISOString(), 
+        updatedAt: new Date().toISOString() 
+    };
     await setDoc(doc(db, collId, finalId), finalData);
     return { ...finalData, $id: finalId };
   },
@@ -126,37 +120,14 @@ export const databases = {
   },
   listDocuments: async (dbId: string, collId: string, queries: any[] = []) => {
     let q = query(collection(db, collId));
-    
     queries.forEach(queryFn => {
       if (typeof queryFn === 'function') {
         const constraint = queryFn();
         if (constraint) q = query(q, constraint);
       }
     });
-
     const snap = await getDocs(q);
-    const docs = snap.docs.map(mapDoc);
-    return { documents: docs, total: snap.size };
-  },
-  client: {
-    subscribe: (topic: string, callback: (response: any) => void) => {
-      const parts = topic.split('.');
-      const collId = parts[3];
-      const docId = parts[5];
-
-      if (docId) {
-        return onSnapshot(doc(db, collId, docId), (snap) => {
-          if (snap.exists()) callback({ payload: mapDoc(snap), events: ['databases.update'] });
-        });
-      } else {
-        return onSnapshot(collection(db, collId), (snap) => {
-          snap.docChanges().forEach((change) => {
-            const type = change.type === 'added' ? 'create' : change.type === 'modified' ? 'update' : 'delete';
-            callback({ payload: mapDoc(change.doc), events: [`databases.${type}`] });
-          });
-        });
-      }
-    }
+    return { documents: snap.docs.map(mapDoc), total: snap.size };
   }
 };
 
@@ -180,12 +151,11 @@ export const Query = {
   limit: (count: number) => () => limit(count),
   orderDesc: (attr: string) => () => orderBy(attr, "desc"),
   orderAsc: (attr: string) => () => orderBy(attr, "asc"),
-  contains: (attr: string, val: any) => () => where(attr, "array-contains", val),
-  cursorAfter: (id: string) => () => null
+  contains: (attr: string, val: any) => () => where(attr, "array-contains", val)
 };
 
 export const ID = {
-  unique: () => Math.random().toString(36).substring(7) + Date.now().toString(36)
+  unique: () => Math.random().toString(36).substring(2, 12) + Date.now().toString(36)
 };
 
 export function getAppwriteStorageUrl(fileId: string) {
@@ -194,7 +164,21 @@ export function getAppwriteStorageUrl(fileId: string) {
 
 export const client = {
   subscribe: (topics: string[], callback: (response: any) => void) => {
-    const unsubs = topics.map(t => databases.client.subscribe(t, callback));
+    const unsubs = topics.map(topic => {
+        const parts = topic.split('.');
+        const collId = parts[3];
+        const docId = parts[5];
+        if (docId) {
+            return onSnapshot(doc(db, collId, docId), snap => snap.exists() && callback({ payload: mapDoc(snap), events: ['update'] }));
+        } else {
+            return onSnapshot(collection(db, collId), snap => {
+                snap.docChanges().forEach(change => {
+                    const type = change.type === 'added' ? 'create' : change.type === 'modified' ? 'update' : 'delete';
+                    callback({ payload: mapDoc(change.doc), events: [type] });
+                });
+            });
+        }
+    });
     return () => unsubs.forEach(u => u());
   }
 };

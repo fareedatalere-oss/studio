@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -9,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
-import { formatDistanceToNow, format } from 'date-fns';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
@@ -125,17 +126,16 @@ export default function ChatThreadPage() {
             const payload = response.payload as Models.Document;
             if (payload.chatId === chatId) {
                 const events = response.events || [];
-                if (events.some(e => e.includes('.create'))) {
-                    // DEDUPLICATION: Only add if message ID isn't already in list
+                if (events.some(e => e.includes('create'))) {
                     setMessages((prev) => {
                         const exists = prev.some(m => m.$id === payload.$id);
                         if (exists) return prev;
                         return [...prev, payload];
                     });
                     if (payload.senderId !== currentUser?.$id) markMessagesAsRead();
-                } else if (events.some(e => e.includes('.delete'))) {
+                } else if (events.some(e => e.includes('delete'))) {
                     setMessages((prev) => prev.filter(m => m.$id !== payload.$id));
-                } else if (events.some(e => e.includes('.update'))) {
+                } else if (events.some(e => e.includes('update'))) {
                     setMessages((prev) => prev.map(m => m.$id === payload.$id ? payload : m));
                 }
             }
@@ -158,7 +158,7 @@ export default function ChatThreadPage() {
                 setMessages(response.documents);
                 markMessagesAsRead();
             } catch (error: any) {
-                toast({ title: 'Syncing Error', description: `Wait, connecting to chat...`, variant: 'default' });
+                toast({ title: 'Syncing...', description: `Connecting to chat.`, variant: 'default' });
             } finally { setLoading(false); }
         };
         if (chatId && otherUserId) setupChat();
@@ -210,9 +210,7 @@ export default function ChatThreadPage() {
                 description: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
                 isRead: false, link: `/dashboard/chat/${currentUser.$id}`, createdAt: new Date().toISOString()
             });
-        } catch (e) {
-            console.error("Failed to trigger notification doc:", e);
-        }
+        } catch (e) {}
     };
 
     const handleSendTextMessage = async (e: React.FormEvent) => {
@@ -223,18 +221,11 @@ export default function ChatThreadPage() {
         setNewMessage('');
         const tempId = ID.unique();
         
-        // Optimistic UI
-        const optimistic = { $id: tempId, chatId, senderId: currentUser.$id, text, status: 'sent', $createdAt: new Date().toISOString() } as Models.Document;
-        setMessages(prev => [...prev, optimistic]);
-        
         try {
             const final = await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, tempId, { chatId, senderId: currentUser.$id, text, status: 'sent' });
-            // Update the optimistic message with real one
-            setMessages(prev => prev.map(m => m.$id === tempId ? final : m));
             await updateChatList(text);
             await triggerMessageNotification(text);
         } catch (error: any) {
-            setMessages(prev => prev.filter(m => m.$id !== tempId));
             setNewMessage(text);
         } finally { setSending(false); }
     };
@@ -244,18 +235,10 @@ export default function ChatThreadPage() {
         setSending(true);
         try {
             const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
-            const mediaUrl = getAppwriteStorageUrl(upload.$id);
+            const mediaUrl = upload.url;
             const typeLabel = file.type.startsWith('image/') ? 'Image' : file.type.startsWith('video/') ? 'Video' : 'Audio';
             
-            // For media, we wait for the real creation to avoid duplicates
-            const final = await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), { chatId, senderId: currentUser.$id, mediaUrl, text: `[media:${file.type}]`, status: 'sent' });
-            
-            // Check if listener already added it
-            setMessages(prev => {
-                if (prev.some(m => m.$id === final.$id)) return prev;
-                return [...prev, final];
-            });
-            
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), { chatId, senderId: currentUser.$id, mediaUrl, text: `[media:${file.type}]`, status: 'sent' });
             await updateChatList(`[${typeLabel}] Sent a ${typeLabel.toLowerCase()}`);
             await triggerMessageNotification(`Sent a ${typeLabel.toLowerCase()}`);
         } catch (error: any) { toast({ title: 'Error', description: 'Media failed to send.', variant: 'destructive' }); } 
@@ -274,9 +257,7 @@ export default function ChatThreadPage() {
             setMediaRecorder(recorder);
             audioChunksRef.current = [];
             recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) {
-                    audioChunksRef.current.push(e.data);
-                }
+                if (e.data.size > 0) audioChunksRef.current.push(e.data);
             };
             recorder.onstop = () => {
                 const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
@@ -292,9 +273,7 @@ export default function ChatThreadPage() {
 
     const stopRecording = () => mediaRecorder?.stop();
     const cancelRecording = () => { 
-        if (mediaRecorder) {
-            mediaRecorder.stream.getTracks().forEach(t => t.stop());
-        }
+        if (mediaRecorder) mediaRecorder.stream.getTracks().forEach(t => t.stop());
         setRecordingStatus('idle'); 
     };
     const handleSendAudio = () => {
@@ -363,24 +342,13 @@ export default function ChatThreadPage() {
                             <AvatarImage src={otherUser.avatar} />
                             <AvatarFallback>{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
                         </Avatar>
-                        <div>
-                            <h2 className="font-bold text-sm leading-none">{otherUser.username}</h2>
-                        </div>
+                        <div><h2 className="font-bold text-sm leading-none">{otherUser.username}</h2></div>
                     </>
-                ) : (
-                    <div className="flex items-center gap-3">
-                        <Loader2 className="animate-spin h-4 w-4" />
-                        <span className="text-xs font-black uppercase tracking-widest animate-pulse">Syncing...</span>
-                    </div>
-                )}
+                ) : <div className="flex items-center gap-3"><Loader2 className="animate-spin h-4 w-4" /><span className="text-xs font-black uppercase">Syncing...</span></div>}
             </header>
             
             <main className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-50/50">
-                {loading ? (
-                    <div className="flex justify-center items-center h-full">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    </div>
-                ) : (
+                {loading ? <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : (
                     messages.map((msg) => (
                         <div key={msg.$id} className={cn("group flex items-end gap-2 max-w-[85%] md:max-w-[70%]", msg.senderId === currentUser?.$id ? "ml-auto flex-row-reverse" : "mr-auto")}>
                             <div className={cn("p-3 rounded-2xl shadow-sm", msg.senderId === currentUser?.$id ? "bg-primary text-primary-foreground rounded-br-none" : "bg-white border rounded-bl-none")}>
@@ -391,29 +359,15 @@ export default function ChatThreadPage() {
                             </div>
                             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                 <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
-                                    </DropdownMenuTrigger>
+                                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                     <DropdownMenuContent>
-                                        <DropdownMenuItem onClick={() => setMessageToForward(msg)}>
-                                            <Forward className="mr-2 h-4 w-4" /> Forward
-                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => setMessageToForward(msg)}><Forward className="mr-2 h-4 w-4" /> Forward</DropdownMenuItem>
                                         {msg.senderId === currentUser?.$id && (
                                             <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive">
-                                                        <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                                    </DropdownMenuItem>
-                                                </AlertDialogTrigger>
+                                                <AlertDialogTrigger asChild><DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem></AlertDialogTrigger>
                                                 <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle>Delete message?</AlertDialogTitle>
-                                                        <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleDeleteMessage(msg.$id)} className="bg-destructive">Delete</AlertDialogAction>
-                                                    </AlertDialogFooter>
+                                                    <AlertDialogHeader><AlertDialogTitle>Delete message?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteMessage(msg.$id)} className="bg-destructive">Delete</AlertDialogAction></AlertDialogFooter>
                                                 </AlertDialogContent>
                                             </AlertDialog>
                                         )}
@@ -429,66 +383,35 @@ export default function ChatThreadPage() {
             <footer className="sticky bottom-16 md:bottom-0 bg-white border-t p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
                 {recordingStatus === 'recording' ? (
                     <div className="flex items-center w-full gap-2">
-                        <Button type="button" variant="ghost" size="icon" onClick={cancelRecording}>
-                            <Trash2 className="h-5 w-5 text-destructive" />
-                        </Button>
-                        <div className="flex-1 bg-muted rounded-full h-10 flex items-center px-4">
-                            <div className="bg-red-500 h-2.5 w-2.5 rounded-full animate-pulse mr-2"></div>
-                            <span className="text-sm font-mono text-muted-foreground">
-                                {Math.floor(recordingTime/60).toString().padStart(2,'0')}:{(recordingTime%60).toString().padStart(2,'0')}
-                            </span>
-                        </div>
+                        <Button type="button" variant="ghost" size="icon" onClick={cancelRecording}><Trash2 className="h-5 w-5 text-destructive" /></Button>
+                        <div className="flex-1 bg-muted rounded-full h-10 flex items-center px-4"><div className="bg-red-500 h-2.5 w-2.5 rounded-full animate-pulse mr-2"></div><span className="text-sm font-mono text-muted-foreground">{Math.floor(recordingTime/60).toString().padStart(2,'0')}:{(recordingTime%60).toString().padStart(2,'0')}</span></div>
                         <Button type="button" size="icon" onClick={stopRecording} className="rounded-full h-10 w-10"><Pause className="h-5 w-5" /></Button>
                     </div>
                 ) : recordingStatus === 'preview' ? (
                      <div className="flex items-center w-full gap-2">
-                        <Button type="button" variant="ghost" size="icon" onClick={() => {setRecordingStatus('idle'); setAudioPreviewUrl(null);}}>
-                            <Trash2 className="h-5 w-5 text-destructive" />
-                        </Button>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => {setRecordingStatus('idle'); setAudioPreviewUrl(null);}}><Trash2 className="h-5 w-5 text-destructive" /></Button>
                         <audio src={audioPreviewUrl!} controls className="flex-1 h-10" />
-                        <Button type="button" size="icon" onClick={handleSendAudio} disabled={sending} className="rounded-full h-10 w-10">
-                            {sending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4" />}
-                        </Button>
+                        <Button type="button" size="icon" onClick={handleSendAudio} disabled={sending} className="rounded-full h-10 w-10">{sending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4" />}</Button>
                     </div>
                 ) : (
                     <form onSubmit={handleSendTextMessage} className="flex items-center gap-2">
                         <Input type="text" placeholder="Type a message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} disabled={sending} className="h-11 bg-neutral-100 border-none rounded-full px-4" />
-                        <Button type="button" variant="ghost" size="icon" onClick={() => mediaInputRef.current?.click()} disabled={sending} className="h-11 w-11 rounded-full">
-                            <Paperclip className="h-5 w-5" />
-                        </Button>
-                        <Button type="button" variant="ghost" size="icon" onClick={startRecording} disabled={sending} className="h-11 w-11 rounded-full">
-                            <Mic className="h-5 w-5" />
-                        </Button>
-                        <Button type="submit" size="icon" disabled={sending || !newMessage.trim()} className="h-11 w-11 rounded-full shadow-md">
-                            {sending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}
-                        </Button>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => mediaInputRef.current?.click()} disabled={sending} className="h-11 w-11 rounded-full"><Paperclip className="h-5 w-5" /></Button>
+                        <Button type="button" variant="ghost" size="icon" onClick={startRecording} disabled={sending} className="h-11 w-11 rounded-full"><Mic className="h-5 w-5" /></Button>
+                        <Button type="submit" size="icon" disabled={sending || !newMessage.trim()} className="h-11 w-11 rounded-full shadow-md">{sending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}</Button>
                     </form>
                 )}
             </footer>
-
-            <input type="file" key={sending ? 'sending' : 'ready'} ref={mediaInputRef} onChange={handleMediaInputChange} className="hidden" accept="image/*,video/*" />
-            
+            <input type="file" ref={mediaInputRef} onChange={handleMediaInputChange} className="hidden" accept="image/*,video/*" />
             <Sheet open={!!messageToForward} onOpenChange={o => !o && setMessageToForward(null)}>
                 <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl">
-                    <SheetHeader>
-                        <SheetTitle className="text-center font-black uppercase text-sm">Forward to...</SheetTitle>
-                    </SheetHeader>
+                    <SheetHeader><SheetTitle className="text-center font-black uppercase text-sm">Forward to...</SheetTitle></SheetHeader>
                     <div className="py-4 space-y-2 overflow-y-auto h-full">
-                        {loadingRecentChats ? (
-                            <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div>
-                        ) : (
+                        {loadingRecentChats ? <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div> : (
                             recentChats.map((chat) => (
                                 <div key={chat.$id} className="flex items-center justify-between p-3 rounded-2xl hover:bg-muted/50 border border-transparent hover:border-border">
-                                    <div className="flex items-center gap-3">
-                                        <Avatar>
-                                            <AvatarImage src={chat.otherUser?.avatar} />
-                                            <AvatarFallback>{chat.otherUser?.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
-                                        </Avatar>
-                                        <p className="font-bold">{chat.otherUser?.username}</p>
-                                    </div>
-                                    <Button size="sm" onClick={() => handleSendForward(chat.$id)} className="rounded-full">
-                                        <Send className="h-3 w-3 mr-2" />Send
-                                    </Button>
+                                    <div className="flex items-center gap-3"><Avatar><AvatarImage src={chat.otherUser?.avatar} /><AvatarFallback>{chat.otherUser?.username?.charAt(0) || 'U'}</AvatarFallback></Avatar><p className="font-bold">{chat.otherUser?.username}</p></div>
+                                    <Button size="sm" onClick={() => handleSendForward(chat.$id)} className="rounded-full"><Send className="h-3 w-3 mr-2" />Send</Button>
                                 </div>
                             ))
                         )}

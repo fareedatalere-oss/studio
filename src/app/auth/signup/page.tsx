@@ -14,7 +14,7 @@ import { account, ID } from '@/lib/appwrite';
 
 /**
  * @fileOverview Sign Up Page (Direct Path).
- * Updated for the new Firebase Auth system.
+ * Now using internal Firebase Engine.
  */
 
 const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager17@gmail.com'];
@@ -49,7 +49,7 @@ export default function SignUpPage() {
       // 1. Create the Auth account in Firebase
       await account.create(ID.unique(), email, password);
       
-      // 2. Auth automatically signs in on creation in Firebase, but we ensure it's synced
+      // Sync local state for direct session logic
       localStorage.setItem('ipay_last_active', Date.now().toString());
       sessionStorage.setItem('ipay_pin_verified', 'true');
       
@@ -60,9 +60,9 @@ export default function SignUpPage() {
       let msg = error.message || 'An unexpected error occurred.';
       
       if (error.code === 'auth/email-already-in-use') {
-          msg = "This email is already registered on our NEW system. Please Sign In instead.";
+          msg = "This email is already registered. Please Sign In instead.";
       } else if (msg.includes('fetch')) {
-          msg = "Network connection failed. Please check your internet and try again.";
+          msg = "Network connection failed. Please check your internet.";
       }
       
       toast({ title: 'Sign Up Failed', description: msg, variant: 'destructive' });

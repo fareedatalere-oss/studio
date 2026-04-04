@@ -14,7 +14,10 @@ import client, { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, Query } fr
 import { cn } from '@/lib/utils';
 import { MeetingAlarm } from '@/components/meeting-alarm';
 
-const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager17@gmail.com'];
+/**
+ * @fileOverview Dashboard Layout.
+ * Now using internal Firebase Adapter for all data queries.
+ */
 
 export default function DashboardLayout({
   children,
@@ -121,8 +124,7 @@ export default function DashboardLayout({
     }
   }, [user, fetchUnreadCounts]);
 
-  const isAdmin = user && MANAGER_EMAILS.includes(user.email.toLowerCase());
-  const isTabOn = (key: string) => (isAdmin || !proof) ? true : proof[key] !== false;
+  const isTabOn = (key: string) => (!proof) ? true : proof[key] !== false;
 
   const handleTabClick = (e: React.MouseEvent, key: string) => {
       if (!isTabOn(key)) {
