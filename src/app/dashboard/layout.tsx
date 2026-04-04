@@ -10,8 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import client, { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import client, { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, Query } from '@/lib/appwrite';
 import { cn } from '@/lib/utils';
 import { MeetingAlarm } from '@/components/meeting-alarm';
 

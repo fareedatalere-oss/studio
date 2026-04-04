@@ -1,7 +1,7 @@
+
 'use server';
 
-import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID } from '@/lib/appwrite';
 
 const DATAHOUSE_TOKEN = '80ca2a529de4afa096c4eabefeb275dafe3a8941'; 
 const BASE_URL = 'https://datahouse.com.ng/api';
@@ -26,14 +26,11 @@ export async function processDatahouseRecharge(payload: {
 }) {
     let transactionDoc: any = null;
     try {
-        // FEE LOGIC: 3 for airtime/data, 70 for bills
         const fee = (payload.type === 'airtime' || payload.type === 'data') ? 3 : 70;
         const totalToDebit = Number(payload.amount) + fee;
 
-        // 1. Fetch user profile
         const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
 
-        // 2. Security & Balance Checks
         if (profile.pin !== payload.pin) {
             throw new Error('Incorrect transaction PIN.');
         }
@@ -46,7 +43,6 @@ export async function processDatahouseRecharge(payload: {
         let endpoint = '';
         let body: any = {};
 
-        // 3. Prepare Datahouse Payload
         if (payload.type === 'airtime') {
             endpoint = `${BASE_URL}/topup/`;
             body = {
@@ -81,7 +77,6 @@ export async function processDatahouseRecharge(payload: {
             };
         }
 
-        // 4. Send request
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
@@ -104,12 +99,10 @@ export async function processDatahouseRecharge(payload: {
         const isSuccess = response.ok && (statusStr === 'success' || !!result.id || !!result.Status === true);
 
         if (isSuccess) {
-            // Debit User
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, {
                 nairaBalance: currentBalance - totalToDebit
             });
 
-            // Log Successful Transaction
             transactionDoc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: payload.userId,
                 type: payload.type === 'cable' ? 'tv_subscription' : (payload.type === 'electric' ? 'electricity' : payload.type),
@@ -125,7 +118,6 @@ export async function processDatahouseRecharge(payload: {
         } else {
             const detail = result.error || result.msg || result.message || result.Status || result.detail || JSON.stringify(result);
             
-            // Log Failed Transaction for History
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: payload.userId,
                 type: payload.type === 'cable' ? 'tv_subscription' : (payload.type === 'electric' ? 'electricity' : payload.type),

@@ -1,7 +1,7 @@
+
 'use server';
 
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS, ID } from '@/lib/appwrite';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const API_KEY_ERROR_MESSAGE = 'Configuration error. Please contact support.';
@@ -38,7 +38,7 @@ export async function resolvePaystackAccount(accountNumber: string, bankCode: st
 export async function initiatePaystackTransfer(payload: { userId: string, pin: string, bankCode: string, accountNumber: string, name: string, amount: number, bankName: string, narration: string }) {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
 
-    const FEE = 15; // Master Instruction: Outgoing transfer charge is 15 Naira
+    const FEE = 15; 
     const amt = Number(payload.amount);
     const totalDebit = amt + FEE;
 
@@ -76,7 +76,6 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
             });
             return { success: true, message: "Transfer successful.", transactionId: doc.$id };
         } else {
-            // Log failure
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: payload.userId,
                 type: 'transfer',

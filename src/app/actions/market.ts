@@ -1,7 +1,7 @@
+
 'use server';
 
-import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_PRODUCTS, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_BOOKS } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_PRODUCTS, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_BOOKS, ID } from '@/lib/appwrite';
 
 const PRODUCT_COMMISSION = 80;
 const BOOK_COMMISSION = 50;
@@ -17,10 +17,7 @@ export async function purchaseProduct(payload: {
     const sessionId = `ipay-product-${product.$id}-${Date.now()}`;
 
     try {
-        // 1. Fetch buyer's profile first
         const buyerProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, buyerId);
-
-        // 2. Perform validations
         const totalCost = product.price + PRODUCT_COMMISSION;
 
         if (buyerProfile.nairaBalance < totalCost) {
@@ -31,10 +28,8 @@ export async function purchaseProduct(payload: {
             throw new Error('Incorrect transaction PIN.');
         }
 
-        // 3. All checks passed, now get seller and proceed
         const sellerProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, product.sellerId);
 
-        // 4. Create pending transaction logs (removed manual createdAt)
         const buyerTxPromise = databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
             userId: buyerId,
             type: 'product_purchase',
@@ -60,7 +55,6 @@ export async function purchaseProduct(payload: {
         buyerTxId = buyerTxDoc.$id;
         sellerTxId = sellerTxDoc.$id;
 
-        // 5. Perform balance updates
         const newBuyerBalance = buyerProfile.nairaBalance - totalCost;
         const newSellerBalance = sellerProfile.nairaBalance + product.price;
 
@@ -69,7 +63,6 @@ export async function purchaseProduct(payload: {
         
         await Promise.all([buyerUpdatePromise, sellerUpdatePromise]);
 
-        // 6. Update transactions to 'completed'
         const buyerTxUpdatePromise = databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, buyerTxId, { status: 'completed' });
         const sellerTxUpdatePromise = databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, sellerTxId, { status: 'completed' });
 
@@ -78,7 +71,6 @@ export async function purchaseProduct(payload: {
         return { success: true, message: 'Purchase successful!' };
 
     } catch (error: any) {
-        // 7. If anything fails, mark transactions as failed
         const failureMessage = `[Error] ${error.message}`;
         if (buyerTxId) {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, buyerTxId, { status: 'failed', narration: failureMessage });
@@ -118,7 +110,6 @@ export async function purchaseBook(payload: {
             
             const sellerProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, book.sellerId);
             
-            // Create Audit Logs (removed manual createdAt)
             const buyerTxPromise = databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: buyerId,
                 type: 'product_purchase',
