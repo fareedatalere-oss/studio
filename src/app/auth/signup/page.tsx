@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -10,8 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
-import { account } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { account, ID } from '@/lib/appwrite';
 
 /**
  * @fileOverview Sign Up Page (Direct Path).

@@ -12,6 +12,7 @@ import { useUser } from '@/hooks/use-appwrite';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 import { countries } from '@/lib/countries';
 import { IPayLogo } from '@/components/icons';
+import { Loader2 } from 'lucide-react';
 
 export default function CompleteProfilePage() {
   const router = useRouter();
@@ -58,7 +59,12 @@ export default function CompleteProfilePage() {
             username: username,
             country: country,
             pin: pin,
-            avatar: ''
+            avatar: '',
+            email: user.email,
+            nairaBalance: 0,
+            rewardBalance: 0,
+            clickCount: 0,
+            createdAt: new Date().toISOString()
         };
 
         await databases.createDocument(
@@ -166,7 +172,3 @@ export default function CompleteProfilePage() {
     </div>
   );
 }
-
-const Loader2 = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-);

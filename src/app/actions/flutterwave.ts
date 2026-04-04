@@ -1,6 +1,5 @@
 'use server';
-import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
-import { ID, Query } from 'appwrite';
+import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS, ID, Query } from '@/lib/appwrite';
 
 const FLUTTERWAVE_API_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
 const API_KEY_ERROR_MESSAGE = 'Configuration error. Please contact an administrator.';

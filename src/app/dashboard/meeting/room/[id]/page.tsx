@@ -12,10 +12,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, ID } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, ID, Query, Models } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { Query, Models } from 'appwrite';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -90,7 +89,7 @@ export default function MeetingRoomPage() {
     useEffect(() => {
         fetchMeeting();
 
-        const unsub = client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${meetingId}`, response => {
+        const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${meetingId}`], response => {
             const payload = response.payload as any;
             if (payload.status === 'ended') {
                 router.replace('/dashboard');

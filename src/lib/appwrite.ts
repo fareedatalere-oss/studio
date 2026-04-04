@@ -28,8 +28,9 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 /**
- * @fileOverview Firebase Adapter layer v2.
- * This bridges the existing Appwrite logic to Firebase Firestore/Auth to eliminate bandwidth issues.
+ * @fileOverview Firebase Adapter layer v3.
+ * This bridges the existing Appwrite logic to Firebase Firestore/Auth.
+ * Includes dummy Models namespace to satisfy existing type imports.
  */
 
 export const DATABASE_ID = 'main';
@@ -50,6 +51,11 @@ export const COLLECTION_ID_NOTIFICATIONS = 'notifications';
 export const COLLECTION_ID_MEETINGS = 'meetings';
 
 export const MEETING_BOT_ID = 'ipay_meeting_system';
+
+// Shim for Appwrite Models
+export namespace Models {
+  export type Document = any;
+}
 
 // Utility to convert Firestore doc to Appwrite-like object
 const mapDoc = (d: any) => {
@@ -104,7 +110,7 @@ export const databases = {
     return mapDoc(snap);
   },
   createDocument: async (dbId: string, collId: string, docId: string, data: any) => {
-    const finalId = docId === 'unique()' ? Math.random().toString(36).substring(7) + Date.now().toString(36) : docId;
+    const finalId = docId === 'unique()' || docId === ID.unique() ? ID.unique() : docId;
     const finalData = { ...data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     await setDoc(doc(db, collId, finalId), finalData);
     return { ...finalData, $id: finalId };
@@ -155,10 +161,11 @@ export const databases = {
 
 export const storage = {
   createFile: async (bucketId: string, fileId: string, file: File) => {
-    const storageRef = ref(firebaseStorage, `${bucketId}/${fileId}`);
+    const finalId = fileId === 'unique()' || fileId === ID.unique() ? ID.unique() : fileId;
+    const storageRef = ref(firebaseStorage, `${bucketId}/${finalId}`);
     await uploadBytes(storageRef, file);
     const url = await getDownloadURL(storageRef);
-    return { $id: fileId, url };
+    return { $id: finalId, url };
   },
   deleteFile: async (bucketId: string, fileId: string) => {
     const storageRef = ref(firebaseStorage, `${bucketId}/${fileId}`);

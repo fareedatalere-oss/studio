@@ -3,8 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import client, { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, getAppwriteStorageUrl, storage, BUCKET_ID_UPLOADS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
-import { Models, ID, Query } from 'appwrite';
+import client, { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, getAppwriteStorageUrl, storage, BUCKET_ID_UPLOADS, COLLECTION_ID_NOTIFICATIONS, Models, ID, Query } from '@/lib/appwrite';
 import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, PlayCircle, Trash2, Play, Pause, Forward } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
