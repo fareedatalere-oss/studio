@@ -13,8 +13,8 @@ import { IPayLogo } from '@/components/icons';
 import { account } from '@/lib/appwrite';
 
 /**
- * @fileOverview Sign In Page (Direct Path).
- * Forcefully bypasses bandwidth-heavy configuration checks to ensure login works even when Appwrite limits are hit.
+ * @fileOverview Sign In Page.
+ * Updated to handle the transition from Appwrite to Firebase with clearer error messages.
  */
 
 const MANAGER_EMAIL_1 = 'i-paymanagerscare402@gmail.com';
@@ -91,8 +91,10 @@ export default function SignInPage() {
     }
     
     try {
-      // DIRECT PATH AUTH: Talking straight to account, bypassing middleman bandwidth hooks
+      // Clear any stale local session data
       await account.deleteSession('current').catch(() => {});
+      
+      // Direct Firebase Auth call via adapter
       await account.createEmailPasswordSession(email, password);
       
       toast({ title: 'Success', description: 'Signed in successfully!' });
@@ -101,7 +103,23 @@ export default function SignInPage() {
       sessionStorage.setItem('ipay_pin_verified', 'true');
       router.push('/dashboard');
     } catch (error: any) {
-        toast({ title: 'Sign In Failed', description: error.message || "Invalid credentials", variant: 'destructive' });
+        console.error("Login error:", error);
+        
+        let message = "Invalid credentials. Please try again.";
+        
+        // Handle the specific case of the system migration
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+            message = "Account not found. We have moved to a new system—please Sign Up again to continue using I-Pay.";
+        } else if (error.message?.includes('network')) {
+            message = "Connection failed. Check your internet.";
+        }
+
+        toast({ 
+            title: 'Sign In Failed', 
+            description: message, 
+            variant: 'destructive',
+            duration: 8000
+        });
         setIsLoading(false);
     }
   };
@@ -136,7 +154,7 @@ export default function SignInPage() {
             <Button type="submit" className="w-full" disabled={isLoading}>{isLoading ? 'Signing In...' : 'Sign In'}</Button>
           </form>
           <div className="mt-4 text-center text-sm">
-            Don't have an account? <Link href="/auth/signup" className="underline">Sign Up</Link>
+            Don't have an account? <Link href="/auth/signup" className="underline font-bold text-primary">Sign Up (New System)</Link>
           </div>
         </CardContent>
       </Card>

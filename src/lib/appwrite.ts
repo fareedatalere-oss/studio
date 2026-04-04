@@ -1,3 +1,4 @@
+
 import { auth, db, storage as firebaseStorage } from './firebase';
 import { 
   signInWithEmailAndPassword, 
@@ -28,9 +29,8 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 /**
- * @fileOverview Firebase Adapter layer v3.
- * This bridges the existing Appwrite logic to Firebase Firestore/Auth.
- * Includes dummy Models namespace to satisfy existing type imports.
+ * @fileOverview Firebase Adapter layer.
+ * Bridges Appwrite-style logic to Firebase Firestore/Auth.
  */
 
 export const DATABASE_ID = 'main';
@@ -99,7 +99,7 @@ export const account = {
   },
   client: {
     subscribe: (topics: string[], callback: (response: any) => void) => {
-      return () => {}; // Basic bridge for auth state
+      return () => {}; 
     }
   }
 };
@@ -110,7 +110,8 @@ export const databases = {
     return mapDoc(snap);
   },
   createDocument: async (dbId: string, collId: string, docId: string, data: any) => {
-    const finalId = docId === 'unique()' || docId === ID.unique() ? ID.unique() : docId;
+    // Correctly handle random IDs vs specific IDs
+    const finalId = (!docId || docId === 'unique()') ? ID.unique() : docId;
     const finalData = { ...data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     await setDoc(doc(db, collId, finalId), finalData);
     return { ...finalData, $id: finalId };
@@ -161,7 +162,7 @@ export const databases = {
 
 export const storage = {
   createFile: async (bucketId: string, fileId: string, file: File) => {
-    const finalId = fileId === 'unique()' || fileId === ID.unique() ? ID.unique() : fileId;
+    const finalId = (!fileId || fileId === 'unique()') ? ID.unique() : fileId;
     const storageRef = ref(firebaseStorage, `${bucketId}/${finalId}`);
     await uploadBytes(storageRef, file);
     const url = await getDownloadURL(storageRef);
@@ -188,7 +189,7 @@ export const ID = {
 };
 
 export function getAppwriteStorageUrl(fileId: string) {
-  // In Firebase Storage mode, the fileId provided by our shim is actually the full URL
+  // In Firebase mode, we store full URLs as IDs
   return fileId; 
 }
 
