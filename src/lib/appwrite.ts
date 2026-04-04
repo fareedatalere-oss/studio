@@ -107,10 +107,10 @@ export const account = {
 export const databases = {
   getDocument: async (dbId: string, collId: string, docId: string) => {
     const snap = await getDoc(doc(db, collId, docId));
+    if (!snap.exists()) throw { code: 404, message: 'Document not found' };
     return mapDoc(snap);
   },
   createDocument: async (dbId: string, collId: string, docId: string, data: any) => {
-    // Correctly handle random IDs vs specific IDs
     const finalId = (!docId || docId === 'unique()') ? ID.unique() : docId;
     const finalData = { ...data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     await setDoc(doc(db, collId, finalId), finalData);
@@ -189,7 +189,6 @@ export const ID = {
 };
 
 export function getAppwriteStorageUrl(fileId: string) {
-  // In Firebase mode, we store full URLs as IDs
   return fileId; 
 }
 

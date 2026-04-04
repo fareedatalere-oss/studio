@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -13,7 +14,7 @@ import { account, ID } from '@/lib/appwrite';
 
 /**
  * @fileOverview Sign Up Page (Direct Path).
- * Removed configuration bandwidth dependencies to allow user creation even during Appwrite lockouts.
+ * Updated for the new Firebase Auth system.
  */
 
 const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager17@gmail.com'];
@@ -45,15 +46,10 @@ export default function SignUpPage() {
     }
 
     try {
-      // DIRECT PATH REGISTRATION: No bandwidth-heavy middleman checks
-      await account.deleteSession('current').catch(() => {});
-      
-      // Attempt registration
+      // 1. Create the Auth account in Firebase
       await account.create(ID.unique(), email, password);
       
-      // Attempt auto-login
-      await account.createEmailPasswordSession(email, password);
-      
+      // 2. Auth automatically signs in on creation in Firebase, but we ensure it's synced
       localStorage.setItem('ipay_last_active', Date.now().toString());
       sessionStorage.setItem('ipay_pin_verified', 'true');
       
@@ -62,9 +58,13 @@ export default function SignUpPage() {
     } catch (error: any) {
       console.error("Signup error:", error);
       let msg = error.message || 'An unexpected error occurred.';
-      if (msg.includes('fetch')) {
+      
+      if (error.code === 'auth/email-already-in-use') {
+          msg = "This email is already registered on our NEW system. Please Sign In instead.";
+      } else if (msg.includes('fetch')) {
           msg = "Network connection failed. Please check your internet and try again.";
       }
+      
       toast({ title: 'Sign Up Failed', description: msg, variant: 'destructive' });
     } finally {
         setIsLoading(false);
@@ -77,7 +77,7 @@ export default function SignUpPage() {
         <CardHeader className="text-center">
           <IPayLogo className="mx-auto h-12 w-12" />
           <CardTitle className="mt-4 text-2xl font-bold">Create an Account</CardTitle>
-          <CardDescription>Provide your email and password to get started.</CardDescription>
+          <CardDescription>Provide your email and password to get started on the new Firebase system.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignUp} className="space-y-4">

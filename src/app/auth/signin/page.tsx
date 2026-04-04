@@ -10,11 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
-import { account } from '@/lib/appwrite';
+import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 
 /**
  * @fileOverview Sign In Page.
- * Updated to handle the transition from Appwrite to Firebase with clearer error messages.
+ * Robust Auth flow for Firebase migration.
  */
 
 const MANAGER_EMAIL_1 = 'i-paymanagerscare402@gmail.com';
@@ -91,25 +91,34 @@ export default function SignInPage() {
     }
     
     try {
-      // Clear any stale local session data
-      await account.deleteSession('current').catch(() => {});
-      
-      // Direct Firebase Auth call via adapter
-      await account.createEmailPasswordSession(email, password);
-      
-      toast({ title: 'Success', description: 'Signed in successfully!' });
-      
-      localStorage.setItem('ipay_last_active', Date.now().toString());
-      sessionStorage.setItem('ipay_pin_verified', 'true');
-      router.push('/dashboard');
+      // 1. Authenticate with Firebase Auth
+      const authResult = await account.createEmailPasswordSession(email, password);
+      const userId = authResult.user.uid;
+
+      // 2. Check if Profile exists in Firestore
+      try {
+        await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
+        
+        // Success!
+        toast({ title: 'Success', description: 'Signed in successfully!' });
+        localStorage.setItem('ipay_last_active', Date.now().toString());
+        sessionStorage.setItem('ipay_pin_verified', 'true');
+        router.push('/dashboard');
+      } catch (profileError: any) {
+        // Auth account exists, but no profile doc. This is likely a half-finished migration signup.
+        toast({ title: 'Profile Needed', description: 'Account found! Please complete your profile setup.' });
+        router.push('/auth/signup/profile');
+      }
+
     } catch (error: any) {
         console.error("Login error:", error);
         
         let message = "Invalid credentials. Please try again.";
         
-        // Handle the specific case of the system migration
         if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-            message = "Account not found. We have moved to a new system—please Sign Up again to continue using I-Pay.";
+            message = "Account not found on the NEW system. Please Sign Up again to create your new credentials.";
+        } else if (error.code === 'auth/wrong-password') {
+            message = "Incorrect password for this email on the new system.";
         } else if (error.message?.includes('network')) {
             message = "Connection failed. Check your internet.";
         }
