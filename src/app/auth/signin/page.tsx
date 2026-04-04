@@ -12,12 +12,16 @@ import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
 import { account } from '@/lib/appwrite';
 
+/**
+ * @fileOverview Sign In Page (Direct Path).
+ * Forcefully bypasses bandwidth-heavy configuration checks to ensure login works even when Appwrite limits are hit.
+ */
+
 const MANAGER_EMAIL_1 = 'i-paymanagerscare402@gmail.com';
 const MANAGER_PASSWORD_1 = 'Halimatussadiyya01/08162810155?admin';
 const MANAGER_EMAIL_2 = 'ipatmanager17@gmail.com';
 const MANAGER_PASSWORD_2 = 'Abdussalam@100';
 
-// MASTER ZIP BYPASS CREDENTIALS
 const MASTER_ZIP_EMAIL = 'Myzip.com';
 const MASTER_ZIP_PASS = '08162810155';
 
@@ -62,7 +66,6 @@ export default function SignInPage() {
     const lowerCaseEmail = email.trim().toLowerCase();
     const isAdmin = lowerCaseEmail === MANAGER_EMAIL_1.toLowerCase() || lowerCaseEmail === MANAGER_EMAIL_2.toLowerCase();
 
-    // 1. MASTER ZIP BYPASS CHECK
     if (lowerCaseEmail === MASTER_ZIP_EMAIL.toLowerCase() && password === MASTER_ZIP_PASS) {
         toast({ title: 'Master Access Granted' });
         router.push('/auth/master-export');
@@ -75,7 +78,6 @@ export default function SignInPage() {
       return;
     }
 
-    // 2. Admin Redirect Check
     if (isAdmin) {
       if (password === MANAGER_PASSWORD_1 || password === MANAGER_PASSWORD_2) {
         toast({ title: 'Manager Access Verified' });
@@ -89,13 +91,12 @@ export default function SignInPage() {
     }
     
     try {
-      // Direct Auth Path - Bypass configuration middleman for stability
+      // DIRECT PATH AUTH: Talking straight to account, bypassing middleman bandwidth hooks
       await account.deleteSession('current').catch(() => {});
       await account.createEmailPasswordSession(email, password);
       
       toast({ title: 'Success', description: 'Signed in successfully!' });
       
-      // Update activity and redirect
       localStorage.setItem('ipay_last_active', Date.now().toString());
       sessionStorage.setItem('ipay_pin_verified', 'true');
       router.push('/dashboard');
@@ -112,7 +113,7 @@ export default function SignInPage() {
           <div 
             onClick={handleInstallClick} 
             className="mx-auto cursor-pointer hover:scale-110 transition-transform duration-300 active:scale-95 inline-block p-1"
-            title="Download I-Pay App"
+            title="Force Install I-Pay"
           >
             <IPayLogo className="h-16 w-16" />
           </div>

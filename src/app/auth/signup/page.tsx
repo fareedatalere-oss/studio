@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -11,6 +12,11 @@ import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
 import { account } from '@/lib/appwrite';
 import { ID } from 'appwrite';
+
+/**
+ * @fileOverview Sign Up Page (Direct Path).
+ * Removed configuration bandwidth dependencies to allow user creation even during Appwrite lockouts.
+ */
 
 const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager17@gmail.com'];
 
@@ -41,13 +47,13 @@ export default function SignUpPage() {
     }
 
     try {
-      // Direct Auth Path - Removed 'proof' bandwidth middleman check
+      // DIRECT PATH REGISTRATION: No bandwidth-heavy middleman checks
       await account.deleteSession('current').catch(() => {});
       
       // Attempt registration
       await account.create(ID.unique(), email, password);
       
-      // Attempt auto-login after creation
+      // Attempt auto-login
       await account.createEmailPasswordSession(email, password);
       
       localStorage.setItem('ipay_last_active', Date.now().toString());

@@ -1,8 +1,9 @@
 
 /**
- * I-Pay Master Service Worker
- * Mandatory for PWA Installation on Android, iOS, and Chrome.
+ * @fileOverview I-Pay Mandatory Service Worker.
+ * Browsers like Chrome and Android strictly require this file to enable the "Install App" button.
  */
+
 const CACHE_NAME = 'ipay-v1';
 
 self.addEventListener('install', (event) => {
@@ -14,6 +15,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Mandatory fetch listener to trigger the "Install" prompt
+  // Satisfies the PWA requirement for a functional fetch listener
   event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
 });

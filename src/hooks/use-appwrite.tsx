@@ -31,7 +31,7 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
         if (typeof window === 'undefined') return;
 
         try {
-            // 1. Fetch Application Configs with Session Caching to save Bandwidth
+            // 1. FETCH CONFIGS WITH INTENSE CACHING TO ESCAPE BANDWIDTH LIMITS
             const cachedMain = sessionStorage.getItem('ipay_config_main');
             const cachedProof = sessionStorage.getItem('ipay_config_proof');
 
@@ -39,31 +39,27 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                 setConfig(JSON.parse(cachedMain));
                 setProof(JSON.parse(cachedProof));
             } else {
-                const [mainConfig, proofConfigDoc] = await Promise.all([
+                // Fetch in background, don't block auth if bandwidth is hit
+                Promise.all([
                     databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main').catch(() => null),
                     databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'proof').catch(() => null)
-                ]);
-                
-                if (mainConfig) {
-                    setConfig(mainConfig);
-                    sessionStorage.setItem('ipay_config_main', JSON.stringify(mainConfig));
-                }
-                if (proofConfigDoc) {
-                    let parsedProof = proofConfigDoc;
-                    try {
-                        // Support both raw object or JSON string format
-                        if (typeof proofConfigDoc.data === 'string') {
-                            parsedProof = JSON.parse(proofConfigDoc.data);
-                        } else {
-                            parsedProof = proofConfigDoc.data;
-                        }
-                    } catch (e) {}
-                    setProof(parsedProof);
-                    sessionStorage.setItem('ipay_config_proof', JSON.stringify(parsedProof));
-                }
+                ]).then(([mainDoc, proofDoc]) => {
+                    if (mainDoc) {
+                        setConfig(mainDoc);
+                        sessionStorage.setItem('ipay_config_main', JSON.stringify(mainDoc));
+                    }
+                    if (proofDoc) {
+                        let parsedData = {};
+                        try {
+                            parsedData = typeof proofDoc.data === 'string' ? JSON.parse(proofDoc.data) : proofDoc.data;
+                        } catch(e) {}
+                        setProof(parsedData);
+                        sessionStorage.setItem('ipay_config_proof', JSON.stringify(parsedData));
+                    }
+                });
             }
             
-            // 2. Check Auth State
+            // 2. CHECK AUTH STATE (DIRECT PATH)
             const currentUser = await account.get().catch(() => null);
             setUser(currentUser);
 
@@ -71,7 +67,7 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                 const profileDoc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id).catch(() => null);
                 setProfile(profileDoc);
 
-                // FORCE PERSISTENCE & PIN LOGIC
+                // PERSISTENCE & SESSION LOCK
                 const now = Date.now();
                 const lastActiveStr = localStorage.getItem('ipay_last_active');
                 const pinVerified = sessionStorage.getItem('ipay_pin_verified') === 'true';
@@ -80,7 +76,7 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                     const lastActive = parseInt(lastActiveStr);
                     const diff = now - lastActive;
 
-                    // 1 Hour Rule: Force Logout
+                    // 1 Hour Forced Session Rule
                     if (diff > 3600000) {
                         await account.deleteSession('current').catch(() => {});
                         localStorage.removeItem('ipay_last_active');
@@ -91,7 +87,6 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                         return;
                     }
 
-                    // Challenge PIN if user is returning within the hour but hasn't verified this session
                     if (!pinVerified && pathname.startsWith('/dashboard') && !pathname.includes('/auth') && !pathname.includes('/receipt')) {
                         router.replace('/auth/pin-lock');
                         return;
