@@ -1,13 +1,15 @@
 
 'use client';
 
-import client, { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
-import { Models } from 'appwrite';
+import { auth, db } from '@/lib/firebase';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 
 type AppwriteContextType = {
-    user: Models.User<Models.Preferences> | null;
+    user: any | null;
     profile: any | null;
     config: any | null;
     proof: any | null;
@@ -18,7 +20,7 @@ type AppwriteContextType = {
 const AppwriteContext = createContext<AppwriteContextType>({ user: null, profile: null, config: null, proof: null, loading: true, recheckUser: async () => {} });
 
 export function AppwriteProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null);
+    const [user, setUser] = useState<any | null>(null);
     const [profile, setProfile] = useState<any | null>(null);
     const [config, setConfig] = useState<any | null>(null);
     const [proof, setProof] = useState<any | null>(null);
@@ -27,11 +29,8 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
 
-    const checkUser = useCallback(async () => {
-        if (typeof window === 'undefined') return;
-
+    const fetchStaticConfigs = useCallback(async () => {
         try {
-            // 1. FETCH CONFIGS WITH INTENSE CACHING TO ESCAPE BANDWIDTH LIMITS
             const cachedMain = sessionStorage.getItem('ipay_config_main');
             const cachedProof = sessionStorage.getItem('ipay_config_proof');
 
@@ -39,76 +38,81 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                 setConfig(JSON.parse(cachedMain));
                 setProof(JSON.parse(cachedProof));
             } else {
-                // Fetch in background, don't block auth if bandwidth is hit
-                Promise.all([
-                    databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main').catch(() => null),
-                    databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'proof').catch(() => null)
-                ]).then(([mainDoc, proofDoc]) => {
-                    if (mainDoc) {
-                        setConfig(mainDoc);
-                        sessionStorage.setItem('ipay_config_main', JSON.stringify(mainDoc));
-                    }
-                    if (proofDoc) {
-                        let parsedData = {};
-                        try {
-                            parsedData = typeof proofDoc.data === 'string' ? JSON.parse(proofDoc.data) : proofDoc.data;
-                        } catch(e) {}
-                        setProof(parsedData);
-                        sessionStorage.setItem('ipay_config_proof', JSON.stringify(parsedData));
-                    }
-                });
-            }
-            
-            // 2. CHECK AUTH STATE (DIRECT PATH)
-            const currentUser = await account.get().catch(() => null);
-            setUser(currentUser);
+                const [mainSnap, proofSnap] = await Promise.all([
+                    getDoc(doc(db, COLLECTION_ID_APP_CONFIG, 'main')),
+                    getDoc(doc(db, COLLECTION_ID_APP_CONFIG, 'proof'))
+                ]);
 
-            if (currentUser) {
-                const profileDoc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id).catch(() => null);
-                setProfile(profileDoc);
-
-                // PERSISTENCE & SESSION LOCK
-                const now = Date.now();
-                const lastActiveStr = localStorage.getItem('ipay_last_active');
-                const pinVerified = sessionStorage.getItem('ipay_pin_verified') === 'true';
-
-                if (lastActiveStr) {
-                    const lastActive = parseInt(lastActiveStr);
-                    const diff = now - lastActive;
-
-                    // 1 Hour Forced Session Rule
-                    if (diff > 3600000) {
-                        await account.deleteSession('current').catch(() => {});
-                        localStorage.removeItem('ipay_last_active');
-                        sessionStorage.removeItem('ipay_pin_verified');
-                        setUser(null);
-                        setProfile(null);
-                        if (!pathname.includes('/auth')) router.replace('/auth/signin');
-                        return;
-                    }
-
-                    if (!pinVerified && pathname.startsWith('/dashboard') && !pathname.includes('/auth') && !pathname.includes('/receipt')) {
-                        router.replace('/auth/pin-lock');
-                        return;
-                    }
+                if (mainSnap.exists()) {
+                    const data = mainSnap.data();
+                    setConfig(data);
+                    sessionStorage.setItem('ipay_config_main', JSON.stringify(data));
                 }
-                
-                localStorage.setItem('ipay_last_active', now.toString());
+                if (proofSnap.exists()) {
+                    const docData = proofSnap.data();
+                    const parsedData = typeof docData.data === 'string' ? JSON.parse(docData.data) : docData.data;
+                    setProof(parsedData);
+                    sessionStorage.setItem('ipay_config_proof', JSON.stringify(parsedData));
+                }
+            }
+        } catch (e) {
+            console.error("Config load error:", e);
+        }
+    }, []);
+
+    const checkUser = useCallback(async () => {
+        if (typeof window === 'undefined') return;
+
+        return onAuthStateChanged(auth, async (currentUser) => {
+            setUser(currentUser);
+            
+            if (currentUser) {
+                try {
+                    const profileSnap = await getDoc(doc(db, COLLECTION_ID_PROFILES, currentUser.uid));
+                    if (profileSnap.exists()) {
+                        setProfile({ ...profileSnap.data(), $id: profileSnap.id });
+                    }
+
+                    // SESSION LOCK LOGIC
+                    const now = Date.now();
+                    const lastActiveStr = localStorage.getItem('ipay_last_active');
+                    const pinVerified = sessionStorage.getItem('ipay_pin_verified') === 'true';
+
+                    if (lastActiveStr) {
+                        const lastActive = parseInt(lastActiveStr);
+                        if (now - lastActive > 3600000) { // 1 Hour
+                            await signOut(auth);
+                            localStorage.removeItem('ipay_last_active');
+                            sessionStorage.removeItem('ipay_pin_verified');
+                            setUser(null);
+                            setProfile(null);
+                            if (!pathname.includes('/auth')) router.replace('/auth/signin');
+                            return;
+                        }
+
+                        if (!pinVerified && pathname.startsWith('/dashboard') && !pathname.includes('/auth') && !pathname.includes('/receipt')) {
+                            router.replace('/auth/pin-lock');
+                            return;
+                        }
+                    }
+                    localStorage.setItem('ipay_last_active', now.toString());
+                } catch (e) {
+                    console.error("Profile fetch error:", e);
+                }
             } else {
                 if (pathname.startsWith('/dashboard') && !pathname.includes('/auth')) {
                     router.replace('/auth/signin');
                 }
             }
-        } catch (error) {
-            console.error("Global Auth Error:", error);
-        } finally {
             setIsLoading(false);
-        }
+        });
     }, [router, pathname]);
 
     useEffect(() => {
-        checkUser();
-    }, [checkUser]);
+        fetchStaticConfigs();
+        const unsub = checkUser();
+        return () => { if (typeof unsub === 'function') unsub(); };
+    }, [checkUser, fetchStaticConfigs]);
     
     const value = {
         user,
@@ -116,7 +120,7 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
         config,
         proof,
         loading: isLoading,
-        recheckUser: checkUser
+        recheckUser: async () => { await checkUser(); }
     };
 
     return (

@@ -1,8 +1,7 @@
 
 'use server';
 
-import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID } from '@/lib/appwrite';
 
 /**
  * Handles the local debit logic for Cable, Electric, and Data bills.
@@ -12,7 +11,7 @@ import { ID } from 'appwrite';
 export async function processLocalBillPayment(payload: {
     userId: string;
     pin: string;
-    customer: string; // Phone number for data, Meter for electric, IUC for cable
+    customer: string; 
     amount: number;
     fee: number;
     type: 'tv_subscription' | 'electricity' | 'data';
