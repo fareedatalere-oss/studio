@@ -1,16 +1,20 @@
-
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
+/**
+ * @fileOverview Master Firebase Configuration.
+ * Updated with live project credentials provided by the user.
+ */
+
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyDummyKeyForPrototype",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "ipay-online.firebaseapp.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "ipay-online",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "ipay-online.appspot.com",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "123456789",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:123456789:web:dummy"
+  apiKey: "AIzaSyAqIbMOCA5dOqJUy5bksBMWdvzA4kxf7JY",
+  authDomain: "studio-1987165891-b29cf.firebaseapp.com",
+  projectId: "studio-1987165891-b29cf",
+  storageBucket: "studio-1987165891-b29cf.firebasestorage.app",
+  messagingSenderId: "787362438578",
+  appId: "1:787362438578:web:898cd4f13a522d8d1b58ab"
 };
 
 // Initialize Firebase

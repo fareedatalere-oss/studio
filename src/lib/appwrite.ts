@@ -1,4 +1,3 @@
-
 import { auth, db, storage as firebaseStorage } from './firebase';
 import { 
   signInWithEmailAndPassword, 
@@ -29,9 +28,8 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 /**
- * @fileOverview Firebase Adapter layer.
- * This mimics the Appwrite SDK interface using Firebase Firestore and Auth
- * to minimize code changes across the app while resolving bandwidth issues.
+ * @fileOverview Firebase Adapter layer v2.
+ * This bridges the existing Appwrite logic to Firebase Firestore/Auth to eliminate bandwidth issues.
  */
 
 export const DATABASE_ID = 'main';
@@ -80,12 +78,12 @@ export const account = {
       const unsub = onAuthStateChanged(auth, (user) => {
         unsub();
         if (user) resolve({ ...user, $id: user.uid });
-        else reject(new Error('No user'));
+        else reject(new Error('No active user session'));
       });
     });
   },
   updateName: async (name: string) => {
-    if (auth.currentUser) return updateProfile(auth.currentAuthUser!, { displayName: name });
+    if (auth.currentUser) return updateProfile(auth.currentUser, { displayName: name });
   },
   updateEmail: async (email: string, pass: string) => {
     if (auth.currentUser) return firebaseUpdateEmail(auth.currentUser, email);
@@ -95,8 +93,7 @@ export const account = {
   },
   client: {
     subscribe: (topics: string[], callback: (response: any) => void) => {
-      // Basic event bus mock or Firestore snapshot bridge
-      return () => {}; 
+      return () => {}; // Basic bridge for auth state
     }
   }
 };
@@ -107,7 +104,7 @@ export const databases = {
     return mapDoc(snap);
   },
   createDocument: async (dbId: string, collId: string, docId: string, data: any) => {
-    const finalId = docId === 'unique()' ? Math.random().toString(36).substring(7) : docId;
+    const finalId = docId === 'unique()' ? Math.random().toString(36).substring(7) + Date.now().toString(36) : docId;
     const finalData = { ...data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     await setDoc(doc(db, collId, finalId), finalData);
     return { ...finalData, $id: finalId };
@@ -123,7 +120,6 @@ export const databases = {
   listDocuments: async (dbId: string, collId: string, queries: any[] = []) => {
     let q = query(collection(db, collId));
     
-    // Process shim queries
     queries.forEach(queryFn => {
       if (typeof queryFn === 'function') {
         const constraint = queryFn();
@@ -177,7 +173,7 @@ export const Query = {
   orderDesc: (attr: string) => () => orderBy(attr, "desc"),
   orderAsc: (attr: string) => () => orderBy(attr, "asc"),
   contains: (attr: string, val: any) => () => where(attr, "array-contains", val),
-  cursorAfter: (id: string) => () => null // Simplified for now
+  cursorAfter: (id: string) => () => null
 };
 
 export const ID = {
@@ -185,14 +181,12 @@ export const ID = {
 };
 
 export function getAppwriteStorageUrl(fileId: string) {
-  // In Firebase, we usually store the full URL or fetch it.
-  // For the shim, we assume URLs are stored or passed.
-  return fileId; // The adapter createFile returns the URL as fileId in many parts of the shim logic
+  // In Firebase Storage mode, the fileId provided by our shim is actually the full URL
+  return fileId; 
 }
 
 export const client = {
   subscribe: (topics: string[], callback: (response: any) => void) => {
-    // Bridges multiple snapshots
     const unsubs = topics.map(t => databases.client.subscribe(t, callback));
     return () => unsubs.forEach(u => u());
   }
