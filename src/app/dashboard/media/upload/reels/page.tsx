@@ -2,15 +2,14 @@
 
 import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, UploadCloud, Camera } from 'lucide-react';
+import { ArrowLeft, UploadCloud, Camera, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_POSTS, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl, ID } from '@/lib/appwrite';
 
 
 export default function UploadReelsPage() {
@@ -125,8 +124,8 @@ export default function UploadReelsPage() {
           />
         </CardContent>
         <CardFooter>
-          <Button onClick={handlePost} className="w-full" disabled={!videoFile || isPosting}>
-            {isPosting ? 'Posting...' : 'Post Reel'}
+          <Button onClick={handlePost} className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-lg" disabled={!videoFile || isPosting}>
+            {isPosting ? <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Posting...</> : 'Post Reel'}
           </Button>
         </CardFooter>
       </Card>

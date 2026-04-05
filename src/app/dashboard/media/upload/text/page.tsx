@@ -12,8 +12,7 @@ import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_POSTS } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS, ID } from '@/lib/appwrite';
 
 
 const colors = [
