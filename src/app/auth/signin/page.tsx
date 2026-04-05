@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -156,7 +155,7 @@ export default function SignInPage() {
               <Input id="email" type="text" placeholder="m@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="h-12 rounded-xl bg-muted/50 border-none px-4" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" ***REMOVED***"font-bold uppercase text-[10px] opacity-70">Password</Label>
+              <Label htmlFor="password" className="font-bold uppercase text-[10px] opacity-70">Password</Label>
               <div className="relative">
                 <Input 
                   id="password" 

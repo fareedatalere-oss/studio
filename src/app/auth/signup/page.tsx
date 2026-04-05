@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -12,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
 import { account, ID } from '@/lib/appwrite';
 import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Sign Up Page (Direct Path).
@@ -113,7 +113,7 @@ export default function SignUpPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" ***REMOVED***"font-bold uppercase text-[10px] opacity-70">Create Password</Label>
+              <Label htmlFor="password" className="font-bold uppercase text-[10px] opacity-70">Create Password</Label>
               <div className="relative">
                 <Input 
                   id="password" 
@@ -138,7 +138,7 @@ export default function SignUpPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword" ***REMOVED***"font-bold uppercase text-[10px] opacity-70">Confirm Password</Label>
+              <Label htmlFor="confirmPassword" className="font-bold uppercase text-[10px] opacity-70">Confirm Password</Label>
               <div className="relative">
                 <Input 
                   id="confirmPassword" 
