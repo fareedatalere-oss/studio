@@ -10,11 +10,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 /**
  * @fileOverview Sign In Page.
- * Robust Auth flow for Firebase migration with password visibility.
+ * Robust Auth flow for Firebase with specific instructions for unregistered accounts.
  */
 
 const MANAGER_EMAIL_1 = 'i-paymanagerscare402@gmail.com';
@@ -101,25 +101,26 @@ export default function SignInPage() {
         await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
         
         // Success!
-        toast({ title: 'Success', description: 'Signed in successfully!' });
         localStorage.setItem('ipay_last_active', Date.now().toString());
         sessionStorage.setItem('ipay_pin_verified', 'true');
+        toast({ title: 'Signed In', description: 'Welcome back to I-Pay.' });
         router.push('/dashboard');
       } catch (profileError: any) {
         // Auth account exists, but no profile doc. This is likely a half-finished migration signup.
-        toast({ title: 'Profile Needed', description: 'Account found! Please complete your profile setup.' });
+        console.log("No profile found for UID:", userId);
         router.push('/auth/signup/profile');
       }
 
     } catch (error: any) {
-        console.error("Login error:", error);
+        console.error("Login error code:", error.code);
         
         let message = "Invalid credentials. Please try again.";
         
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-            message = "Account not found on the NEW system. Please Sign Up again to create your new credentials.";
+        // Specific requirement: "this account isn't registered with this"
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-email') {
+            message = "This account isn't registered with this.";
         } else if (error.code === 'auth/wrong-password') {
-            message = "Incorrect password for this email on the new system.";
+            message = "Incorrect password. Please check and try again.";
         } else if (error.message?.includes('network')) {
             message = "Connection failed. Check your internet.";
         }
@@ -179,10 +180,12 @@ export default function SignInPage() {
             <div className="flex items-center justify-end">
               <Link href="/auth/forgot-password"  className="text-[10px] font-black uppercase underline opacity-50 hover:opacity-100 transition-opacity">Forgot password?</Link>
             </div>
-            <Button type="submit" className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-xl mt-2" disabled={isLoading}>{isLoading ? 'Signing In...' : 'Sign In'}</Button>
+            <Button type="submit" className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-xl mt-2" disabled={isLoading}>
+                {isLoading ? <Loader2 className="animate-spin h-6 w-6" /> : 'Sign In'}
+            </Button>
           </form>
           <div className="mt-6 text-center text-sm font-medium">
-            Don't have an account? <Link href="/auth/signup" className="underline font-black text-primary">Sign Up (New System)</Link>
+            Don't have an account? <Link href="/auth/signup" className="underline font-black text-primary">Sign Up</Link>
           </div>
         </CardContent>
       </Card>

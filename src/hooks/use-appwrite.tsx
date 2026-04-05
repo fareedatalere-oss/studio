@@ -1,4 +1,3 @@
-
 'use client';
 
 import { auth, db } from '@/lib/firebase';
@@ -90,6 +89,12 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                             return;
                         }
 
+                        // Redirect to profile setup if account exists but NO profile doc is found
+                        if (!profileSnap.exists() && !pathname.includes('/auth')) {
+                            router.replace('/auth/signup/profile');
+                            return;
+                        }
+
                         if (!pinVerified && pathname.startsWith('/dashboard') && !pathname.includes('/auth') && !pathname.includes('/receipt')) {
                             router.replace('/auth/pin-lock');
                             return;
@@ -121,10 +126,12 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
         proof,
         loading: isLoading,
         recheckUser: async () => { 
-            setIsLoading(true);
-            const profileSnap = await getDoc(doc(db, COLLECTION_ID_PROFILES, auth.currentUser?.uid || 'none'));
-            if (profileSnap.exists()) setProfile({ ...profileSnap.data(), $id: profileSnap.id });
-            setIsLoading(false);
+            const currentUser = auth.currentUser;
+            if (!currentUser) return;
+            const profileSnap = await getDoc(doc(db, COLLECTION_ID_PROFILES, currentUser.uid));
+            if (profileSnap.exists()) {
+                setProfile({ ...profileSnap.data(), $id: profileSnap.id });
+            }
         }
     };
 
