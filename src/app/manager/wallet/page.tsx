@@ -5,8 +5,7 @@ import { ArrowLeft, Landmark, Wallet, TrendingUp, History, User, Clock, Loader2,
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { databases, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, Query } from '@/lib/appwrite';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';

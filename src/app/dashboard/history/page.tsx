@@ -8,8 +8,7 @@ import { ArrowLeft, MessageSquare, Calendar, ChevronRight } from "lucide-react";
 import { useUser } from "@/hooks/use-appwrite";
 import { useEffect, useState } from 'react';
 import { Skeleton } from "@/components/ui/skeleton";
-import { databases, DATABASE_ID, COLLECTION_ID_TRANSACTIONS } from "@/lib/appwrite";
-import { Query } from "appwrite";
+import { databases, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, Query } from "@/lib/appwrite";
 import { format } from 'date-fns';
 import { Button } from "@/components/ui/button";
 
@@ -102,7 +101,6 @@ export default function HistoryPage() {
                                 transactions.map((tx: any) => {
                                     const isMarketTx = tx.type === 'product_purchase' || tx.type === 'product_sale';
                                     const otherUserHandle = tx.recipientDetails?.startsWith('@') ? tx.recipientDetails : null;
-                                    const otherUserId = isMarketTx && tx.narration && tx.narration.length > 10 ? tx.narration : null;
 
                                     return (
                                         <TableRow key={tx.$id} className="hover:bg-muted/50 relative">

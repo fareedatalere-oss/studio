@@ -3,8 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, Query } from '@/lib/appwrite';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -49,27 +48,13 @@ export default function ManagerCreatorsPage() {
     const fetchCreators = async () => {
       setLoading(true);
       try {
-        // Appwrite queries don't support `length` or `size` on arrays.
-        // We must fetch all users and filter client-side.
-        // For production, this should be a server function for performance.
-        let allUsers: any[] = [];
-        let lastId: string | undefined = undefined;
-        let hasMore = true;
-
-        while(hasMore) {
-          const response = await databases.listDocuments(
-            DATABASE_ID, 
-            COLLECTION_ID_PROFILES, 
-            [Query.limit(100), ...(lastId ? [Query.cursorAfter(lastId)] : [])]
-          );
-          allUsers = [...allUsers, ...response.documents];
-          hasMore = response.documents.length === 100;
-          if (hasMore) {
-            lastId = response.documents[response.documents.length - 1].$id;
-          }
-        }
+        const response = await databases.listDocuments(
+          DATABASE_ID, 
+          COLLECTION_ID_PROFILES, 
+          [Query.limit(100)]
+        );
         
-        const eligibleCreators = allUsers.filter(user => (user.followers?.length || 0) >= MIN_FOLLOWERS);
+        const eligibleCreators = response.documents.filter(user => (user.followers?.length || 0) >= MIN_FOLLOWERS);
         setCreators(eligibleCreators);
 
       } catch (error) {

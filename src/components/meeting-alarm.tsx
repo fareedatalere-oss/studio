@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Clock, PhoneIncoming, BellRing, X, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query } from '@/lib/appwrite';
 import { useUser } from '@/hooks/use-appwrite';
 import { format, parse, isSameMinute } from 'date-fns';
 
@@ -57,7 +56,7 @@ export function MeetingAlarm() {
     audioRef.current.play().catch(() => {});
     
     // Trigger Browser Notification if permission granted
-    if (Notification.permission === 'granted') {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
         new Notification("I-Pay Meeting Starting!", {
             body: `Your meeting "${activeMeeting?.name}" is starting now.`,
             icon: "/logo.png"

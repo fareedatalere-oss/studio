@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -7,8 +6,7 @@ import { ArrowLeft, Send, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_MESSAGES, COLLECTION_ID_PROFILES, client } from '@/lib/appwrite';
-import { ID, Query, Models } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_MESSAGES, COLLECTION_ID_PROFILES, client, Query, ID } from '@/lib/appwrite';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 
@@ -37,7 +35,7 @@ export default function MeetingPrivateChatPage() {
             Query.limit(50)
         ]).then(res => setMessages(res.documents));
 
-        const unsub = client.subscribe(`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`, response => {
+        const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`], response => {
             const payload = response.payload as any;
             if (payload.chatId === chatId) {
                 setMessages(prev => [...prev, payload]);
