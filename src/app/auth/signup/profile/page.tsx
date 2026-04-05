@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -54,7 +55,6 @@ export default function CompleteProfilePage() {
     try {
         await account.updateName(username);
 
-        // FORCE FIX: Sending ONLY the requested attributes to prevent "Invalid Attribute" errors
         const profileData = {
             username: username,
             country: country,
@@ -70,7 +70,7 @@ export default function CompleteProfilePage() {
         await databases.createDocument(
             DATABASE_ID,
             COLLECTION_ID_PROFILES,
-            user.$id,
+            user.uid || user.$id,
             profileData
         );
         

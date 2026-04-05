@@ -2,9 +2,9 @@
 'use client';
 
 import { auth, db } from '@/lib/firebase';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -80,7 +80,7 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
 
                     if (lastActiveStr) {
                         const lastActive = parseInt(lastActiveStr);
-                        if (now - lastActive > 3600000) { // 1 Hour
+                        if (now - lastActive > 3600000) { // 1 Hour inactivity
                             await signOut(auth);
                             localStorage.removeItem('ipay_last_active');
                             sessionStorage.removeItem('ipay_pin_verified');
@@ -120,7 +120,12 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
         config,
         proof,
         loading: isLoading,
-        recheckUser: async () => { await checkUser(); }
+        recheckUser: async () => { 
+            setIsLoading(true);
+            const profileSnap = await getDoc(doc(db, COLLECTION_ID_PROFILES, auth.currentUser?.uid || 'none'));
+            if (profileSnap.exists()) setProfile({ ...profileSnap.data(), $id: profileSnap.id });
+            setIsLoading(false);
+        }
     };
 
     return (

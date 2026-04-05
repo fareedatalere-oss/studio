@@ -56,13 +56,13 @@ function DashboardContent() {
   const hasSyncedRef = useRef(false);
   
   const isLoading = userLoading;
-  const isAdmin = user && MANAGER_EMAILS.includes(user.email.toLowerCase());
+  const isAdmin = user && MANAGER_EMAILS.includes(user.email?.toLowerCase() || '');
 
   useEffect(() => {
-    if (user?.$id && user?.email && !hasSyncedRef.current) {
+    if (user?.uid && user?.email && !hasSyncedRef.current) {
         hasSyncedRef.current = true;
         const runSync = async () => {
-            const result = await syncVirtualAccountPayments(user.$id, user.email);
+            const result = await syncVirtualAccountPayments(user.uid, user.email);
             if (result.success && result.amountAdded && result.amountAdded > 0) {
                 toast({ title: 'New Deposit Detected!', description: `Your account was automatically credited with ₦${result.amountAdded.toLocaleString()}.` });
                 await recheckUser();
@@ -94,11 +94,11 @@ function DashboardContent() {
   };
 
   const handleRefresh = async () => {
-    if (!user?.$id) return;
+    if (!user?.uid) return;
     setIsProcessing(true);
     toast({ title: 'Processing...', description: `Checking for new transactions...` });
     try {
-      const result = await syncVirtualAccountPayments(user.$id, user.email);
+      const result = await syncVirtualAccountPayments(user.uid, user.email);
       if (result.success) {
         if (result.amountAdded && result.amountAdded > 0) {
           toast({ title: 'Success!', description: result.message || `Added ₦${result.amountAdded.toLocaleString()} to your wallet.` });
@@ -129,7 +129,7 @@ function DashboardContent() {
         if (isNaN(amount) || amount <= 0) throw new Error("Invalid amount");
         
         const result = await chargeTokenizedCard({
-            userId: user.$id,
+            userId: user.uid || user.$id,
             amount,
             pin
         });

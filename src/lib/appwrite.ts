@@ -21,13 +21,15 @@ import {
   where, 
   orderBy, 
   limit, 
-  onSnapshot
+  onSnapshot,
+  DocumentSnapshot
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 /**
  * @fileOverview Master Firebase Engine.
- * Fully replaces Appwrite functionality with Firebase Firestore and Storage.
+ * This file replaces Appwrite with a high-performance Firebase bridge.
+ * All functions mapped to Firestore and Firebase Auth.
  */
 
 export const DATABASE_ID = 'main';
@@ -49,19 +51,19 @@ export const COLLECTION_ID_MEETINGS = 'meetings';
 
 export const MEETING_BOT_ID = 'ipay_meeting_system';
 
-// Internal Shim for Appwrite Models to keep UI code functional
+// Shim for document models
 export namespace Models {
   export type Document = any;
 }
 
-const mapDoc = (d: any) => {
+const mapDoc = (d: DocumentSnapshot) => {
   if (!d.exists()) throw { code: 404, message: 'Document not found' };
   const data = d.data();
   return {
     ...data,
     $id: d.id,
-    $createdAt: data.createdAt || new Date().toISOString(),
-    $updatedAt: data.updatedAt || new Date().toISOString()
+    $createdAt: data?.createdAt || new Date().toISOString(),
+    $updatedAt: data?.updatedAt || new Date().toISOString()
   };
 };
 
