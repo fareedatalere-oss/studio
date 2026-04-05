@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Loader2, ClipboardCopy, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Loader2, ClipboardCopy } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,9 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { generateVirtualAccount } from '@/app/actions/flutterwave';
 import { useUser } from '@/hooks/use-appwrite';
-import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
+import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, Query } from '@/lib/appwrite';
 import { useRouter } from 'next/navigation';
-import { Query } from 'appwrite';
 
 export default function GetAccountNumberPage() {
   const { toast } = useToast();

@@ -7,7 +7,7 @@ import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, Query } from '@/lib/app
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { MoreVertical, Search, ShieldAlert, UserX, Loader2 } from 'lucide-react';
+import { MoreVertical, Search, ShieldAlert, UserX } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {

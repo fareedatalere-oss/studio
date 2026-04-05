@@ -29,10 +29,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { MoreVertical, Search, ShieldAlert, UserX, Trash2, Eye, Loader2 } from 'lucide-react';
+import { MoreVertical, Search, ShieldAlert, UserX, Trash2, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { databases, storage, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_POSTS, COLLECTION_ID_POST_COMMENTS, COLLECTION_ID_TRANSACTIONS, BUCKET_ID_UPLOADS } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases, storage, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_POSTS, COLLECTION_ID_POST_COMMENTS, COLLECTION_ID_TRANSACTIONS, BUCKET_ID_UPLOADS, Query } from '@/lib/appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';

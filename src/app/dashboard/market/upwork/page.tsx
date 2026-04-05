@@ -3,9 +3,9 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowRight, Search, ChevronUp, Upload, ShoppingCart, Trash2, Phone, Book, Library, MoreVertical, Video, UserPlus, Loader2 } from 'lucide-react';
+import { Search, ChevronUp, Upload, ShoppingCart, Trash2, Phone, Library, MoreVertical, MessageSquare, UserPlus, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useState, Suspense, useEffect, useCallback } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -14,8 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
-import { databases, DATABASE_ID, COLLECTION_ID_APPS, COLLECTION_ID_PRODUCTS, COLLECTION_ID_BOOKS, COLLECTION_ID_UPWORK_PROFILES } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_APPS, COLLECTION_ID_PRODUCTS, COLLECTION_ID_BOOKS, COLLECTION_ID_UPWORK_PROFILES, Query } from '@/lib/appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUser } from '@/hooks/use-appwrite';
 import { purchaseProduct, purchaseBook } from '@/app/actions/market';
@@ -23,7 +22,7 @@ import { purchaseProduct, purchaseBook } from '@/app/actions/market';
 function MarketContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const { user: currentUser, profile: currentUserProfile, loading: userLoading, recheckUser } = useUser();
+  const { user: currentUser, profile: currentUserProfile, recheckUser } = useUser();
   
   // Control State
   const [currentTab, setCurrentTab] = useState(searchParams.get('tab') || 'apps');

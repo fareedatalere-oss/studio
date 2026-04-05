@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -8,8 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { databases, DATABASE_ID, COLLECTION_ID_POSTS } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS, Query } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
 import { PostCard } from '@/components/media-post-card';
 

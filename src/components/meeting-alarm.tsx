@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock, PhoneIncoming, BellRing, X, Check, Loader2 } from 'lucide-react';
+import { Clock, PhoneIncoming, BellRing, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query } from '@/lib/appwrite';
 import { useUser } from '@/hooks/use-appwrite';
-import { format, parse, isSameMinute } from 'date-fns';
+import { format } from 'date-fns';
 
 export function MeetingAlarm() {
   const { user } = useUser();

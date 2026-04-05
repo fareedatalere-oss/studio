@@ -1,23 +1,14 @@
-
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Music, Heart, Volume2, VolumeX, Loader2, Search, UserPlus, UserCheck, User, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Music, Loader2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import Image from 'next/image';
 import { cn } from '@/lib/utils';
-import { databases, DATABASE_ID, COLLECTION_ID_POSTS, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
-import { Query } from 'appwrite';
-import { useUser } from '@/hooks/use-appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS, Query } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
-import { formatDistanceToNow } from 'date-fns';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import Link from 'next/link';
 import { PostCard } from '@/components/media-post-card';
 
 const categories = ["all", "Traditional song", "English version", "Indian cemp", "Hip/rappers"];
