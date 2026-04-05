@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -8,8 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Type, Image as ImageIcon, Clapperboard, Film, Music, Loader2, Search, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
-import { databases, DATABASE_ID, COLLECTION_ID_POSTS } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS, Query } from '@/lib/appwrite';
 import { useRouter } from 'next/navigation';
 import { PostCard } from '@/components/media-post-card';
 import { cn } from '@/lib/utils';
