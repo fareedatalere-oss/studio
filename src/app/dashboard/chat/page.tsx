@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, Loader2, MoreVertical, Trash2, Video } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
-import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, Query } from '@/lib/appwrite';
+import client, { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, Query } from '@/lib/appwrite';
 import { formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -137,7 +137,7 @@ const RecentChatItem = ({ chat, currentUser, onAction }: { chat: any, currentUse
                         <AlertDialogTitle>Delete Chat with {displayName}?</AlertDialogTitle>
                         <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className="sm:flex-col sm:space-x-0 sm:gap-2">
+                    <AlertDialogFooter>
                         <AlertDialogAction onClick={() => handleDeleteForEveryone(chat.$id, displayName)} className="bg-destructive hover:bg-destructive/90">Delete for Everyone</AlertDialogAction>
                         <AlertDialogAction onClick={() => handleDeleteForMe(chat.$id)} variant="secondary">Delete for Me</AlertDialogAction>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -221,7 +221,7 @@ export default function ChatPage() {
     // Subscribe to chat updates for real-time list updates
     useEffect(() => {
         if (!currentUser) return;
-        const unsubscribe = account.client.subscribe([
+        const unsubscribe = client.subscribe([
             `databases.${DATABASE_ID}.collections.${COLLECTION_ID_CHATS}.documents`,
             `databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`
         ], response => {
