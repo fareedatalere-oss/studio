@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import client, { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, storage, BUCKET_ID_UPLOADS, COLLECTION_ID_NOTIFICATIONS, Models, ID, Query } from '@/lib/appwrite';
+import client, { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, storage, BUCKET_ID_UPLOADS, COLLECTION_ID_NOTIFICATIONS, Models, ID, Query } from '@/lib/appwrite';
 import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, PlayCircle, Trash2, Play, Pause, Forward } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
-const getChatId = (userId1: string, userId2: string) => {
+const getChatId = (userId1?: string, userId2?: string) => {
+    if (!userId1 || !userId2) return null;
     const sortedIds = [userId1, userId2].sort();
     return `${sortedIds[0].substring(0, 15)}_${sortedIds[1].substring(0, 15)}`;
 };
@@ -157,11 +158,11 @@ export default function ChatThreadPage() {
                 setMessages(response.documents);
                 markMessagesAsRead();
             } catch (error: any) {
-                toast({ title: 'Syncing...', description: `Connecting to chat.`, variant: 'default' });
+                // silent
             } finally { setLoading(false); }
         };
         if (chatId && otherUserId) setupChat();
-    }, [chatId, otherUserId, toast, markMessagesAsRead]);
+    }, [chatId, otherUserId, markMessagesAsRead]);
 
     useEffect(() => {
         if (!!messageToForward && currentUser) {
@@ -221,7 +222,7 @@ export default function ChatThreadPage() {
         const tempId = ID.unique();
         
         try {
-            const final = await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, tempId, { chatId, senderId: currentUser.$id, text, status: 'sent' });
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, tempId, { chatId, senderId: currentUser.$id, text, status: 'sent' });
             await updateChatList(text);
             await triggerMessageNotification(text);
         } catch (error: any) {
@@ -334,36 +335,36 @@ export default function ChatThreadPage() {
     return (
         <div className="flex flex-col h-full bg-white text-gray-900">
             <header className="sticky top-16 md:top-0 bg-white border-b flex items-center p-3 gap-3 z-10 shadow-sm">
-                <Button variant="ghost" size="icon" onClick={() => router.back()}><ArrowLeft /></Button>
+                <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-8 w-8"><ArrowLeft className="h-4 w-4" /></Button>
                 {otherUser ? (
                     <>
-                        <Avatar className="h-10 w-10 border border-primary/20">
+                        <Avatar className="h-9 w-9 border border-primary/20">
                             <AvatarImage src={otherUser.avatar} />
                             <AvatarFallback>{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
                         </Avatar>
-                        <div><h2 className="font-bold text-sm leading-none">{otherUser.username}</h2></div>
+                        <div><h2 className="font-bold text-xs leading-none">{otherUser.username}</h2></div>
                     </>
-                ) : <div className="flex items-center gap-3"><Loader2 className="animate-spin h-4 w-4" /><span className="text-xs font-black uppercase">Syncing...</span></div>}
+                ) : <div className="flex items-center gap-3"><Loader2 className="animate-spin h-3 w-3" /><span className="text-[10px] font-black uppercase">Syncing...</span></div>}
             </header>
             
             <main className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-50/50">
                 {loading ? <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : (
                     messages.map((msg) => (
                         <div key={msg.$id} className={cn("group flex items-end gap-2 max-w-[85%] md:max-w-[70%]", msg.senderId === currentUser?.$id ? "ml-auto flex-row-reverse" : "mr-auto")}>
-                            <div className={cn("p-3 rounded-2xl shadow-sm", msg.senderId === currentUser?.$id ? "bg-primary text-primary-foreground rounded-br-none" : "bg-white border rounded-bl-none")}>
+                            <div className={cn("p-2.5 rounded-2xl shadow-sm", msg.senderId === currentUser?.$id ? "bg-primary text-primary-foreground rounded-br-none" : "bg-white border rounded-bl-none")}>
                                 {renderMessageContent(msg)}
-                                <div className={cn("text-[9px] mt-1 opacity-70 flex justify-end", msg.senderId === currentUser?.$id ? "text-primary-foreground font-bold" : "text-muted-foreground")}>
+                                <div className={cn("text-[8px] mt-1 opacity-70 flex justify-end", msg.senderId === currentUser?.$id ? "text-primary-foreground font-bold" : "text-muted-foreground")}>
                                     {format(new Date(msg.$createdAt), 'HH:mm')}
                                 </div>
                             </div>
                             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                 <DropdownMenu>
-                                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreVertical className="h-3 w-3" /></Button></DropdownMenuTrigger>
                                     <DropdownMenuContent>
-                                        <DropdownMenuItem onClick={() => setMessageToForward(msg)}><Forward className="mr-2 h-4 w-4" /> Forward</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => setMessageToForward(msg)} className="text-[10px] font-bold"><Forward className="mr-2 h-3 w-3" /> Forward</DropdownMenuItem>
                                         {msg.senderId === currentUser?.$id && (
                                             <AlertDialog>
-                                                <AlertDialogTrigger asChild><DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem></AlertDialogTrigger>
+                                                <AlertDialogTrigger asChild><DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive text-[10px] font-bold"><Trash2 className="mr-2 h-3 w-3" /> Delete</DropdownMenuItem></AlertDialogTrigger>
                                                 <AlertDialogContent>
                                                     <AlertDialogHeader><AlertDialogTitle>Delete message?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
                                                     <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteMessage(msg.$id)} className="bg-destructive">Delete</AlertDialogAction></AlertDialogFooter>
@@ -379,38 +380,40 @@ export default function ChatThreadPage() {
                 <div ref={messagesEndRef} />
             </main>
 
-            <footer className="sticky bottom-16 md:bottom-0 bg-white border-t p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+            <footer className="sticky bottom-16 md:bottom-0 bg-white border-t p-2 shadow-sm">
                 {recordingStatus === 'recording' ? (
-                    <div className="flex items-center w-full gap-2">
-                        <Button type="button" variant="ghost" size="icon" onClick={cancelRecording}><Trash2 className="h-5 w-5 text-destructive" /></Button>
-                        <div className="flex-1 bg-muted rounded-full h-10 flex items-center px-4"><div className="bg-red-500 h-2.5 w-2.5 rounded-full animate-pulse mr-2"></div><span className="text-sm font-mono text-muted-foreground">{Math.floor(recordingTime/60).toString().padStart(2,'0')}:{(recordingTime%60).toString().padStart(2,'0')}</span></div>
-                        <Button type="button" size="icon" onClick={stopRecording} className="rounded-full h-10 w-10"><Pause className="h-5 w-5" /></Button>
+                    <div className="flex items-center w-full gap-2 px-2">
+                        <Button type="button" variant="ghost" size="icon" onClick={cancelRecording}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        <div className="flex-1 bg-muted rounded-full h-9 flex items-center px-4"><div className="bg-red-500 h-2 w-2 rounded-full animate-pulse mr-2"></div><span className="text-[10px] font-mono text-muted-foreground">{Math.floor(recordingTime/60).toString().padStart(2,'0')}:{(recordingTime%60).toString().padStart(2,'0')}</span></div>
+                        <Button type="button" size="icon" onClick={stopRecording} className="rounded-full h-9 w-9"><Pause className="h-4 w-4" /></Button>
                     </div>
                 ) : recordingStatus === 'preview' ? (
-                     <div className="flex items-center w-full gap-2">
-                        <Button type="button" variant="ghost" size="icon" onClick={() => {setRecordingStatus('idle'); setAudioPreviewUrl(null);}}><Trash2 className="h-5 w-5 text-destructive" /></Button>
-                        <audio src={audioPreviewUrl!} controls className="flex-1 h-10" />
-                        <Button type="button" size="icon" onClick={handleSendAudio} disabled={sending} className="rounded-full h-10 w-10">{sending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4" />}</Button>
+                     <div className="flex items-center w-full gap-2 px-2">
+                        <Button type="button" variant="ghost" size="icon" onClick={() => {setRecordingStatus('idle'); setAudioPreviewUrl(null);}}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        <audio src={audioPreviewUrl!} controls className="flex-1 h-9" />
+                        <Button type="button" size="icon" onClick={handleSendAudio} disabled={sending} className="rounded-full h-9 w-9">{sending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4" />}</Button>
                     </div>
                 ) : (
-                    <form onSubmit={handleSendTextMessage} className="flex items-center gap-2">
-                        <Input type="text" placeholder="Type a message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} disabled={sending} className="h-11 bg-neutral-100 border-none rounded-full px-4" />
-                        <Button type="button" variant="ghost" size="icon" onClick={() => mediaInputRef.current?.click()} disabled={sending} className="h-11 w-11 rounded-full"><Paperclip className="h-5 w-5" /></Button>
-                        <Button type="button" variant="ghost" size="icon" onClick={startRecording} disabled={sending} className="h-11 w-11 rounded-full"><Mic className="h-5 w-5" /></Button>
-                        <Button type="submit" size="icon" disabled={sending || !newMessage.trim()} className="h-11 w-11 rounded-full shadow-md">{sending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}</Button>
+                    <form onSubmit={handleSendTextMessage} className="flex items-center gap-1.5 px-1">
+                        <Input type="text" placeholder="Type..." value={newMessage} onChange={e => setNewMessage(e.target.value)} disabled={sending} className="h-9 bg-neutral-100 border-none rounded-full px-4 text-xs" />
+                        <div className="flex gap-0.5">
+                            <Button type="button" variant="ghost" size="icon" onClick={() => mediaInputRef.current?.click()} disabled={sending} className="h-9 w-9 rounded-full"><Paperclip className="h-4 w-4" /></Button>
+                            <Button type="button" variant="ghost" size="icon" onClick={startRecording} disabled={sending} className="h-9 w-9 rounded-full"><Mic className="h-4 w-4" /></Button>
+                        </div>
+                        <Button type="submit" size="icon" disabled={sending || !newMessage.trim()} className="h-9 w-9 rounded-full shadow-md shrink-0">{sending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4" />}</Button>
                     </form>
                 )}
             </footer>
             <input type="file" ref={mediaInputRef} onChange={handleMediaInputChange} className="hidden" accept="image/*,video/*" />
             <Sheet open={!!messageToForward} onOpenChange={o => !o && setMessageToForward(null)}>
                 <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl">
-                    <SheetHeader><SheetTitle className="text-center font-black uppercase text-sm">Forward to...</SheetTitle></SheetHeader>
-                    <div className="py-4 space-y-2 overflow-y-auto h-full">
+                    <SheetHeader><SheetTitle className="text-center font-black uppercase text-xs tracking-widest">Forward to...</SheetTitle></SheetHeader>
+                    <div className="py-4 space-y-2 overflow-y-auto h-full px-2">
                         {loadingRecentChats ? <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div> : (
                             recentChats.map((chat) => (
-                                <div key={chat.$id} className="flex items-center justify-between p-3 rounded-2xl hover:bg-muted/50 border border-transparent hover:border-border">
-                                    <div className="flex items-center gap-3"><Avatar><AvatarImage src={chat.otherUser?.avatar} /><AvatarFallback>{chat.otherUser?.username?.charAt(0) || 'U'}</AvatarFallback></Avatar><p className="font-bold">{chat.otherUser?.username}</p></div>
-                                    <Button size="sm" onClick={() => handleSendForward(chat.$id)} className="rounded-full"><Send className="h-3 w-3 mr-2" />Send</Button>
+                                <div key={chat.$id} className="flex items-center justify-between p-2.5 rounded-2xl hover:bg-muted/50 border border-transparent hover:border-border">
+                                    <div className="flex items-center gap-3"><Avatar className="h-8 w-8"><AvatarImage src={chat.otherUser?.avatar} /><AvatarFallback>{chat.otherUser?.username?.charAt(0) || 'U'}</AvatarFallback></Avatar><p className="font-bold text-xs">@{chat.otherUser?.username}</p></div>
+                                    <Button size="sm" onClick={() => handleSendForward(chat.$id)} className="rounded-full h-8 px-4 text-[10px] font-black uppercase"><Send className="h-3 w-3 mr-2" />Send</Button>
                                 </div>
                             ))
                         )}
