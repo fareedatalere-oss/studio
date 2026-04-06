@@ -164,55 +164,55 @@ function DashboardContent() {
   return (
     <div className="container py-8 space-y-6">
       <div className="space-y-6">
-        <Card className="rounded-[2.5rem] shadow-xl border-none bg-gradient-to-br from-white to-muted/20 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between pb-4">
-            <CardTitle className="text-lg font-black uppercase tracking-tighter">My Wallet</CardTitle>
-            <Button variant="outline" size="sm" onClick={handleFundAccountClick} disabled={isProcessing} className="rounded-full h-8 px-4 border-primary text-primary hover:bg-primary hover:text-white font-black text-[10px] uppercase transition-all">
-              {isProcessing && !isFundDialogOpen ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <CircleDollarSign className="mr-2 h-3 w-3" />}
+        <Card className="rounded-[2rem] shadow-xl border-none bg-gradient-to-br from-white to-muted/20 overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-black uppercase tracking-tighter">My Wallet</CardTitle>
+            <Button variant="outline" size="sm" onClick={handleFundAccountClick} disabled={isProcessing} className="rounded-full h-7 px-3 border-primary text-primary hover:bg-primary hover:text-white font-black text-[9px] uppercase transition-all">
+              {isProcessing && !isFundDialogOpen ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CircleDollarSign className="mr-1 h-3 w-3" />}
               Fund
             </Button>
           </CardHeader>
-          <CardContent className="space-y-4 pb-8">
-            <div className="space-y-1 min-h-[50px]">
-              <p className="text-[9px] font-black uppercase opacity-50 tracking-widest">Account Number</p>
+          <CardContent className="space-y-3 pb-6">
+            <div className="space-y-0.5 min-h-[40px]">
+              <p className="text-[8px] font-black uppercase opacity-50 tracking-widest">Account Number</p>
               {isLoading ? (
-                <div className="space-y-2 pt-1">
-                  <Skeleton className="h-5 w-40" />
-                  <Skeleton className="h-3 w-24" />
+                <div className="space-y-1.5 pt-1">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-2 w-20" />
                 </div>
               ) : userProfile && userProfile.accountNumber ? (
                 <div>
-                  <p className="font-black text-xl tracking-tighter">{userProfile.accountNumber}</p>
-                  <p className="text-[9px] text-primary font-black uppercase">{userProfile.bankName}</p>
+                  <p className="font-black text-lg tracking-tighter">{userProfile.accountNumber}</p>
+                  <p className="text-[8px] text-primary font-black uppercase">{userProfile.bankName}</p>
                 </div>
               ) : (
-                <Button asChild size="sm" className="mt-1 rounded-full font-black uppercase text-[9px] tracking-widest h-8">
+                <Button asChild size="sm" className="mt-1 rounded-full font-black uppercase text-[8px] tracking-widest h-7">
                   <Link href="/dashboard/get-account-number">Get Account Number</Link>
                 </Button>
               )}
             </div>
 
             <div>
-              <p className="text-[9px] font-black uppercase opacity-50 tracking-widest">Available Balance</p>
+              <p className="text-[8px] font-black uppercase opacity-50 tracking-widest">Available Balance</p>
               {isLoading ? (
-                <Skeleton className="h-8 w-32 mt-1" />
+                <Skeleton className="h-6 w-28 mt-1" />
               ) : (
-                <p className="text-3xl font-black tracking-tighter text-foreground">₦{userProfile?.nairaBalance?.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</p>
+                <p className="text-2xl font-black tracking-tighter text-foreground">₦{userProfile?.nairaBalance?.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</p>
               )}
             </div>
             
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-dashed">
+            <div className="grid grid-cols-2 gap-4 pt-3 border-t border-dashed">
               <div>
-                  <p className="text-[8px] font-black uppercase opacity-50 tracking-widest">Rewards</p>
-                   {isLoading ? <Skeleton className="h-5 w-16 mt-1" /> : <p className="font-black text-base text-orange-500">{userProfile?.rewardBalance?.toLocaleString() || '0'}</p>}
+                  <p className="text-[7px] font-black uppercase opacity-50 tracking-widest">Rewards</p>
+                   {isLoading ? <Skeleton className="h-4 w-12 mt-1" /> : <p className="font-black text-sm text-orange-500">{userProfile?.rewardBalance?.toLocaleString() || '0'}</p>}
               </div>
               <div>
-                <p className="text-[8px] font-black uppercase opacity-50 tracking-widest">Clicks</p>
-                 {isLoading ? <Skeleton className="h-5 w-12 mt-1" /> : (
+                <p className="text-[7px] font-black uppercase opacity-50 tracking-widest">Clicks</p>
+                 {isLoading ? <Skeleton className="h-4 w-10 mt-1" /> : (
                     <div className="flex items-center gap-2">
-                    <p className="font-black text-base text-blue-500">{userProfile?.clickCount?.toLocaleString() || 0}</p>
+                    <p className="font-black text-sm text-blue-500">{userProfile?.clickCount?.toLocaleString() || 0}</p>
                     {userProfile?.accountNumber && (
-                        <Button onClick={() => handleActionClick('feat_get_reward', '/dashboard/rewards')} size="sm" className="h-5 px-2 text-[7px] font-black uppercase rounded-full">
+                        <Button onClick={() => handleActionClick('feat_get_reward', '/dashboard/rewards')} size="sm" className="h-4 px-1.5 text-[6px] font-black uppercase rounded-full">
                         Claim
                         </Button>
                     )}
@@ -223,7 +223,7 @@ function DashboardContent() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-3 md:grid-cols-4 gap-y-8 gap-x-4 text-center pb-10">
+        <div className="grid grid-cols-3 md:grid-cols-4 gap-y-6 gap-x-3 text-center pb-8">
           {actions.map((action) => (
              <div key={action.label} className="flex flex-col items-center gap-1 cursor-pointer group" onClick={() => handleActionClick(action.key, action.href, action.onClick)}>
                 <div
@@ -233,29 +233,29 @@ function DashboardContent() {
                         action.label === 'Sofia AI' ? "bg-primary text-white shadow-lg" : "bg-white text-foreground"
                     )}
                 >
-                    {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : <action.icon className="h-5 w-5" />}
+                    {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <action.icon className="h-5 w-5" />}
                 </div>
-                <span className="mt-2 block text-[9px] font-black tracking-widest uppercase text-foreground/70">{action.label}</span>
+                <span className="mt-1.5 block text-[8px] font-black tracking-widest uppercase text-foreground/70">{action.label}</span>
             </div>
           ))}
         </div>
       </div>
       <AlertDialog open={isFundDialogOpen} onOpenChange={setIsFundDialogOpen}>
-        <AlertDialogContent className="rounded-[2.5rem] p-8 border-none shadow-2xl">
-            <AlertDialogHeader><AlertDialogTitle className="text-2xl font-black uppercase tracking-tighter">Fast Funding</AlertDialogTitle></AlertDialogHeader>
-            <div className="space-y-6 pt-4">
-                <div className="space-y-2">
-                    <Label className="font-black uppercase text-[10px] opacity-50">Amount (₦)</Label>
-                    <Input id="fund-amount" type="number" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)} className="h-14 rounded-2xl bg-muted border-none font-black text-lg" />
+        <AlertDialogContent className="rounded-[2rem] p-6 border-none shadow-2xl">
+            <AlertDialogHeader><AlertDialogTitle className="text-xl font-black uppercase tracking-tighter">Fast Funding</AlertDialogTitle></AlertDialogHeader>
+            <div className="space-y-4 pt-2">
+                <div className="space-y-1">
+                    <Label className="font-black uppercase text-[9px] opacity-50">Amount (₦)</Label>
+                    <Input id="fund-amount" type="number" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)} className="h-12 rounded-xl bg-muted border-none font-black text-base" />
                 </div>
-                 <div className="space-y-2">
-                    <Label className="font-black uppercase text-[10px] opacity-50">Confirm 5-Digit PIN</Label>
-                    <Input id="fund-pin" type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} className="h-14 rounded-2xl bg-muted border-none text-center font-black text-xl tracking-[1rem]" />
+                 <div className="space-y-1">
+                    <Label className="font-black uppercase text-[9px] opacity-50">Confirm 5-Digit PIN</Label>
+                    <Input id="fund-pin" type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} className="h-12 rounded-xl bg-muted border-none text-center font-black text-lg tracking-[0.8rem]" />
                 </div>
             </div>
-            <AlertDialogFooter className="pt-6">
-                <AlertDialogCancel className="rounded-full h-12 font-black uppercase text-[10px]">Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => { if(!isFeatOn('feat_refund')) { toast({ variant:'destructive', title:'Off', description:'Disabled'}); return; } handleActionClick('feat_refund', undefined, handleFundWithToken); }} disabled={isProcessing || !fundAmount || pin.length !== 5} className="rounded-full h-12 font-black uppercase text-[10px] px-10">Confirm & Pay</AlertDialogAction>
+            <AlertDialogFooter className="pt-4">
+                <AlertDialogCancel className="rounded-full h-10 font-black uppercase text-[9px]">Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => { if(!isFeatOn('feat_refund')) { toast({ variant:'destructive', title:'Off', description:'Disabled'}); return; } handleActionClick('feat_refund', undefined, handleFundWithToken); }} disabled={isProcessing || !fundAmount || pin.length !== 5} className="rounded-full h-10 font-black uppercase text-[9px] px-8">Confirm & Pay</AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -265,7 +265,7 @@ function DashboardContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>}>
+    <Suspense fallback={<div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>}>
       <DashboardContent />
     </Suspense>
   )
