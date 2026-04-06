@@ -34,6 +34,7 @@ import {
   Tv,
   Lightbulb,
   Bot,
+  Megaphone,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
@@ -94,7 +95,6 @@ function DashboardContent() {
   const handleRefresh = async () => {
     if (!user?.uid) return;
     setIsProcessing(true);
-    toast({ title: 'Processing...', description: `Checking for new transactions...` });
     try {
       const result = await syncVirtualAccountPayments(user.uid, user.email);
       if (result.success) {
@@ -115,7 +115,7 @@ function DashboardContent() {
   };
 
   const handleFundAccountClick = async () => {
-    if (!user || !userProfile) return;
+    if (!user) return;
     router.push('/dashboard/deposit');
   };
 
@@ -164,19 +164,30 @@ function DashboardContent() {
   ];
 
   return (
-    <div className="container py-8">
+    <div className="container py-8 space-y-6">
+      {/* Ads Control Slot */}
+      <div className="w-full bg-primary/10 border-2 border-primary/20 rounded-[2rem] p-4 relative overflow-hidden group">
+        <div className="flex items-center gap-3 animate-pulse">
+            <Megaphone className="h-5 w-5 text-primary shrink-0" />
+            <p className="text-[10px] font-black uppercase tracking-widest text-primary truncate">
+                Ads Control: New Features launching this Friday! Stay tuned.
+            </p>
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+      </div>
+
       <div className="space-y-6">
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between">
-            <CardTitle>Account Details</CardTitle>
-            <Button variant="outline" size="sm" onClick={handleFundAccountClick} disabled={isProcessing}>
+        <Card className="rounded-[2.5rem] shadow-xl border-none bg-gradient-to-br from-white to-muted/20">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-xl font-black uppercase tracking-tighter">My Wallet</CardTitle>
+            <Button variant="outline" size="sm" onClick={handleFundAccountClick} disabled={isProcessing} className="rounded-full h-10 px-6 border-primary text-primary hover:bg-primary hover:text-white font-bold transition-all">
               {isProcessing && !isFundDialogOpen ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CircleDollarSign className="mr-2 h-4 w-4" />}
-              Fund Account
+              Fund
             </Button>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6 pb-8">
             <div className="space-y-1 min-h-[60px]">
-              <p className="text-sm text-muted-foreground">Account Number</p>
+              <p className="text-[10px] font-black uppercase opacity-50 tracking-widest">Account Number</p>
               {isLoading ? (
                 <div className="space-y-2 pt-1">
                   <Skeleton className="h-6 w-48" />
@@ -184,38 +195,38 @@ function DashboardContent() {
                 </div>
               ) : userProfile && userProfile.accountNumber ? (
                 <div>
-                  <p className="font-mono text-lg font-semibold">{userProfile.accountNumber}</p>
-                  <p className="text-xs text-muted-foreground font-semibold">{userProfile.bankName}</p>
+                  <p className="font-black text-2xl tracking-tighter">{userProfile.accountNumber}</p>
+                  <p className="text-[10px] text-primary font-black uppercase">{userProfile.bankName}</p>
                 </div>
               ) : (
-                <Button asChild className="mt-1">
+                <Button asChild className="mt-1 rounded-full font-black uppercase text-[10px] tracking-widest">
                   <Link href="/dashboard/get-account-number">Get Account Number</Link>
                 </Button>
               )}
             </div>
 
             <div>
-              <p className="text-sm text-muted-foreground">Naira Balance</p>
+              <p className="text-[10px] font-black uppercase opacity-50 tracking-widest">Available Balance</p>
               {isLoading ? (
-                <Skeleton className="h-8 w-40 mt-1" />
+                <Skeleton className="h-10 w-40 mt-1" />
               ) : (
-                <p className="text-2xl font-bold">₦{userProfile?.nairaBalance?.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</p>
+                <p className="text-4xl font-black tracking-tighter text-foreground">₦{userProfile?.nairaBalance?.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</p>
               )}
             </div>
             
-            <div className="grid grid-cols-2 gap-4 pt-2">
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t">
               <div>
-                  <p className="text-sm text-muted-foreground">Reward Balance</p>
-                   {isLoading ? <Skeleton className="h-6 w-20 mt-1" /> : <p className="font-semibold">{userProfile?.rewardBalance?.toLocaleString() || '0'}</p>}
+                  <p className="text-[9px] font-black uppercase opacity-50 tracking-widest">Rewards</p>
+                   {isLoading ? <Skeleton className="h-6 w-20 mt-1" /> : <p className="font-black text-lg text-orange-500">{userProfile?.rewardBalance?.toLocaleString() || '0'}</p>}
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Click Count</p>
+                <p className="text-[9px] font-black uppercase opacity-50 tracking-widest">Clicks</p>
                  {isLoading ? <Skeleton className="h-6 w-16 mt-1" /> : (
                     <div className="flex items-center gap-2">
-                    <p className="font-semibold">{userProfile?.clickCount?.toLocaleString() || 0}</p>
+                    <p className="font-black text-lg text-blue-500">{userProfile?.clickCount?.toLocaleString() || 0}</p>
                     {userProfile?.accountNumber && (
-                        <Button onClick={() => handleActionClick('feat_get_reward', '/dashboard/rewards')} size="sm" className="h-auto px-2 py-1 text-xs">
-                        Get Reward
+                        <Button onClick={() => handleActionClick('feat_get_reward', '/dashboard/rewards')} size="sm" className="h-6 px-2 text-[8px] font-black uppercase rounded-full">
+                        Claim
                         </Button>
                     )}
                     </div>
@@ -225,38 +236,39 @@ function DashboardContent() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-3 md:grid-cols-4 gap-y-8 gap-x-4 text-center">
+        <div className="grid grid-cols-3 md:grid-cols-4 gap-y-10 gap-x-4 text-center pb-10">
           {actions.map((action) => (
-             <div key={action.label} className="flex flex-col items-center gap-1 cursor-pointer" onClick={() => handleActionClick(action.key, action.href, action.onClick)}>
-                <Button
-                    variant="default"
-                    size="icon"
-                    className={cn("h-12 w-12 rounded-full mx-auto flex items-center justify-center transition-all active:scale-90 shadow-md", !isFeatOn(action.key) && "opacity-50 grayscale", action.label === 'Sofia AI' && "bg-primary shadow-[0_0_15px_rgba(2,132,199,0.5)]")}
-                    disabled={isProcessing}
+             <div key={action.label} className="flex flex-col items-center gap-1 cursor-pointer group" onClick={() => handleActionClick(action.key, action.href, action.onClick)}>
+                <div
+                    className={cn(
+                        "h-16 w-16 rounded-[1.5rem] mx-auto flex items-center justify-center transition-all active:scale-90 shadow-lg border-2 border-transparent group-hover:border-primary/20",
+                        !isFeatOn(action.key) && "opacity-50 grayscale",
+                        action.label === 'Sofia AI' ? "bg-primary text-white shadow-[0_10px_20px_rgba(2,132,199,0.3)]" : "bg-white text-foreground"
+                    )}
                 >
-                    {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-5 w-5 animate-spin" /> : <action.icon className="h-5 w-5" />}
-                </Button>
-                <span className="mt-2 block text-[10px] font-bold tracking-tight text-foreground/80 leading-tight normal-case">{action.label}</span>
+                    {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-6 w-6 animate-spin text-primary" /> : <action.icon className="h-7 w-7" />}
+                </div>
+                <span className="mt-3 block text-[10px] font-black tracking-widest uppercase text-foreground/70">{action.label}</span>
             </div>
           ))}
         </div>
       </div>
       <AlertDialog open={isFundDialogOpen} onOpenChange={setIsFundDialogOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader><AlertDialogTitle>Fund Your Account</AlertDialogTitle></AlertDialogHeader>
-            <div className="space-y-4">
+        <AlertDialogContent className="rounded-[2.5rem] p-8 border-none shadow-2xl">
+            <AlertDialogHeader><AlertDialogTitle className="text-2xl font-black uppercase tracking-tighter">Fast Funding</AlertDialogTitle></AlertDialogHeader>
+            <div className="space-y-6 pt-4">
                 <div className="space-y-2">
-                    <Label htmlFor="fund-amount">Amount to Add (₦)</Label>
-                    <Input id="fund-amount" type="number" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)} />
+                    <Label className="font-black uppercase text-[10px] opacity-50">Amount (₦)</Label>
+                    <Input id="fund-amount" type="number" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)} className="h-14 rounded-2xl bg-muted border-none font-black text-lg" />
                 </div>
                  <div className="space-y-2">
-                    <Label htmlFor="fund-pin">5-Digit PIN</Label>
-                    <Input id="fund-pin" type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} />
+                    <Label className="font-black uppercase text-[10px] opacity-50">Confirm 5-Digit PIN</Label>
+                    <Input id="fund-pin" type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} className="h-14 rounded-2xl bg-muted border-none text-center font-black text-xl tracking-[1rem]" />
                 </div>
             </div>
-            <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => { if(!isFeatOn('feat_refund')) { toast({ variant:'destructive', title:'Off', description:'Disabled'}); return; } handleActionClick('feat_refund', undefined, handleFundWithToken); }} disabled={isProcessing || !fundAmount || pin.length !== 5}>Confirm & Pay</AlertDialogAction>
+            <AlertDialogFooter className="pt-6">
+                <AlertDialogCancel className="rounded-full h-12 font-black uppercase text-[10px]">Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => { if(!isFeatOn('feat_refund')) { toast({ variant:'destructive', title:'Off', description:'Disabled'}); return; } handleActionClick('feat_refund', undefined, handleFundWithToken); }} disabled={isProcessing || !fundAmount || pin.length !== 5} className="rounded-full h-12 font-black uppercase text-[10px] px-10">Confirm & Pay</AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -266,7 +278,7 @@ function DashboardContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>}>
       <DashboardContent />
     </Suspense>
   )

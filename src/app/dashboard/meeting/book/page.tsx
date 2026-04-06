@@ -1,10 +1,10 @@
+
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
-import { ArrowLeft, Upload, Users, Shield, Globe, Info, Loader2, ImageIcon } from 'lucide-react';
+import { ArrowLeft, Users, Globe, Loader2, Video, Copy, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,42 +13,95 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useUser } from '@/hooks/use-appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, ID } from '@/lib/appwrite';
 
 export default function BookMeetingPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user } = useUser();
 
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     type: 'personal',
-    wallUrl: null as string | null,
   });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [createdLink, setCreatedLink] = useState<string | null>(null);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setFormData({ ...formData, wallUrl: ev.target?.result as string });
-      reader.readAsDataURL(e.target.files[0]);
-    }
-  };
-
-  const handleConfirmBooking = () => {
-    if (!formData.name || !formData.wallUrl) {
-      toast({ variant: 'destructive', title: 'Missing Info', description: 'Please provide a name and meeting wall image.' });
+  const handleCreateMeeting = async () => {
+    if (!formData.name || !user) {
+      toast({ variant: 'destructive', title: 'Missing Info', description: 'Please provide a name for your meeting.' });
       return;
     }
     
     setIsProcessing(true);
-    // Store temporarily in session for next step
-    sessionStorage.setItem('pendingMeeting', JSON.stringify(formData));
-    
-    setTimeout(() => {
-        router.push('/dashboard/meeting/book/schedule');
-    }, 1000);
+    try {
+        const meetingId = ID.unique();
+        const meetingLink = `${window.location.origin}/dashboard/meeting/join/${meetingId}`;
+        
+        const payload = {
+            hostId: user.$id,
+            name: formData.name,
+            description: formData.description,
+            type: formData.type,
+            status: 'pending', // 'pending' means waiting for host to open room
+            meetingLink: meetingLink,
+            boardContent: '',
+            createdAt: new Date().toISOString()
+        };
+
+        await databases.createDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, payload);
+        
+        setCreatedLink(meetingLink);
+        toast({ title: 'Meeting Link Generated!' });
+    } catch (e: any) {
+        toast({ variant: 'destructive', title: 'Error', description: e.message });
+    } finally {
+        setIsProcessing(false);
+    }
   };
+
+  const copyLink = () => {
+    if (createdLink) {
+        navigator.clipboard.writeText(createdLink);
+        toast({ title: 'Link copied to clipboard!' });
+    }
+  };
+
+  if (createdLink) {
+      return (
+        <div className="container py-8 max-w-lg">
+            <Card className="rounded-[3rem] shadow-2xl border-none p-10 text-center relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-2 bg-primary"></div>
+                <div className="bg-green-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <CheckCircle2 className="h-12 w-12 text-green-600" />
+                </div>
+                <CardHeader>
+                    <CardTitle className="text-3xl font-black uppercase tracking-tighter">Ready to Share</CardTitle>
+                    <CardDescription className="font-bold">Anyone with this link can join your lobby.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6 mt-4">
+                    <div className="p-4 rounded-2xl bg-muted/50 border flex items-center justify-between gap-4">
+                        <p className="text-[10px] font-mono truncate text-left flex-1">{createdLink}</p>
+                        <Button size="icon" variant="ghost" onClick={copyLink} className="shrink-0 rounded-full h-10 w-10"><Copy className="h-4 w-4" /></Button>
+                    </div>
+                    <p className="text-[10px] font-bold text-muted-foreground leading-relaxed italic">
+                        "As the admin, you must enter the room first to see join requests and approve participants."
+                    </p>
+                </CardContent>
+                <CardFooter className="flex flex-col gap-3">
+                    <Button asChild className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-xl">
+                        <Link href={`/dashboard/meeting/room/${createdLink.split('/').pop()}`}>Enter Meeting Now</Link>
+                    </Button>
+                    <Button asChild variant="ghost" className="font-black uppercase text-[10px]">
+                        <Link href="/dashboard/meeting">Back to Hub</Link>
+                    </Button>
+                </CardFooter>
+            </Card>
+        </div>
+      );
+  }
 
   return (
     <div className="container py-8 max-w-2xl">
@@ -58,14 +111,14 @@ export default function BookMeetingPage() {
 
       <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
         <CardHeader className="bg-primary/5 pb-8">
-          <CardTitle className="text-2xl font-black uppercase tracking-tighter text-center">Book a Meeting</CardTitle>
-          <CardDescription className="text-center font-bold">Step 1: Meeting Identity</CardDescription>
+          <CardTitle className="text-2xl font-black uppercase tracking-tighter text-center">Create Meeting Link</CardTitle>
+          <CardDescription className="text-center font-bold">Instant access, no scheduling required.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-8">
           <div className="space-y-2">
             <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Meeting Name</Label>
             <Input 
-              placeholder="e.g., Weekly Business Strategy" 
+              placeholder="e.g., Team Sync" 
               className="h-12 rounded-2xl bg-muted/50 border-none px-4 font-bold"
               value={formData.name}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
@@ -73,36 +126,11 @@ export default function BookMeetingPage() {
           </div>
 
           <div className="space-y-2">
-            <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Meeting Wall (Image)</Label>
-            <div 
-              className="h-48 rounded-[2rem] bg-muted/30 border-2 border-dashed border-muted flex flex-col items-center justify-center cursor-pointer overflow-hidden group relative transition-all hover:bg-muted/50"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {formData.wallUrl ? (
-                <>
-                  <Image src={formData.wallUrl} alt="Wall" fill className="object-cover" />
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <p className="text-white font-black text-xs uppercase">Change Image</p>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center">
-                  <div className="bg-primary/10 p-4 rounded-full mb-3 inline-block">
-                    <ImageIcon className="h-8 w-8 text-primary" />
-                  </div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Select from device</p>
-                </div>
-              )}
-            </div>
-            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageChange} />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Description</Label>
+            <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Description (Optional)</Label>
             <Textarea 
               placeholder="What is this meeting about?" 
               className="rounded-2xl bg-muted/50 border-none p-4"
-              rows={4}
+              rows={3}
               value={formData.description}
               onChange={e => setFormData({ ...formData, description: e.target.value })}
             />
@@ -120,7 +148,7 @@ export default function BookMeetingPage() {
                   <RadioGroupItem value="personal" id="personal" className="sr-only" />
                 </div>
                 <p className="font-black text-xs uppercase tracking-tighter">Personal</p>
-                <p className="text-[9px] leading-tight text-muted-foreground font-bold">5 People • 1 Hour • Free Booking</p>
+                <p className="text-[9px] leading-tight text-muted-foreground font-bold">Max 5 People • 1 Hour Limit</p>
               </div>
 
               <div className={cn(
@@ -132,14 +160,14 @@ export default function BookMeetingPage() {
                   <RadioGroupItem value="general" id="general" className="sr-only" />
                 </div>
                 <p className="font-black text-xs uppercase tracking-tighter">General</p>
-                <p className="text-[9px] leading-tight text-muted-foreground font-bold">Unlimited • 3 Hours • Small Fee</p>
+                <p className="text-[9px] leading-tight text-muted-foreground font-bold">Unlimited People • 3 Hour Limit</p>
               </div>
             </RadioGroup>
           </div>
         </CardContent>
         <CardFooter className="p-8 bg-muted/30">
-          <Button onClick={handleConfirmBooking} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-xl" disabled={isProcessing}>
-            {isProcessing ? <Loader2 className="animate-spin" /> : "Confirm Booking"}
+          <Button onClick={handleCreateMeeting} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-xl" disabled={isProcessing}>
+            {isProcessing ? <Loader2 className="animate-spin" /> : <><Video className="mr-2 h-5 w-5" /> Generate Direct Link</>}
           </Button>
         </CardFooter>
       </Card>

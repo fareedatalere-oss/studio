@@ -48,6 +48,7 @@ export const COLLECTION_ID_UPWORK_PROFILES = 'upworkProfiles';
 export const COLLECTION_ID_APP_CONFIG = 'app_config';
 export const COLLECTION_ID_NOTIFICATIONS = 'notifications';
 export const COLLECTION_ID_MEETINGS = 'meetings';
+export const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
 export const MEETING_BOT_ID = 'ipay_meeting_system';
 
@@ -171,7 +172,9 @@ export const client = {
         const collId = parts[3];
         const docId = parts[5];
         if (docId) {
-            return onSnapshot(doc(db, collId, docId), snap => snap.exists() && callback({ payload: mapDoc(snap), events: ['update'] }));
+            return onSnapshot(doc(db, collId, docId), snap => {
+                if (snap.exists()) callback({ payload: mapDoc(snap), events: ['update'] });
+            });
         } else {
             return onSnapshot(collection(db, collId), snap => {
                 snap.docChanges().forEach(change => {
