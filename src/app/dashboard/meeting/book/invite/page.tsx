@@ -7,8 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, Query } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 

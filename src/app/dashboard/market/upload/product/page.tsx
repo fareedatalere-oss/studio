@@ -12,8 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_PRODUCTS, getAppwriteStorageUrl } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_PRODUCTS, getAppwriteStorageUrl, ID } from '@/lib/appwrite';
 
 export default function UploadProductPage() {
     const { toast } = useToast();
@@ -121,7 +120,7 @@ export default function UploadProductPage() {
                                     </div>
                                 )}
                             </div>
-                            <Button type="button" variant="outline" onClick={() => productImageInputRef.current?.click()}>Choose Image</Button>
+                            <Button type="button" variant="outline" onClick={() => productImageInputRef.current?.click()} size="sm">Choose Image</Button>
                         </div>
                         <Input id="productIcon" type="file" className="hidden" ref={productImageInputRef} onChange={handleImageChange} accept="image/png, image/jpeg, image/webp" required/>
                     </div>
@@ -142,7 +141,7 @@ export default function UploadProductPage() {
                         <p className="text-xs text-muted-foreground">An ₦80 service fee will be added to the final price for the buyer.</p>
                     </div>
 
-                    <Button type="submit" className="w-full" disabled={isLoading}>
+                    <Button type="submit" className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-lg" disabled={isLoading} size="sm">
                         {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Posting Product...</> : "Post Product"}
                     </Button>
                 </form>

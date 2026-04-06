@@ -1,15 +1,13 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, Clipboard, CheckCircle2, ShieldCheck, XCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Clipboard, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_MEETINGS, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, MEETING_BOT_ID, getAppwriteStorageUrl } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_MEETINGS, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, MEETING_BOT_ID, getAppwriteStorageUrl, ID } from '@/lib/appwrite';
 import { useUser } from '@/hooks/use-appwrite';
 
 const getChatId = (userId1: string, userId2: string) => {
@@ -70,10 +68,10 @@ export default function MeetingConfirmPage() {
         description: meetingData.description,
         type: meetingData.type,
         wallUrl: finalWallUrl,
-        date: meetingData.date,
-        time: meetingData.time,
-        rules: JSON.stringify(meetingData.rules),
-        inviteMethod: meetingData.inviteMethod,
+        date: meetingData.date || new Date().toISOString().split('T')[0],
+        time: meetingData.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        rules: JSON.stringify(meetingData.rules || {}),
+        inviteMethod: meetingData.inviteMethod || 'link',
         invitees: meetingData.invitedUsers || [],
         meetingLink: meetingLink,
         status: 'pending'
@@ -91,46 +89,6 @@ export default function MeetingConfirmPage() {
         link: `/dashboard/meeting/room/${meetingId}`,
         createdAt: new Date().toISOString()
       });
-
-      if (meetingData.inviteMethod === 'list' && meetingData.invitedUsers?.length > 0) {
-        for (const inviteeId of meetingData.invitedUsers) {
-          await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
-            userId: inviteeId,
-            senderId: user.$id,
-            type: 'social',
-            description: `invited you to meeting: "${meetingData.name}" on ${meetingData.date} at ${meetingData.time}.`,
-            isRead: false,
-            link: `/dashboard/meeting/enter?id=${meetingId}`,
-            createdAt: new Date().toISOString()
-          });
-
-          const inviteeChatId = getChatId(inviteeId, MEETING_BOT_ID);
-          const inviteeBotMsg = `Hello! You have a new meeting invitation.\n\nMeeting: ${meetingData.name}\nHost: @${user.name}\nDate: ${meetingData.date}\nTime: ${meetingData.time}\n\nJoin here: ${meetingLink}`;
-          
-          try {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, inviteeChatId, {
-                participants: [inviteeId, MEETING_BOT_ID],
-                lastMessage: `Invitation: ${meetingData.name}`,
-                lastMessageAt: new Date().toISOString()
-            });
-          } catch (e: any) {
-            if (e.code === 404) {
-                await databases.createDocument(DATABASE_ID, COLLECTION_ID_CHATS, inviteeChatId, {
-                    participants: [inviteeId, MEETING_BOT_ID],
-                    lastMessage: `Invitation: ${meetingData.name}`,
-                    lastMessageAt: new Date().toISOString()
-                });
-            }
-          }
-
-          await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
-            chatId: inviteeChatId,
-            senderId: MEETING_BOT_ID,
-            text: inviteeBotMsg,
-            status: 'sent'
-          });
-        }
-      }
 
       setConfirmedId(meetingId);
       sessionStorage.removeItem('pendingMeeting');
@@ -189,10 +147,6 @@ export default function MeetingConfirmPage() {
         </CardHeader>
         <CardContent className="space-y-6 pt-8">
           <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-muted/30 rounded-2xl">
-              <p className="text-[10px] font-black uppercase opacity-50">Date & Time</p>
-              <p className="font-black text-sm">{meetingData?.date} @ {meetingData?.time}</p>
-            </div>
             <div className="p-4 bg-muted/30 rounded-2xl">
               <p className="text-[10px] font-black uppercase opacity-50">Scope</p>
               <p className="font-black text-sm uppercase">{meetingData?.type}</p>

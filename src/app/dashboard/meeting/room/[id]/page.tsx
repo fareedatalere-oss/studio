@@ -1,17 +1,15 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { 
-    Mic, Video as VideoIcon, PhoneOff, Settings, 
-    Loader2, Camera, ImageIcon, 
-    StopCircle, UserX, X, MessageSquare, Monitor, Eraser, Send,
+    PhoneOff, Loader2, Camera, 
+    X, Monitor, Eraser, Send,
     Clock, Check, UserMinus, ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, Query, ID } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
@@ -19,7 +17,6 @@ import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import Link from 'next/link';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
@@ -38,14 +35,12 @@ export default function MeetingRoomPage() {
     // UI States
     const [participants, setParticipants] = useState<any[]>([]);
     const [joinRequests, setJoinRequests] = useState<any[]>([]);
-    const [viewingUser, setViewingUser] = useState<any>(null);
     const [isBoardOpen, setIsBoardOpen] = useState(false);
     const [boardDraft, setBoardContent] = useState('');
     
     // Presence & Media States
     const [useCamera, setUseCamera] = useState(true);
     const videoRef = useRef<HTMLVideoElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const fetchMeeting = useCallback(async () => {
         try {
@@ -196,7 +191,7 @@ export default function MeetingRoomPage() {
                 <Card className="max-w-md w-full rounded-[3rem] overflow-hidden shadow-2xl border-none">
                     <CardHeader className="bg-primary/5 pt-10 pb-6">
                         <div className="mx-auto h-20 w-20 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                            <VideoIcon className="h-10 w-10 text-primary" />
+                            <Monitor className="h-10 w-10 text-primary" />
                         </div>
                         <CardTitle className="text-3xl font-black uppercase tracking-tighter">{meeting?.name}</CardTitle>
                         <CardDescription className="font-bold text-sm">{meeting?.description}</CardDescription>
@@ -212,7 +207,7 @@ export default function MeetingRoomPage() {
                                 <span>{meeting?.type === 'personal' ? 'Up to 5' : 'Unlimited'}</span>
                             </div>
                         </div>
-                        <Button onClick={startSession} className="w-full h-16 rounded-full font-black uppercase tracking-widest text-lg shadow-xl">
+                        <Button onClick={startSession} className="w-full h-16 rounded-full font-black uppercase tracking-widest text-lg shadow-xl" size="sm">
                             {meeting?.hostId === user?.$id ? 'Start Session' : 'Enter Lobby'}
                         </Button>
                     </CardContent>
@@ -223,7 +218,6 @@ export default function MeetingRoomPage() {
 
     return (
         <div className="h-screen w-full relative overflow-hidden bg-black flex flex-col font-body">
-            {/* Header */}
             <header className="relative z-20 p-4 bg-black/60 backdrop-blur-md border-b border-white/10 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <div className="bg-red-500 h-2.5 w-2.5 rounded-full animate-pulse shadow-[0_0_10px_red]"></div>
@@ -238,14 +232,13 @@ export default function MeetingRoomPage() {
                 </div>
             </header>
 
-            {/* Main Stage - Icons Style */}
             <main className="flex-1 relative z-10 p-6 overflow-y-auto">
                 <div className="flex flex-wrap justify-center items-center gap-8 max-w-4xl mx-auto h-full content-center">
                     {participants.map((p) => (
                         <div key={p.$id} className="flex flex-col items-center gap-2 group">
                             <div className="relative">
                                 <Avatar className={cn(
-                                    "h-24 w-24 border-4 p-1 shadow-2xl transition-transform hover:scale-110",
+                                    "h-16 w-16 border-4 p-1 shadow-2xl transition-transform hover:scale-110",
                                     p.isHost ? "border-yellow-500" : "border-primary/40"
                                 )}>
                                     <AvatarImage src={p.avatar} />
@@ -263,7 +256,6 @@ export default function MeetingRoomPage() {
                 </div>
             </main>
 
-            {/* Host Approval Strip */}
             {meeting?.hostId === user?.$id && joinRequests.length > 0 && (
                 <div className="absolute bottom-24 left-4 right-4 z-30 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-4 flex items-center justify-between shadow-2xl animate-in slide-in-from-bottom-10">
                     <div className="flex items-center gap-3">
@@ -283,7 +275,6 @@ export default function MeetingRoomPage() {
                 </div>
             )}
 
-            {/* Footer */}
             <footer className="relative z-20 p-6 bg-gradient-to-t from-black to-transparent flex items-center justify-center gap-6">
                 <Dialog open={isBoardOpen} onOpenChange={setIsBoardOpen}>
                     <DialogTrigger asChild>

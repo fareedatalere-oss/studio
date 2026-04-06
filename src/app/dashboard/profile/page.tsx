@@ -10,9 +10,7 @@ import { LogOut, PenSquare, Settings, Headset, Loader2, Megaphone } from 'lucide
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
-import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
-import { ID } from 'appwrite';
-
+import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl, ID } from '@/lib/appwrite';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -89,7 +87,7 @@ export default function ProfilePage() {
 
   return (
     <div className="container py-8 space-y-6">
-      {/* Ads Control Relocated Here */}
+      {/* Ads Control Header */}
       <div className="w-full bg-primary/10 border-2 border-primary/20 rounded-[1.5rem] p-3 relative overflow-hidden group">
         <div className="flex items-center gap-3 animate-pulse">
             <Megaphone className="h-4 w-4 text-primary shrink-0" />
@@ -151,7 +149,7 @@ export default function ProfilePage() {
                 </Link>
             </Button>
           ))}
-          <Button onClick={handleLogout} className="w-full justify-start gap-3 h-10 rounded-xl font-black uppercase text-[10px] tracking-widest mt-4" variant="destructive">
+          <Button onClick={handleLogout} className="w-full justify-start gap-3 h-10 rounded-xl font-black uppercase text-[10px] tracking-widest mt-4" variant="destructive" size="sm">
               <LogOut className="h-4 w-4" />
               <span>Log Out</span>
             </Button>
