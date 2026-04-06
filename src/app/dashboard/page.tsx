@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Suspense, useEffect, useState, useRef } from 'react';
@@ -34,7 +33,6 @@ import {
   Tv,
   Lightbulb,
   Bot,
-  Megaphone,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
@@ -159,73 +157,62 @@ function DashboardContent() {
     { key: 'feat_get_reward', label: 'Rewards', icon: Gift, href: '/dashboard/rewards' },
     { key: 'feat_cable', label: 'Cable TV', icon: Tv, href: '/dashboard/cable-payment' },
     { key: 'feat_electric', label: 'Electricity', icon: Lightbulb, href: '/dashboard/electric-bill' },
-    { key: 'feat_multipurpose', label: 'Multi-Purpose', icon: CreditCard, href: '/dashboard/multi-purpose' },
+    { key: 'feat_multipurpose', label: 'Multi-Pay', icon: CreditCard, href: '/dashboard/multi-purpose' },
     { key: 'feat_refund', label: 'Refund', icon: Undo2, onClick: handleFundAccountClick },
   ];
 
   return (
     <div className="container py-8 space-y-6">
-      {/* Ads Control Slot */}
-      <div className="w-full bg-primary/10 border-2 border-primary/20 rounded-[2rem] p-4 relative overflow-hidden group">
-        <div className="flex items-center gap-3 animate-pulse">
-            <Megaphone className="h-5 w-5 text-primary shrink-0" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-primary truncate">
-                Ads Control: New Features launching this Friday! Stay tuned.
-            </p>
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-      </div>
-
       <div className="space-y-6">
-        <Card className="rounded-[2.5rem] shadow-xl border-none bg-gradient-to-br from-white to-muted/20">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-xl font-black uppercase tracking-tighter">My Wallet</CardTitle>
-            <Button variant="outline" size="sm" onClick={handleFundAccountClick} disabled={isProcessing} className="rounded-full h-10 px-6 border-primary text-primary hover:bg-primary hover:text-white font-bold transition-all">
-              {isProcessing && !isFundDialogOpen ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CircleDollarSign className="mr-2 h-4 w-4" />}
+        <Card className="rounded-[2.5rem] shadow-xl border-none bg-gradient-to-br from-white to-muted/20 overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between pb-4">
+            <CardTitle className="text-lg font-black uppercase tracking-tighter">My Wallet</CardTitle>
+            <Button variant="outline" size="sm" onClick={handleFundAccountClick} disabled={isProcessing} className="rounded-full h-8 px-4 border-primary text-primary hover:bg-primary hover:text-white font-black text-[10px] uppercase transition-all">
+              {isProcessing && !isFundDialogOpen ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <CircleDollarSign className="mr-2 h-3 w-3" />}
               Fund
             </Button>
           </CardHeader>
-          <CardContent className="space-y-6 pb-8">
-            <div className="space-y-1 min-h-[60px]">
-              <p className="text-[10px] font-black uppercase opacity-50 tracking-widest">Account Number</p>
+          <CardContent className="space-y-4 pb-8">
+            <div className="space-y-1 min-h-[50px]">
+              <p className="text-[9px] font-black uppercase opacity-50 tracking-widest">Account Number</p>
               {isLoading ? (
                 <div className="space-y-2 pt-1">
-                  <Skeleton className="h-6 w-48" />
-                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-3 w-24" />
                 </div>
               ) : userProfile && userProfile.accountNumber ? (
                 <div>
-                  <p className="font-black text-2xl tracking-tighter">{userProfile.accountNumber}</p>
-                  <p className="text-[10px] text-primary font-black uppercase">{userProfile.bankName}</p>
+                  <p className="font-black text-xl tracking-tighter">{userProfile.accountNumber}</p>
+                  <p className="text-[9px] text-primary font-black uppercase">{userProfile.bankName}</p>
                 </div>
               ) : (
-                <Button asChild className="mt-1 rounded-full font-black uppercase text-[10px] tracking-widest">
+                <Button asChild size="sm" className="mt-1 rounded-full font-black uppercase text-[9px] tracking-widest h-8">
                   <Link href="/dashboard/get-account-number">Get Account Number</Link>
                 </Button>
               )}
             </div>
 
             <div>
-              <p className="text-[10px] font-black uppercase opacity-50 tracking-widest">Available Balance</p>
+              <p className="text-[9px] font-black uppercase opacity-50 tracking-widest">Available Balance</p>
               {isLoading ? (
-                <Skeleton className="h-10 w-40 mt-1" />
+                <Skeleton className="h-8 w-32 mt-1" />
               ) : (
-                <p className="text-4xl font-black tracking-tighter text-foreground">₦{userProfile?.nairaBalance?.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</p>
+                <p className="text-3xl font-black tracking-tighter text-foreground">₦{userProfile?.nairaBalance?.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</p>
               )}
             </div>
             
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-dashed">
               <div>
-                  <p className="text-[9px] font-black uppercase opacity-50 tracking-widest">Rewards</p>
-                   {isLoading ? <Skeleton className="h-6 w-20 mt-1" /> : <p className="font-black text-lg text-orange-500">{userProfile?.rewardBalance?.toLocaleString() || '0'}</p>}
+                  <p className="text-[8px] font-black uppercase opacity-50 tracking-widest">Rewards</p>
+                   {isLoading ? <Skeleton className="h-5 w-16 mt-1" /> : <p className="font-black text-base text-orange-500">{userProfile?.rewardBalance?.toLocaleString() || '0'}</p>}
               </div>
               <div>
-                <p className="text-[9px] font-black uppercase opacity-50 tracking-widest">Clicks</p>
-                 {isLoading ? <Skeleton className="h-6 w-16 mt-1" /> : (
+                <p className="text-[8px] font-black uppercase opacity-50 tracking-widest">Clicks</p>
+                 {isLoading ? <Skeleton className="h-5 w-12 mt-1" /> : (
                     <div className="flex items-center gap-2">
-                    <p className="font-black text-lg text-blue-500">{userProfile?.clickCount?.toLocaleString() || 0}</p>
+                    <p className="font-black text-base text-blue-500">{userProfile?.clickCount?.toLocaleString() || 0}</p>
                     {userProfile?.accountNumber && (
-                        <Button onClick={() => handleActionClick('feat_get_reward', '/dashboard/rewards')} size="sm" className="h-6 px-2 text-[8px] font-black uppercase rounded-full">
+                        <Button onClick={() => handleActionClick('feat_get_reward', '/dashboard/rewards')} size="sm" className="h-5 px-2 text-[7px] font-black uppercase rounded-full">
                         Claim
                         </Button>
                     )}
@@ -236,19 +223,19 @@ function DashboardContent() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-3 md:grid-cols-4 gap-y-10 gap-x-4 text-center pb-10">
+        <div className="grid grid-cols-3 md:grid-cols-4 gap-y-8 gap-x-4 text-center pb-10">
           {actions.map((action) => (
              <div key={action.label} className="flex flex-col items-center gap-1 cursor-pointer group" onClick={() => handleActionClick(action.key, action.href, action.onClick)}>
                 <div
                     className={cn(
-                        "h-16 w-16 rounded-[1.5rem] mx-auto flex items-center justify-center transition-all active:scale-90 shadow-lg border-2 border-transparent group-hover:border-primary/20",
+                        "h-12 w-12 rounded-xl mx-auto flex items-center justify-center transition-all active:scale-90 shadow-md border-2 border-transparent group-hover:border-primary/20",
                         !isFeatOn(action.key) && "opacity-50 grayscale",
-                        action.label === 'Sofia AI' ? "bg-primary text-white shadow-[0_10px_20px_rgba(2,132,199,0.3)]" : "bg-white text-foreground"
+                        action.label === 'Sofia AI' ? "bg-primary text-white shadow-lg" : "bg-white text-foreground"
                     )}
                 >
-                    {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-6 w-6 animate-spin text-primary" /> : <action.icon className="h-7 w-7" />}
+                    {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : <action.icon className="h-5 w-5" />}
                 </div>
-                <span className="mt-3 block text-[10px] font-black tracking-widest uppercase text-foreground/70">{action.label}</span>
+                <span className="mt-2 block text-[9px] font-black tracking-widest uppercase text-foreground/70">{action.label}</span>
             </div>
           ))}
         </div>

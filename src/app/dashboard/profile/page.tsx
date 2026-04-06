@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { LogOut, PenSquare, Settings, Headset, Loader2 } from 'lucide-react';
+import { LogOut, PenSquare, Settings, Headset, Loader2, Megaphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -29,8 +29,6 @@ export default function ProfilePage() {
         setProfileLoading(false);
     } else if (!userLoading) {
         setProfileLoading(false);
-        // If we have an authenticated user but no profile document, they must finish setup.
-        // This prevents the "@New User" fake account appearance.
         if (authUser && !userProfileFromHook) {
             router.replace('/auth/signup/profile');
         }
@@ -66,12 +64,10 @@ export default function ProfilePage() {
 
   const handleLogout = async () => {
     try {
-        // Attempt to delete session, but ignore error if session is already gone
         await account.deleteSession('current').catch(() => {});
         toast({ title: 'Logged Out', description: 'You have been successfully logged out.' });
         router.push('/auth/signin');
     } catch (error) {
-        // Force redirect even on critical error
         router.push('/auth/signin');
     }
   };
@@ -92,17 +88,28 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="container py-8">
+    <div className="container py-8 space-y-6">
+      {/* Ads Control Relocated Here */}
+      <div className="w-full bg-primary/10 border-2 border-primary/20 rounded-[1.5rem] p-3 relative overflow-hidden group">
+        <div className="flex items-center gap-3 animate-pulse">
+            <Megaphone className="h-4 w-4 text-primary shrink-0" />
+            <p className="text-[9px] font-black uppercase tracking-widest text-primary truncate">
+                Ads Control: New Features launching this Friday! Stay tuned.
+            </p>
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+      </div>
+
       <div className="flex flex-col items-center space-y-4">
         <div className="relative">
-            <Avatar className="h-24 w-24 border-2 border-primary">
+            <Avatar className="h-20 w-20 border-2 border-primary shadow-lg">
                 <AvatarImage src={userProfile?.avatar} alt={userProfile?.username} />
                 <AvatarFallback>
                     {isLoading ? <Skeleton className="h-full w-full rounded-full" /> : (userProfile?.username?.charAt(0).toUpperCase() || authUser?.email?.charAt(0).toUpperCase() || 'U')}
                 </AvatarFallback>
             </Avatar>
-            <Button size="icon" className="absolute bottom-0 right-0 rounded-full h-8 w-8" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-                <PenSquare className="h-4 w-4" />
+            <Button size="icon" className="absolute bottom-0 right-0 rounded-full h-7 w-7" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                <PenSquare className="h-3 w-3" />
             </Button>
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} disabled={isUploading} />
         </div>
@@ -110,45 +117,42 @@ export default function ProfilePage() {
         <div className="text-center">
             {isLoading ? (
                 <div className='space-y-2'>
-                    <Skeleton className="h-8 w-32 mx-auto" />
-                    <Skeleton className="h-4 w-40 mx-auto" />
+                    <Skeleton className="h-6 w-32 mx-auto" />
+                    <Skeleton className="h-3 w-40 mx-auto" />
                 </div>
             ) : (
                 <>
-                    <h1 className="text-2xl font-bold">@{userProfile?.username || 'User'}</h1>
-                    <p className="text-sm text-muted-foreground">{authUser?.email}</p>
+                    <h1 className="text-xl font-black uppercase tracking-tighter">@{userProfile?.username || 'User'}</h1>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase">{authUser?.email}</p>
                 </>
             )}
         </div>
 
-        <Card className="w-full max-w-md">
+        <Card className="w-full max-w-md border-none shadow-sm rounded-2xl">
           <CardContent className="flex justify-around p-4 text-center">
             <Link href="/dashboard/profile/connections?tab=followers" className="flex-1">
-               {isLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : <p className="font-bold text-lg">{userProfile?.followers?.length || 0}</p>}
-              <p className="text-sm text-muted-foreground">Followers</p>
+               {isLoading ? <Skeleton className="h-6 w-8 mx-auto" /> : <p className="font-black text-base">{userProfile?.followers?.length || 0}</p>}
+              <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Followers</p>
             </Link>
+            <div className="w-px bg-muted h-8 my-auto"></div>
             <Link href="/dashboard/profile/connections?tab=following" className="flex-1">
-               {isLoading ? <Skeleton className="h-7 w-8 mx-auto" /> : <p className="font-bold text-lg">{userProfile?.following?.length || 0}</p>}
-              <p className="text-sm text-muted-foreground">Following</p>
+               {isLoading ? <Skeleton className="h-6 w-8 mx-auto" /> : <p className="font-black text-base">{userProfile?.following?.length || 0}</p>}
+              <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Following</p>
             </Link>
-            <div>
-              <p className="font-bold text-lg">0</p>
-              <p className="text-sm text-muted-foreground">Likes</p>
-            </div>
           </CardContent>
         </Card>
 
         <div className="w-full max-w-md space-y-2">
           {actions.map((action) => (
-            <Button asChild key={action.label} className="w-full justify-start gap-3">
+            <Button asChild key={action.label} size="sm" variant="outline" className="w-full justify-start gap-3 h-10 rounded-xl font-black uppercase text-[10px] tracking-widest">
                 <Link href={action.href}>
-                    <action.icon className="h-5 w-5" />
+                    <action.icon className="h-4 w-4 text-primary" />
                     <span>{action.label}</span>
                 </Link>
             </Button>
           ))}
-          <Button onClick={handleLogout} className="w-full justify-start gap-3" variant="destructive">
-              <LogOut className="h-5 w-5" />
+          <Button onClick={handleLogout} className="w-full justify-start gap-3 h-10 rounded-xl font-black uppercase text-[10px] tracking-widest mt-4" variant="destructive">
+              <LogOut className="h-4 w-4" />
               <span>Log Out</span>
             </Button>
         </div>
