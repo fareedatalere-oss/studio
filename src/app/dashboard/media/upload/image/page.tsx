@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Camera, Settings, UploadCloud } from 'lucide-react';
+import { ArrowLeft, Camera, Settings, UploadCloud, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_POSTS, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl, ID } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_POSTS, storage, BUCKET_ID_UPLOADS, ID } from '@/lib/appwrite';
 
 function dataURLtoFile(dataurl: string, filename: string): File {
     const arr = dataurl.split(',');
@@ -30,7 +31,6 @@ function dataURLtoFile(dataurl: string, filename: string): File {
     }
     return new File([u8arr], filename, { type: mime });
 }
-
 
 export default function UploadImagePage() {
   const { toast } = useToast();
@@ -114,7 +114,7 @@ export default function UploadImagePage() {
     try {
       const fileToUpload = dataURLtoFile(imageSrc, 'upload.png');
       const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), fileToUpload);
-      const mediaUrl = getAppwriteStorageUrl(uploadResult.$id);
+      const mediaUrl = uploadResult.url;
 
       const newPost = {
         userId: authUser.$id,
@@ -141,38 +141,44 @@ export default function UploadImagePage() {
   if (step === 2) {
     return (
       <div className="container py-8">
-        <Button onClick={() => { setStep(1); setImageSrc(null);}} variant="ghost" className="mb-4">
+        <Button onClick={() => { setStep(1); setImageSrc(null);}} variant="ghost" className="mb-4 font-black uppercase text-[10px]">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
-        <Card className="w-full max-w-lg mx-auto">
-          <CardHeader>
-            <CardTitle>Preview & Post</CardTitle>
-            <CardDescription>Add a description and adjust settings.</CardDescription>
+        <Card className="w-full max-w-lg mx-auto rounded-[2rem] shadow-xl overflow-hidden border-none">
+          <CardHeader className="bg-primary/5 pb-6">
+            <CardTitle className="text-xl font-black uppercase tracking-tighter text-center">Preview & Post</CardTitle>
+            <CardDescription className="text-center font-bold">Review your image before sharing</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6 pt-6">
             {imageSrc && (
-              <Image src={imageSrc} alt="Preview" width={400} height={400} className="rounded-md object-contain w-full" />
+              <div className="relative aspect-square w-full rounded-2xl overflow-hidden shadow-md">
+                <Image src={imageSrc} alt="Preview" fill className="object-cover" />
+              </div>
             )}
-            <Textarea
-              placeholder="Write a caption..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-            <div className="space-y-2 pt-4">
-              <Label className="flex items-center"><Settings className="mr-2 h-4 w-4" /> Settings</Label>
-               <div className="flex items-center justify-between">
-                <Label htmlFor="allow-comments">Allow Comments</Label>
+            <div className="space-y-2">
+                <Label className="font-black uppercase text-[10px] opacity-70 tracking-widest">Caption</Label>
+                <Textarea
+                    placeholder="Write something catchy..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="rounded-xl bg-muted/50 border-none min-h-[100px]"
+                />
+            </div>
+            <div className="space-y-4 pt-4 border-t border-dashed">
+              <Label className="flex items-center gap-2 font-black uppercase text-[10px] tracking-widest opacity-50"><Settings className="h-3 w-3" /> Options</Label>
+               <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
+                <Label htmlFor="allow-comments" className="font-bold text-sm">Allow Comments</Label>
                 <Switch id="allow-comments" checked={allowComments} onCheckedChange={setAllowComments} />
               </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="allow-download">Allow Download</Label>
+              <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
+                <Label htmlFor="allow-download" className="font-bold text-sm">Enable Download</Label>
                 <Switch id="allow-download" checked={allowDownload} onCheckedChange={setAllowDownload} />
               </div>
             </div>
           </CardContent>
-          <CardFooter>
-            <Button onClick={handlePublish} className="w-full" disabled={isPosting}>
-              {isPosting ? 'Posting...' : 'Post'}
+          <CardFooter className="p-6 bg-muted/30">
+            <Button onClick={handlePublish} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-lg" disabled={isPosting}>
+              {isPosting ? <Loader2 className="animate-spin" /> : 'Share Image'}
             </Button>
           </CardFooter>
         </Card>
@@ -182,45 +188,39 @@ export default function UploadImagePage() {
 
   return (
     <div className="container py-8">
-       <Link href="/dashboard/media" className="flex items-center gap-2 mb-4 text-sm">
-        <ArrowLeft className="h-4 w-4" />
-        Back to Media
+       <Link href="/dashboard/media" className="flex items-center gap-2 mb-4 text-sm font-black uppercase text-muted-foreground hover:text-primary">
+        <ArrowLeft className="h-4 w-4" /> Back to Media
       </Link>
-      <Card className="w-full max-w-lg mx-auto">
-        <CardHeader>
-          <CardTitle>Upload an Image</CardTitle>
-          <CardDescription>Use your camera or upload a file from your device.</CardDescription>
+      <Card className="w-full max-w-lg mx-auto rounded-[2rem] shadow-xl overflow-hidden border-none">
+        <CardHeader className="bg-primary/5 pb-6">
+          <CardTitle className="text-xl font-black uppercase tracking-tighter text-center">New Image Post</CardTitle>
+          <CardDescription className="text-center font-bold">Capture or upload from gallery</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
+        <CardContent className="space-y-6 pt-6">
+          <div className="aspect-square bg-muted rounded-[2rem] flex items-center justify-center overflow-hidden border-4 border-white shadow-inner relative">
              <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
              <canvas ref={canvasRef} className="hidden" />
-          </div>
-            {hasCameraPermission === false && (
-                <Alert variant="destructive">
-                  <Camera className="h-4 w-4" />
-                  <AlertTitle>Camera Access Required</AlertTitle>
-                  <AlertDescription>
-                    To take a photo, please allow camera access in your browser settings.
-                  </AlertDescription>
-                </Alert>
+             {hasCameraPermission === false && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/80 p-6">
+                    <Alert variant="destructive" className="rounded-2xl border-none shadow-2xl">
+                        <Camera className="h-4 w-4" />
+                        <AlertTitle className="font-black uppercase text-xs">Permission Required</AlertTitle>
+                        <AlertDescription className="text-[10px] font-bold">Please allow camera access in your settings.</AlertDescription>
+                    </Alert>
+                </div>
              )}
-          <div className="flex gap-4">
-            <Button onClick={handleCapture} className="w-full" disabled={!hasCameraPermission}>
-              <Camera className="mr-2 h-4 w-4" />
-              Use Camera
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <Button onClick={handleCapture} className="h-16 rounded-3xl font-black uppercase text-[10px] flex-col gap-1 shadow-lg" disabled={!hasCameraPermission}>
+              <Camera className="h-6 w-6" />
+              Capture
             </Button>
-            <Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full">
-              <UploadCloud className="mr-2 h-4 w-4" />
-              From Device
+            <Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="h-16 rounded-3xl font-black uppercase text-[10px] flex-col gap-1 shadow-md">
+              <UploadCloud className="h-6 w-6" />
+              Gallery
             </Button>
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                className="hidden"
-                accept="image/*"
-            />
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
           </div>
         </CardContent>
       </Card>

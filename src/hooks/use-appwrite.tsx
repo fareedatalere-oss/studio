@@ -1,3 +1,4 @@
+
 'use client';
 
 import { auth, db } from '@/lib/firebase';
@@ -63,9 +64,9 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
         if (typeof window === 'undefined') return;
 
         return onAuthStateChanged(auth, async (currentUser) => {
-            setUser(currentUser);
-            
             if (currentUser) {
+                const normalizedUser = { ...currentUser, $id: currentUser.uid };
+                setUser(normalizedUser);
                 try {
                     const profileSnap = await getDoc(doc(db, COLLECTION_ID_PROFILES, currentUser.uid));
                     if (profileSnap.exists()) {
@@ -105,6 +106,8 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                     console.error("Profile fetch error:", e);
                 }
             } else {
+                setUser(null);
+                setProfile(null);
                 if (pathname.startsWith('/dashboard') && !pathname.includes('/auth')) {
                     router.replace('/auth/signin');
                 }
@@ -116,7 +119,7 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         fetchStaticConfigs();
         const unsub = checkUser();
-        return () => { if (typeof unsub === 'function') unsub(); };
+        return () => { if (typeof unsub === 'function') unsub.then(u => u && u()); };
     }, [checkUser, fetchStaticConfigs]);
     
     const value = {
