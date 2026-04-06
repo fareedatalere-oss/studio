@@ -28,8 +28,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 
 /**
  * @fileOverview Master Firebase Engine.
- * This file replaces Appwrite with a high-performance Firebase bridge.
- * All functions mapped to Firestore and Firebase Auth.
+ * High-performance Firestore/Auth adapter.
  */
 
 export const DATABASE_ID = 'main';
@@ -52,7 +51,6 @@ export const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
 export const MEETING_BOT_ID = 'ipay_meeting_system';
 
-// Shim for document models
 export namespace Models {
   export type Document = any;
 }
@@ -162,6 +160,7 @@ export const ID = {
 };
 
 export function getAppwriteStorageUrl(fileId: string) {
+  // If the input is already a URL (firebase style), return it.
   return fileId; 
 }
 

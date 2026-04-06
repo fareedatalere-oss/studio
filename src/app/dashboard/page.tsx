@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Suspense, useEffect, useState, useRef } from 'react';
@@ -91,10 +92,10 @@ function DashboardContent() {
   };
 
   const handleRefresh = async () => {
-    if (!user?.uid) return;
+    if (!user?.$id) return;
     setIsProcessing(true);
     try {
-      const result = await syncVirtualAccountPayments(user.uid, user.email);
+      const result = await syncVirtualAccountPayments(user.$id, user.email);
       if (result.success) {
         if (result.amountAdded && result.amountAdded > 0) {
           toast({ title: 'Success!', description: `Added ₦${result.amountAdded.toLocaleString()} to wallet.` });
@@ -125,7 +126,7 @@ function DashboardContent() {
         if (isNaN(amount) || amount <= 0) throw new Error("Invalid amount");
         
         const result = await chargeTokenizedCard({
-            userId: user.uid || user.$id,
+            userId: user.$id,
             amount,
             pin
         });
@@ -146,7 +147,6 @@ function DashboardContent() {
     }
   };
 
-  // PROFESSIONAL TITLE CASE LABELS
   const actions = [
     { key: 'feat_ai', label: 'Sofia AI', icon: Bot, href: '/dashboard/ai-chat' },
     { key: 'feat_send', label: 'Transfer', icon: Send, href: '/dashboard/transfer' },
@@ -224,18 +224,17 @@ function DashboardContent() {
           </CardContent>
         </Card>
 
-        {/* SMALL COMPACT ACTION GRID */}
         <div className="grid grid-cols-3 md:grid-cols-4 gap-y-5 gap-x-2 text-center pb-6">
           {actions.map((action) => (
              <div key={action.label} className="flex flex-col items-center gap-1 cursor-pointer group" onClick={() => handleActionClick(action.key, action.href, action.onClick)}>
                 <div
                     className={cn(
-                        "h-10 w-10 rounded-xl mx-auto flex items-center justify-center transition-all active:scale-90 shadow-sm border border-border/50 group-hover:border-primary/20",
+                        "h-11 w-11 rounded-xl mx-auto flex items-center justify-center transition-all active:scale-90 shadow-sm border border-border/50 group-hover:border-primary/20",
                         !isFeatOn(action.key) && "opacity-50 grayscale",
                         action.label === 'Sofia AI' ? "bg-primary text-white shadow-md border-none" : "bg-white text-foreground"
                     )}
                 >
-                    {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> : <action.icon className="h-4.5 w-4.5" />}
+                    {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <action.icon className="h-5 w-5" />}
                 </div>
                 <span className="mt-1 block text-[9px] font-bold text-foreground/80">{action.label}</span>
             </div>

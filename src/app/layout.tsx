@@ -6,15 +6,15 @@ import { AppwriteProvider } from '@/hooks/use-appwrite';
 import Script from 'next/script';
 
 export const metadata: Metadata = {
-  title: 'I-Pay Online',
+  title: 'I-pay Online World',
   description: 'New world of online business and transactions',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'I-Pay Online',
+    title: 'I-pay Online World',
   },
-  applicationName: 'I-Pay',
+  applicationName: 'I-pay',
   formatDetection: {
     telephone: false,
   },
@@ -62,7 +62,7 @@ export default function RootLayout({
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
                 navigator.serviceWorker.register('/sw.js').then(function(reg) {
-                  console.log('I-Pay Service Worker Registered: ', reg.scope);
+                  console.log('I-pay Service Worker Registered: ', reg.scope);
                 }).catch(function(err) {
                   console.error('SW Registration failed: ', err);
                 });

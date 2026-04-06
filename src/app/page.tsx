@@ -1,3 +1,4 @@
+
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -21,10 +22,10 @@ export default function Home() {
       <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background/80 to-background" />
       <div className="relative z-10 flex flex-col items-center">
         <h1 className="text-4xl font-headline font-bold tracking-tighter md:text-6xl lg:text-7xl">
-          Welcome to I-Pay
+          Welcome to I-pay Online World
         </h1>
         <p className="mt-4 max-w-xl text-lg text-foreground/80 md:text-xl">
-          online business and transactions
+          Online business and transactions
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-4">
           <Button asChild size="lg">

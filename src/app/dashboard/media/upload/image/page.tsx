@@ -19,9 +19,7 @@ import { databases, DATABASE_ID, COLLECTION_ID_POSTS, storage, BUCKET_ID_UPLOADS
 function dataURLtoFile(dataurl: string, filename: string): File {
     const arr = dataurl.split(',');
     const mimeMatch = arr[0].match(/:(.*?);/);
-    if (!mimeMatch) {
-        throw new Error('Invalid data URL');
-    }
+    if (!mimeMatch) throw new Error('Invalid data URL');
     const mime = mimeMatch[1];
     const bstr = atob(arr[1]);
     let n = bstr.length;
@@ -60,21 +58,11 @@ export default function UploadImagePage() {
           } catch (error) {
             console.error('Error accessing camera:', error);
             setHasCameraPermission(false);
-            toast({
-              variant: 'destructive',
-              title: 'Camera Access Denied',
-              description: 'Please enable camera permissions in your browser settings.',
-            });
           }
         };
         getCameraPermission();
-    } else {
-        if (videoRef.current && videoRef.current.srcObject) {
-            const stream = videoRef.current.srcObject as MediaStream;
-            stream.getTracks().forEach(track => track.stop());
-        }
     }
-  }, [step, toast]);
+  }, [step]);
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -103,38 +91,35 @@ export default function UploadImagePage() {
   };
 
   const handlePublish = async () => {
-    if (!imageSrc || !authUser || !userProfile) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Missing image or user data.' });
+    if (!imageSrc || !authUser?.$id || !userProfile) {
+      toast({ variant: 'destructive', title: 'Action Denied', description: 'Please complete your profile first.' });
       return;
     }
 
     setIsPosting(true);
-    toast({ title: 'Posting...' });
-
     try {
       const fileToUpload = dataURLtoFile(imageSrc, 'upload.png');
       const uploadResult = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), fileToUpload);
-      const mediaUrl = uploadResult.url;
-
+      
       const newPost = {
         userId: authUser.$id,
         username: userProfile.username,
         userAvatar: userProfile.avatar,
         type: 'image',
-        mediaUrl: mediaUrl,
+        mediaUrl: uploadResult.url,
         description: description,
         allowComments: allowComments,
         allowDownload: allowDownload,
         likes: [],
         commentCount: 0,
       };
+      
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_POSTS, ID.unique(), newPost);
-      toast({ title: 'Posted!', description: 'Your image is now live.' });
+      toast({ title: 'Success!', description: 'Your image has been shared.' });
       router.push('/dashboard/media');
     } catch (error: any) {
-      console.error("Post creation failed:", error);
-      toast({ title: 'Post Failed', description: error.message || 'Could not post your image.', variant: 'destructive' });
       setIsPosting(false);
+      toast({ variant: 'destructive', title: 'Post Failed', description: error.message || 'Check your internet connection.' });
     }
   };
 
@@ -189,7 +174,7 @@ export default function UploadImagePage() {
   return (
     <div className="container py-8">
        <Link href="/dashboard/media" className="flex items-center gap-2 mb-4 text-sm font-black uppercase text-muted-foreground hover:text-primary">
-        <ArrowLeft className="h-4 w-4" /> Back to Media
+        <ArrowLeft className="h-4 w-4" /> Back
       </Link>
       <Card className="w-full max-w-lg mx-auto rounded-[2rem] shadow-xl overflow-hidden border-none">
         <CardHeader className="bg-primary/5 pb-6">
@@ -201,9 +186,9 @@ export default function UploadImagePage() {
              <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
              <canvas ref={canvasRef} className="hidden" />
              {hasCameraPermission === false && (
-                <div className="absolute inset-0 flex items-center justify-center bg-background/80 p-6">
+                <div className="absolute inset-0 flex items-center justify-center bg-background/80 p-6 text-center">
                     <Alert variant="destructive" className="rounded-2xl border-none shadow-2xl">
-                        <Camera className="h-4 w-4" />
+                        <Camera className="h-4 w-4 mx-auto mb-2" />
                         <AlertTitle className="font-black uppercase text-xs">Permission Required</AlertTitle>
                         <AlertDescription className="text-[10px] font-bold">Please allow camera access in your settings.</AlertDescription>
                     </Alert>

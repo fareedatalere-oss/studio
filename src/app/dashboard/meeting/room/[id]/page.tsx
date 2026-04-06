@@ -1,8 +1,8 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { 
     PhoneOff, Loader2, Camera, 
     X, Monitor, Eraser, Send,
@@ -41,6 +41,14 @@ export default function MeetingRoomPage() {
     // Presence & Media States
     const [useCamera, setUseCamera] = useState(true);
     const videoRef = useRef<HTMLVideoElement>(null);
+
+    // GATEKEEPER CHECK: Redirect guests if no identity set
+    useEffect(() => {
+        const guestIdentity = sessionStorage.getItem(`meeting_guest_${meetingId}`);
+        if (!user && !guestIdentity) {
+            router.replace(`/dashboard/meeting/join/${meetingId}`);
+        }
+    }, [user, meetingId, router]);
 
     const fetchMeeting = useCallback(async () => {
         try {
