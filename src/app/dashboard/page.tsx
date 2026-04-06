@@ -228,14 +228,14 @@ function DashboardContent() {
              <div key={action.label} className="flex flex-col items-center gap-1 cursor-pointer group" onClick={() => handleActionClick(action.key, action.href, action.onClick)}>
                 <div
                     className={cn(
-                        "h-12 w-12 rounded-xl mx-auto flex items-center justify-center transition-all active:scale-90 shadow-md border-2 border-transparent group-hover:border-primary/20",
+                        "h-11 w-11 rounded-xl mx-auto flex items-center justify-center transition-all active:scale-90 shadow-md border-2 border-transparent group-hover:border-primary/20",
                         !isFeatOn(action.key) && "opacity-50 grayscale",
                         action.label === 'Sofia AI' ? "bg-primary text-white shadow-lg" : "bg-white text-foreground"
                     )}
                 >
                     {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <action.icon className="h-5 w-5" />}
                 </div>
-                <span className="mt-1.5 block text-[8px] font-black tracking-widest uppercase text-foreground/70">{action.label}</span>
+                <span className="mt-1.5 block text-[10px] font-bold text-foreground/70">{action.label}</span>
             </div>
           ))}
         </div>

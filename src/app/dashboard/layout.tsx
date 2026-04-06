@@ -191,7 +191,7 @@ export default function DashboardLayout({
           <div className="container grid h-16 grid-cols-5 items-center justify-around text-center">
             <Link href="/dashboard" onClick={(e) => handleTabClick(e, 'tab_home')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard' ? "text-primary font-bold" : "text-muted-foreground")}>
               <Home className="h-5 w-5" />
-              <span className="text-[9px] uppercase font-black">Home</span>
+              <span className="text-[10px] font-bold">Home</span>
             </Link>
             <Link href="/dashboard/chat" onClick={(e) => handleTabClick(e, 'tab_chat')} className={cn("flex flex-col items-center gap-1 relative", pathname.startsWith('/dashboard/chat') ? "text-primary font-bold" : "text-muted-foreground")}>
               <MessageSquare className="h-5 w-5" />
@@ -200,19 +200,19 @@ export default function DashboardLayout({
                   {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
                 </Badge>
               )}
-              <span className="text-[9px] uppercase font-black">Chat</span>
+              <span className="text-[10px] font-bold">Chat</span>
             </Link>
             <Link href="/dashboard/media" onClick={(e) => handleTabClick(e, 'tab_media')} className={cn("flex flex-col items-center gap-1", (pathname === '/dashboard/media' || pathname.startsWith('/dashboard/media/')) ? "text-primary font-bold" : "text-muted-foreground")}>
               <PlaySquare className="h-5 w-5" />
-              <span className="text-[9px] uppercase font-black">Media</span>
+              <span className="text-[10px] font-bold">Media</span>
             </Link>
             <Link href="/dashboard/market" onClick={(e) => handleTabClick(e, 'tab_market')} className={cn("flex flex-col items-center gap-1", pathname === '/dashboard/market' ? "text-primary font-bold" : "text-muted-foreground")}>
               <Store className="h-5 w-5" />
-              <span className="text-[9px] uppercase font-black">Market</span>
+              <span className="text-[10px] font-bold">Market</span>
             </Link>
             <Link href="/dashboard/profile" onClick={(e) => handleTabClick(e, 'tab_profile')} className={cn("flex flex-col items-center gap-1", pathname.startsWith('/dashboard/profile') ? "text-primary font-bold" : "text-muted-foreground")}>
               <User className="h-5 w-5" />
-              <span className="text-[9px] uppercase font-black">Profile</span>
+              <span className="text-[10px] font-bold">Profile</span>
             </Link>
           </div>
         </footer>

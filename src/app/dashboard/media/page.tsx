@@ -83,11 +83,11 @@ export default function MediaPage() {
                 </Button>
             </div>
             <TabsList className="grid w-full grid-cols-5 bg-transparent h-12">
-              <TabsTrigger value="text" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider">Text</TabsTrigger>
-              <TabsTrigger value="image" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider">Image</TabsTrigger>
-              <TabsTrigger value="reels" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider">Reels</TabsTrigger>
-              <TabsTrigger value="film" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider">Film</TabsTrigger>
-              <TabsTrigger value="music" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-black text-[11px] uppercase tracking-wider">Music</TabsTrigger>
+              <TabsTrigger value="text" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[11px] tracking-wider">Text</TabsTrigger>
+              <TabsTrigger value="image" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[11px] tracking-wider">Image</TabsTrigger>
+              <TabsTrigger value="reels" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[11px] tracking-wider">Reels</TabsTrigger>
+              <TabsTrigger value="film" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[11px] tracking-wider">Film</TabsTrigger>
+              <TabsTrigger value="music" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[11px] tracking-wider">Music</TabsTrigger>
             </TabsList>
              <div className="relative p-2 px-6 flex items-center gap-2 mt-2"><div className='relative flex-1'><Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/60" /><Input placeholder="Search posts..." className="pl-10 h-10 bg-background/30 border-border/10 text-xs rounded-full backdrop-blur-md" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></div></div>
           </div>
