@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -14,7 +15,7 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 /**
  * @fileOverview Sign In Page.
- * Robust Auth flow for Firebase with specific instructions for unregistered accounts.
+ * Restored Appwrite Auth flow.
  */
 
 const MANAGER_EMAIL_1 = 'i-paymanagerscare402@gmail.com';
@@ -54,7 +55,7 @@ export default function SignInPage() {
     } else {
       toast({
         title: "Install App",
-        description: "Click your browser's menu (three dots) and select 'Add to Home Screen' or 'Install App' to download I-Pay.",
+        description: "Click your browser's menu (three dots) and select 'Add to Home Screen' or 'Install App' to download I-pay.",
         duration: 5000
       });
     }
@@ -92,35 +93,29 @@ export default function SignInPage() {
     }
     
     try {
-      // 1. Authenticate with Firebase Auth
-      const authResult = await account.createEmailPasswordSession(email, password);
-      const userId = (authResult as any).user.uid;
+      // 1. Authenticate with Appwrite
+      await account.createEmailPasswordSession(email, password);
+      const currentUser = await account.get();
 
-      // 2. Check if Profile exists in Firestore
+      // 2. Check if Profile exists
       try {
-        await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
+        await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id);
         
         // Success!
         localStorage.setItem('ipay_last_active', Date.now().toString());
         sessionStorage.setItem('ipay_pin_verified', 'true');
-        toast({ title: 'Signed In', description: 'Welcome back to I-Pay.' });
+        toast({ title: 'Signed In', description: 'Welcome back to I-pay.' });
         router.push('/dashboard');
       } catch (profileError: any) {
-        // Auth account exists, but no profile doc. This is likely a half-finished migration signup.
-        console.log("No profile found for UID:", userId);
+        console.log("No profile found for ID:", currentUser.$id);
         router.push('/auth/signup/profile');
       }
 
     } catch (error: any) {
-        console.error("Login error code:", error.code);
-        
         let message = "Invalid credentials. Please try again.";
         
-        // Specific requirement: "this account isn't registered with this"
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-email') {
+        if (error.code === 401 || error.type === 'user_invalid_credentials') {
             message = "This account isn't registered with this.";
-        } else if (error.code === 'auth/wrong-password') {
-            message = "Incorrect password. Please check and try again.";
         } else if (error.message?.includes('network')) {
             message = "Connection failed. Check your internet.";
         }
@@ -142,18 +137,18 @@ export default function SignInPage() {
           <div 
             onClick={handleInstallClick} 
             className="mx-auto cursor-pointer hover:scale-110 transition-transform duration-300 active:scale-95 inline-block p-1 mb-4"
-            title="Force Install I-Pay"
+            title="Force Install I-pay"
           >
             <IPayLogo className="h-16 w-16" />
           </div>
           <CardTitle className="text-3xl font-black uppercase tracking-tighter">Welcome Back</CardTitle>
-          <CardDescription className="font-bold">Sign in to your Firebase account.</CardDescription>
+          <CardDescription className="font-bold">Sign in to your I-pay account.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignIn} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="email" className="font-bold uppercase text-[10px] opacity-70">Email Address</Label>
-              <Input id="email" type="text" placeholder="m@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="h-12 rounded-xl bg-muted/50 border-none px-4" />
+              <Input id="email" type="email" placeholder="m@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="h-12 rounded-xl bg-muted/50 border-none px-4" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password" className="font-bold uppercase text-[10px] opacity-70">Password</Label>

@@ -6,13 +6,13 @@ import { AppwriteProvider } from '@/hooks/use-appwrite';
 import Script from 'next/script';
 
 export const metadata: Metadata = {
-  title: 'I-pay Online World',
+  title: 'I-pay online world',
   description: 'New world of online business and transactions',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'I-pay Online World',
+    title: 'I-pay online world',
   },
   applicationName: 'I-pay',
   formatDetection: {
@@ -45,7 +45,6 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/logo.png" />
         <link rel="manifest" href="/manifest.json" />
         
-        {/* Mandatory PWA Meta Tags for Force-Install */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="mobile-web-app-capable" content="yes" />
@@ -56,7 +55,6 @@ export default function RootLayout({
         </AppwriteProvider>
         <Toaster />
         
-        {/* Mandatory Service Worker Registration for Universal Installation */}
         <Script id="register-sw" strategy="afterInteractive">
           {`
             if ('serviceWorker' in navigator) {

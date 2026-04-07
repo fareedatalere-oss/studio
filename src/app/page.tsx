@@ -22,7 +22,7 @@ export default function Home() {
       <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background/80 to-background" />
       <div className="relative z-10 flex flex-col items-center">
         <h1 className="text-4xl font-headline font-bold tracking-tighter md:text-6xl lg:text-7xl">
-          Welcome to I-pay Online World
+          Welcome to I-pay online world
         </h1>
         <p className="mt-4 max-w-xl text-lg text-foreground/80 md:text-xl">
           Online business and transactions

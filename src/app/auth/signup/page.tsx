@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -14,8 +15,8 @@ import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
- * @fileOverview Sign Up Page (Direct Path).
- * Enhanced with Confirm Password and Show/Hide toggle.
+ * @fileOverview Sign Up Page.
+ * Restored Appwrite SDK creation.
  */
 
 const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager17@gmail.com'];
@@ -63,10 +64,12 @@ export default function SignUpPage() {
     }
 
     try {
-      // 1. Create the Auth account in Firebase
+      // 1. Create the Appwrite account
       await account.create(ID.unique(), email, password);
       
-      // Sync local state for direct session logic
+      // 2. Log them in to start the session
+      await account.createEmailPasswordSession(email, password);
+      
       localStorage.setItem('ipay_last_active', Date.now().toString());
       sessionStorage.setItem('ipay_pin_verified', 'true');
       
@@ -76,10 +79,8 @@ export default function SignUpPage() {
       console.error("Signup error:", error);
       let msg = error.message || 'An unexpected error occurred.';
       
-      if (error.code === 'auth/email-already-in-use') {
+      if (error.code === 409) {
           msg = "This email is already registered. Please Sign In instead.";
-      } else if (msg.includes('fetch')) {
-          msg = "Network connection failed. Please check your internet.";
       }
       
       toast({ title: 'Sign Up Failed', description: msg, variant: 'destructive' });
@@ -94,7 +95,7 @@ export default function SignUpPage() {
         <CardHeader className="text-center pb-8">
           <IPayLogo className="mx-auto h-16 w-16 mb-4" />
           <CardTitle className="text-3xl font-black uppercase tracking-tighter">Create Account</CardTitle>
-          <CardDescription className="font-bold">Join the new I-Pay system today.</CardDescription>
+          <CardDescription className="font-bold">Join the new I-pay online world today.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignUp} className="space-y-5">

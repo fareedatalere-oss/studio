@@ -57,10 +57,10 @@ function DashboardContent() {
   const isAdmin = user && MANAGER_EMAILS.includes(user.email?.toLowerCase() || '');
 
   useEffect(() => {
-    if (user?.uid && user?.email && !hasSyncedRef.current) {
+    if (user?.$id && user?.email && !hasSyncedRef.current) {
         hasSyncedRef.current = true;
         const runSync = async () => {
-            const result = await syncVirtualAccountPayments(user.uid, user.email);
+            const result = await syncVirtualAccountPayments(user.$id, user.email);
             if (result.success && result.amountAdded && result.amountAdded > 0) {
                 toast({ title: 'New Deposit!', description: `Account credited with ₦${result.amountAdded.toLocaleString()}.` });
                 await recheckUser();
@@ -158,7 +158,7 @@ function DashboardContent() {
     { key: 'feat_get_reward', label: 'Rewards', icon: Gift, href: '/dashboard/rewards' },
     { key: 'feat_cable', label: 'Cable TV', icon: Tv, href: '/dashboard/cable-payment' },
     { key: 'feat_electric', label: 'Electricity', icon: Lightbulb, href: '/dashboard/electric-bill' },
-    { key: 'feat_multipurpose', label: 'Multi-Pay', icon: CreditCard, href: '/dashboard/multi-purpose' },
+    { key: 'feat_multipurpose', label: 'Multi-pay', icon: CreditCard, href: '/dashboard/multi-purpose' },
     { key: 'feat_refund', label: 'Refund', icon: Undo2, onClick: handleFundAccountClick },
   ];
 

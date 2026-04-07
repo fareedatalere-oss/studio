@@ -1,14 +1,14 @@
+
 import { MetadataRoute } from 'next'
 
 /**
  * @fileOverview Master PWA Manifest.
- * Configured with high-res icons and standalone display to trigger the real "Install" button.
  */
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'I-Pay Online',
-    short_name: 'I-Pay',
+    name: 'I-pay online world',
+    short_name: 'I-pay',
     description: 'New world of online business and transactions',
     start_url: '/',
     display: 'standalone',
