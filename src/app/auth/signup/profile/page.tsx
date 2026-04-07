@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -67,10 +66,11 @@ export default function CompleteProfilePage() {
             createdAt: new Date().toISOString()
         };
 
+        // Use the Auth User ID as the Profile Document ID for 1:1 mapping
         await databases.createDocument(
             DATABASE_ID,
             COLLECTION_ID_PROFILES,
-            user.uid || user.$id,
+            user.$id,
             profileData
         );
         
@@ -81,7 +81,7 @@ export default function CompleteProfilePage() {
 
         toast({
             title: 'Profile Complete!',
-            description: 'Welcome to I-Pay.',
+            description: 'Welcome to I-pay online world.',
         });
 
         router.push('/dashboard');

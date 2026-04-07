@@ -1,4 +1,3 @@
-
 'use client';
 
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';

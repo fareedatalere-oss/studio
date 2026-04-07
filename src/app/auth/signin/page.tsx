@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -15,7 +14,7 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 /**
  * @fileOverview Sign In Page.
- * Restored Appwrite Auth flow.
+ * Verified Appwrite Auth flow.
  */
 
 const MANAGER_EMAIL_1 = 'i-paymanagerscare402@gmail.com';
@@ -55,7 +54,7 @@ export default function SignInPage() {
     } else {
       toast({
         title: "Install App",
-        description: "Click your browser's menu (three dots) and select 'Add to Home Screen' or 'Install App' to download I-pay.",
+        description: "Click your browser's menu and select 'Add to Home Screen' to download I-pay online world.",
         duration: 5000
       });
     }
@@ -104,7 +103,7 @@ export default function SignInPage() {
         // Success!
         localStorage.setItem('ipay_last_active', Date.now().toString());
         sessionStorage.setItem('ipay_pin_verified', 'true');
-        toast({ title: 'Signed In', description: 'Welcome back to I-pay.' });
+        toast({ title: 'Signed In', description: 'Welcome back to I-pay online world.' });
         router.push('/dashboard');
       } catch (profileError: any) {
         console.log("No profile found for ID:", currentUser.$id);
@@ -137,12 +136,12 @@ export default function SignInPage() {
           <div 
             onClick={handleInstallClick} 
             className="mx-auto cursor-pointer hover:scale-110 transition-transform duration-300 active:scale-95 inline-block p-1 mb-4"
-            title="Force Install I-pay"
+            title="Install I-pay"
           >
             <IPayLogo className="h-16 w-16" />
           </div>
           <CardTitle className="text-3xl font-black uppercase tracking-tighter">Welcome Back</CardTitle>
-          <CardDescription className="font-bold">Sign in to your I-pay account.</CardDescription>
+          <CardDescription className="font-bold">Sign in to your I-pay online world account.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignIn} className="space-y-5">

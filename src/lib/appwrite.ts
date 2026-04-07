@@ -1,15 +1,14 @@
-
 import { Client, Account, Databases, Storage, Query, ID } from 'appwrite';
 
 /**
  * @fileOverview Master Appwrite Engine.
- * Restored to original SDK logic for full performance.
+ * Configured for I-pay online world.
  */
 
 const client = new Client();
 
 client
-    .setEndpoint('https://sfo.cloud.appwrite.io/v1')
+    .setEndpoint('https://cloud.appwrite.io/v1')
     .setProject('698462e0002b93bc85d9');
 
 export const account = new Account(client);
@@ -37,7 +36,7 @@ export const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 export const MEETING_BOT_ID = 'ipay_meeting_system';
 
 export function getAppwriteStorageUrl(fileId: string) {
-  return `https://sfo.cloud.appwrite.io/v1/storage/buckets/${BUCKET_ID_UPLOADS}/files/${fileId}/view?project=698462e0002b93bc85d9`;
+  return `https://cloud.appwrite.io/v1/storage/buckets/${BUCKET_ID_UPLOADS}/files/${fileId}/view?project=698462e0002b93bc85d9`;
 }
 
 export { client, Query, ID };

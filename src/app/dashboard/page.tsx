@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Suspense, useEffect, useState, useRef } from 'react';
@@ -17,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { chargeTokenizedCard, syncVirtualAccountPayments } from '@/app/actions/flutterwave';
+import { syncVirtualAccountPayments } from '@/app/actions/flutterwave';
 import { useRouter } from 'next/navigation';
 import {
   CreditCard,
@@ -118,35 +117,6 @@ function DashboardContent() {
     router.push('/dashboard/deposit');
   };
 
-  const handleFundWithToken = async () => {
-    if (!user || !pin || !fundAmount) return;
-    setIsProcessing(true);
-    try {
-        const amount = Number(fundAmount);
-        if (isNaN(amount) || amount <= 0) throw new Error("Invalid amount");
-        
-        const result = await chargeTokenizedCard({
-            userId: user.$id,
-            amount,
-            pin
-        });
-
-        if (result.success) {
-            toast({ title: "Success!", description: result.message });
-            setIsFundDialogOpen(false);
-            setFundAmount('');
-            setPin('');
-            await recheckUser();
-        } else {
-            throw new Error(result.message);
-        }
-    } catch (e: any) {
-        toast({ variant: 'destructive', title: 'Payment Failed', description: e.message });
-    } finally {
-        setIsProcessing(false);
-    }
-  };
-
   const actions = [
     { key: 'feat_ai', label: 'Sofia AI', icon: Bot, href: '/dashboard/ai-chat' },
     { key: 'feat_send', label: 'Transfer', icon: Send, href: '/dashboard/transfer' },
@@ -169,7 +139,7 @@ function DashboardContent() {
           <CardHeader className="flex flex-row items-center justify-between pb-2 px-6">
             <CardTitle className="text-[10px] font-black uppercase tracking-widest opacity-60">My Wallet</CardTitle>
             <Button variant="outline" size="sm" onClick={handleFundAccountClick} disabled={isProcessing} className="rounded-full h-6 px-3 border-primary text-primary hover:bg-primary hover:text-white font-black text-[8px] uppercase transition-all">
-              {isProcessing && !isFundDialogOpen ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CircleDollarSign className="mr-1 h-3 w-3" />}
+              {isProcessing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CircleDollarSign className="mr-1 h-3 w-3" />}
               Fund
             </Button>
           </CardHeader>
@@ -234,32 +204,13 @@ function DashboardContent() {
                         action.label === 'Sofia AI' ? "bg-primary text-white shadow-md border-none" : "bg-white text-foreground"
                     )}
                 >
-                    {isProcessing && (action.label === 'Refresh' || action.label === 'Refund') ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <action.icon className="h-5 w-5" />}
+                    {isProcessing && action.label === 'Refresh' ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <action.icon className="h-5 w-5" />}
                 </div>
                 <span className="mt-1 block text-[9px] font-bold text-foreground/80">{action.label}</span>
             </div>
           ))}
         </div>
       </div>
-      <AlertDialog open={isFundDialogOpen} onOpenChange={setIsFundDialogOpen}>
-        <AlertDialogContent className="rounded-[2rem] p-6 border-none shadow-2xl">
-            <AlertDialogHeader><AlertDialogTitle className="text-xl font-black uppercase tracking-tighter">Fast Funding</AlertDialogTitle></AlertDialogHeader>
-            <div className="space-y-4 pt-2">
-                <div className="space-y-1">
-                    <Label className="font-black uppercase text-[9px] opacity-50">Amount (₦)</Label>
-                    <Input id="fund-amount" type="number" value={fundAmount} onChange={(e) => setFundAmount(e.target.value)} className="h-12 rounded-xl bg-muted border-none font-black text-base" />
-                </div>
-                 <div className="space-y-1">
-                    <Label className="font-black uppercase text-[9px] opacity-50">Confirm 5-Digit PIN</Label>
-                    <Input id="fund-pin" type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} maxLength={5} className="h-12 rounded-xl bg-muted border-none text-center font-black text-lg tracking-[0.8rem]" />
-                </div>
-            </div>
-            <AlertDialogFooter className="pt-4">
-                <AlertDialogCancel className="rounded-full h-10 font-black uppercase text-[9px]">Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => { if(!isFeatOn('feat_refund')) { toast({ variant:'destructive', title:'Off', description:'Disabled'}); return; } handleActionClick('feat_refund', undefined, handleFundWithToken); }} disabled={isProcessing || !fundAmount || pin.length !== 5} className="rounded-full h-10 font-black uppercase text-[9px] px-8">Confirm & Pay</AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
