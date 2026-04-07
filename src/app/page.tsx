@@ -3,6 +3,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
+/**
+ * @fileOverview Landing Page for I-pay online world.
+ * Branding: Welcome to I-pay online world (Sentence Case).
+ */
+
 export default function Home() {
   const heroImage = PlaceHolderImages.find(p => p.id === 'hero-background');
 
@@ -23,14 +28,14 @@ export default function Home() {
         <h1 className="text-4xl font-headline font-bold tracking-tighter md:text-6xl lg:text-7xl">
           Welcome to I-pay online world
         </h1>
-        <p className="mt-4 max-w-xl text-lg text-foreground/80 md:text-xl">
-          Online business and transactions
+        <p className="mt-4 max-w-xl text-lg text-foreground/80 md:text-xl font-medium">
+          The new world of online business and transactions.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-4">
-          <Button asChild size="lg">
+          <Button asChild size="lg" className="rounded-2xl font-black uppercase text-xs tracking-widest px-8 h-14 shadow-xl">
             <Link href="/auth/signin">Sign In</Link>
           </Button>
-          <Button asChild size="lg" variant="secondary">
+          <Button asChild size="lg" variant="secondary" className="rounded-2xl font-black uppercase text-xs tracking-widest px-8 h-14 shadow-lg">
             <Link href="/auth/signup">Sign Up</Link>
           </Button>
         </div>

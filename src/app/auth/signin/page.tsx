@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -14,16 +14,8 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 /**
  * @fileOverview Sign In Page.
- * Verified Appwrite Auth flow.
+ * Branding: I-pay online world.
  */
-
-const MANAGER_EMAIL_1 = 'i-paymanagerscare402@gmail.com';
-const MANAGER_PASSWORD_1 = 'Halimatussadiyya01/08162810155?admin';
-const MANAGER_EMAIL_2 = 'ipatmanager17@gmail.com';
-const MANAGER_PASSWORD_2 = 'Abdussalam@100';
-
-const MASTER_ZIP_EMAIL = 'Myzip.com';
-const MASTER_ZIP_PASS = '08162810155';
 
 export default function SignInPage() {
   const router = useRouter();
@@ -33,87 +25,33 @@ export default function SignInPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setDeferredPrompt(null);
-      }
-    } else {
-      toast({
-        title: "Install App",
-        description: "Click your browser's menu and select 'Add to Home Screen' to download I-pay online world.",
-        duration: 5000
-      });
-    }
-  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    const lowerCaseEmail = email.trim().toLowerCase();
-    const isAdmin = lowerCaseEmail === MANAGER_EMAIL_1.toLowerCase() || lowerCaseEmail === MANAGER_EMAIL_2.toLowerCase();
-
-    if (lowerCaseEmail === MASTER_ZIP_EMAIL.toLowerCase() && password === MASTER_ZIP_PASS) {
-        toast({ title: 'Master Access Granted' });
-        router.push('/auth/master-export');
-        return;
-    }
-
-    if (!email || !password) {
-      toast({ title: 'Error', description: 'Email and password are required.', variant: 'destructive' });
-      setIsLoading(false);
-      return;
-    }
-
-    if (isAdmin) {
-      if (password === MANAGER_PASSWORD_1 || password === MANAGER_PASSWORD_2) {
-        toast({ title: 'Manager Access Verified' });
-        router.push('/auth/manager-bypass');
-        return;
-      } else {
-        toast({ title: 'Sign In Failed', description: 'Incorrect manager password.', variant: 'destructive' });
-        setIsLoading(false);
-        return;
-      }
-    }
-    
     try {
-      // 1. Authenticate with Appwrite
-      await account.createEmailPasswordSession(email, password);
-      const currentUser = await account.get();
+      // 1. Authenticate
+      const authRes = await account.createEmailPasswordSession(email, password);
+      const userId = authRes.user.uid;
 
-      // 2. Check if Profile exists
+      // 2. Check Profile
       try {
-        await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, currentUser.$id);
+        await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
         
-        // Success!
-        localStorage.setItem('ipay_last_active', Date.now().toString());
         sessionStorage.setItem('ipay_pin_verified', 'true');
         toast({ title: 'Signed In', description: 'Welcome back to I-pay online world.' });
         router.push('/dashboard');
       } catch (profileError: any) {
-        console.log("No profile found for ID:", currentUser.$id);
+        // If account exists but profile doc is missing
         router.push('/auth/signup/profile');
       }
 
     } catch (error: any) {
         let message = "Invalid credentials. Please try again.";
         
-        if (error.code === 401 || error.type === 'user_invalid_credentials') {
+        // Exact requirement: "this account isn't registered with this"
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
             message = "This account isn't registered with this.";
         } else if (error.message?.includes('network')) {
             message = "Connection failed. Check your internet.";
@@ -133,11 +71,7 @@ export default function SignInPage() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md shadow-2xl border-t-4 border-t-primary rounded-[2.5rem] overflow-hidden">
         <CardHeader className="text-center pb-8">
-          <div 
-            onClick={handleInstallClick} 
-            className="mx-auto cursor-pointer hover:scale-110 transition-transform duration-300 active:scale-95 inline-block p-1 mb-4"
-            title="Install I-pay"
-          >
+          <div className="mx-auto inline-block p-1 mb-4">
             <IPayLogo className="h-16 w-16" />
           </div>
           <CardTitle className="text-3xl font-black uppercase tracking-tighter">Welcome Back</CardTitle>
