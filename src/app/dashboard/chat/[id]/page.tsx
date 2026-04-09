@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import client, { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, storage, BUCKET_ID_UPLOADS, ID, Query } from '@/lib/appwrite';
+import client, { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, storage, BUCKET_ID_UPLOADS, ID } from '@/lib/appwrite';
 import { db } from '@/lib/firebase';
-import { collection, query, where, orderBy, onSnapshot, limit, doc, updateDoc, serverTimestamp, getDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, limit, doc, updateDoc, serverTimestamp, getDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
 import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, Trash2, Play, Pause, Forward, Check, CheckCheck, Copy, ShieldAlert, UserX, UserCheck, Image as ImageIcon, Video, FileText, X, Square } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -67,16 +67,24 @@ export default function ChatThreadPage() {
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
+        // Optimized Query: Removed server-side orderBy to bypass Index requirement
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
             where('chatId', '==', chatId),
-            orderBy('createdAt', 'asc'),
             limit(100)
         );
 
         const unsub = onSnapshot(q, (snapshot) => {
             const msgs = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }))
                 .filter((m: any) => !m.deletedForEveryone && !(m.deletedFor || []).includes(currentUser.$id));
+            
+            // Client-side Sorting: Sorts instantly without requiring a composite index
+            msgs.sort((a: any, b: any) => {
+                const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
+                const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+                return timeA - timeB;
+            });
+
             setMessages(msgs);
 
             // Mark as Read Logic
@@ -96,8 +104,16 @@ export default function ChatThreadPage() {
 
         // Sync Recent Chats for Forwarding
         const unsubRecent = onSnapshot(
-            query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', currentUser.$id), orderBy('lastMessageAt', 'desc')),
-            (snap) => setRecentChats(snap.docs.map(d => ({ $id: d.id, ...d.data() })))
+            query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', currentUser.$id)),
+            (snap) => {
+                const data = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
+                data.sort((a: any, b: any) => {
+                    const timeA = a.lastMessageAt?.toDate ? a.lastMessageAt.toDate().getTime() : 0;
+                    const timeB = b.lastMessageAt?.toDate ? b.lastMessageAt.toDate().getTime() : 0;
+                    return timeB - timeA;
+                });
+                setRecentChats(data);
+            }
         );
 
         // Real-time other user presence
