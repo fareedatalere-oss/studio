@@ -7,7 +7,7 @@ import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, storage, BUCKET_ID_UPLOADS, ID, increment } from '@/lib/appwrite';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, limit, doc, updateDoc, serverTimestamp, getDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
-import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, Trash2, Play, Pause, Forward, Check, CheckCheck, Copy, ShieldAlert, UserX, UserCheck, Image as ImageIcon, Video, FileText, X, Square } from 'lucide-react';
+import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, Trash2, Play, Pause, Check, CheckCheck, Copy, ShieldAlert, UserX, UserCheck, Image as ImageIcon, Video, FileText, X, Square, Music } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,6 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Link from 'next/link';
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -47,10 +46,7 @@ export default function ChatThreadPage() {
     const otherUserId = params.id as string;
     const [otherUser, setOtherUser] = useState<any>(null);
     const [messages, setMessages] = useState<any[]>([]);
-    const [recentChats, setRecentChats] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
-    const [isForwarding, setIsForwarding] = useState(false);
-    const [msgToForward, setMsgToForward] = useState<any>(null);
     
     // Voice & Media
     const [isRecording, setIsRecording] = useState(false);
@@ -60,6 +56,7 @@ export default function ChatThreadPage() {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [selectedMediaType, setSelectedMediaType] = useState<'image' | 'video' | 'document' | null>(null);
     const mediaInputRef = useRef<HTMLInputElement>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -89,7 +86,7 @@ export default function ChatThreadPage() {
             const msgs = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }))
                 .filter((m: any) => !m.deletedForEveryone && !(m.deletedFor || []).includes(currentUser.$id));
             
-            // Client-side sort to avoid index delay
+            // Client-side sort
             msgs.sort((a: any, b: any) => {
                 const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
                 const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
@@ -98,7 +95,7 @@ export default function ChatThreadPage() {
 
             setMessages(msgs);
 
-            // Mark as Read Logic (Green Tick Trigger for Sender)
+            // Mark as Read Logic
             snapshot.docs.forEach(d => {
                 const data = d.data();
                 if (data.senderId !== currentUser.$id && data.status !== 'read') {
@@ -113,7 +110,6 @@ export default function ChatThreadPage() {
         };
         fetchOther();
 
-        // Online Status Heartbeat
         const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
             if (d.exists()) setOtherUser(d.data());
         });
@@ -123,34 +119,45 @@ export default function ChatThreadPage() {
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-    const handleSend = async (text?: string, mediaUrl?: string, mediaType: 'text' | 'image' | 'video' | 'audio' | 'document' = 'text') => {
-        if (!text?.trim() && !mediaUrl && !audioUrl) return;
+    const formatDuration = (seconds: number) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    };
+
+    const handleSend = async (text?: string, mediaUrl?: string, mediaType: 'text' | 'image' | 'video' | 'audio' | 'document' = 'text', duration?: string) => {
+        if (!text?.trim() && !mediaUrl && !audioBlob) return;
         if (!currentUser || !chatId || chatId === 'invalid_chat') return;
         
+        setIsUploading(true);
         try {
             let finalMediaUrl = mediaUrl;
+            let finalMediaType = mediaType;
+
             if (audioBlob) {
                 const file = new File([audioBlob], `voice-${Date.now()}.mp3`, { type: 'audio/mpeg' });
                 const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
                 finalMediaUrl = upload.url;
-                mediaType = 'audio';
+                finalMediaType = 'audio';
+                duration = formatDuration(recordingTime);
             }
 
             const status = otherUser?.isOnline ? 'delivered' : 'sent';
-
             const msgId = ID.unique();
+
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { 
                 chatId, 
                 senderId: currentUser.$id, 
                 text: text?.trim() || '', 
                 mediaUrl: finalMediaUrl || '',
-                mediaType,
+                mediaType: finalMediaType,
                 status,
+                duration: duration || '',
                 createdAt: serverTimestamp()
             });
 
-            // Update Global Chat Metadata
-            const lastText = mediaType === 'text' ? (text || '') : `Sent a ${mediaType}`;
+            // Update Global Chat Metadata for both
+            const lastText = finalMediaType === 'text' ? (text || '') : `Sent a ${finalMediaType}`;
             const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
             await setDoc(chatRef, {
                 participants: [currentUser.$id, otherUserId],
@@ -160,12 +167,12 @@ export default function ChatThreadPage() {
                 [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
 
-            // Trigger Offline Notification for Recipient
+            // Trigger Offline Notification
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
                 userId: otherUserId,
                 senderId: currentUser.$id,
                 type: 'message',
-                description: `sent you a ${mediaType === 'text' ? 'message' : mediaType}.`,
+                description: `sent you a ${finalMediaType === 'text' ? 'message' : finalMediaType}.`,
                 isRead: false,
                 link: `/dashboard/chat/${currentUser.$id}`,
                 createdAt: new Date().toISOString()
@@ -174,9 +181,11 @@ export default function ChatThreadPage() {
             setAudioBlob(null);
             setAudioUrl(null);
             setRecordingTime(0);
-        } catch (e) {
-            console.error(e);
-            toast({ variant: 'destructive', title: 'Error sending message' });
+            setSelectedMediaType(null);
+        } catch (e: any) {
+            toast({ variant: 'destructive', title: 'Send Failed', description: e.message });
+        } finally {
+            setIsUploading(false);
         }
     };
 
@@ -209,13 +218,36 @@ export default function ChatThreadPage() {
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (!file) return;
-        const type = file.type.startsWith('video/') ? 'video' : file.type.startsWith('image/') ? 'image' : 'document';
+        if (!file || !selectedMediaType) return;
+
+        if (selectedMediaType === 'video') {
+            // Check for 5 minute limit (300 seconds)
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.onloadedmetadata = async () => {
+                window.URL.revokeObjectURL(video.src);
+                if (video.duration > 300) {
+                    toast({ variant: 'destructive', title: 'Video too long', description: 'Maximum video length is 5 minutes.' });
+                    return;
+                }
+                await uploadAndSend(file, 'video');
+            };
+            video.src = URL.createObjectURL(file);
+        } else {
+            await uploadAndSend(file, selectedMediaType);
+        }
+    };
+
+    const uploadAndSend = async (file: File, type: 'image' | 'video' | 'document') => {
         setIsUploading(true);
         try {
             const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
             await handleSend('', upload.url, type);
-        } finally { setIsUploading(false); }
+        } catch (e: any) {
+            toast({ variant: 'destructive', title: 'Upload Failed', description: e.message });
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     const deleteMessage = async (msgId: string, forEveryone: boolean) => {
@@ -289,7 +321,7 @@ export default function ChatThreadPage() {
                                         <div className="flex items-center gap-3 min-w-[160px]">
                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-white bg-white/10 rounded-full" onClick={() => { const a = new Audio(msg.mediaUrl); a.play(); }}><Play className="h-4 w-4 fill-current" /></Button>
                                             <div className="h-1 bg-white/20 flex-1 rounded-full overflow-hidden"><div className="h-full bg-white w-1/3 animate-pulse"></div></div>
-                                            <span className="text-[8px] font-black uppercase">Voice</span>
+                                            <span className="text-[8px] font-black uppercase">{msg.duration || 'Voice'}</span>
                                         </div>
                                     )}
                                     {msg.mediaType !== 'text' && msg.mediaType !== 'audio' && !isDeleted && (
@@ -305,8 +337,7 @@ export default function ChatThreadPage() {
                                     <p className="text-[11px] font-bold whitespace-pre-wrap">{msg.text}</p>
                                     <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
                                         <span className="text-[7px] font-mono">{msg.createdAt?.toDate ? format(msg.createdAt.toDate(), 'HH:mm') : ''}</span>
-                                        {/* TICKS FOR SENDER ONLY */}
-                                        {!isDeleted && <MessageStatus status={msg.status} isMine={isMine} />}
+                                        <MessageStatus status={msg.status} isMine={isMine} />
                                     </div>
                                 </div>
                                 {!isDeleted && (
@@ -337,7 +368,7 @@ export default function ChatThreadPage() {
                     <div className="flex items-center justify-between gap-3 bg-red-50 p-2 rounded-2xl">
                         <div className="flex items-center gap-2 text-red-600">
                             <div className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
-                            <span className="text-xs font-black font-mono">{Math.floor(recordingTime/60)}:{(recordingTime%60).toString().padStart(2,'0')}</span>
+                            <span className="text-xs font-black font-mono">{formatDuration(recordingTime)}</span>
                         </div>
                         <div className="flex gap-2">
                             <Button variant="ghost" size="icon" onClick={() => { stopRecording(); setAudioBlob(null); setAudioUrl(null); }} className="h-10 w-10 text-destructive"><Trash2 className="h-5 w-5" /></Button>
@@ -347,22 +378,47 @@ export default function ChatThreadPage() {
                 ) : audioUrl ? (
                     <div className="flex items-center justify-between gap-3 bg-muted/30 p-2 rounded-2xl">
                         <Button variant="ghost" size="icon" onClick={() => { const a = new Audio(audioUrl); a.play(); }}><Play className="h-4 w-4" /></Button>
-                        <span className="text-[10px] font-black uppercase text-primary">Voice Preview</span>
+                        <span className="text-[10px] font-black uppercase text-primary">Voice Preview ({formatDuration(recordingTime)})</span>
                         <div className="flex gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => { setAudioUrl(null); setAudioBlob(null); }} className="text-destructive"><X className="h-4 w-4" /></Button>
-                            <Button size="icon" onClick={() => handleSend()} className="rounded-full h-10 w-10 bg-primary"><Send className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => { setAudioUrl(null); setAudioBlob(null); }} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                            <Button size="icon" onClick={() => handleSend()} className="rounded-full h-10 w-10 bg-primary" disabled={isUploading}>
+                                {isUploading ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
+                            </Button>
                         </div>
                     </div>
                 ) : (
-                    <form onSubmit={(e) => { e.preventDefault(); handleSend(newMessage); setNewMessage(''); }} className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                         <div className="flex gap-1">
-                            <Button type="button" variant="ghost" size="icon" onClick={() => mediaInputRef.current?.click()} className="h-9 w-9 rounded-full text-primary"><Paperclip className="h-4 w-4" /></Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-full text-primary"><Paperclip className="h-4 w-4" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-40 font-black uppercase text-[9px]">
+                                    <DropdownMenuItem onClick={() => { setSelectedMediaType('image'); mediaInputRef.current?.setAttribute('accept', 'image/*'); mediaInputRef.current?.click(); }}>
+                                        <ImageIcon className="mr-2 h-4 w-4" /> Image
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => { setSelectedMediaType('video'); mediaInputRef.current?.setAttribute('accept', 'video/*'); mediaInputRef.current?.click(); }}>
+                                        <Video className="mr-2 h-4 w-4" /> Video (Max 5m)
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => { setSelectedMediaType('document'); mediaInputRef.current?.setAttribute('accept', '.pdf,.doc,.docx,.txt'); mediaInputRef.current?.click(); }}>
+                                        <FileText className="mr-2 h-4 w-4" /> Document
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                             <Button type="button" variant="ghost" size="icon" onClick={startRecording} className="h-9 w-9 rounded-full text-primary"><Mic className="h-4 w-4" /></Button>
                         </div>
-                        <Input placeholder="Message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} className="h-10 rounded-full bg-muted/50 border-none px-4 text-[11px] font-bold" />
-                        <Button type="submit" size="icon" disabled={!newMessage.trim()} className="h-10 w-10 rounded-full shadow-lg"><Send className="h-4 w-4" /></Button>
+                        <Input 
+                            placeholder="Message..." 
+                            value={newMessage} 
+                            onChange={e => setNewMessage(e.target.value)} 
+                            onKeyPress={(e) => { if(e.key === 'Enter') handleSend(newMessage); }}
+                            className="h-10 rounded-full bg-muted/50 border-none px-4 text-[11px] font-bold" 
+                        />
+                        <Button onClick={() => { handleSend(newMessage); setNewMessage(''); }} size="icon" disabled={!newMessage.trim() && !isUploading} className="h-10 w-10 rounded-full shadow-lg">
+                            {isUploading ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
+                        </Button>
                         <input type="file" ref={mediaInputRef} className="hidden" onChange={handleFileSelect} />
-                    </form>
+                    </div>
                 )}
             </footer>
         </div>
