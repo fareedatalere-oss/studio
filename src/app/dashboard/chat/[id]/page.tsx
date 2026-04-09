@@ -7,7 +7,7 @@ import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, ID, increment } from '@/lib/appwrite';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, setDoc, arrayUnion } from 'firebase/firestore';
-import { ArrowLeft, Send, MoreVertical, Paperclip, Mic, Trash2, Play, Image as ImageIcon, Video, FileText, Square, Forward } from 'lucide-react';
+import { ArrowLeft, Send, MoreVertical, Paperclip, Mic, Trash2, Play, Image as ImageIcon, Video, FileText, Square, Forward, ShieldCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,7 @@ const MessageStatus = ({ status, isMine }: { status: string, isMine: boolean }) 
     switch (status) {
         case 'sent': return <span className="text-[8px]">☑️</span>;
         case 'delivered': return <span className="text-[8px]">☑️☑️</span>;
-        case 'read': return <span className="text-[8px] text-green-500">✅</span>;
+        case 'read': return <span className="text-[8px] text-green-500 font-bold">✅</span>;
         default: return <span className="text-[8px] opacity-30">☑️</span>;
     }
 };
@@ -308,142 +308,152 @@ export default function ChatThreadPage() {
     return (
         <div className="flex flex-col h-screen bg-background font-body overflow-hidden">
             <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-50 shadow-sm pt-12">
-                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-8 w-8"><ArrowLeft className="h-4 w-4" /></Button>
-                {otherUser && (
-                    <div className="flex-1 flex items-center gap-2 overflow-hidden">
-                        <Avatar className="h-9 w-9 border-2 border-primary/10">
-                            <AvatarImage src={otherUser.avatar} />
-                            <AvatarFallback className="text-xs">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div className="truncate">
-                            <h2 className="font-black text-xs leading-none truncate uppercase tracking-tighter">@{otherUser.username}</h2>
-                            <p className={cn("text-[8px] font-bold uppercase mt-1", otherUser.isOnline ? "text-green-500" : "text-muted-foreground")}>
-                                {otherUser.isOnline ? 'Online' : otherUser.lastSeen ? `Last seen ${formatDistanceToNow(new Date(otherUser.lastSeen.toMillis ? otherUser.lastSeen.toMillis() : otherUser.lastSeen), { addSuffix: true })}` : 'Offline'}
-                            </p>
+                <div className="flex items-center w-full max-w-2xl mx-auto gap-2">
+                    <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-8 w-8 rounded-full bg-muted/50"><ArrowLeft className="h-4 w-4" /></Button>
+                    {otherUser && (
+                        <div className="flex-1 flex items-center gap-2 overflow-hidden">
+                            <Avatar className="h-9 w-9 border-2 border-primary/10">
+                                <AvatarImage src={otherUser.avatar} />
+                                <AvatarFallback className="text-xs">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <div className="truncate">
+                                <h2 className="font-black text-xs leading-none truncate uppercase tracking-tighter">@{otherUser.username}</h2>
+                                <p className={cn("text-[8px] font-bold uppercase mt-1", otherUser.isOnline ? "text-green-500" : "text-muted-foreground")}>
+                                    {otherUser.isOnline ? 'Online' : otherUser.lastSeen ? `Last seen ${formatDistanceToNow(new Date(otherUser.lastSeen.toMillis ? otherUser.lastSeen.toMillis() : otherUser.lastSeen), { addSuffix: true })}` : 'Offline'}
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                )}
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-40 font-black uppercase text-[9px]">
-                        <DropdownMenuItem onClick={toggleBlock} className={cn(isBlocked ? "text-green-600" : "text-destructive")}>
-                            {currentUserProfile?.blockedUsers?.includes(otherUserId) ? <><Forward className="mr-2 h-3.5 w-3.5 rotate-180" /> Unblock</> : <><Trash2 className="mr-2 h-3.5 w-3.5" /> Block User</>}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={async () => {
-                            await setDoc(doc(db, COLLECTION_ID_CHATS, chatId!), { [`deletedFor.${currentUser!.$id}`]: serverTimestamp() }, { merge: true });
-                            router.push('/dashboard/chat');
-                        }} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" /> Delete Chat</DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                    )}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40 font-black uppercase text-[9px]">
+                            <DropdownMenuItem onClick={toggleBlock} className={cn(isBlocked ? "text-green-600" : "text-destructive")}>
+                                {currentUserProfile?.blockedUsers?.includes(otherUserId) ? <><Forward className="mr-2 h-3.5 w-3.5 rotate-180" /> Unblock</> : <><Trash2 className="mr-2 h-3.5 w-3.5" /> Block User</>}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={async () => {
+                                await setDoc(doc(db, COLLECTION_ID_CHATS, chatId!), { [`deletedFor.${currentUser!.$id}`]: serverTimestamp() }, { merge: true });
+                                router.push('/dashboard/chat');
+                            }} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" /> Delete Chat</DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             </header>
             
             <main className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-50/20 scrollbar-hide">
-                {messages.map((msg) => {
-                    const isMine = msg.senderId === currentUser?.$id;
-                    const isDeleted = msg.deletedForEveryone;
-                    return (
-                        <div key={msg.$id} className={cn("flex flex-col gap-0.5 max-w-[85%]", isMine ? "ml-auto items-end" : "mr-auto items-start")}>
-                            <div className="flex items-center gap-1 group">
-                                <div className={cn(
-                                    "p-2.5 rounded-[1.2rem] shadow-sm relative", 
-                                    isMine ? "bg-primary text-white rounded-br-none" : "bg-white border rounded-bl-none",
-                                    isDeleted && "opacity-50 italic"
-                                )}>
-                                    {msg.mediaType === 'audio' && !isDeleted && (
-                                        <div className="flex items-center gap-3 min-w-[140px]">
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-white bg-white/10 rounded-full" onClick={() => { const a = new Audio(msg.mediaUrl); a.play(); }}><Play className="h-3 w-3 fill-current" /></Button>
-                                            <div className="h-1 bg-white/20 flex-1 rounded-full overflow-hidden"><div className={cn("h-full bg-white", msg.isOptimistic ? "w-1/2 animate-pulse" : "w-full")}></div></div>
-                                            <span className="text-[7px] font-black uppercase">{msg.duration || 'Voice'}</span>
-                                        </div>
-                                    )}
-                                    {msg.mediaType !== 'text' && msg.mediaType !== 'audio' && !isDeleted && (
-                                        <Link href={`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=${msg.mediaType}`} className="block p-1 bg-black/5 rounded-lg mb-1.5">
-                                            <div className="flex items-center gap-2 px-2 py-1.5">
-                                                {msg.mediaType === 'image' && <ImageIcon className="h-3 w-3" />}
-                                                {msg.mediaType === 'video' && <Video className="h-3 w-3" />}
-                                                {msg.mediaType === 'document' && <FileText className="h-3 w-3" />}
-                                                <span className="text-[8px] font-black uppercase tracking-widest">{msg.mediaType}</span>
+                <div className="max-w-2xl mx-auto w-full space-y-2">
+                    <div className="text-center py-4 opacity-30 flex items-center justify-center gap-2">
+                        <ShieldCheck className="h-3 w-3" />
+                        <p className="text-[8px] font-black uppercase tracking-[0.2em]">End-to-End Encrypted</p>
+                    </div>
+                    {messages.map((msg) => {
+                        const isMine = msg.senderId === currentUser?.$id;
+                        const isDeleted = msg.deletedForEveryone;
+                        return (
+                            <div key={msg.$id} className={cn("flex flex-col gap-0.5 max-w-[85%]", isMine ? "ml-auto items-end" : "mr-auto items-start")}>
+                                <div className="flex items-center gap-1 group">
+                                    <div className={cn(
+                                        "p-2.5 rounded-[1.2rem] shadow-sm relative", 
+                                        isMine ? "bg-primary text-white rounded-br-none" : "bg-white border rounded-bl-none",
+                                        isDeleted && "opacity-50 italic"
+                                    )}>
+                                        {msg.mediaType === 'audio' && !isDeleted && (
+                                            <div className="flex items-center gap-3 min-w-[140px]">
+                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-white bg-white/10 rounded-full" onClick={() => { const a = new Audio(msg.mediaUrl); a.play(); }}><Play className="h-3 w-3 fill-current" /></Button>
+                                                <div className="h-1 bg-white/20 flex-1 rounded-full overflow-hidden"><div className={cn("h-full bg-white", msg.isOptimistic ? "w-1/2 animate-pulse" : "w-full")}></div></div>
+                                                <span className="text-[7px] font-black uppercase">{msg.duration || 'Voice'}</span>
                                             </div>
-                                        </Link>
-                                    )}
-                                    <p className="text-[10px] font-bold whitespace-pre-wrap">{msg.text}</p>
-                                    <div className="flex items-center justify-end gap-1 mt-0.5 opacity-60">
-                                        <span className="text-[6px] font-mono">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : format(new Date(msg.createdAt), 'HH:mm')}</span>
-                                        <MessageStatus status={msg.status} isMine={isMine} />
+                                        )}
+                                        {msg.mediaType !== 'text' && msg.mediaType !== 'audio' && !isDeleted && (
+                                            <Link href={`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=${msg.mediaType}`} className="block p-1 bg-black/5 rounded-lg mb-1.5">
+                                                <div className="flex items-center gap-2 px-2 py-1.5">
+                                                    {msg.mediaType === 'image' && <ImageIcon className="h-3 w-3" />}
+                                                    {msg.mediaType === 'video' && <Video className="h-3 w-3" />}
+                                                    {msg.mediaType === 'document' && <FileText className="h-3 w-3" />}
+                                                    <span className="text-[8px] font-black uppercase tracking-widest">{msg.mediaType}</span>
+                                                </div>
+                                            </Link>
+                                        )}
+                                        <p className="text-[10px] font-bold whitespace-pre-wrap">{msg.text}</p>
+                                        <div className="flex items-center justify-end gap-1 mt-0.5 opacity-60">
+                                            <span className="text-[6px] font-mono">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : format(new Date(msg.createdAt), 'HH:mm')}</span>
+                                            <MessageStatus status={msg.status} isMine={isMine} />
+                                        </div>
                                     </div>
+                                    {!isDeleted && (
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-5 w-5 rounded-full opacity-0 group-hover:opacity-100"><MoreVertical className="h-3 w-3" /></Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align={isMine ? "end" : "start"} className="w-32 font-black uppercase text-[9px]">
+                                                <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.text); toast({title:'Copied'}); }}><ImageIcon className="mr-2 h-3 w-3" /> Copy</DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => deleteMessage(msg.$id, false)} className="text-destructive"><Trash2 className="mr-2 h-3 w-3" /> Delete For Me</DropdownMenuItem>
+                                                {isMine && <DropdownMenuItem onClick={() => deleteMessage(msg.$id, true)} className="text-destructive font-black">Delete For Both</DropdownMenuItem>}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    )}
                                 </div>
-                                {!isDeleted && (
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-5 w-5 rounded-full opacity-0 group-hover:opacity-100"><MoreVertical className="h-3 w-3" /></Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align={isMine ? "end" : "start"} className="w-32 font-black uppercase text-[9px]">
-                                            <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.text); toast({title:'Copied'}); }}><ImageIcon className="mr-2 h-3 w-3" /> Copy</DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => deleteMessage(msg.$id, false)} className="text-destructive"><Trash2 className="mr-2 h-3 w-3" /> Delete For Me</DropdownMenuItem>
-                                            {isMine && <DropdownMenuItem onClick={() => deleteMessage(msg.$id, true)} className="text-destructive font-black">Delete For Both</DropdownMenuItem>}
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                )}
                             </div>
-                        </div>
-                    );
-                })}
-                <div ref={messagesEndRef} />
+                        );
+                    })}
+                    <div ref={messagesEndRef} />
+                </div>
             </main>
 
             <footer className="p-3 border-t bg-background safe-area-bottom pb-8">
-                {isBlocked ? (
-                    <div className="bg-muted/50 p-2 rounded-xl text-center"><p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Communication Restricted</p></div>
-                ) : isRecording ? (
-                    <div className="flex items-center justify-between gap-3 bg-red-50 p-2 rounded-2xl">
-                        <div className="flex items-center gap-2 text-red-600">
-                            <div className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
-                            <span className="text-xs font-black font-mono">{formatDuration(recordingTime)}</span>
+                <div className="max-w-2xl mx-auto w-full">
+                    {isBlocked ? (
+                        <div className="bg-muted/50 p-2 rounded-xl text-center"><p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Communication Restricted</p></div>
+                    ) : isRecording ? (
+                        <div className="flex items-center justify-between gap-3 bg-red-50 p-2 rounded-2xl">
+                            <div className="flex items-center gap-2 text-red-600">
+                                <div className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
+                                <span className="text-xs font-black font-mono">{formatDuration(recordingTime)}</span>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button variant="ghost" size="icon" onClick={() => { stopRecording(); setAudioBlob(null); setAudioUrl(null); }} className="h-10 w-10 text-destructive"><Trash2 className="h-5 w-5" /></Button>
+                                <Button size="icon" onClick={stopRecording} className="h-10 w-10 bg-red-600 rounded-full"><Square className="h-4 w-4" /></Button>
+                            </div>
                         </div>
-                        <div className="flex gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => { stopRecording(); setAudioBlob(null); setAudioUrl(null); }} className="h-10 w-10 text-destructive"><Trash2 className="h-5 w-5" /></Button>
-                            <Button size="icon" onClick={stopRecording} className="h-10 w-10 bg-red-600 rounded-full"><Square className="h-4 w-4" /></Button>
+                    ) : audioUrl ? (
+                        <div className="flex items-center justify-between gap-3 bg-muted/30 p-2 rounded-2xl">
+                            <Button variant="ghost" size="icon" onClick={() => { const a = new Audio(audioUrl); a.play(); }}><Play className="h-4 w-4" /></Button>
+                            <span className="text-[10px] font-black uppercase text-primary">Voice Preview ({formatDuration(recordingTime)})</span>
+                            <div className="flex gap-2">
+                                <Button variant="ghost" size="icon" onClick={() => { setAudioUrl(null); setAudioBlob(null); }} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                                <Button size="icon" onClick={() => handleSend()} className="rounded-full h-10 w-10 bg-primary">
+                                    <Send className="h-4 w-4" />
+                                </Button>
+                            </div>
                         </div>
-                    </div>
-                ) : audioUrl ? (
-                    <div className="flex items-center justify-between gap-3 bg-muted/30 p-2 rounded-2xl">
-                        <Button variant="ghost" size="icon" onClick={() => { const a = new Audio(audioUrl); a.play(); }}><Play className="h-4 w-4" /></Button>
-                        <span className="text-[10px] font-black uppercase text-primary">Voice Preview ({formatDuration(recordingTime)})</span>
-                        <div className="flex gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => { setAudioUrl(null); setAudioBlob(null); }} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
-                            <Button size="icon" onClick={() => handleSend()} className="rounded-full h-10 w-10 bg-primary">
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <div className="flex gap-1">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-full text-primary"><Paperclip className="h-4 w-4" /></Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="w-40 font-black uppercase text-[9px]">
+                                        <DropdownMenuItem onClick={() => handleMediaClick('image')}><ImageIcon className="mr-2 h-4 w-4" /> Image</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleMediaClick('video')}><Video className="mr-2 h-4 w-4" /> Video (Max 5m)</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleMediaClick('document')}><FileText className="mr-2 h-4 w-4" /> Document</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <Button type="button" variant="ghost" size="icon" onClick={startRecording} className="h-9 w-9 rounded-full text-primary"><Mic className="h-4 w-4" /></Button>
+                            </div>
+                            <Input 
+                                placeholder="Message..." 
+                                value={newMessage} 
+                                onChange={e => setNewMessage(e.target.value)} 
+                                onKeyPress={(e) => { if(e.key === 'Enter') { handleSend(newMessage); setNewMessage(''); } }}
+                                className="h-10 rounded-full bg-muted/50 border-none px-4 text-[11px] font-bold" 
+                            />
+                            <Button onClick={() => { handleSend(newMessage); setNewMessage(''); }} size="icon" disabled={!newMessage.trim() && !audioBlob} className="h-10 w-10 rounded-full shadow-lg">
                                 <Send className="h-4 w-4" />
                             </Button>
+                            <input type="file" ref={mediaInputRef} className="hidden" accept={acceptType} onChange={handleFileSelect} />
                         </div>
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-full text-primary"><Paperclip className="h-4 w-4" /></Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="w-40 font-black uppercase text-[9px]">
-                                    <DropdownMenuItem onClick={() => handleMediaClick('image')}><ImageIcon className="mr-2 h-4 w-4" /> Image</DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleMediaClick('video')}><Video className="mr-2 h-4 w-4" /> Video (Max 5m)</DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleMediaClick('document')}><FileText className="mr-2 h-4 w-4" /> Document</DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                            <Button type="button" variant="ghost" size="icon" onClick={startRecording} className="h-9 w-9 rounded-full text-primary"><Mic className="h-4 w-4" /></Button>
-                        </div>
-                        <Input 
-                            placeholder="Message..." 
-                            value={newMessage} 
-                            onChange={e => setNewMessage(e.target.value)} 
-                            onKeyPress={(e) => { if(e.key === 'Enter') { handleSend(newMessage); setNewMessage(''); } }}
-                            className="h-10 rounded-full bg-muted/50 border-none px-4 text-[11px] font-bold" 
-                        />
-                        <Button onClick={() => { handleSend(newMessage); setNewMessage(''); }} size="icon" disabled={!newMessage.trim() && !audioBlob} className="h-10 w-10 rounded-full shadow-lg">
-                            <Send className="h-4 w-4" />
-                        </Button>
-                        <input type="file" ref={mediaInputRef} className="hidden" accept={acceptType} onChange={handleFileSelect} />
-                    </div>
-                )}
+                    )}
+                </div>
             </footer>
         </div>
     );

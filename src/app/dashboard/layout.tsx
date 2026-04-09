@@ -18,6 +18,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
  * @fileOverview Dashboard Layout.
  * Immersive mode active for Private Chat Threads and Meetings.
  * Navigation is hidden in private chats to match the user's sketch requirements.
+ * Integrated with Browser Notifications for real-time alerts.
  */
 
 export default function DashboardLayout({
@@ -101,7 +102,7 @@ export default function DashboardLayout({
         setTimeout(() => setIsPulsing(false), 3000);
         
         if (Notification.permission === 'granted') {
-            new Notification("I-Pay Online", {
+            new Notification("I-Pay Online World", {
                 body: "You have a new update in your dashboard.",
                 icon: "/logo.png"
             });
