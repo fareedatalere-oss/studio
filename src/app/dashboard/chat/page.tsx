@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -93,7 +92,7 @@ export default function ChatPage() {
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
-        if (!currentUser) return;
+        if (!currentUser?.$id) return;
 
         const q = query(
             collection(db, COLLECTION_ID_CHATS),
@@ -133,8 +132,8 @@ export default function ChatPage() {
             <Tabs defaultValue="recent" className="flex flex-col h-full">
                 <header className="sticky top-0 bg-white border-b p-3 z-10">
                     <TabsList className="grid w-full grid-cols-2 bg-muted h-10 rounded-2xl p-1">
-                        <TabsTrigger value="recent" className="text-[10px] font-black uppercase tracking-widest rounded-xl data-[state=active]:bg-white">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="text-[10px] font-black uppercase tracking-widest rounded-xl data-[state=active]:bg-white">Direct</TabsTrigger>
+                        <TabsTrigger value="recent" className="text-[10px] font-black tracking-widest rounded-xl data-[state=active]:bg-white">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="text-[10px] font-black tracking-widest rounded-xl data-[state=active]:bg-white">All</TabsTrigger>
                     </TabsList>
                     <div className="relative mt-3">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
@@ -154,7 +153,7 @@ export default function ChatPage() {
                          <div className="text-center py-20 text-muted-foreground font-bold text-[10px] uppercase tracking-widest opacity-30">No chats found</div>}
                     </TabsContent>
                     <TabsContent value="all" className="p-2 m-0 space-y-1">
-                        {filteredUsers.map(user => (
+                        {filteredUsers.length > 0 ? filteredUsers.map(user => (
                             <Link key={user.$id} href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors border border-transparent hover:border-border">
                                 <div className="relative">
                                     <Avatar className="h-10 w-10 border border-primary/5">
@@ -168,14 +167,14 @@ export default function ChatPage() {
                                     <p className="text-[8px] font-black uppercase text-primary/60">{user.isOnline ? 'Online' : 'Offline'}</p>
                                 </div>
                             </Link>
-                        ))}
+                        )) : <div className="text-center py-20 text-muted-foreground font-bold text-[10px] uppercase tracking-widest opacity-30">No users found</div>}
                     </TabsContent>
                 </main>
             </Tabs>
 
             <div className="fixed bottom-20 left-0 right-0 p-4 flex justify-center z-50">
                 <Button asChild className="rounded-full h-12 px-6 shadow-2xl font-black uppercase tracking-widest gap-2 bg-primary">
-                    <Link href="/dashboard/meeting"><Video className="h-4 w-4" /> Meetings</Link>
+                    <Link href="/dashboard/meeting"><Video className="h-4 w-4" /> Meeting</Link>
                 </Button>
             </div>
         </div>

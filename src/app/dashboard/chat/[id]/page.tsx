@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -20,9 +19,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 const getChatId = (userId1?: string, userId2?: string) => {
-    if (!userId1 || !userId2) return null;
+    if (!userId1 || !userId2) return 'invalid_chat';
     const sortedIds = [userId1, userId2].sort();
-    return `${sortedIds[0]}_${sortedIds[1]}`;
+    return `${sortedIds[0].substring(0, 15)}_${sortedIds[1].substring(0, 15)}`;
 };
 
 const MessageStatus = ({ status, isMine }: { status: string, isMine: boolean }) => {
@@ -58,7 +57,7 @@ export default function ChatThreadPage() {
     const isBlocked = currentUserProfile?.blockedUsers?.includes(otherUserId) || otherUser?.blockedUsers?.includes(currentUser?.$id);
 
     useEffect(() => {
-        if (!chatId || !currentUser) return;
+        if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
@@ -105,7 +104,7 @@ export default function ChatThreadPage() {
     const handleSend = async (text: string, targetChatId?: string, targetOtherId?: string) => {
         const finalChatId = targetChatId || chatId;
         const finalOtherId = targetOtherId || otherUserId;
-        if (!text.trim() || !currentUser || !finalChatId) return;
+        if (!text.trim() || !currentUser || !finalChatId || finalChatId === 'invalid_chat') return;
         
         try {
             const status = 'sent';
@@ -129,7 +128,7 @@ export default function ChatThreadPage() {
     const handleForward = async (targetUserId: string) => {
         if (!msgToForward) return;
         const targetChatId = getChatId(currentUser?.$id, targetUserId);
-        if (targetChatId) {
+        if (targetChatId && targetChatId !== 'invalid_chat') {
             await handleSend(msgToForward.text, targetChatId, targetUserId);
             toast({ title: 'Message Forwarded' });
             setIsForwarding(false);

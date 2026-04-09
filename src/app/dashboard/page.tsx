@@ -32,7 +32,6 @@ export default function DashboardPage() {
   const router = useRouter();
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const hasSyncedRef = useRef(false);
   
   const isLoading = userLoading;
 
@@ -65,7 +64,7 @@ export default function DashboardPage() {
     { key: 'feat_buy_airtime', label: 'Airtime', icon: Smartphone, href: '/dashboard/buy-airtime' },
     { key: 'feat_buy_data', label: 'Data', icon: Wifi, href: '/dashboard/buy-data' },
     { key: 'feat_history', label: 'History', icon: History, href: '/dashboard/history' },
-    { key: 'feat_get_reward', label: 'Rewards', icon: Gift, href: '/dashboard/rewards' },
+    { key: 'feat_get_reward', label: 'Reward', icon: Gift, href: '/dashboard/rewards' },
     { key: 'feat_cable', label: 'Cable TV', icon: Tv, href: '/dashboard/cable-payment' },
     { key: 'feat_electric', label: 'Electricity', icon: Lightbulb, href: '/dashboard/electric-bill' },
     { key: 'feat_multipurpose', label: 'Multi-pay', icon: CreditCard, href: '/dashboard/multi-purpose' },
@@ -76,7 +75,7 @@ export default function DashboardPage() {
     <div className="container py-6 space-y-6">
       <Card className="rounded-[2.2rem] shadow-xl border-none bg-gradient-to-br from-white to-muted/20 overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between pb-2 px-6">
-          <CardTitle className="text-[10px] font-black uppercase tracking-widest opacity-60">My Wallet</CardTitle>
+          <CardTitle className="text-[10px] font-black tracking-widest opacity-60">My Wallet</CardTitle>
           <Button variant="outline" size="sm" onClick={() => router.push('/dashboard/deposit')} disabled={isProcessing} className="rounded-full h-6 px-3 border-primary text-primary hover:bg-primary hover:text-white font-black text-[8px] uppercase transition-all">
             {isProcessing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CircleDollarSign className="mr-1 h-3 w-3" />}
             Fund
@@ -84,7 +83,7 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent className="space-y-3 pb-6 px-6">
           <div className="space-y-0.5 min-h-[35px]">
-            <p className="text-[7px] font-black uppercase opacity-40 tracking-widest">Account Number</p>
+            <p className="text-[7px] font-black opacity-40 tracking-widest">Account Number</p>
             {isLoading ? (
               <div className="space-y-1 pt-1">
                 <Skeleton className="h-3.5 w-28" />
@@ -103,7 +102,7 @@ export default function DashboardPage() {
           </div>
 
           <div>
-            <p className="text-[7px] font-black uppercase opacity-40 tracking-widest">Available Balance</p>
+            <p className="text-[7px] font-black opacity-40 tracking-widest">Available Balance</p>
             {isLoading ? (
               <Skeleton className="h-5 w-24 mt-1" />
             ) : (
@@ -113,11 +112,11 @@ export default function DashboardPage() {
           
           <div className="grid grid-cols-2 gap-4 pt-3 border-t border-dashed">
             <div>
-                <p className="text-[6px] font-black uppercase opacity-40 tracking-widest">Rewards</p>
+                <p className="text-[6px] font-black opacity-40 tracking-widest">Reward</p>
                  {isLoading ? <Skeleton className="h-3 w-10 mt-1" /> : <p className="font-black text-xs text-orange-500">{userProfile?.rewardBalance?.toLocaleString() || '0'}</p>}
             </div>
             <div>
-              <p className="text-[6px] font-black uppercase opacity-40 tracking-widest">Clicks</p>
+              <p className="text-[6px] font-black opacity-40 tracking-widest">Click</p>
                {isLoading ? <Skeleton className="h-3 w-8 mt-1" /> : (
                   <div className="flex items-center gap-2">
                   <p className="font-black text-xs text-blue-500">{userProfile?.clickCount?.toLocaleString() || 0}</p>
