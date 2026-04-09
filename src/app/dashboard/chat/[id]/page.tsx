@@ -29,7 +29,7 @@ const MessageStatus = ({ status, isMine }: { status: string, isMine: boolean }) 
     switch (status) {
         case 'sent': return <span className="text-[8px]">☑️</span>;
         case 'delivered': return <span className="text-[8px]">☑️☑️</span>;
-        case 'read': return <span className="text-[8px]">✅</span>;
+        case 'read': return <span className="text-[8px] text-green-500">✅</span>;
         default: return <span className="text-[8px] opacity-30">☑️</span>;
     }
 };
@@ -45,7 +45,6 @@ export default function ChatThreadPage() {
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
     
-    // Voice & Media
     const [isRecording, setIsRecording] = useState(false);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -92,7 +91,7 @@ export default function ChatThreadPage() {
             snapshot.docs.forEach(d => {
                 const data = d.data();
                 if (data.senderId !== currentUser.$id && data.status !== 'read') {
-                    updateDoc(doc(db, COLLECTION_ID_MESSAGES, d.id), { status: 'read' });
+                    updateDoc(doc(db, COLLECTION_ID_MESSAGES, d.id), { status: 'read' }).catch(() => {});
                 }
             });
         });
@@ -233,11 +232,8 @@ export default function ChatThreadPage() {
         let accept = 'image/*';
         if (type === 'video') accept = 'video/*';
         if (type === 'document') accept = '.pdf,.doc,.docx,.txt';
-        
         setAcceptType(accept);
-        setTimeout(() => {
-            mediaInputRef.current?.click();
-        }, 100);
+        setTimeout(() => mediaInputRef.current?.click(), 100);
     };
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -265,7 +261,7 @@ export default function ChatThreadPage() {
 
     const uploadAndSend = async (file: File, type: 'image' | 'video' | 'document') => {
         setIsUploading(true);
-        toast({ title: 'Uploading media...' });
+        toast({ title: 'Uploading...' });
         try {
             const reader = new FileReader();
             const base64 = await new Promise<string>((resolve) => {
@@ -349,41 +345,40 @@ export default function ChatThreadPage() {
                         <div key={msg.$id} className={cn("flex flex-col gap-0.5 max-w-[85%]", isMine ? "ml-auto items-end" : "mr-auto items-start")}>
                             <div className="flex items-center gap-1 group">
                                 <div className={cn(
-                                    "p-3 rounded-[1.2rem] shadow-sm relative", 
+                                    "p-2.5 rounded-[1.2rem] shadow-sm relative", 
                                     isMine ? "bg-primary text-white rounded-br-none" : "bg-white border rounded-bl-none",
                                     isDeleted && "opacity-50 italic"
                                 )}>
                                     {msg.mediaType === 'audio' && !isDeleted && (
-                                        <div className="flex items-center gap-3 min-w-[160px]">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-white bg-white/10 rounded-full" onClick={() => { const a = new Audio(msg.mediaUrl); a.play(); }}><Play className="h-4 w-4 fill-current" /></Button>
+                                        <div className="flex items-center gap-3 min-w-[140px]">
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-white bg-white/10 rounded-full" onClick={() => { const a = new Audio(msg.mediaUrl); a.play(); }}><Play className="h-3 w-3 fill-current" /></Button>
                                             <div className="h-1 bg-white/20 flex-1 rounded-full overflow-hidden"><div className={cn("h-full bg-white", msg.isOptimistic ? "w-1/2 animate-pulse" : "w-full")}></div></div>
-                                            <span className="text-[8px] font-black uppercase">{msg.duration || 'Voice'}</span>
+                                            <span className="text-[7px] font-black uppercase">{msg.duration || 'Voice'}</span>
                                         </div>
                                     )}
                                     {msg.mediaType !== 'text' && msg.mediaType !== 'audio' && !isDeleted && (
-                                        <Link href={`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=${msg.mediaType}`} className="block p-1 bg-black/5 rounded-lg mb-2">
-                                            <div className="flex items-center gap-2 px-3 py-2">
-                                                {msg.mediaType === 'image' && <ImageIcon className="h-4 w-4" />}
-                                                {msg.mediaType === 'video' && <Video className="h-4 w-4" />}
-                                                {msg.mediaType === 'document' && <FileText className="h-4 w-4" />}
-                                                <span className="text-[9px] font-black uppercase tracking-widest">{msg.mediaType}</span>
+                                        <Link href={`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=${msg.mediaType}`} className="block p-1 bg-black/5 rounded-lg mb-1.5">
+                                            <div className="flex items-center gap-2 px-2 py-1.5">
+                                                {msg.mediaType === 'image' && <ImageIcon className="h-3 w-3" />}
+                                                {msg.mediaType === 'video' && <Video className="h-3 w-3" />}
+                                                {msg.mediaType === 'document' && <FileText className="h-3 w-3" />}
+                                                <span className="text-[8px] font-black uppercase tracking-widest">{msg.mediaType}</span>
                                             </div>
                                         </Link>
                                     )}
-                                    <p className="text-[11px] font-bold whitespace-pre-wrap">{msg.text}</p>
-                                    <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
-                                        <span className="text-[7px] font-mono">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : format(new Date(msg.createdAt), 'HH:mm')}</span>
+                                    <p className="text-[10px] font-bold whitespace-pre-wrap">{msg.text}</p>
+                                    <div className="flex items-center justify-end gap-1 mt-0.5 opacity-60">
+                                        <span className="text-[6px] font-mono">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : format(new Date(msg.createdAt), 'HH:mm')}</span>
                                         <MessageStatus status={msg.status} isMine={isMine} />
                                     </div>
                                 </div>
                                 {!isDeleted && (
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100"><MoreVertical className="h-3 w-3" /></Button>
+                                            <Button variant="ghost" size="icon" className="h-5 w-5 rounded-full opacity-0 group-hover:opacity-100"><MoreVertical className="h-3 w-3" /></Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align={isMine ? "end" : "start"} className="w-32 font-black uppercase text-[9px]">
                                             <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.text); toast({title:'Copied'}); }}><ImageIcon className="mr-2 h-3 w-3" /> Copy</DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => toast({ title: 'Forward coming soon' })}><Forward className="mr-2 h-3 w-3" /> Forward</DropdownMenuItem>
                                             <DropdownMenuItem onClick={() => deleteMessage(msg.$id, false)} className="text-destructive"><Trash2 className="mr-2 h-3 w-3" /> Delete For Me</DropdownMenuItem>
                                             {isMine && <DropdownMenuItem onClick={() => deleteMessage(msg.$id, true)} className="text-destructive font-black">Delete For Both</DropdownMenuItem>}
                                         </DropdownMenuContent>
@@ -398,9 +393,7 @@ export default function ChatThreadPage() {
 
             <footer className="p-3 border-t bg-background safe-area-bottom pb-8">
                 {isBlocked ? (
-                    <div className="bg-muted/50 p-2 rounded-xl text-center">
-                        <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Communication Restricted</p>
-                    </div>
+                    <div className="bg-muted/50 p-2 rounded-xl text-center"><p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Communication Restricted</p></div>
                 ) : isRecording ? (
                     <div className="flex items-center justify-between gap-3 bg-red-50 p-2 rounded-2xl">
                         <div className="flex items-center gap-2 text-red-600">
@@ -431,15 +424,9 @@ export default function ChatThreadPage() {
                                     <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-full text-primary"><Paperclip className="h-4 w-4" /></Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-40 font-black uppercase text-[9px]">
-                                    <DropdownMenuItem onClick={() => handleMediaClick('image')}>
-                                        <ImageIcon className="mr-2 h-4 w-4" /> Image
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleMediaClick('video')}>
-                                        <Video className="mr-2 h-4 w-4" /> Video (Max 5m)
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleMediaClick('document')}>
-                                        <FileText className="mr-2 h-4 w-4" /> Document
-                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleMediaClick('image')}><ImageIcon className="mr-2 h-4 w-4" /> Image</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleMediaClick('video')}><Video className="mr-2 h-4 w-4" /> Video (Max 5m)</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleMediaClick('document')}><FileText className="mr-2 h-4 w-4" /> Document</DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
                             <Button type="button" variant="ghost" size="icon" onClick={startRecording} className="h-9 w-9 rounded-full text-primary"><Mic className="h-4 w-4" /></Button>

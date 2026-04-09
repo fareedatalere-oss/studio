@@ -16,8 +16,8 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 
 /**
  * @fileOverview Dashboard Layout.
- * Immersive mode active for Media, Chat Threads, and Meetings.
- * Navigation is hidden in private chats to maximize space.
+ * Immersive mode active for Private Chat Threads and Meetings.
+ * Navigation is hidden in private chats to match the user's sketch requirements.
  */
 
 export default function DashboardLayout({
@@ -38,13 +38,10 @@ export default function DashboardLayout({
   
   const lastCountRef = useRef(0);
 
-  // Hide nav for media, private chat threads (matching ID with underscores), text posts, and meeting rooms
+  // Hide nav for private chat threads (matching ID with underscores) and meeting rooms
   const isImmersive = 
-    pathname === '/dashboard/media' || 
-    pathname.startsWith('/dashboard/media/music') || 
-    pathname.includes('/text') || 
     pathname.includes('/room/') ||
-    pathname.match(/\/dashboard\/chat\/[a-zA-Z0-9_]+/); // Support underscores in IDs
+    pathname.match(/\/dashboard\/chat\/[a-zA-Z0-9_]+/);
 
   useEffect(() => {
     setIsMounted(true);
@@ -141,7 +138,7 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col font-body">
       <MeetingAlarm />
       {showInstallBanner && !isImmersive && (
         <div className="bg-primary text-primary-foreground p-2 flex items-center justify-between shadow-2xl sticky top-0 z-[60] border-b-2 border-white/20">
