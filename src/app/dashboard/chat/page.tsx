@@ -9,20 +9,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, Loader2, Video, MoreVertical, Trash2, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
 import { db } from '@/lib/firebase';
-import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, arrayUnion, arrayRemove, deleteDoc, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, arrayUnion, arrayRemove, deleteDoc, limit } from 'firebase/firestore';
 import { COLLECTION_ID_CHATS, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 import { formatDistanceToNow } from 'date-fns';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-const RECENT_CACHE_KEY = 'ipay-recent-chats-v2';
-const ALL_USERS_CACHE_KEY = 'ipay-all-users-v2';
+const RECENT_CACHE_KEY = 'ipay-recent-chats-v3';
+const ALL_USERS_CACHE_KEY = 'ipay-all-users-v3';
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
     const [otherUser, setOtherUser] = useState<any>(null);
     const { toast } = useToast();
-    const otherUserId = chat.participants.find((p: string) => p !== currentUser?.$id);
+    const otherUserId = chat.participants?.find((p: string) => p !== currentUser?.$id);
 
     useEffect(() => {
         if (!otherUserId) return;
@@ -41,7 +41,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     };
 
     const toggleBlock = async () => {
-        if (!currentUser) return;
+        if (!currentUser || !otherUserId) return;
         const currentlyBlocked = currentUser.blockedUsers?.includes(otherUserId);
         try {
             await updateDoc(doc(db, COLLECTION_ID_PROFILES, currentUser.$id), {
@@ -114,16 +114,23 @@ export default function ChatPage() {
     useEffect(() => {
         if (!currentUser?.$id) return;
 
-        // REAL-TIME RECENT CHATS
+        // Optimized Query: Removed server-side orderBy to bypass Index requirement
         const q = query(
             collection(db, COLLECTION_ID_CHATS),
             where('participants', 'array-contains', currentUser.$id),
-            orderBy('lastMessageAt', 'desc'),
             limit(50)
         );
 
         const unsubChats = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
+            
+            // Client-side Sorting: Sorts instantly without crashing
+            data.sort((a: any, b: any) => {
+                const timeA = a.lastMessageAt?.toDate ? a.lastMessageAt.toDate().getTime() : 0;
+                const timeB = b.lastMessageAt?.toDate ? b.lastMessageAt.toDate().getTime() : 0;
+                return timeB - timeA;
+            });
+
             setRecentChats(data);
             localStorage.setItem(RECENT_CACHE_KEY, JSON.stringify(data));
         });
