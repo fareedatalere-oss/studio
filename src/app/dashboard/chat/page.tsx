@@ -19,8 +19,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-const RECENT_CACHE_KEY = 'ipay-recent-chats-v6';
-const ALL_USERS_CACHE_KEY = 'ipay-all-users-v6';
+const RECENT_CACHE_KEY = 'ipay-recent-chats-v7';
+const ALL_USERS_CACHE_KEY = 'ipay-all-users-v7';
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
     const [otherUser, setOtherUser] = useState<any>(null);

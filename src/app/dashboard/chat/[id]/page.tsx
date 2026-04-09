@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, ID, increment } from '@/lib/appwrite';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, setDoc, arrayUnion } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, setDoc, arrayUnion, orderBy } from 'firebase/firestore';
 import { ArrowLeft, Send, MoreVertical, Paperclip, Mic, Trash2, Play, Image as ImageIcon, Video, FileText, Square, Forward, ShieldCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
     const sortedIds = [userId1, userId2].sort();
-    return `${sortedIds[0].substring(0, 15)}_${sortedIds[1].substring(0, 15)}`;
+    return `${sortedIds[0]}_${sortedIds[1]}`;
 };
 
 const MessageStatus = ({ status, isMine }: { status: string, isMine: boolean }) => {
@@ -73,19 +73,14 @@ export default function ChatThreadPage() {
 
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
-            where('chatId', '==', chatId)
+            where('chatId', '==', chatId),
+            orderBy('createdAt', 'asc')
         );
 
         const unsub = onSnapshot(q, (snapshot) => {
             const msgs = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }))
-                .filter((m: any) => !m.deletedForEveryone && !(m.deletedFor || []).includes(currentUser.$id));
+                .filter((m: any) => !m.deletedForEveryone);
             
-            msgs.sort((a: any, b: any) => {
-                const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : Date.now());
-                const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : Date.now());
-                return timeA - timeB;
-            });
-
             setMessages(msgs);
 
             snapshot.docs.forEach(d => {
@@ -103,7 +98,11 @@ export default function ChatThreadPage() {
         return () => { unsub(); unsubOther(); };
     }, [chatId, currentUser, otherUserId]);
 
-    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+    useEffect(() => { 
+        if (messages.length > 0) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
+        }
+    }, [messages]);
 
     const formatDuration = (seconds: number) => {
         const m = Math.floor(seconds / 60);
@@ -306,7 +305,7 @@ export default function ChatThreadPage() {
     };
 
     return (
-        <div className="flex flex-col h-screen bg-background font-body overflow-hidden">
+        <div className="flex flex-col h-[100dvh] bg-background font-body overflow-hidden">
             <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-50 shadow-sm pt-12">
                 <div className="flex items-center w-full max-w-xl mx-auto gap-2">
                     <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-8 w-8 rounded-full bg-muted/50"><ArrowLeft className="h-4 w-4" /></Button>
@@ -339,7 +338,7 @@ export default function ChatThreadPage() {
                 </div>
             </header>
             
-            <main className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-50/20 scrollbar-hide">
+            <main className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-50/20">
                 <div className="max-w-xl mx-auto w-full space-y-2">
                     <div className="text-center py-4 opacity-30 flex items-center justify-center gap-2">
                         <ShieldCheck className="h-3 w-3" />
@@ -395,7 +394,7 @@ export default function ChatThreadPage() {
                             </div>
                         );
                     })}
-                    <div ref={messagesEndRef} />
+                    <div ref={messagesEndRef} className="h-4" />
                 </div>
             </main>
 
