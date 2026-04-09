@@ -185,7 +185,7 @@ export default function ChatPage() {
             </Tabs>
 
             <div className="fixed bottom-20 left-0 right-0 p-4 flex justify-center z-50">
-                <Button asChild className="rounded-full h-12 px-6 shadow-2xl font-black uppercase tracking-widest gap-2 bg-primary">
+                <Button asChild className="rounded-full h-12 px-6 shadow-2xl font-black gap-2 bg-primary">
                     <Link href="/dashboard/meeting"><Video className="h-4 w-4" /> Meeting</Link>
                 </Button>
             </div>

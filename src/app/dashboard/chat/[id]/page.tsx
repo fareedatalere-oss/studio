@@ -45,7 +45,7 @@ export default function ChatThreadPage() {
     const [messages, setMessages] = useState<any[]>([]);
     const [recentChats, setRecentChats] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [sending, setSending] = useState(false);
     const [isForwarding, setIsForwarding] = useState(false);
     const [msgToForward, setMsgToForward] = useState<any>(null);
@@ -70,7 +70,6 @@ export default function ChatThreadPage() {
             const msgs = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }))
                 .filter((m: any) => !m.deletedForEveryone && !(m.deletedFor || []).includes(currentUser.$id));
             setMessages(msgs);
-            setLoading(false);
 
             snapshot.docs.forEach(d => {
                 const data = d.data();
@@ -186,35 +185,33 @@ export default function ChatThreadPage() {
             </header>
             
             <main className="flex-1 overflow-y-auto p-4 space-y-3 bg-neutral-50/50 scrollbar-hide">
-                {loading ? <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : (
-                    messages.map((msg) => {
-                        const isMine = msg.senderId === currentUser?.$id;
-                        return (
-                            <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%]", isMine ? "ml-auto items-end" : "mr-auto items-start")}>
-                                <div className="flex items-center gap-1 group">
-                                    <div className={cn("p-2.5 rounded-2xl shadow-sm relative", isMine ? "bg-primary text-white rounded-br-none" : "bg-white border rounded-bl-none")}>
-                                        <p className="text-xs font-medium whitespace-pre-wrap">{msg.text}</p>
-                                        <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
-                                            <span className="text-[7px] font-mono">{msg.createdAt && format(msg.createdAt.toDate(), 'HH:mm')}</span>
-                                            <MessageStatus status={msg.status} isMine={isMine} />
-                                        </div>
+                {messages.map((msg) => {
+                    const isMine = msg.senderId === currentUser?.$id;
+                    return (
+                        <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%]", isMine ? "ml-auto items-end" : "mr-auto items-start")}>
+                            <div className="flex items-center gap-1 group">
+                                <div className={cn("p-2.5 rounded-2xl shadow-sm relative", isMine ? "bg-primary text-white rounded-br-none" : "bg-white border rounded-bl-none")}>
+                                    <p className="text-xs font-medium whitespace-pre-wrap">{msg.text}</p>
+                                    <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
+                                        <span className="text-[7px] font-mono">{msg.createdAt && format(msg.createdAt.toDate(), 'HH:mm')}</span>
+                                        <MessageStatus status={msg.status} isMine={isMine} />
                                     </div>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100"><MoreVertical className="h-3 w-3" /></Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align={isMine ? "end" : "start"} className="w-32 font-bold uppercase text-[9px]">
-                                            <DropdownMenuItem onClick={() => handleCopy(msg.text)}><Copy className="mr-2 h-3 w-3" /> Copy</DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => { setMsgToForward(msg); setIsForwarding(true); }}><Forward className="mr-2 h-3 w-3" /> Forward</DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => deleteMessage(msg.$id, false)} className="text-destructive"><Trash2 className="mr-2 h-3 w-3" /> Delete For Me</DropdownMenuItem>
-                                            {isMine && <DropdownMenuItem onClick={() => deleteMessage(msg.$id, true)} className="text-destructive font-black">Delete For Both</DropdownMenuItem>}
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
                                 </div>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100"><MoreVertical className="h-3 w-3" /></Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align={isMine ? "end" : "start"} className="w-32 font-bold uppercase text-[9px]">
+                                        <DropdownMenuItem onClick={() => handleCopy(msg.text)}><Copy className="mr-2 h-3 w-3" /> Copy</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => { setMsgToForward(msg); setIsForwarding(true); }}><Forward className="mr-2 h-3 w-3" /> Forward</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => deleteMessage(msg.$id, false)} className="text-destructive"><Trash2 className="mr-2 h-3 w-3" /> Delete For Me</DropdownMenuItem>
+                                        {isMine && <DropdownMenuItem onClick={() => deleteMessage(msg.$id, true)} className="text-destructive font-black">Delete For Both</DropdownMenuItem>}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
-                        );
-                    })
-                )}
+                        </div>
+                    );
+                })}
                 <div ref={messagesEndRef} />
             </main>
 
