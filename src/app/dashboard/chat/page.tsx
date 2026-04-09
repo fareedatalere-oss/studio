@@ -9,8 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, Loader2, Video, MoreVertical, Trash2, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
 import { db } from '@/lib/firebase';
-import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
-import { COLLECTION_ID_CHATS, COLLECTION_ID_PROFILES, DATABASE_ID, databases } from '@/lib/appwrite';
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, arrayUnion, arrayRemove, deleteDoc, limit } from 'firebase/firestore';
+import { COLLECTION_ID_CHATS, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 import { formatDistanceToNow } from 'date-fns';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
     const [otherUser, setOtherUser] = useState<any>(null);
     const { toast } = useToast();
-    const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
+    const otherUserId = chat.participants.find((p: string) => p !== currentUser?.$id);
 
     useEffect(() => {
         if (!otherUserId) return;
@@ -38,6 +38,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     };
 
     const toggleBlock = async () => {
+        if (!currentUser) return;
         const currentlyBlocked = currentUser.blockedUsers?.includes(otherUserId);
         try {
             await updateDoc(doc(db, COLLECTION_ID_PROFILES, currentUser.$id), {
@@ -76,7 +77,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
                 <DropdownMenuContent align="end" className="w-40 font-bold uppercase text-[9px]">
                     <DropdownMenuItem onClick={deleteChatHistory} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" /> Delete Chat</DropdownMenuItem>
                     <DropdownMenuItem onClick={toggleBlock}>
-                        {currentUser.blockedUsers?.includes(otherUserId) ? <><ShieldCheck className="mr-2 h-3.5 w-3.5" /> Unblock</> : <><ShieldAlert className="mr-2 h-3.5 w-3.5" /> Block User</>}
+                        {currentUser?.blockedUsers?.includes(otherUserId) ? <><ShieldCheck className="mr-2 h-3.5 w-3.5" /> Unblock</> : <><ShieldAlert className="mr-2 h-3.5 w-3.5" /> Block User</>}
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
@@ -94,18 +95,21 @@ export default function ChatPage() {
     useEffect(() => {
         if (!currentUser?.$id) return;
 
+        // Fetch recent chats with instant listener
         const q = query(
             collection(db, COLLECTION_ID_CHATS),
             where('participants', 'array-contains', currentUser.$id),
-            orderBy('lastMessageAt', 'desc')
+            orderBy('lastMessageAt', 'desc'),
+            limit(50)
         );
 
         const unsubChats = onSnapshot(q, (snapshot) => {
             setRecentChats(snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })));
             setLoading(false);
-        });
+        }, () => setLoading(false));
 
-        const uQ = query(collection(db, COLLECTION_ID_PROFILES));
+        // Fetch all users for discovery
+        const uQ = query(collection(db, COLLECTION_ID_PROFILES), limit(50));
         const unsubUsers = onSnapshot(uQ, (snapshot) => {
             setAllUsers(snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })));
         });
@@ -148,26 +152,34 @@ export default function ChatPage() {
 
                 <main className="flex-1 overflow-y-auto scrollbar-hide">
                     <TabsContent value="recent" className="p-2 m-0 space-y-1">
-                        {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary" /></div> : 
-                         filteredRecent.length > 0 ? filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUserProfile} />) : 
-                         <div className="text-center py-20 text-muted-foreground font-bold text-[10px] uppercase tracking-widest opacity-30">No chats found</div>}
+                        {filteredRecent.length > 0 ? (
+                            filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUserProfile} />)
+                        ) : loading ? (
+                            <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary" /></div>
+                        ) : (
+                            <div className="text-center py-20 text-muted-foreground font-bold text-[10px] uppercase tracking-widest opacity-30">No chats found</div>
+                        )}
                     </TabsContent>
                     <TabsContent value="all" className="p-2 m-0 space-y-1">
-                        {filteredUsers.length > 0 ? filteredUsers.map(user => (
-                            <Link key={user.$id} href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors border border-transparent hover:border-border">
-                                <div className="relative">
-                                    <Avatar className="h-10 w-10 border border-primary/5">
-                                        <AvatarImage src={user.avatar} />
-                                        <AvatarFallback>{user.username?.charAt(0).toUpperCase()}</AvatarFallback>
-                                    </Avatar>
-                                    {user.isOnline && <div className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></div>}
-                                </div>
-                                <div className="flex-1">
-                                    <p className="font-bold text-xs">@{user.username}</p>
-                                    <p className="text-[8px] font-black uppercase text-primary/60">{user.isOnline ? 'Online' : 'Offline'}</p>
-                                </div>
-                            </Link>
-                        )) : <div className="text-center py-20 text-muted-foreground font-bold text-[10px] uppercase tracking-widest opacity-30">No users found</div>}
+                        {filteredUsers.length > 0 ? (
+                            filteredUsers.map(user => (
+                                <Link key={user.$id} href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors border border-transparent hover:border-border">
+                                    <div className="relative">
+                                        <Avatar className="h-10 w-10 border border-primary/5">
+                                            <AvatarImage src={user.avatar} />
+                                            <AvatarFallback>{user.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                                        </Avatar>
+                                        {user.isOnline && <div className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></div>}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-bold text-xs">@{user.username}</p>
+                                        <p className="text-[8px] font-black uppercase text-primary/60">{user.isOnline ? 'Online' : 'Offline'}</p>
+                                    </div>
+                                </Link>
+                            ))
+                        ) : (
+                            <div className="text-center py-20 text-muted-foreground font-bold text-[10px] uppercase tracking-widest opacity-30">No users found</div>
+                        )}
                     </TabsContent>
                 </main>
             </Tabs>
