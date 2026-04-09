@@ -5,7 +5,7 @@ import { v2 as cloudinary } from 'cloudinary';
 
 /**
  * @fileOverview Cloudinary Server Action for Secure Uploads.
- * Optimized to handle signatures correctly using environment variables.
+ * Optimized with new credentials for cloud name: dwhkwiceh.
  */
 
 // Configure using the URL if provided, otherwise use specific keys
@@ -16,9 +16,9 @@ if (process.env.CLOUDINARY_URL) {
   });
 } else {
   cloudinary.config({
-    cloud_name: 'dqgzgak0e',
-    api_key: '544592771214677',
-    api_secret: process.env.CLOUDINARY_API_SECRET,
+    cloud_name: 'dwhkwiceh',
+    api_key: '483123493357221',
+    api_secret: '544592771214677',
     secure: true,
   });
 }

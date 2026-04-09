@@ -1,9 +1,9 @@
+
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Video, Users, Calendar, ArrowRight, Home } from 'lucide-react';
+import { ArrowLeft, Video, Users, Calendar, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function MeetingLandingPage() {
   return (
@@ -17,7 +17,7 @@ export default function MeetingLandingPage() {
           <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-primary/20">
             <Video className="h-10 w-10 text-primary" />
           </div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter">Meeting</h1>
+          <h1 className="text-3xl font-black tracking-tighter">Meeting</h1>
           <p className="text-muted-foreground font-medium">Internal Communication Center</p>
         </header>
 

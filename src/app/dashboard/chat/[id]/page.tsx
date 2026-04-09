@@ -6,8 +6,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, ID, increment } from '@/lib/appwrite';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, limit, doc, updateDoc, serverTimestamp, getDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
-import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, Trash2, Play, Pause, Check, CheckCheck, Copy, ShieldAlert, UserX, UserCheck, Image as ImageIcon, Video, FileText, X, Square, Forward } from 'lucide-react';
+import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, setDoc, arrayUnion } from 'firebase/firestore';
+import { ArrowLeft, Send, MoreVertical, Paperclip, Mic, Trash2, Play, Image as ImageIcon, Video, FileText, Square, Forward } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -21,17 +21,16 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
     const sortedIds = [userId1, userId2].sort();
-    // Use underscores to ensure regex matching in immersive mode detection
     return `${sortedIds[0].substring(0, 15)}_${sortedIds[1].substring(0, 15)}`;
 };
 
 const MessageStatus = ({ status, isMine }: { status: string, isMine: boolean }) => {
     if (!isMine) return null;
     switch (status) {
-        case 'sent': return <Check className="h-2.5 w-2.5 text-white/50" />;
-        case 'delivered': return <CheckCheck className="h-2.5 w-2.5 text-white/50" />;
-        case 'read': return <CheckCheck className="h-2.5 w-2.5 text-green-400" />;
-        default: return <Check className="h-2.5 w-2.5 text-white/30" />;
+        case 'sent': return <span className="text-[8px]">☑️</span>;
+        case 'delivered': return <span className="text-[8px]">☑️☑️</span>;
+        case 'read': return <span className="text-[8px]">✅</span>;
+        default: return <span className="text-[8px] opacity-30">☑️</span>;
     }
 };
 
@@ -118,13 +117,11 @@ export default function ChatThreadPage() {
         if (!text?.trim() && !mediaUrl && !hasVoice) return;
         if (!currentUser || !chatId || chatId === 'invalid_chat') return;
         
-        // Capture local state before clearing
         const capturedAudioBlob = audioBlob;
         const capturedAudioUrl = audioUrl;
         const capturedTime = recordingTime;
         const finalText = text?.trim() || '';
 
-        // INSTANT DROP (Optimistic Update 💧)
         if (hasVoice) {
             setAudioBlob(null);
             setAudioUrl(null);
@@ -147,7 +144,6 @@ export default function ChatThreadPage() {
         };
         setMessages(prev => [...prev, optimisticMsg]);
 
-        // Background Processing
         try {
             let finalMediaUrl = mediaUrl;
             let finalMediaType = hasVoice ? 'audio' : mediaType;
@@ -306,7 +302,7 @@ export default function ChatThreadPage() {
         const currentlyBlocked = currentUserProfile?.blockedUsers?.includes(otherUserId);
         try {
             await updateDoc(doc(db, COLLECTION_ID_PROFILES, currentUser.$id), {
-                blockedUsers: currentlyBlocked ? arrayRemove(otherUserId) : arrayUnion(otherUserId)
+                blockedUsers: currentlyBlocked ? (currentUserProfile.blockedUsers || []).filter((id: string) => id !== otherUserId) : arrayUnion(otherUserId)
             });
             await recheckUser();
             toast({ title: currentlyBlocked ? 'User Unblocked' : 'User Blocked' });
@@ -335,7 +331,7 @@ export default function ChatThreadPage() {
                     <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-40 font-black uppercase text-[9px]">
                         <DropdownMenuItem onClick={toggleBlock} className={cn(isBlocked ? "text-green-600" : "text-destructive")}>
-                            {currentUserProfile?.blockedUsers?.includes(otherUserId) ? <><UserCheck className="mr-2 h-3.5 w-3.5" /> Unblock</> : <><ShieldAlert className="mr-2 h-3.5 w-3.5" /> Block User</>}
+                            {currentUserProfile?.blockedUsers?.includes(otherUserId) ? <><Forward className="mr-2 h-3.5 w-3.5 rotate-180" /> Unblock</> : <><Trash2 className="mr-2 h-3.5 w-3.5" /> Block User</>}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={async () => {
                             await setDoc(doc(db, COLLECTION_ID_CHATS, chatId!), { [`deletedFor.${currentUser!.$id}`]: serverTimestamp() }, { merge: true });
@@ -386,7 +382,7 @@ export default function ChatThreadPage() {
                                             <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100"><MoreVertical className="h-3 w-3" /></Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align={isMine ? "end" : "start"} className="w-32 font-black uppercase text-[9px]">
-                                            <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.text); toast({title:'Copied'}); }}><Copy className="mr-2 h-3 w-3" /> Copy</DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.text); toast({title:'Copied'}); }}><ImageIcon className="mr-2 h-3 w-3" /> Copy</DropdownMenuItem>
                                             <DropdownMenuItem onClick={() => toast({ title: 'Forward coming soon' })}><Forward className="mr-2 h-3 w-3" /> Forward</DropdownMenuItem>
                                             <DropdownMenuItem onClick={() => deleteMessage(msg.$id, false)} className="text-destructive"><Trash2 className="mr-2 h-3 w-3" /> Delete For Me</DropdownMenuItem>
                                             {isMine && <DropdownMenuItem onClick={() => deleteMessage(msg.$id, true)} className="text-destructive font-black">Delete For Both</DropdownMenuItem>}
