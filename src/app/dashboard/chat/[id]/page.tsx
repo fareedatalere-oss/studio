@@ -71,15 +71,21 @@ export default function ChatThreadPage() {
         };
         clearUnread();
 
+        // Optimized query: Removed orderBy to prevent Firestore index errors
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
-            where('chatId', '==', chatId),
-            orderBy('createdAt', 'asc')
+            where('chatId', '==', chatId)
         );
 
         const unsub = onSnapshot(q, (snapshot) => {
+            // High-speed client-side sorting to avoid index requirements
             const msgs = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }))
-                .filter((m: any) => !m.deletedForEveryone);
+                .filter((m: any) => !m.deletedForEveryone)
+                .sort((a: any, b: any) => {
+                    const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt instanceof Date ? a.createdAt.getTime() : 0);
+                    const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt instanceof Date ? b.createdAt.getTime() : 0);
+                    return timeA - timeB;
+                });
             
             setMessages(msgs);
 
@@ -89,6 +95,9 @@ export default function ChatThreadPage() {
                     updateDoc(doc(db, COLLECTION_ID_MESSAGES, d.id), { status: 'read' }).catch(() => {});
                 }
             });
+        }, (error) => {
+            console.error("Chat sync error:", error);
+            // Non-blocking error handling
         });
 
         const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
@@ -338,7 +347,7 @@ export default function ChatThreadPage() {
                 </div>
             </header>
             
-            <main className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-50/20">
+            <main className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-50/20 overscroll-contain">
                 <div className="max-w-xl mx-auto w-full space-y-2">
                     <div className="text-center py-4 opacity-30 flex items-center justify-center gap-2">
                         <ShieldCheck className="h-3 w-3" />
