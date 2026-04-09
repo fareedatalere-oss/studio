@@ -15,6 +15,7 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 /**
  * @fileOverview Sign In Page.
  * Branding: I-pay online world.
+ * Updated Title: Welcome Back (Title Case).
  */
 
 export default function SignInPage() {
@@ -74,7 +75,7 @@ export default function SignInPage() {
           <div className="mx-auto inline-block p-1 mb-4">
             <IPayLogo className="h-16 w-16" />
           </div>
-          <CardTitle className="text-3xl font-black uppercase tracking-tighter">Welcome Back</CardTitle>
+          <CardTitle className="text-3xl font-black tracking-tighter">Welcome Back</CardTitle>
           <CardDescription className="font-bold">Sign in to your I-pay online world account.</CardDescription>
         </CardHeader>
         <CardContent>

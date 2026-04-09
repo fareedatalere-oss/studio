@@ -5,7 +5,8 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 /**
  * @fileOverview Landing Page for I-pay online world.
- * Branding: Welcome To I-pay (Strict Case).
+ * Branding: Welcome To I-pay (Strict Title Case).
+ * Button Sizing: Reduced for sleek "Small Size" professional feel.
  */
 
 export default function Home() {
@@ -31,7 +32,7 @@ export default function Home() {
         <p className="mt-4 max-w-xl text-lg text-foreground/80 md:text-xl font-medium">
           The new world of online business and transactions.
         </p>
-        <div className="mt-8 flex flex-wrap justify-center gap-4">
+        <div className="mt-10 flex flex-wrap justify-center gap-4">
           <Button asChild size="default" className="rounded-2xl font-black uppercase text-[10px] tracking-widest px-8 h-11 shadow-xl">
             <Link href="/auth/signin">Sign In</Link>
           </Button>

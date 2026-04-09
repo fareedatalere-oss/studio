@@ -26,6 +26,12 @@ import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
+/**
+ * @fileOverview Dashboard Page.
+ * UI Standard: Emerald Green buttons (Professional, not too green).
+ * Standard: Title Case labels.
+ */
+
 export default function DashboardPage() {
   const { user, profile: userProfile, loading: userLoading, proof, recheckUser } = useUser();
   const { toast } = useToast();
