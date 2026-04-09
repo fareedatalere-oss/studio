@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -38,18 +39,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     const deleteChatHistory = async () => {
         try {
             await deleteDoc(doc(db, COLLECTION_ID_CHATS, chat.$id));
-            toast({ title: 'Chat History Deleted' });
-        } catch (e) {}
-    };
-
-    const toggleBlock = async () => {
-        if (!currentUser || !otherUserId) return;
-        const currentlyBlocked = currentUser.blockedUsers?.includes(otherUserId);
-        try {
-            await updateDoc(doc(db, COLLECTION_ID_PROFILES, currentUser.uid), {
-                blockedUsers: currentlyBlocked ? arrayRemove(otherUserId) : arrayUnion(otherUserId)
-            });
-            toast({ title: currentlyBlocked ? 'Unblocked' : 'Blocked' });
+            toast({ title: 'Chat Deleted' });
         } catch (e) {}
     };
 
@@ -62,28 +52,28 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     if (!otherUser) return null;
 
     return (
-        <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors border border-transparent hover:border-border group">
+        <div className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all group">
             <Link href={`/dashboard/chat/${otherUserId}`} className="flex-1 flex items-center gap-3 overflow-hidden">
                 <div className="relative">
-                    <Avatar className="h-11 w-11 shrink-0 border border-primary/10">
+                    <Avatar className="h-12 w-12 border-2 border-primary/5">
                         <AvatarImage src={otherUser.avatar} />
-                        <AvatarFallback>{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                        <AvatarFallback className="font-black">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
                     </Avatar>
-                    {otherUser.isOnline && <div className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>}
+                    {otherUser.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>}
                 </div>
                 <div className="flex-1 overflow-hidden">
                     <div className="flex justify-between items-center mb-0.5">
-                        <p className="font-bold text-xs truncate">@{otherUser.username}</p>
-                        <p className="text-[7px] font-black uppercase text-muted-foreground opacity-60">
-                            {chat.lastMessageAt?.toDate ? formatChatDate(chat.lastMessageAt.toDate()) : 'just now'}
+                        <p className="font-bold text-xs">@{otherUser.username}</p>
+                        <p className="text-[7px] font-black uppercase text-muted-foreground">
+                            {chat.lastMessageAt?.toDate ? formatChatDate(chat.lastMessageAt.toDate()) : ''}
                         </p>
                     </div>
                     <div className="flex justify-between items-center gap-2">
-                        <p className={cn("text-[10px] truncate opacity-80", unreadCount > 0 ? "font-black text-foreground" : "text-muted-foreground")}>
+                        <p className={cn("text-[10px] truncate max-w-[80%]", unreadCount > 0 ? "font-black text-foreground" : "text-muted-foreground font-medium")}>
                             {chat.lastMessage}
                         </p>
                         {unreadCount > 0 && (
-                            <Badge variant="destructive" className="h-4 min-w-4 p-0 px-1 text-[8px] font-black rounded-full border-2 border-white">
+                            <Badge variant="destructive" className="h-4 min-w-4 p-0 px-1 text-[8px] font-black rounded-full border-2 border-white flex items-center justify-center">
                                 {unreadCount}
                             </Badge>
                         )}
@@ -92,12 +82,11 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
             </Link>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100"><MoreVertical className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-30 group-hover:opacity-100"><MoreVertical className="h-4 w-4" /></Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40 font-bold uppercase text-[9px]">
-                    <DropdownMenuItem onClick={deleteChatHistory} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" /> Delete Chat</DropdownMenuItem>
-                    <DropdownMenuItem onClick={toggleBlock}>
-                        {currentUser?.blockedUsers?.includes(otherUserId) ? <><ShieldCheck className="mr-2 h-3.5 w-3.5" /> Unblock</> : <><ShieldAlert className="mr-2 h-3.5 w-3.5" /> Block User</>}
+                <DropdownMenuContent align="end" className="w-40 font-black uppercase text-[9px]">
+                    <DropdownMenuItem onClick={deleteChatHistory} className="text-destructive">
+                        <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete Chat
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
@@ -108,7 +97,6 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
 export default function ChatPage() {
     const { user: currentUser, profile: currentUserProfile } = useUser();
     
-    // INSTANT LOADING CACHE LOGIC
     const [recentChats, setRecentChats] = useState<any[]>(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem(RECENT_CACHE_KEY);
@@ -125,7 +113,6 @@ export default function ChatPage() {
         return [];
     });
 
-    const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
@@ -133,8 +120,7 @@ export default function ChatPage() {
 
         const q = query(
             collection(db, COLLECTION_ID_CHATS),
-            where('participants', 'array-contains', currentUser.$id),
-            limit(50)
+            where('participants', 'array-contains', currentUser.$id)
         );
 
         const unsubChats = onSnapshot(q, (snapshot) => {
@@ -150,8 +136,7 @@ export default function ChatPage() {
             localStorage.setItem(RECENT_CACHE_KEY, JSON.stringify(data));
         });
 
-        const uQ = query(collection(db, COLLECTION_ID_PROFILES), limit(100));
-        const unsubUsers = onSnapshot(uQ, (snapshot) => {
+        const unsubUsers = onSnapshot(collection(db, COLLECTION_ID_PROFILES), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
             setAllUsers(data);
             localStorage.setItem(ALL_USERS_CACHE_KEY, JSON.stringify(data));
@@ -175,18 +160,18 @@ export default function ChatPage() {
     );
 
     return (
-        <div className="flex flex-col h-full bg-white text-gray-900 relative">
+        <div className="flex flex-col h-full bg-background text-foreground relative">
             <Tabs defaultValue="recent" className="flex flex-col h-full">
-                <header className="sticky top-0 bg-white border-b p-3 z-10">
+                <header className="sticky top-0 bg-background/80 backdrop-blur-md border-b p-3 z-10">
                     <TabsList className="grid w-full grid-cols-2 bg-muted h-10 rounded-2xl p-1">
-                        <TabsTrigger value="recent" className="text-[10px] font-black tracking-widest rounded-xl data-[state=active]:bg-white">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="text-[10px] font-black tracking-widest rounded-xl data-[state=active]:bg-white">All</TabsTrigger>
+                        <TabsTrigger value="recent" className="text-[10px] font-black tracking-widest rounded-xl data-[state=active]:bg-background">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="text-[10px] font-black tracking-widest rounded-xl data-[state=active]:bg-background">All</TabsTrigger>
                     </TabsList>
                     <div className="relative mt-3">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
                         <Input
                             placeholder="Find conversations..."
-                            className="pl-9 text-gray-900 h-10 text-xs rounded-2xl bg-muted/50 border-none shadow-none"
+                            className="pl-9 h-10 text-[11px] rounded-2xl bg-muted/50 border-none shadow-none font-bold"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -197,20 +182,18 @@ export default function ChatPage() {
                     <TabsContent value="recent" className="p-2 m-0 space-y-1">
                         {filteredRecent.length > 0 ? (
                             filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUserProfile} />)
-                        ) : loading ? (
-                            <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary" /></div>
                         ) : (
-                            <div className="text-center py-20 text-muted-foreground font-bold text-[10px] uppercase tracking-widest opacity-30">No chats found</div>
+                            <div className="text-center py-20 text-muted-foreground font-black text-[9px] uppercase tracking-[0.3em] opacity-30">No Recent Chats</div>
                         )}
                     </TabsContent>
                     <TabsContent value="all" className="p-2 m-0 space-y-1">
                         {filteredUsers.length > 0 ? (
                             filteredUsers.map(user => (
-                                <Link key={user.$id} href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors border border-transparent hover:border-border">
+                                <Link key={user.$id} href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all">
                                     <div className="relative">
-                                        <Avatar className="h-10 w-10 border border-primary/5">
+                                        <Avatar className="h-11 w-11 border-2 border-primary/5">
                                             <AvatarImage src={user.avatar} />
-                                            <AvatarFallback>{user.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                                            <AvatarFallback className="font-black">{user.username?.charAt(0).toUpperCase()}</AvatarFallback>
                                         </Avatar>
                                         {user.isOnline && <div className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></div>}
                                     </div>
@@ -221,14 +204,14 @@ export default function ChatPage() {
                                 </Link>
                             ))
                         ) : (
-                            <div className="text-center py-20 text-muted-foreground font-bold text-[10px] uppercase tracking-widest opacity-30">No users found</div>
+                            <div className="text-center py-20 text-muted-foreground font-black text-[9px] uppercase tracking-[0.3em] opacity-30">No Users Found</div>
                         )}
                     </TabsContent>
                 </main>
             </Tabs>
 
             <div className="fixed bottom-20 left-0 right-0 p-4 flex justify-center z-50">
-                <Button asChild className="rounded-full h-12 px-6 shadow-2xl font-black gap-2 bg-primary">
+                <Button asChild className="rounded-full h-12 px-8 shadow-2xl font-black uppercase text-[10px] tracking-widest gap-2 bg-primary">
                     <Link href="/dashboard/meeting"><Video className="h-4 w-4" /> Meeting</Link>
                 </Button>
             </div>
