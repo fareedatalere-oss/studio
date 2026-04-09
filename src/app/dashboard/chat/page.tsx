@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -19,8 +18,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-const RECENT_CACHE_KEY = 'ipay-recent-chats-v7';
-const ALL_USERS_CACHE_KEY = 'ipay-all-users-v7';
+const RECENT_CACHE_KEY = 'ipay-recent-chats-v8';
+const ALL_USERS_CACHE_KEY = 'ipay-all-users-v8';
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
     const [otherUser, setOtherUser] = useState<any>(null);
@@ -99,22 +98,8 @@ export default function ChatPage() {
     const router = useRouter();
     const { user: currentUser, profile: currentUserProfile } = useUser();
     
-    const [recentChats, setRecentChats] = useState<any[]>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem(RECENT_CACHE_KEY);
-            return saved ? JSON.parse(saved) : [];
-        }
-        return [];
-    });
-
-    const [allUsers, setAllUsers] = useState<any[]>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem(ALL_USERS_CACHE_KEY);
-            return saved ? JSON.parse(saved) : [];
-        }
-        return [];
-    });
-
+    const [recentChats, setRecentChats] = useState<any[]>([]);
+    const [allUsers, setAllUsers] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
@@ -133,13 +118,11 @@ export default function ChatPage() {
                 return timeB - timeA;
             });
             setRecentChats(data);
-            localStorage.setItem(RECENT_CACHE_KEY, JSON.stringify(data));
         });
 
         const unsubUsers = onSnapshot(collection(db, COLLECTION_ID_PROFILES), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
             setAllUsers(data);
-            localStorage.setItem(ALL_USERS_CACHE_KEY, JSON.stringify(data));
         });
 
         return () => { unsubChats(); unsubUsers(); };
@@ -167,9 +150,9 @@ export default function ChatPage() {
                 </Button>
                 
                 <Tabs defaultValue="recent" className="flex flex-col w-full">
-                    <TabsList className="flex items-center gap-4 bg-transparent h-12 p-0 border-none mb-4 justify-start">
-                        <TabsTrigger value="recent" className="text-lg font-black data-[state=active]:text-primary data-[state=active]:bg-transparent px-0 border-none shadow-none">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="text-lg font-black data-[state=active]:text-primary data-[state=active]:bg-transparent px-0 border-none shadow-none">All</TabsTrigger>
+                    <TabsList className="flex items-center gap-2 bg-transparent h-12 p-0 border-none mb-4 justify-start">
+                        <TabsTrigger value="recent" className="text-base font-black data-[state=active]:text-primary data-[state=active]:bg-transparent px-2 border-none shadow-none">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="text-base font-black data-[state=active]:text-primary data-[state=active]:bg-transparent px-2 border-none shadow-none">All</TabsTrigger>
                     </TabsList>
 
                     <div className="relative mb-6">

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -71,14 +70,13 @@ export default function ChatThreadPage() {
         };
         clearUnread();
 
-        // Optimized query: Removed orderBy to prevent Firestore index errors
+        // High-speed client-side sort to avoid Firestore index requirement
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
             where('chatId', '==', chatId)
         );
 
         const unsub = onSnapshot(q, (snapshot) => {
-            // High-speed client-side sorting to avoid index requirements
             const msgs = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }))
                 .filter((m: any) => !m.deletedForEveryone)
                 .sort((a: any, b: any) => {
@@ -95,9 +93,6 @@ export default function ChatThreadPage() {
                     updateDoc(doc(db, COLLECTION_ID_MESSAGES, d.id), { status: 'read' }).catch(() => {});
                 }
             });
-        }, (error) => {
-            console.error("Chat sync error:", error);
-            // Non-blocking error handling
         });
 
         const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
@@ -129,6 +124,7 @@ export default function ChatThreadPage() {
         const capturedTime = recordingTime;
         const finalText = text?.trim() || '';
 
+        // Clear UI instantly (WATER DROP ENGINE 💧)
         if (hasVoice) {
             setAudioBlob(null);
             setAudioUrl(null);
@@ -183,6 +179,7 @@ export default function ChatThreadPage() {
                 createdAt: serverTimestamp()
             });
 
+            // Ensure Recent Persistence for BOTH users
             const lastText = finalMediaType === 'text' ? finalText : `Sent a ${finalMediaType}`;
             const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
             await setDoc(chatRef, {
@@ -322,7 +319,7 @@ export default function ChatThreadPage() {
                         <div className="flex-1 flex items-center gap-2 overflow-hidden">
                             <Avatar className="h-9 w-9 border-2 border-primary/10">
                                 <AvatarImage src={otherUser.avatar} />
-                                <AvatarFallback className="text-xs">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                                <AvatarFallback className="text-xs font-black">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
                             </Avatar>
                             <div className="truncate">
                                 <h2 className="font-black text-xs leading-none truncate uppercase tracking-tighter">@{otherUser.username}</h2>
