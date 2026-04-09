@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Camera, ImageIcon, Loader2, Video, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { useToast } from '@/hooks/use-toast';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, ID } from '@/lib/appwrite';
 import Image from 'next/image';
+import { cn } from '@/lib/utils';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
@@ -53,17 +53,21 @@ export default function MeetingJoinPage() {
                 createdAt: new Date().toISOString()
             });
 
+            // Save identity to session so they can enter room once approved
+            sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ name, avatar, requestId }));
             setStep('waiting');
 
             // Listen for host approval
-            const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_ATTENDEES}.documents.${requestId}`], response => {
+            const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_ATTENDEES}.documents`], response => {
                 const payload = response.payload as any;
-                if (payload.status === 'approved') {
-                    router.replace(`/dashboard/meeting/room/${meetingId}`);
-                } else if (payload.status === 'declined') {
-                    toast({ variant: 'destructive', title: 'Request Denied', description: 'The host has declined your request to join.' });
-                    setStep('info');
-                    setIsSubmitting(false);
+                if (payload.$id === requestId) {
+                    if (payload.status === 'approved') {
+                        router.replace(`/dashboard/meeting/room/${meetingId}`);
+                    } else if (payload.status === 'declined') {
+                        toast({ variant: 'destructive', title: 'Request Denied', description: 'The host has declined your request to join.' });
+                        setStep('info');
+                        setIsSubmitting(false);
+                    }
                 }
             });
 
@@ -82,10 +86,10 @@ export default function MeetingJoinPage() {
                     <div className="relative mx-auto">
                         <Loader2 className="h-32 w-32 animate-spin text-primary opacity-20" />
                         <div className="absolute inset-0 flex items-center justify-center">
-                            <Avatar className="h-20 w-20 ring-4 ring-primary p-1">
-                                <AvatarImage src={avatar || ''} />
-                                <AvatarFallback className="font-black text-2xl uppercase bg-primary text-white">{name.charAt(0)}</AvatarFallback>
-                            </Avatar>
+                            <AvatarContainer className="h-20 w-20 ring-4 ring-primary p-1">
+                                <AvatarImg src={avatar || ''} />
+                                <AvatarFall>{name.charAt(0)}</AvatarFall>
+                            </AvatarContainer>
                         </div>
                     </div>
                     <div>
@@ -157,12 +161,12 @@ export default function MeetingJoinPage() {
     );
 }
 
-function Avatar({ children, className }: { children: React.ReactNode, className?: string }) {
+function AvatarContainer({ children, className }: { children: React.ReactNode, className?: string }) {
     return <div className={cn("relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full", className)}>{children}</div>;
 }
-function AvatarImage({ src }: { src: string }) {
+function AvatarImg({ src }: { src: string }) {
     return <img src={src} className="aspect-square h-full w-full object-cover" />;
 }
-function AvatarFallback({ children, className }: { children: React.ReactNode, className?: string }) {
+function AvatarFall({ children, className }: { children: React.ReactNode, className?: string }) {
     return <div className={cn("flex h-full w-full items-center justify-center rounded-full bg-muted", className)}>{children}</div>;
 }

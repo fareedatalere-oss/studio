@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, ID, increment } from '@/lib/appwrite';
@@ -55,12 +55,20 @@ export default function ChatThreadPage() {
     const mediaInputRef = useRef<HTMLInputElement>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const chatId = currentUser ? getChatId(currentUser.$id, otherUserId) : null;
+    
+    // Memoize chatId to prevent unnecessary listener resets
+    const chatId = useMemo(() => {
+        if (!currentUser?.$id || !otherUserId) return null;
+        return getChatId(currentUser.$id, otherUserId);
+    }, [currentUser?.$id, otherUserId]);
 
     const isBlocked = currentUserProfile?.blockedUsers?.includes(otherUserId) || otherUser?.blockedUsers?.includes(currentUser?.$id);
 
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
+
+        // Reset local state for new thread
+        setMessages([]);
 
         const clearUnread = async () => {
             const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
@@ -70,13 +78,18 @@ export default function ChatThreadPage() {
         };
         clearUnread();
 
-        // High-speed client-side sort to avoid Firestore index requirement
+        // Optimized query: No server-side order to bypass index requirement
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
             where('chatId', '==', chatId)
         );
 
         const unsub = onSnapshot(q, (snapshot) => {
+            if (snapshot.empty) {
+                setMessages([]);
+                return;
+            }
+
             const msgs = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }))
                 .filter((m: any) => !m.deletedForEveryone)
                 .sort((a: any, b: any) => {
@@ -87,6 +100,7 @@ export default function ChatThreadPage() {
             
             setMessages(msgs);
 
+            // Real-time Read Receipts
             snapshot.docs.forEach(d => {
                 const data = d.data();
                 if (data.senderId !== currentUser.$id && data.status !== 'read') {
@@ -106,7 +120,7 @@ export default function ChatThreadPage() {
         if (messages.length > 0) {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
         }
-    }, [messages]);
+    }, [messages.length]);
 
     const formatDuration = (seconds: number) => {
         const m = Math.floor(seconds / 60);
@@ -117,14 +131,14 @@ export default function ChatThreadPage() {
     const handleSend = async (text?: string, mediaUrl?: string, mediaType: 'text' | 'image' | 'video' | 'audio' | 'document' = 'text', duration?: string) => {
         const hasVoice = !!audioBlob && !!audioUrl;
         if (!text?.trim() && !mediaUrl && !hasVoice) return;
-        if (!currentUser || !chatId || chatId === 'invalid_chat') return;
+        if (!currentUser || !chatId) return;
         
         const capturedAudioBlob = audioBlob;
         const capturedAudioUrl = audioUrl;
         const capturedTime = recordingTime;
         const finalText = text?.trim() || '';
 
-        // Clear UI instantly (WATER DROP ENGINE 💧)
+        // Instant clear UI
         if (hasVoice) {
             setAudioBlob(null);
             setAudioUrl(null);
@@ -132,6 +146,7 @@ export default function ChatThreadPage() {
             setIsRecording(false);
         }
 
+        // Optimistic UI Drop (💧)
         const tempId = `temp-${Date.now()}`;
         const optimisticMsg = {
             $id: tempId,
@@ -179,7 +194,7 @@ export default function ChatThreadPage() {
                 createdAt: serverTimestamp()
             });
 
-            // Ensure Recent Persistence for BOTH users
+            // Mutual Persistent Recent Entry
             const lastText = finalMediaType === 'text' ? finalText : `Sent a ${finalMediaType}`;
             const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
             await setDoc(chatRef, {
@@ -190,6 +205,7 @@ export default function ChatThreadPage() {
                 [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
 
+            // Trigger Notification
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
                 userId: otherUserId,
                 senderId: currentUser.$id,
@@ -336,8 +352,10 @@ export default function ChatThreadPage() {
                                 {currentUserProfile?.blockedUsers?.includes(otherUserId) ? <><Forward className="mr-2 h-3.5 w-3.5 rotate-180" /> Unblock</> : <><Trash2 className="mr-2 h-3.5 w-3.5" /> Block User</>}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={async () => {
-                                await setDoc(doc(db, COLLECTION_ID_CHATS, chatId!), { [`deletedFor.${currentUser!.$id}`]: serverTimestamp() }, { merge: true });
-                                router.push('/dashboard/chat');
+                                if(chatId) {
+                                    await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), { [`deletedFor.${currentUser!.$id}`]: serverTimestamp() }, { merge: true });
+                                    router.push('/dashboard/chat');
+                                }
                             }} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" /> Delete Chat</DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>

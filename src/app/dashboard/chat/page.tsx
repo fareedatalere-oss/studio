@@ -18,9 +18,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-const RECENT_CACHE_KEY = 'ipay-recent-chats-v8';
-const ALL_USERS_CACHE_KEY = 'ipay-all-users-v8';
-
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
     const [otherUser, setOtherUser] = useState<any>(null);
     const { toast } = useToast();
@@ -144,18 +141,20 @@ export default function ChatPage() {
 
     return (
         <div className="flex flex-col h-full bg-background text-foreground relative font-body overflow-y-auto pb-safe">
-            <header className="p-4 pt-12 max-w-xl mx-auto w-full">
-                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="mb-4 h-10 w-10 bg-muted/50 rounded-full">
-                    <ArrowLeft className="h-5 w-5" />
-                </Button>
+            <header className="p-4 pt-12 max-w-xl mx-auto w-full flex flex-col items-center">
+                <div className="w-full flex items-center justify-between mb-2">
+                    <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-10 w-10 bg-muted/50 rounded-full">
+                        <ArrowLeft className="h-5 w-5" />
+                    </Button>
+                </div>
                 
-                <Tabs defaultValue="recent" className="flex flex-col w-full">
-                    <TabsList className="flex items-center gap-2 bg-transparent h-12 p-0 border-none mb-4 justify-start">
-                        <TabsTrigger value="recent" className="text-base font-black data-[state=active]:text-primary data-[state=active]:bg-transparent px-2 border-none shadow-none">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="text-base font-black data-[state=active]:text-primary data-[state=active]:bg-transparent px-2 border-none shadow-none">All</TabsTrigger>
+                <Tabs defaultValue="recent" className="flex flex-col w-full items-center">
+                    <TabsList className="flex items-center gap-1 bg-muted/50 h-10 p-1 rounded-full mb-6 justify-center w-fit px-4">
+                        <TabsTrigger value="recent" className="text-[10px] font-black uppercase rounded-full px-6 h-8 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="text-[10px] font-black uppercase rounded-full px-6 h-8 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
                     </TabsList>
 
-                    <div className="relative mb-6">
+                    <div className="relative w-full mb-6">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
                         <Input
                             placeholder="Find conversations..."
@@ -165,7 +164,7 @@ export default function ChatPage() {
                         />
                     </div>
 
-                    <main className="flex-1 pb-24">
+                    <main className="w-full pb-24">
                         <TabsContent value="recent" className="m-0 space-y-1">
                             {filteredRecent.length > 0 ? (
                                 filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUserProfile} />)

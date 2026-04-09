@@ -54,7 +54,8 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                 const prof = await fetchProfile(firebaseUser.uid);
                 
                 // Redirection Logic
-                if (!prof && !pathname.includes('/auth') && !pathname.includes('/signup/profile')) {
+                const isMeetingPath = pathname.includes('/meeting/room/') || pathname.includes('/meeting/join/');
+                if (!prof && !pathname.includes('/auth') && !pathname.includes('/signup/profile') && !isMeetingPath) {
                     router.replace('/auth/signup/profile');
                 } else if (prof && pathname === '/auth/signin') {
                     router.replace('/dashboard');
@@ -62,7 +63,10 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
             } else {
                 setUser(null);
                 setProfile(null);
-                if (pathname.startsWith('/dashboard') && !pathname.includes('/auth')) {
+                
+                // Exempt Meeting Join paths from Sign-In redirection
+                const isMeetingJoin = pathname.includes('/meeting/join/') || pathname.includes('/meeting/room/');
+                if (pathname.startsWith('/dashboard') && !pathname.includes('/auth') && !isMeetingJoin) {
                     router.replace('/auth/signin');
                 }
             }
