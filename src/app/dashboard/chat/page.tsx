@@ -1,309 +1,151 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Loader2, MoreVertical, Trash2, Video } from 'lucide-react';
+import { Search, Loader2, Video, CheckCheck } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
-import client, { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, Query } from '@/lib/appwrite';
+import { db } from '@/lib/firebase';
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { COLLECTION_ID_CHATS, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
 import { formatDistanceToNow } from 'date-fns';
-import { useToast } from '@/hooks/use-toast';
-import { Badge } from '@/components/ui/badge';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 
+const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
+    const [otherUser, setOtherUser] = useState<any>(null);
+    const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
 
-// Recent Chat Item Component
-const RecentChatItem = ({ chat, currentUser, onAction }: { chat: any, currentUser: any, onAction: () => void }) => {
-    const { toast } = useToast();
-    const [unreadCount, setUnreadCount] = useState(0);
-    const displayName = chat.otherUser?.username || 'Unknown User';
-    
     useEffect(() => {
-        const fetchUnread = async () => {
-            try {
-                const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
-                    Query.equal('chatId', chat.$id),
-                    Query.equal('status', 'sent'),
-                    Query.notEqual('senderId', currentUser.$id),
-                    Query.limit(1)
-                ]);
-                setUnreadCount(response.total);
-            } catch (e) {
-                console.log("Error fetching unread messages for chat item");
-            }
+        if (!otherUserId) return;
+        const fetchOther = async () => {
+            const d = await getDoc(doc(db, COLLECTION_ID_PROFILES, otherUserId));
+            if (d.exists()) setOtherUser(d.data());
         };
-        fetchUnread();
-    }, [chat.$id, currentUser.$id]);
+        fetchOther();
+    }, [otherUserId]);
 
-    const handleDeleteForMe = async (chatId: string) => {
-        toast({ title: 'Deleting Chat...', description: `Removing chat from your list.` });
-        try {
-            await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId);
-            toast({ title: 'Success', description: 'Chat has been removed from your list.' });
-            onAction(); // Trigger a refetch in the parent component
-        } catch (error: any) {
-            toast({ title: 'Error', description: `Could not delete chat: ${error.message}`, variant: 'destructive' });
-        }
-    };
-    
-    const handleDeleteForEveryone = async (chatId: string, username: string) => {
-        toast({ title: 'Deleting Chat for Everyone...', description: `This may take a moment.` });
-        try {
-            // First, delete all messages in the chat
-            let hasMore = true;
-            while(hasMore) {
-                const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
-                    Query.equal('chatId', chatId),
-                    Query.limit(25) // Delete in batches
-                ]);
-                
-                if (response.documents.length > 0) {
-                    await Promise.all(response.documents.map(doc => databases.deleteDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, doc.$id)));
-                }
-                
-                hasMore = response.documents.length === 25;
-            }
-
-            // Then, delete the chat document itself
-            await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId);
-            
-            toast({ title: 'Success', description: `Chat with ${username} has been deleted for everyone.` });
-            onAction(); // Refetch
-        } catch (error: any) {
-            toast({ title: 'Error', description: `Could not delete chat for everyone: ${error.message}`, variant: 'destructive' });
-        }
-    };
-
-    if (!chat.otherUser) return null;
+    if (!otherUser) return null;
 
     return (
-        <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors">
-            <Link href={`/dashboard/chat/${chat.otherUser.$id}`} className="flex-1 flex items-center gap-3 overflow-hidden">
-                <Avatar className="h-10 w-10 shrink-0">
-                    <AvatarImage src={chat.otherUser.avatar} />
-                    <AvatarFallback>{displayName.charAt(0).toUpperCase()}</AvatarFallback>
+        <Link href={`/dashboard/chat/${otherUserId}`} className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors border border-transparent hover:border-border">
+            <div className="relative">
+                <Avatar className="h-12 w-12 shrink-0 border border-primary/10">
+                    <AvatarImage src={otherUser.avatar} />
+                    <AvatarFallback>{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
-                <div className="flex-1 overflow-hidden">
-                    <div className="flex justify-between items-center gap-2">
-                        <p className="font-bold text-sm truncate">{displayName}</p>
-                        <p className="text-[9px] text-muted-foreground whitespace-nowrap">
-                            {formatDistanceToNow(new Date(chat.lastMessageAt), { addSuffix: true })}
-                        </p>
-                    </div>
-                    <div className="flex justify-between items-center gap-2">
-                        <p className="text-xs text-muted-foreground truncate">{chat.lastMessage}</p>
-                        {unreadCount > 0 && (
-                            <Badge variant="destructive" className="h-4 min-w-4 justify-center rounded-full p-0.5 text-[8px]">
-                                {unreadCount}
-                            </Badge>
-                        )}
-                    </div>
+                {otherUser.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>}
+            </div>
+            <div className="flex-1 overflow-hidden">
+                <div className="flex justify-between items-center mb-0.5">
+                    <p className="font-bold text-sm truncate">@{otherUser.username}</p>
+                    <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60">
+                        {chat.lastMessageAt && formatDistanceToNow(chat.lastMessageAt.toDate(), { addSuffix: true })}
+                    </p>
                 </div>
-            </Link>
-            <AlertDialog>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8"><MoreVertical className="h-4 w-4"/></Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <AlertDialogTrigger asChild>
-                            <DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive text-xs">Delete Chat</DropdownMenuItem>
-                        </AlertDialogTrigger>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Chat with {displayName}?</AlertDialogTitle>
-                        <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogAction onClick={() => handleDeleteForEveryone(chat.$id, displayName)} className="bg-destructive hover:bg-destructive/90">Delete for Everyone</AlertDialogAction>
-                        <AlertDialogAction onClick={() => handleDeleteForMe(chat.$id)} variant="secondary">Delete for Me</AlertDialogAction>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </div>
+                <div className="flex items-center gap-1">
+                    <p className="text-xs text-muted-foreground truncate opacity-80">{chat.lastMessage}</p>
+                </div>
+            </div>
+        </Link>
     );
 };
-
-// All User Item Component
-const AllUserItem = ({ user }: { user: any }) => (
-    <Link href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors">
-        <Avatar className="h-10 w-10">
-            <AvatarImage src={user.avatar} />
-            <AvatarFallback>{user.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
-        </Avatar>
-        <div className="flex-1">
-            <p className="font-bold text-sm">{user.username}</p>
-            <p className="text-[10px] text-muted-foreground">{user.name}</p>
-        </div>
-    </Link>
-);
-
 
 export default function ChatPage() {
     const { user: currentUser } = useUser();
     const [allUsers, setAllUsers] = useState<any[]>([]);
     const [recentChats, setRecentChats] = useState<any[]>([]);
-    const [loading, setLoading] = useState({ all: true, recent: true });
+    const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const { toast } = useToast();
 
-    const fetchAllUsers = useCallback(async () => {
-        setLoading(prev => ({ ...prev, all: true }));
-        try {
-            const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_PROFILES, [Query.limit(100)]);
-            setAllUsers(response.documents);
-        } catch (e: any) {
-            toast({ title: "Error", description: `Could not load users: ${e.message}`, variant: 'destructive' });
-        } finally {
-            setLoading(prev => ({ ...prev, all: false }));
-        }
-    }, [toast]);
-
-    const fetchRecentChats = useCallback(async () => {
+    useEffect(() => {
         if (!currentUser) return;
-        setLoading(prev => ({ ...prev, recent: true }));
-        try {
-            const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
-                Query.contains('participants', currentUser.$id),
-                Query.orderDesc('lastMessageAt')
-            ]);
 
-            const chatsWithData = await Promise.all(response.documents.map(async (chat) => {
-                const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
-                if (!otherUserId) return null;
-                try {
-                    const otherUser = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
-                    return { ...chat, otherUser };
-                } catch {
-                    return null;
-                }
-            }));
+        // Sync Recent Chats
+        const q = query(
+            collection(db, COLLECTION_ID_CHATS),
+            where('participants', 'array-contains', currentUser.$id),
+            orderBy('lastMessageAt', 'desc')
+        );
 
-            setRecentChats(chatsWithData.filter(Boolean));
-        } catch (e: any) {
-            console.error("Recent chats error:", e);
-            setRecentChats([]);
-        } finally {
-            setLoading(prev => ({ ...prev, recent: false }));
-        }
+        const unsubChats = onSnapshot(q, (snapshot) => {
+            setRecentChats(snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })));
+            setLoading(false);
+        });
+
+        // Sync All Users (Online First)
+        const uQ = query(collection(db, COLLECTION_ID_PROFILES), limit(100));
+        const unsubUsers = onSnapshot(uQ, (snapshot) => {
+            setAllUsers(snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })));
+        });
+
+        return () => { unsubChats(); unsubUsers(); };
     }, [currentUser]);
 
-
-    useEffect(() => {
-        fetchAllUsers();
-        fetchRecentChats();
-    }, [fetchAllUsers, fetchRecentChats]);
-    
-    // Subscribe to chat updates for real-time list updates
-    useEffect(() => {
-        if (!currentUser) return;
-        const unsubscribe = client.subscribe([
-            `databases.${DATABASE_ID}.collections.${COLLECTION_ID_CHATS}.documents`,
-            `databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`
-        ], response => {
-            fetchRecentChats();
-        });
-        return () => unsubscribe();
-    }, [currentUser, fetchRecentChats]);
-
-
-    const filteredAllUsers = useMemo(() =>
+    const filteredUsers = useMemo(() =>
         allUsers.filter(u =>
             u.$id !== currentUser?.$id &&
             (u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             u.name?.toLowerCase().includes(searchQuery.toLowerCase()))
-        ), [allUsers, searchQuery, currentUser]
+        ).sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0)), 
+        [allUsers, searchQuery, currentUser]
     );
 
-    const filteredRecentChats = useMemo(() =>
+    const filteredRecent = useMemo(() =>
         recentChats.filter(c =>
-            c.otherUser?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             c.lastMessage?.toLowerCase().includes(searchQuery.toLowerCase())
         ), [recentChats, searchQuery]
     );
-
-    const renderAllUsers = () => {
-        if (loading.all) return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
-        if (filteredAllUsers.length === 0) return <p className="text-center text-muted-foreground p-8">No users found.</p>;
-        return (
-            <div className="space-y-1 pb-24">
-                {filteredAllUsers.map(user => <AllUserItem key={user.$id} user={user} />)}
-            </div>
-        );
-    };
-    
-    const renderRecentChats = () => {
-        if (loading.recent) return <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>;
-        if (filteredRecentChats.length === 0) return <p className="text-center text-muted-foreground p-8">You have no recent conversations.</p>;
-        return (
-            <div className="space-y-1 pb-24">
-                {filteredRecentChats.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} onAction={fetchRecentChats} />)}
-            </div>
-        );
-    };
 
     return (
         <div className="flex flex-col h-full bg-white text-gray-900 relative">
             <Tabs defaultValue="recent" className="flex flex-col h-full">
                 <header className="sticky top-16 md:top-0 bg-white border-b p-3 z-10">
-                    <TabsList className="grid w-full grid-cols-2 bg-muted text-gray-600 h-9">
-                        <TabsTrigger value="recent" className="text-xs">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="text-xs">All Users</TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-2 bg-muted text-gray-600 h-10 rounded-2xl p-1">
+                        <TabsTrigger value="recent" className="text-[10px] font-black uppercase tracking-widest rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="text-[10px] font-black uppercase tracking-widest rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">Direct</TabsTrigger>
                     </TabsList>
-                    <div className="relative mt-2">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <div className="relative mt-3">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
                         <Input
-                            placeholder="Search..."
-                            className="pl-9 text-gray-900 h-9 text-sm"
+                            placeholder="Find conversations..."
+                            className="pl-9 text-gray-900 h-10 text-xs rounded-2xl bg-muted/50 border-none shadow-none focus-visible:ring-1 focus-visible:ring-primary"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
                 </header>
 
-                <main className="flex-1 overflow-y-auto">
-                    <TabsContent value="recent" className="p-2 m-0">
-                        {renderRecentChats()}
+                <main className="flex-1 overflow-y-auto scrollbar-hide">
+                    <TabsContent value="recent" className="p-2 m-0 space-y-1">
+                        {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary" /></div> : 
+                         filteredRecent.length > 0 ? filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} />) : 
+                         <div className="text-center py-20 text-muted-foreground font-bold text-xs uppercase tracking-widest opacity-30">No chats found</div>}
                     </TabsContent>
-                    <TabsContent value="all" className="p-2 m-0">
-                        {renderAllUsers()}
+                    <TabsContent value="all" className="p-2 m-0 space-y-1">
+                        {filteredUsers.map(user => (
+                            <Link key={user.$id} href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors border border-transparent hover:border-border">
+                                <div className="relative">
+                                    <Avatar className="h-10 w-10 border border-primary/5">
+                                        <AvatarImage src={user.avatar} />
+                                        <AvatarFallback>{user.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                                    </Avatar>
+                                    {user.isOnline && <div className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></div>}
+                                </div>
+                                <div className="flex-1">
+                                    <p className="font-bold text-sm">@{user.username}</p>
+                                    <p className="text-[9px] font-black uppercase text-primary/60">{user.isOnline ? 'Active Now' : 'Last seen recently'}</p>
+                                </div>
+                            </Link>
+                        ))}
                     </TabsContent>
                 </main>
             </Tabs>
 
-            {/* Meeting Button */}
             <div className="fixed bottom-20 left-0 right-0 p-4 flex justify-center z-50 pointer-events-none md:bottom-4">
-                <Button 
-                    asChild 
-                    className="rounded-full h-12 px-6 shadow-2xl font-black uppercase tracking-widest gap-2 bg-primary pointer-events-auto animate-in slide-in-from-bottom-4"
-                >
-                    <Link href="/dashboard/meeting">
-                        <Video className="h-4 w-4" />
-                        Meeting
-                    </Link>
+                <Button asChild className="rounded-full h-12 px-6 shadow-2xl font-black uppercase tracking-widest gap-2 bg-primary pointer-events-auto active:scale-95 transition-transform">
+                    <Link href="/dashboard/meeting"><Video className="h-4 w-4" /> Meetings</Link>
                 </Button>
             </div>
         </div>

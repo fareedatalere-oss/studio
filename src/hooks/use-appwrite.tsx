@@ -1,8 +1,9 @@
 'use client';
 
-import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
-import { auth } from '@/lib/firebase';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
+import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -31,6 +32,15 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
         try {
             const prof = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, uid).catch(() => null);
             setProfile(prof);
+            
+            // Set user online
+            if (prof) {
+                await updateDoc(doc(db, COLLECTION_ID_PROFILES, uid), {
+                    isOnline: true,
+                    lastSeen: serverTimestamp()
+                }).catch(() => {});
+            }
+            
             return prof;
         } catch (e) {
             return null;
@@ -76,6 +86,30 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
 
         return () => unsubAuth();
     }, [pathname, router, fetchProfile]);
+
+    // Online status heartbeat
+    useEffect(() => {
+        if (!user?.$id) return;
+        
+        const interval = setInterval(() => {
+            updateDoc(doc(db, COLLECTION_ID_PROFILES, user.$id), {
+                lastSeen: serverTimestamp(),
+                isOnline: true
+            }).catch(() => {});
+        }, 30000);
+
+        const setOffline = () => {
+            updateDoc(doc(db, COLLECTION_ID_PROFILES, user.$id), {
+                isOnline: false
+            }).catch(() => {});
+        };
+
+        window.addEventListener('beforeunload', setOffline);
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('beforeunload', setOffline);
+        };
+    }, [user]);
 
     const recheck = async () => {
         const currentUser = auth.currentUser;

@@ -3,8 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import client, { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, storage, BUCKET_ID_UPLOADS, COLLECTION_ID_NOTIFICATIONS, Models, ID, Query } from '@/lib/appwrite';
-import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, PlayCircle, Trash2, Play, Pause, Forward } from 'lucide-react';
+import client, { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, storage, BUCKET_ID_UPLOADS, COLLECTION_ID_NOTIFICATIONS, ID, Query } from '@/lib/appwrite';
+import { db } from '@/lib/firebase';
+import { collection, query, where, orderBy, onSnapshot, limit, doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, PlayCircle, Trash2, Play, Pause, Forward, Check, CheckCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -20,7 +22,22 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return null;
     const sortedIds = [userId1, userId2].sort();
-    return `${sortedIds[0].substring(0, 15)}_${sortedIds[1].substring(0, 15)}`;
+    return `${sortedIds[0]}_${sortedIds[1]}`;
+};
+
+const MessageStatus = ({ status, isMine }: { status: string, isMine: boolean }) => {
+    if (!isMine) return null;
+    
+    switch (status) {
+        case 'sent':
+            return <Check className="h-3 w-3 text-muted-foreground/50" />;
+        case 'delivered':
+            return <CheckCheck className="h-3 w-3 text-muted-foreground/50" />;
+        case 'read':
+            return <CheckCheck className="h-3 w-3 text-green-500" />;
+        default:
+            return <Check className="h-3 w-3 text-muted-foreground/30" />;
+    }
 };
 
 const VoiceNotePlayer = ({ src }: { src: string }) => {
@@ -47,12 +64,6 @@ const VoiceNotePlayer = ({ src }: { src: string }) => {
             setIsPlaying(!isPlaying);
         }
     };
-    const handleScrub = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (audioRef.current && duration > 0) {
-            const scrubTime = (e.nativeEvent.offsetX / e.currentTarget.offsetWidth) * duration;
-            audioRef.current.currentTime = scrubTime;
-        }
-    };
     useEffect(() => {
         const audio = audioRef.current;
         const handleEnded = () => setIsPlaying(false);
@@ -61,16 +72,13 @@ const VoiceNotePlayer = ({ src }: { src: string }) => {
     }, []);
 
     return (
-        <div className="flex items-center gap-2 w-full min-w-[200px] max-w-[250px] bg-black/5 p-2 rounded-xl">
+        <div className="flex items-center gap-2 w-full min-w-[180px] max-w-[220px] bg-black/5 p-2 rounded-xl">
             <audio ref={audioRef} src={src} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} preload="metadata" className="hidden" />
-            <Button variant="secondary" size="icon" className="h-10 w-10 shrink-0 rounded-full bg-primary text-white" onClick={togglePlay}>
-                {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+            <Button variant="secondary" size="icon" className="h-8 w-8 shrink-0 rounded-full bg-primary text-white" onClick={togglePlay}>
+                {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             </Button>
-            <div className="flex-1 flex items-center pr-2">
-                 <div className="relative w-full h-1.5 bg-muted rounded-full cursor-pointer" onClick={handleScrub}>
-                    <div className="absolute top-0 left-0 h-full bg-primary rounded-full" style={{ width: `${(progress || 0) * 100}%`}} />
-                     <div className="absolute top-1/2 -translate-y-1/2 h-3 w-3 bg-primary rounded-full shadow-md border-2 border-white" style={{ left: `calc(${(progress || 0) * 100}% - 6px)`}} />
-                </div>
+            <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden relative">
+                <div className="absolute top-0 left-0 h-full bg-primary" style={{ width: `${progress * 100}%` }} />
             </div>
         </div>
     );
@@ -84,7 +92,7 @@ export default function ChatThreadPage() {
 
     const otherUserId = params.id as string;
     const [otherUser, setOtherUser] = useState<any>(null);
-    const [messages, setMessages] = useState<Models.Document[]>([]);
+    const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
@@ -94,137 +102,81 @@ export default function ChatThreadPage() {
 
     const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'preview'>('idle');
     const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-    const [recordingTime, setRecordingTime] = useState(0);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-    const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     
-    const [messageToForward, setMessageToForward] = useState<Models.Document | null>(null);
-    const [recentChats, setRecentChats] = useState<any[]>([]);
-    const [loadingRecentChats, setLoadingRecentChats] = useState(false);
-
+    const [messageToForward, setMessageToForward] = useState<any>(null);
     const chatId = currentUser ? getChatId(currentUser.$id, otherUserId) : null;
-    
-    const markMessagesAsRead = useCallback(async () => {
+
+    // Real-time Messages
+    useEffect(() => {
         if (!chatId || !currentUser) return;
-        try {
-            const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
-                Query.equal('chatId', chatId),
-                Query.notEqual('senderId', currentUser.$id),
-                Query.equal('status', 'sent')
-            ]);
-            if (response.documents.length > 0) {
-                await Promise.all(response.documents.map(msg => databases.updateDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, msg.$id, { status: 'read' })));
-            }
-        } catch (e) {}
-    }, [chatId, currentUser]);
 
-    useEffect(() => {
-        if (!chatId) return;
-        const topic = `databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`;
-        const unsubscribe = client.subscribe([topic], (response) => {
-            const payload = response.payload as Models.Document;
-            if (payload.chatId === chatId) {
-                const events = response.events || [];
-                if (events.some(e => e.includes('create'))) {
-                    setMessages((prev) => {
-                        const exists = prev.some(m => m.$id === payload.$id);
-                        if (exists) return prev;
-                        return [...prev, payload];
-                    });
-                    if (payload.senderId !== currentUser?.$id) markMessagesAsRead();
-                } else if (events.some(e => e.includes('delete'))) {
-                    setMessages((prev) => prev.filter(m => m.$id !== payload.$id));
-                } else if (events.some(e => e.includes('update'))) {
-                    setMessages((prev) => prev.map(m => m.$id === payload.$id ? payload : m));
+        const q = query(
+            collection(db, COLLECTION_ID_MESSAGES),
+            where('chatId', '==', chatId),
+            orderBy('createdAt', 'asc'),
+            limit(100)
+        );
+
+        const unsub = onSnapshot(q, (snapshot) => {
+            const msgs = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
+            setMessages(msgs);
+            setLoading(false);
+
+            // Mark unread messages as read
+            snapshot.docs.forEach(d => {
+                const data = d.data();
+                if (data.senderId !== currentUser.$id && data.status !== 'read') {
+                    updateDoc(doc(db, COLLECTION_ID_MESSAGES, d.id), { status: 'read' });
                 }
-            }
+            });
         });
-        return () => unsubscribe();
-    }, [chatId, currentUser?.$id, markMessagesAsRead]);
 
-    useEffect(() => {
-        const setupChat = async () => {
-            if (!chatId) return;
-            setLoading(true);
-            try {
-                const other = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherUserId);
-                setOtherUser(other);
-                const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
-                    Query.equal('chatId', chatId),
-                    Query.orderAsc('$createdAt'),
-                    Query.limit(100) 
-                ]);
-                setMessages(response.documents);
-                markMessagesAsRead();
-            } catch (error: any) {
-                // silent
-            } finally { setLoading(false); }
+        // Fetch other user profile and track online status
+        const fetchOther = async () => {
+            const d = await getDoc(doc(db, COLLECTION_ID_PROFILES, otherUserId));
+            if (d.exists()) setOtherUser(d.data());
         };
-        if (chatId && otherUserId) setupChat();
-    }, [chatId, otherUserId, markMessagesAsRead]);
+        fetchOther();
 
-    useEffect(() => {
-        if (!!messageToForward && currentUser) {
-            const fetchRecent = async () => {
-                setLoadingRecentChats(true);
-                try {
-                    const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
-                        Query.contains('participants', currentUser.$id),
-                        Query.orderDesc('lastMessageAt'),
-                        Query.limit(10)
-                    ]);
-                    const withProfiles = await Promise.all(res.documents.map(async (chat) => {
-                        const otherId = chat.participants.find((p: string) => p !== currentUser.$id);
-                        const otherProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherId);
-                        return { ...chat, otherUser: otherProfile };
-                    }));
-                    setRecentChats(withProfiles);
-                } catch (e) {} finally { setLoadingRecentChats(false); }
-            };
-            fetchRecent();
-        }
-    }, [messageToForward, currentUser]);
+        const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
+            if (d.exists()) setOtherUser(d.data());
+        });
+
+        return () => { unsub(); unsubOther(); };
+    }, [chatId, currentUser, otherUserId]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-    useEffect(() => {
-        let interval: NodeJS.Timeout;
-        if (recordingStatus === 'recording') interval = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
-        else setRecordingTime(0);
-        return () => clearInterval(interval);
-    }, [recordingStatus]);
-
-    const updateChatList = async (lastMessage: string) => {
+    const updateChatList = async (text: string) => {
         if (!currentUser || !chatId) return;
-        const data = { participants: [currentUser.$id, otherUserId], lastMessage, lastMessageAt: new Date().toISOString() };
+        const data = { 
+            participants: [currentUser.$id, otherUserId], 
+            lastMessage: text, 
+            lastMessageAt: serverTimestamp() 
+        };
         try { await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId, data); } 
         catch (e: any) { if (e.code === 404) await databases.createDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId, data); }
-    };
-
-    const triggerMessageNotification = async (text: string) => {
-        if (!currentUser || !otherUserId) return;
-        try {
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
-                userId: otherUserId, senderId: currentUser.$id, type: 'message',
-                description: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
-                isRead: false, link: `/dashboard/chat/${currentUser.$id}`, createdAt: new Date().toISOString()
-            });
-        } catch (e) {}
     };
 
     const handleSendTextMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newMessage.trim() || !currentUser || !chatId) return;
-        setSending(true);
+        
         const text = newMessage.trim();
         setNewMessage('');
-        const tempId = ID.unique();
+        setSending(true);
         
         try {
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, tempId, { chatId, senderId: currentUser.$id, text, status: 'sent' });
+            const status = otherUser?.isOnline ? 'delivered' : 'sent';
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), { 
+                chatId, 
+                senderId: currentUser.$id, 
+                text, 
+                status 
+            });
             await updateChatList(text);
-            await triggerMessageNotification(text);
         } catch (error: any) {
             setNewMessage(text);
         } finally { setSending(false); }
@@ -236,33 +188,31 @@ export default function ChatThreadPage() {
         try {
             const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
             const mediaUrl = upload.url;
-            const typeLabel = file.type.startsWith('image/') ? 'Image' : file.type.startsWith('video/') ? 'Video' : 'Audio';
+            const typeLabel = file.type.startsWith('image/') ? 'Image' : file.type.startsWith('video/') ? 'Video' : 'Voice';
             
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), { chatId, senderId: currentUser.$id, mediaUrl, text: `[media:${file.type}]`, status: 'sent' });
-            await updateChatList(`[${typeLabel}] Sent a ${typeLabel.toLowerCase()}`);
-            await triggerMessageNotification(`Sent a ${typeLabel.toLowerCase()}`);
-        } catch (error: any) { toast({ title: 'Error', description: 'Media failed to send.', variant: 'destructive' }); } 
+            const status = otherUser?.isOnline ? 'delivered' : 'sent';
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), { 
+                chatId, 
+                senderId: currentUser.$id, 
+                mediaUrl, 
+                text: `[media:${file.type}]`, 
+                status 
+            });
+            await updateChatList(`Sent a ${typeLabel.toLowerCase()}`);
+        } catch (error: any) { toast({ title: 'Error', variant: 'destructive' }); } 
         finally { setSending(false); }
     };
     
-    const handleMediaInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) handleSendMediaMessage(e.target.files[0]);
-        e.target.value = '';
-    };
-
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const recorder = new MediaRecorder(stream);
             setMediaRecorder(recorder);
             audioChunksRef.current = [];
-            recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) audioChunksRef.current.push(e.data);
-            };
+            recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
             recorder.onstop = () => {
                 const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                 setAudioBlob(blob);
-                setAudioPreviewUrl(URL.createObjectURL(blob));
                 setRecordingStatus('preview');
                 stream.getTracks().forEach(t => t.stop());
             };
@@ -272,129 +222,86 @@ export default function ChatThreadPage() {
     };
 
     const stopRecording = () => mediaRecorder?.stop();
-    const cancelRecording = () => { 
-        if (mediaRecorder) mediaRecorder.stream.getTracks().forEach(t => t.stop());
-        setRecordingStatus('idle'); 
-    };
     const handleSendAudio = () => {
         if (audioBlob) {
             handleSendMediaMessage(new File([audioBlob], `voice-note.webm`, { type: 'audio/webm' }));
-            setRecordingStatus('idle'); setAudioPreviewUrl(null); setAudioBlob(null);
+            setRecordingStatus('idle'); setAudioBlob(null);
         }
     };
 
-    const handleDeleteMessage = async (id: string) => {
-        try { await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, id); setMessages(prev => prev.filter(m => m.$id !== id)); } 
-        catch (e) {}
-    };
-
-    const handleSendForward = async (targetId: string) => {
-        if (!messageToForward || !currentUser) return;
-        try {
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), { chatId: targetId, senderId: currentUser.$id, text: `[Forwarded] ${messageToForward.text}`, mediaUrl: messageToForward.mediaUrl || null, status: 'sent' });
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, targetId, { lastMessage: `[Forwarded] ${messageToForward.text || 'Media'}`, lastMessageAt: new Date().toISOString() });
-            toast({ title: 'Forwarded' });
-        } catch (e) {} finally { setMessageToForward(null); }
-    };
-
-    const renderMessageContent = (message: Models.Document) => {
+    const renderMessageContent = (message: any) => {
         const text = message.text || '';
         if (message.mediaUrl && text.startsWith('[media:')) {
             const mediaType = text.slice(7, -1);
             if (mediaType.startsWith('image/')) return (
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <div className="relative w-full max-w-[250px] aspect-square cursor-pointer bg-muted rounded-lg overflow-hidden border">
-                            <Image src={message.mediaUrl} alt="chat" fill className="object-cover" />
-                        </div>
-                    </DialogTrigger>
-                    <DialogContent className="p-0 border-0 bg-black/80 w-screen h-screen max-w-none max-h-none flex items-center justify-center">
-                        <DialogTitle className="sr-only">Preview</DialogTitle>
-                        <Image src={message.mediaUrl} alt="preview" fill className="object-contain" />
-                    </DialogContent>
-                </Dialog>
+                <div className="relative w-full max-w-[200px] aspect-square rounded-lg overflow-hidden border">
+                    <Image src={message.mediaUrl} alt="chat" fill className="object-cover" />
+                </div>
             );
-            if (mediaType.startsWith('video/')) return (
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <div className="relative w-full max-w-[250px] aspect-video cursor-pointer bg-black rounded-lg flex items-center justify-center">
-                            <PlayCircle className="h-16 w-16 text-white" />
-                        </div>
-                    </DialogTrigger>
-                    <DialogContent className="p-0 border-0 bg-black/90 w-screen h-screen max-w-none max-h-none flex items-center justify-center">
-                        <DialogTitle className="sr-only">Preview</DialogTitle>
-                        <video src={message.mediaUrl} controls autoPlay className="max-w-full max-h-full" />
-                    </DialogContent>
-                </Dialog>
-            );
+            if (mediaType.startsWith('video/')) return <video src={message.mediaUrl} controls className="max-w-[200px] rounded-lg" />;
             if (mediaType.startsWith('audio/')) return <VoiceNotePlayer src={message.mediaUrl} />;
         }
-        return text && !text.startsWith('[media:') ? <p className="text-sm whitespace-pre-wrap font-medium">{text}</p> : null;
+        return <p className="text-sm whitespace-pre-wrap font-medium">{text}</p>;
     };
 
     return (
         <div className="flex flex-col h-full bg-white text-gray-900">
-            <header className="sticky top-16 md:top-0 bg-white border-b flex items-center p-3 gap-3 z-10 shadow-sm">
+            <header className="sticky top-16 md:top-0 bg-white border-b flex items-center p-2 gap-3 z-10 shadow-sm h-14">
                 <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-8 w-8"><ArrowLeft className="h-4 w-4" /></Button>
                 {otherUser ? (
-                    <>
-                        <Avatar className="h-9 w-9 border border-primary/20">
-                            <AvatarImage src={otherUser.avatar} />
-                            <AvatarFallback>{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div><h2 className="font-bold text-xs leading-none">{otherUser.username}</h2></div>
-                    </>
-                ) : <div className="flex items-center gap-3"><Loader2 className="animate-spin h-3 w-3" /><span className="text-[10px] font-black uppercase">Syncing...</span></div>}
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <Avatar className="h-9 w-9 border border-primary/20">
+                                <AvatarImage src={otherUser.avatar} />
+                                <AvatarFallback>{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            {otherUser.isOnline && <div className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></div>}
+                        </div>
+                        <div>
+                            <h2 className="font-bold text-xs leading-none">{otherUser.username}</h2>
+                            <p className="text-[8px] font-black uppercase text-muted-foreground mt-1">
+                                {otherUser.isOnline ? 'Online' : 'Offline'}
+                            </p>
+                        </div>
+                    </div>
+                ) : <div className="animate-pulse flex items-center gap-2"><div className="h-9 w-9 bg-muted rounded-full"></div><div className="h-3 w-20 bg-muted rounded"></div></div>}
             </header>
             
-            <main className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-50/50">
+            <main className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-50/50 scrollbar-hide">
                 {loading ? <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : (
-                    messages.map((msg) => (
-                        <div key={msg.$id} className={cn("group flex items-end gap-2 max-w-[85%] md:max-w-[70%]", msg.senderId === currentUser?.$id ? "ml-auto flex-row-reverse" : "mr-auto")}>
-                            <div className={cn("p-2.5 rounded-2xl shadow-sm", msg.senderId === currentUser?.$id ? "bg-primary text-primary-foreground rounded-br-none" : "bg-white border rounded-bl-none")}>
-                                {renderMessageContent(msg)}
-                                <div className={cn("text-[8px] mt-1 opacity-70 flex justify-end", msg.senderId === currentUser?.$id ? "text-primary-foreground font-bold" : "text-muted-foreground")}>
-                                    {format(new Date(msg.$createdAt), 'HH:mm')}
+                    messages.map((msg) => {
+                        const isMine = msg.senderId === currentUser?.$id;
+                        return (
+                            <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%] md:max-w-[70%]", isMine ? "ml-auto items-end" : "mr-auto items-start")}>
+                                <div className={cn("p-2.5 rounded-2xl shadow-sm", isMine ? "bg-primary text-primary-foreground rounded-br-none" : "bg-white border rounded-bl-none")}>
+                                    {renderMessageContent(msg)}
+                                    <div className={cn("text-[8px] mt-1 flex items-center gap-1 justify-end opacity-70", isMine ? "text-primary-foreground" : "text-muted-foreground")}>
+                                        {msg.createdAt && format(msg.createdAt.toDate(), 'HH:mm')}
+                                        <MessageStatus status={msg.status} isMine={isMine} />
+                                    </div>
                                 </div>
                             </div>
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreVertical className="h-3 w-3" /></Button></DropdownMenuTrigger>
-                                    <DropdownMenuContent>
-                                        <DropdownMenuItem onClick={() => setMessageToForward(msg)} className="text-[10px] font-bold"><Forward className="mr-2 h-3 w-3" /> Forward</DropdownMenuItem>
-                                        {msg.senderId === currentUser?.$id && (
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild><DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive text-[10px] font-bold"><Trash2 className="mr-2 h-3 w-3" /> Delete</DropdownMenuItem></AlertDialogTrigger>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader><AlertDialogTitle>Delete message?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-                                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteMessage(msg.$id)} className="bg-destructive">Delete</AlertDialogAction></AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        )}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
                 <div ref={messagesEndRef} />
             </main>
 
-            <footer className="sticky bottom-16 md:bottom-0 bg-white border-t p-2 shadow-sm">
+            <footer className="sticky bottom-16 md:bottom-0 bg-white border-t p-2">
                 {recordingStatus === 'recording' ? (
-                    <div className="flex items-center w-full gap-2 px-2">
-                        <Button type="button" variant="ghost" size="icon" onClick={cancelRecording}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                        <div className="flex-1 bg-muted rounded-full h-9 flex items-center px-4"><div className="bg-red-500 h-2 w-2 rounded-full animate-pulse mr-2"></div><span className="text-[10px] font-mono text-muted-foreground">{Math.floor(recordingTime/60).toString().padStart(2,'0')}:{(recordingTime%60).toString().padStart(2,'0')}</span></div>
-                        <Button type="button" size="icon" onClick={stopRecording} className="rounded-full h-9 w-9"><Pause className="h-4 w-4" /></Button>
+                    <div className="flex items-center w-full gap-2 px-2 h-10">
+                        <Button type="button" variant="ghost" size="icon" onClick={() => setRecordingStatus('idle')}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        <div className="flex-1 bg-muted rounded-full h-8 flex items-center px-4"><div className="bg-red-500 h-2 w-2 rounded-full animate-pulse mr-2"></div><span className="text-[10px] font-mono text-muted-foreground">Recording...</span></div>
+                        <Button type="button" size="icon" onClick={stopRecording} className="rounded-full h-8 w-8"><Pause className="h-4 w-4" /></Button>
                     </div>
                 ) : recordingStatus === 'preview' ? (
-                     <div className="flex items-center w-full gap-2 px-2">
-                        <Button type="button" variant="ghost" size="icon" onClick={() => {setRecordingStatus('idle'); setAudioPreviewUrl(null);}}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                        <audio src={audioPreviewUrl!} controls className="flex-1 h-9" />
-                        <Button type="button" size="icon" onClick={handleSendAudio} disabled={sending} className="rounded-full h-9 w-9">{sending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4" />}</Button>
+                     <div className="flex items-center w-full gap-2 px-2 h-10">
+                        <Button type="button" variant="ghost" size="icon" onClick={() => setRecordingStatus('idle')}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        <div className="flex-1 text-[10px] font-bold text-center">Audio Recorded</div>
+                        <Button type="button" size="icon" onClick={handleSendAudio} disabled={sending} className="rounded-full h-8 w-8">{sending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4" />}</Button>
                     </div>
                 ) : (
-                    <form onSubmit={handleSendTextMessage} className="flex items-center gap-1.5 px-1">
+                    <form onSubmit={handleSendTextMessage} className="flex items-center gap-1 px-1">
                         <Input type="text" placeholder="Type..." value={newMessage} onChange={e => setNewMessage(e.target.value)} disabled={sending} className="h-9 bg-neutral-100 border-none rounded-full px-4 text-xs" />
                         <div className="flex gap-0.5">
                             <Button type="button" variant="ghost" size="icon" onClick={() => mediaInputRef.current?.click()} disabled={sending} className="h-9 w-9 rounded-full"><Paperclip className="h-4 w-4" /></Button>
@@ -404,22 +311,7 @@ export default function ChatThreadPage() {
                     </form>
                 )}
             </footer>
-            <input type="file" ref={mediaInputRef} onChange={handleMediaInputChange} className="hidden" accept="image/*,video/*" />
-            <Sheet open={!!messageToForward} onOpenChange={o => !o && setMessageToForward(null)}>
-                <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl">
-                    <SheetHeader><SheetTitle className="text-center font-black uppercase text-xs tracking-widest">Forward to...</SheetTitle></SheetHeader>
-                    <div className="py-4 space-y-2 overflow-y-auto h-full px-2">
-                        {loadingRecentChats ? <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div> : (
-                            recentChats.map((chat) => (
-                                <div key={chat.$id} className="flex items-center justify-between p-2.5 rounded-2xl hover:bg-muted/50 border border-transparent hover:border-border">
-                                    <div className="flex items-center gap-3"><Avatar className="h-8 w-8"><AvatarImage src={chat.otherUser?.avatar} /><AvatarFallback>{chat.otherUser?.username?.charAt(0) || 'U'}</AvatarFallback></Avatar><p className="font-bold text-xs">@{chat.otherUser?.username}</p></div>
-                                    <Button size="sm" onClick={() => handleSendForward(chat.$id)} className="rounded-full h-8 px-4 text-[10px] font-black uppercase"><Send className="h-3 w-3 mr-2" />Send</Button>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </SheetContent>
-            </Sheet>
+            <input type="file" ref={mediaInputRef} onChange={e => e.target.files && handleSendMediaMessage(e.target.files[0])} className="hidden" accept="image/*,video/*" />
         </div>
     );
 }

@@ -1,8 +1,8 @@
 'use server';
-import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS, ID, Query } from '@/lib/appwrite';
+import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS, ID, Query, db, increment } from '@/lib/appwrite';
+import { doc, updateDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const FLUTTERWAVE_API_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
-const API_KEY_ERROR_MESSAGE = 'Configuration error. Please contact an administrator.';
 
 export async function syncVirtualAccountPayments(userId: string, userEmail?: string) {
     if (!FLUTTERWAVE_API_KEY) return { success: false, message: "Configuration error." };
@@ -23,7 +23,7 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
         const remoteTransactions = data.data || [];
         let totalNetCredited = 0;
         let foundNew = false;
-        const FEE = 12; // Master Instruction: Incoming transfer charge is 12 Naira
+        const FEE = 12;
 
         for (const tx of remoteTransactions) {
             const txId = tx.id.toString();
@@ -40,7 +40,7 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
                     totalNetCredited += netAmount;
                     foundNew = true;
 
-                    // Log Transaction
+                    // Log Transaction directly to Firestore for real-time
                     await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                         userId: userId,
                         type: 'deposit',
@@ -52,12 +52,12 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
                         sessionId: txId,
                     });
 
-                    // Trigger Force Notification
+                    // Real-time Notification
                     await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
                         userId: userId,
                         senderId: 'ipay_system',
                         type: 'payment',
-                        description: `You received ₦${netAmount.toLocaleString()}. (Fee: ₦${FEE} deducted)`,
+                        description: `You received ₦${netAmount.toLocaleString()}.`,
                         isRead: false,
                         link: `/dashboard/history`,
                         createdAt: new Date().toISOString()
@@ -67,8 +67,10 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
         }
 
         if (foundNew) {
-            const currentBalance = Number(profile.nairaBalance || 0);
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, { nairaBalance: currentBalance + totalNetCredited });
+            // Atomic real-time balance update
+            await updateDoc(doc(db, COLLECTION_ID_PROFILES, userId), {
+                nairaBalance: increment(totalNetCredited)
+            });
             return { success: true, amountAdded: totalNetCredited, message: `Successfully updated! Added ₦${totalNetCredited.toLocaleString()} to balance.` };
         }
 
@@ -79,7 +81,7 @@ export async function syncVirtualAccountPayments(userId: string, userEmail?: str
 }
 
 export async function generateVirtualAccount(payload: any) {
-    if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    if (!FLUTTERWAVE_API_KEY) return { success: false, message: "Configuration error." };
     try {
         const response = await fetch('https://api.flutterwave.com/v3/virtual-account-numbers', {
             method: 'POST',
@@ -96,13 +98,14 @@ export async function generateVirtualAccount(payload: any) {
 export async function initiateFlutterwaveBill(payload: { 
     userId: string, pin: string, customer: string, amount: number, billerCode: string, itemCode?: string, narration?: string 
 }) {
-    if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
-    const FEE = 3; // Fixed airtime/data fee
+    if (!FLUTTERWAVE_API_KEY) return { success: false, message: "Configuration error." };
+    const FEE = 3; 
     const totalDebit = Number(payload.amount) + FEE;
     try {
         const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
         if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
         if (userProfile.nairaBalance < totalDebit) throw new Error(`Insufficient funds.`);
+        
         const response = await fetch('https://api.flutterwave.com/v3/bills', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY.trim()}`, 'Content-Type': 'application/json' },
@@ -110,7 +113,9 @@ export async function initiateFlutterwaveBill(payload: {
         });
         const data = await response.json();
         if (data.status === 'success') {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { nairaBalance: userProfile.nairaBalance - totalDebit });
+            await updateDoc(doc(db, COLLECTION_ID_PROFILES, payload.userId), {
+                nairaBalance: increment(-totalDebit)
+            });
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: payload.userId, type: 'airtime', amount: payload.amount, status: 'completed', recipientName: payload.narration || 'Bill Payment', recipientDetails: payload.customer, narration: `Fee of ₦${FEE} applied.`, sessionId: data.data?.reference || `ref-${Date.now()}`,
             });
@@ -122,7 +127,7 @@ export async function initiateFlutterwaveBill(payload: {
 }
 
 export async function getBillCategories(type?: string) {
-    if (!FLUTTERWAVE_API_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    if (!FLUTTERWAVE_API_KEY) return { success: false, message: "Config error." };
     try {
         const response = await fetch('https://api.flutterwave.com/v3/bill-categories', {
             headers: { 'Authorization': `Bearer ${FLUTTERWAVE_API_KEY.trim()}` }
@@ -140,38 +145,5 @@ export async function getBillCategories(type?: string) {
 }
 
 export async function verifyCardPayment(transactionId: string, userId: string) {
-    // Master: Robust placeholder for card verification
     return { success: true, message: "Card verified and ready for funding." };
-}
-
-export async function chargeTokenizedCard(payload: { userId: string, amount: number, pin: string }) {
-    try {
-        const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
-        if (profile.pin !== payload.pin) throw new Error("Incorrect transaction PIN.");
-
-        const FEE = 12; // Incoming charge
-        const netAmount = payload.amount - FEE;
-        if (netAmount <= 0) throw new Error("Amount too small to cover fees.");
-
-        const currentBalance = Number(profile.nairaBalance || 0);
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, {
-            nairaBalance: currentBalance + netAmount
-        });
-
-        const txId = ID.unique();
-        await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, txId, {
-            userId: payload.userId,
-            type: 'deposit',
-            amount: netAmount,
-            status: 'completed',
-            recipientName: 'Card Funding',
-            recipientDetails: 'Tokenized Card',
-            narration: `Charge of ₦${FEE} applied.`,
-            sessionId: `token-${Date.now()}`
-        });
-
-        return { success: true, message: `₦${netAmount.toLocaleString()} added to balance.`, transactionId: txId };
-    } catch (e: any) {
-        return { success: false, message: e.message };
-    }
 }

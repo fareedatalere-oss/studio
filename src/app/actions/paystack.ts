@@ -1,13 +1,12 @@
-
 'use server';
 
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS, ID } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS, ID, db, increment } from '@/lib/appwrite';
+import { doc, updateDoc } from 'firebase/firestore';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
-const API_KEY_ERROR_MESSAGE = 'Configuration error. Please contact support.';
 
 export async function getPaystackBanks() {
-    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE, data: [] };
+    if (!PAYSTACK_SECRET_KEY) return { success: false, message: 'Configuration error.', data: [] };
     try {
         const response = await fetch('https://api.paystack.co/bank?country=nigeria&perPage=100', {
             headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}` },
@@ -22,7 +21,7 @@ export async function getPaystackBanks() {
 }
 
 export async function resolvePaystackAccount(accountNumber: string, bankCode: string) {
-    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    if (!PAYSTACK_SECRET_KEY) return { success: false, message: 'Configuration error.' };
     try {
         const response = await fetch(`https://api.paystack.co/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`, {
             headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}` }
@@ -36,7 +35,7 @@ export async function resolvePaystackAccount(accountNumber: string, bankCode: st
 }
 
 export async function initiatePaystackTransfer(payload: { userId: string, pin: string, bankCode: string, accountNumber: string, name: string, amount: number, bankName: string, narration: string }) {
-    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    if (!PAYSTACK_SECRET_KEY) return { success: false, message: 'Configuration error.' };
 
     const FEE = 15; 
     const amt = Number(payload.amount);
@@ -45,7 +44,7 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
     try {
         const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
         if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
-        if (userProfile.nairaBalance < totalDebit) throw new Error(`Insufficient balance. Required: ₦${totalDebit.toLocaleString()}`);
+        if (userProfile.nairaBalance < totalDebit) throw new Error(`Insufficient balance.`);
 
         const recipientRes = await fetch('https://api.paystack.co/transferrecipient', {
             method: 'POST',
@@ -63,29 +62,22 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
         const transferData = await transferRes.json();
 
         if (transferData.status) {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, { nairaBalance: userProfile.nairaBalance - totalDebit });
-            const doc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
+            await updateDoc(doc(db, COLLECTION_ID_PROFILES, payload.userId), {
+                nairaBalance: increment(-totalDebit)
+            });
+            const docId = ID.unique();
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, docId, {
                 userId: payload.userId,
                 type: 'transfer',
                 amount: amt,
                 status: 'completed',
                 recipientName: payload.name,
                 recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
-                narration: `Service charge of ₦${FEE} applied.`,
+                narration: `Service charge applied.`,
                 sessionId: transferData.data.transfer_code || `tx-${Date.now()}`,
             });
-            return { success: true, message: "Transfer successful.", transactionId: doc.$id };
+            return { success: true, message: "Transfer successful.", transactionId: docId };
         } else {
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
-                userId: payload.userId,
-                type: 'transfer',
-                amount: amt,
-                status: 'failed',
-                recipientName: payload.name,
-                recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
-                narration: transferData.message,
-                sessionId: `fail-${Date.now()}`,
-            });
             throw new Error(transferData.message);
         }
     } catch (e: any) {
@@ -94,7 +86,7 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
 }
 
 export async function initializeDeposit(payload: { email: string; userId: string; amount: number }) {
-    if (!PAYSTACK_SECRET_KEY) return { success: false, message: API_KEY_ERROR_MESSAGE };
+    if (!PAYSTACK_SECRET_KEY) return { success: false, message: 'Configuration error.' };
     try {
         const response = await fetch('https://api.paystack.co/transaction/initialize', {
             method: 'POST',

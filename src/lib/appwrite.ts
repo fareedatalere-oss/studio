@@ -19,7 +19,8 @@ import {
   onSnapshot, 
   orderBy, 
   limit,
-  serverTimestamp
+  serverTimestamp,
+  increment
 } from 'firebase/firestore';
 import { 
   ref, 
@@ -48,7 +49,10 @@ export const COLLECTION_ID_BOOKS = 'books';
 export const COLLECTION_ID_UPWORK_PROFILES = 'upworkProfiles';
 export const COLLECTION_ID_POST_COMMENTS = 'postComments';
 export const COLLECTION_ID_MEETINGS = 'meetings';
+export const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 export const BUCKET_ID_UPLOADS = 'uploads';
+
+export const MEETING_BOT_ID = 'ipay_meeting_system';
 
 const mapDoc = (snapshot: any) => {
     if (!snapshot.exists()) return null;
@@ -93,7 +97,8 @@ export const databases = {
         return { $id: id, uid: id, ...d };
     },
     updateDocument: async (dbId: string, collId: string, docId: string, data: any) => {
-        await updateDoc(doc(db, collId, docId), { ...data, updatedAt: serverTimestamp() });
+        const d = { ...data, updatedAt: serverTimestamp() };
+        await updateDoc(doc(db, collId, docId), d);
         return { $id: docId };
     },
     deleteDocument: async (dbId: string, collId: string, docId: string) => {
@@ -167,5 +172,5 @@ export function getAppwriteStorageUrl(fileId: string) {
   return fileId; 
 }
 
-export { auth, db, ID as IDType, Query as QueryType };
+export { auth, db, increment };
 export default client;
