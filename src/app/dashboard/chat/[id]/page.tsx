@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -6,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import client, { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, storage, BUCKET_ID_UPLOADS, ID, Query } from '@/lib/appwrite';
 import { db } from '@/lib/firebase';
-import { collection, query, where, orderBy, onSnapshot, limit, doc, updateDoc, serverTimestamp, getDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, limit, doc, updateDoc, serverTimestamp, getDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
 import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, Trash2, Play, Pause, Forward, Check, CheckCheck, Copy, ShieldAlert, UserX, UserCheck, Image as ImageIcon, Video, FileText, X, Square } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -16,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import Link from 'next/link';
 
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
@@ -79,6 +79,7 @@ export default function ChatThreadPage() {
                 .filter((m: any) => !m.deletedForEveryone && !(m.deletedFor || []).includes(currentUser.$id));
             setMessages(msgs);
 
+            // Mark as Read Logic
             snapshot.docs.forEach(d => {
                 const data = d.data();
                 if (data.senderId !== currentUser.$id && data.status !== 'read') {
@@ -93,16 +94,18 @@ export default function ChatThreadPage() {
         };
         fetchOther();
 
-        databases.listDocuments(DATABASE_ID, COLLECTION_ID_CHATS, [
-            Query.equal('participants', currentUser.$id),
-            Query.limit(20)
-        ]).then(res => setRecentChats(res.documents));
+        // Sync Recent Chats for Forwarding
+        const unsubRecent = onSnapshot(
+            query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', currentUser.$id), orderBy('lastMessageAt', 'desc')),
+            (snap) => setRecentChats(snap.docs.map(d => ({ $id: d.id, ...d.data() })))
+        );
 
+        // Real-time other user presence
         const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
             if (d.exists()) setOtherUser(d.data());
         });
 
-        return () => { unsub(); unsubOther(); };
+        return () => { unsub(); unsubRecent(); unsubOther(); };
     }, [chatId, currentUser, otherUserId]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
@@ -120,24 +123,34 @@ export default function ChatThreadPage() {
                 mediaType = 'audio';
             }
 
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), { 
+            // Determine initial status based on recipient online state
+            const status = otherUser?.isOnline ? 'delivered' : 'sent';
+
+            await setDoc(doc(db, COLLECTION_ID_MESSAGES, ID.unique()), { 
                 chatId, 
                 senderId: currentUser.$id, 
                 text: text?.trim() || '', 
                 mediaUrl: finalMediaUrl || '',
                 mediaType,
-                status: 'sent'
+                status,
+                createdAt: serverTimestamp()
             });
 
-            const lastText = mediaType === 'text' ? text : `Sent a ${mediaType}`;
-            const chatData = { participants: [currentUser.$id, otherUserId], lastMessage: lastText, lastMessageAt: serverTimestamp() };
-            try { await databases.updateDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId, chatData); } 
-            catch (e: any) { if (e.code === 404) await databases.createDocument(DATABASE_ID, COLLECTION_ID_CHATS, chatId, chatData); }
+            // Update/Create Chat Document for Recent List
+            const lastText = mediaType === 'text' ? (text || '') : `Sent a ${mediaType}`;
+            const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
+            await setDoc(chatRef, {
+                participants: [currentUser.$id, otherUserId],
+                lastMessage: lastText,
+                lastMessageAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            }, { merge: true });
             
             setAudioBlob(null);
             setAudioUrl(null);
             setRecordingTime(0);
         } catch (e) {
+            console.error(e);
             toast({ variant: 'destructive', title: 'Error sending message' });
         }
     };
@@ -183,7 +196,6 @@ export default function ChatThreadPage() {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Video limit: 5 minutes check
         if (file.type.startsWith('video/')) {
             const video = document.createElement('video');
             video.preload = 'metadata';
@@ -226,7 +238,16 @@ export default function ChatThreadPage() {
         if (!msgToForward) return;
         const targetChatId = getChatId(currentUser?.$id, targetUserId);
         if (targetChatId) {
-            await handleSend(msgToForward.text, msgToForward.mediaUrl, msgToForward.mediaType);
+            const status = 'sent'; // Simplified for forwarding
+            await setDoc(doc(db, COLLECTION_ID_MESSAGES, ID.unique()), { 
+                chatId: targetChatId, 
+                senderId: currentUser?.$id, 
+                text: msgToForward.text || '', 
+                mediaUrl: msgToForward.mediaUrl || '',
+                mediaType: msgToForward.mediaType,
+                status,
+                createdAt: serverTimestamp()
+            });
             toast({ title: 'Message Forwarded' });
             setIsForwarding(false);
             setMsgToForward(null);
@@ -310,7 +331,7 @@ export default function ChatThreadPage() {
                                     )}
                                     {msg.text && <p className="text-[11px] font-medium whitespace-pre-wrap">{msg.text}</p>}
                                     <div className="flex items-center justify-end gap-1 mt-0.5 opacity-60">
-                                        <span className="text-[7px] font-mono">{msg.createdAt && format(msg.createdAt.toDate(), 'HH:mm')}</span>
+                                        <span className="text-[7px] font-mono">{msg.createdAt?.toDate ? format(msg.createdAt.toDate(), 'HH:mm') : ''}</span>
                                         <MessageStatus status={msg.status} isMine={isMine} />
                                     </div>
                                 </div>
@@ -382,11 +403,11 @@ export default function ChatThreadPage() {
                     <DialogHeader><DialogTitle className="text-center font-black uppercase text-[10px] tracking-[0.3em] pb-4">Forward To</DialogTitle></DialogHeader>
                     <div className="space-y-2 mt-4 max-h-[300px] overflow-y-auto scrollbar-hide">
                         {recentChats.map(chat => {
-                            const targetId = chat.participants.find((p: string) => p !== currentUser?.$id);
+                            const otherId = chat.participants.find((p: string) => p !== currentUser?.$id);
                             return (
-                                <Button key={chat.$id} variant="outline" className="w-full justify-start h-12 rounded-2xl gap-3 border-muted hover:border-primary transition-all" onClick={() => handleForward(targetId)}>
+                                <Button key={chat.$id} variant="outline" className="w-full justify-start h-12 rounded-2xl gap-3 border-muted hover:border-primary transition-all" onClick={() => handleForward(otherId)}>
                                     <Avatar className="h-8 w-8"><AvatarFallback>@</AvatarFallback></Avatar>
-                                    <p className="font-black uppercase text-[10px] tracking-tighter">@{targetId.substring(0, 10)}...</p>
+                                    <p className="font-black uppercase text-[10px] tracking-tighter">Recipient</p>
                                 </Button>
                             );
                         })}

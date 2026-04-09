@@ -64,7 +64,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
                     <div className="flex justify-between items-center mb-0.5">
                         <p className="font-bold text-xs truncate">@{otherUser.username}</p>
                         <p className="text-[7px] font-black uppercase text-muted-foreground opacity-60">
-                            {chat.lastMessageAt && formatDistanceToNow(chat.lastMessageAt.toDate(), { addSuffix: true })}
+                            {chat.lastMessageAt?.toDate ? formatDistanceToNow(chat.lastMessageAt.toDate(), { addSuffix: true }) : 'just now'}
                         </p>
                     </div>
                     <p className="text-[10px] text-muted-foreground truncate opacity-80">{chat.lastMessage}</p>
@@ -95,7 +95,6 @@ export default function ChatPage() {
     useEffect(() => {
         if (!currentUser?.$id) return;
 
-        // Fetch recent chats with instant listener
         const q = query(
             collection(db, COLLECTION_ID_CHATS),
             where('participants', 'array-contains', currentUser.$id),
@@ -108,7 +107,6 @@ export default function ChatPage() {
             setLoading(false);
         }, () => setLoading(false));
 
-        // Fetch all users for discovery
         const uQ = query(collection(db, COLLECTION_ID_PROFILES), limit(50));
         const unsubUsers = onSnapshot(uQ, (snapshot) => {
             setAllUsers(snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })));
