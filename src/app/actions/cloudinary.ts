@@ -5,17 +5,27 @@ import { v2 as cloudinary } from 'cloudinary';
 
 /**
  * @fileOverview Cloudinary Server Action for Secure Uploads.
- * Configured with dqgzgak0e cloud name and user secret.
+ * Optimized to handle signatures correctly using environment variables.
  */
 
-cloudinary.config({
-  cloud_name: 'dqgzgak0e',
-  api_key: '544592771214677',
-  api_secret: process.env.CLOUDINARY_API_SECRET, // Must be set in environment for security
-});
+// Configure using the URL if provided, otherwise use specific keys
+if (process.env.CLOUDINARY_URL) {
+  cloudinary.config({
+    cloudinary_url: process.env.CLOUDINARY_URL,
+    secure: true
+  });
+} else {
+  cloudinary.config({
+    cloud_name: 'dqgzgak0e',
+    api_key: '544592771214677',
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+}
 
 export async function uploadToCloudinary(base64Data: string, resourceType: 'image' | 'video' | 'raw' | 'auto' = 'auto') {
   try {
+    // Cloudinary uploader automatically handles signing when configured correctly
     const uploadResponse = await cloudinary.uploader.upload(base64Data, {
       resource_type: resourceType,
       folder: 'ipay_chat_media',
@@ -28,7 +38,7 @@ export async function uploadToCloudinary(base64Data: string, resourceType: 'imag
       duration: uploadResponse.duration ? Math.round(uploadResponse.duration) : undefined,
     };
   } catch (error: any) {
-    console.error('Cloudinary Upload Error:', error);
+    console.error('Cloudinary Upload Error Details:', error);
     return { success: false, message: error.message || 'Upload failed' };
   }
 }
