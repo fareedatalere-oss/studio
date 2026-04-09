@@ -5,20 +5,21 @@ import { v2 as cloudinary } from 'cloudinary';
 
 /**
  * @fileOverview Cloudinary Server Action for Secure Uploads.
- * Optimized with new credentials for cloud name: dwhkwiceh.
+ * Updated with latest master credentials for cloud: dwhkwiceh.
  */
 
-// Configure using the URL if provided, otherwise use specific keys
+// Configuration logic
 if (process.env.CLOUDINARY_URL) {
   cloudinary.config({
     cloudinary_url: process.env.CLOUDINARY_URL,
     secure: true
   });
 } else {
+  // Hardcoded fallback for immediate production use
   cloudinary.config({
     cloud_name: 'dwhkwiceh',
     api_key: '483123493357221',
-    api_secret: '544592771214677',
+    api_secret: 'c4R2hTEJ08hRl9i_tMr52yhJV-M',
     secure: true,
   });
 }
