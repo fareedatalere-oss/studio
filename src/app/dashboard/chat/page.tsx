@@ -6,12 +6,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { Search, Loader2, Video, MoreVertical, Trash2, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, arrayUnion, arrayRemove, deleteDoc, limit } from 'firebase/firestore';
 import { COLLECTION_ID_CHATS, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, isYesterday, isToday, format } from 'date-fns';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -22,7 +23,8 @@ const ALL_USERS_CACHE_KEY = 'ipay-all-users-v3';
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
     const [otherUser, setOtherUser] = useState<any>(null);
     const { toast } = useToast();
-    const otherUserId = chat.participants?.find((p: string) => p !== currentUser?.$id);
+    const otherUserId = chat.participants?.find((p: string) => p !== currentUser?.uid);
+    const unreadCount = chat.unreadCount?.[currentUser?.uid] || 0;
 
     useEffect(() => {
         if (!otherUserId) return;
@@ -44,11 +46,17 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
         if (!currentUser || !otherUserId) return;
         const currentlyBlocked = currentUser.blockedUsers?.includes(otherUserId);
         try {
-            await updateDoc(doc(db, COLLECTION_ID_PROFILES, currentUser.$id), {
+            await updateDoc(doc(db, COLLECTION_ID_PROFILES, currentUser.uid), {
                 blockedUsers: currentlyBlocked ? arrayRemove(otherUserId) : arrayUnion(otherUserId)
             });
             toast({ title: currentlyBlocked ? 'Unblocked' : 'Blocked' });
         } catch (e) {}
+    };
+
+    const formatChatDate = (date: Date) => {
+        if (isToday(date)) return format(date, 'HH:mm');
+        if (isYesterday(date)) return 'Yesterday';
+        return format(date, 'dd/MM/yy');
     };
 
     if (!otherUser) return null;
@@ -67,10 +75,19 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
                     <div className="flex justify-between items-center mb-0.5">
                         <p className="font-bold text-xs truncate">@{otherUser.username}</p>
                         <p className="text-[7px] font-black uppercase text-muted-foreground opacity-60">
-                            {chat.lastMessageAt?.toDate ? formatDistanceToNow(chat.lastMessageAt.toDate(), { addSuffix: true }) : 'just now'}
+                            {chat.lastMessageAt?.toDate ? formatChatDate(chat.lastMessageAt.toDate()) : 'just now'}
                         </p>
                     </div>
-                    <p className="text-[10px] text-muted-foreground truncate opacity-80">{chat.lastMessage}</p>
+                    <div className="flex justify-between items-center gap-2">
+                        <p className={cn("text-[10px] truncate opacity-80", unreadCount > 0 ? "font-black text-foreground" : "text-muted-foreground")}>
+                            {chat.lastMessage}
+                        </p>
+                        {unreadCount > 0 && (
+                            <Badge variant="destructive" className="h-4 min-w-4 p-0 px-1 text-[8px] font-black rounded-full border-2 border-white">
+                                {unreadCount}
+                            </Badge>
+                        )}
+                    </div>
                 </div>
             </Link>
             <DropdownMenu>
@@ -114,7 +131,6 @@ export default function ChatPage() {
     useEffect(() => {
         if (!currentUser?.$id) return;
 
-        // Optimized Query: Removed server-side orderBy to bypass Index requirement
         const q = query(
             collection(db, COLLECTION_ID_CHATS),
             where('participants', 'array-contains', currentUser.$id),
@@ -124,7 +140,6 @@ export default function ChatPage() {
         const unsubChats = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
             
-            // Client-side Sorting: Sorts instantly without crashing
             data.sort((a: any, b: any) => {
                 const timeA = a.lastMessageAt?.toDate ? a.lastMessageAt.toDate().getTime() : 0;
                 const timeB = b.lastMessageAt?.toDate ? b.lastMessageAt.toDate().getTime() : 0;
@@ -135,7 +150,6 @@ export default function ChatPage() {
             localStorage.setItem(RECENT_CACHE_KEY, JSON.stringify(data));
         });
 
-        // REAL-TIME ALL USERS
         const uQ = query(collection(db, COLLECTION_ID_PROFILES), limit(100));
         const unsubUsers = onSnapshot(uQ, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));

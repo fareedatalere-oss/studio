@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import client, { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, storage, BUCKET_ID_UPLOADS, ID } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, storage, BUCKET_ID_UPLOADS, ID, increment } from '@/lib/appwrite';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, limit, doc, updateDoc, serverTimestamp, getDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
 import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, Trash2, Play, Pause, Forward, Check, CheckCheck, Copy, ShieldAlert, UserX, UserCheck, Image as ImageIcon, Video, FileText, X, Square } from 'lucide-react';
@@ -67,7 +67,15 @@ export default function ChatThreadPage() {
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
-        // Optimized Query: Removed server-side orderBy to bypass Index requirement
+        // Clear unread count when opening the chat
+        const clearUnread = async () => {
+            const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
+            await updateDoc(chatRef, {
+                [`unreadCount.${currentUser.$id}`]: 0
+            }).catch(() => {});
+        };
+        clearUnread();
+
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
             where('chatId', '==', chatId),
@@ -78,7 +86,6 @@ export default function ChatThreadPage() {
             const msgs = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }))
                 .filter((m: any) => !m.deletedForEveryone && !(m.deletedFor || []).includes(currentUser.$id));
             
-            // Client-side Sorting: Sorts instantly without requiring a composite index
             msgs.sort((a: any, b: any) => {
                 const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
                 const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
@@ -87,7 +94,7 @@ export default function ChatThreadPage() {
 
             setMessages(msgs);
 
-            // Mark as Read Logic
+            // Mark as Read Logic (Green Tick Trigger)
             snapshot.docs.forEach(d => {
                 const data = d.data();
                 if (data.senderId !== currentUser.$id && data.status !== 'read') {
@@ -102,7 +109,6 @@ export default function ChatThreadPage() {
         };
         fetchOther();
 
-        // Sync Recent Chats for Forwarding
         const unsubRecent = onSnapshot(
             query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', currentUser.$id)),
             (snap) => {
@@ -116,7 +122,6 @@ export default function ChatThreadPage() {
             }
         );
 
-        // Real-time other user presence
         const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
             if (d.exists()) setOtherUser(d.data());
         });
@@ -139,10 +144,10 @@ export default function ChatThreadPage() {
                 mediaType = 'audio';
             }
 
-            // Determine initial status based on recipient online state
             const status = otherUser?.isOnline ? 'delivered' : 'sent';
 
-            await setDoc(doc(db, COLLECTION_ID_MESSAGES, ID.unique()), { 
+            const msgId = ID.unique();
+            await setDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { 
                 chatId, 
                 senderId: currentUser.$id, 
                 text: text?.trim() || '', 
@@ -152,15 +157,27 @@ export default function ChatThreadPage() {
                 createdAt: serverTimestamp()
             });
 
-            // Update/Create Chat Document for Recent List
+            // Update Chat Document & Unread Count for Recipient
             const lastText = mediaType === 'text' ? (text || '') : `Sent a ${mediaType}`;
             const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
             await setDoc(chatRef, {
                 participants: [currentUser.$id, otherUserId],
                 lastMessage: lastText,
                 lastMessageAt: serverTimestamp(),
-                updatedAt: serverTimestamp()
+                updatedAt: serverTimestamp(),
+                [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
+
+            // Send Real-time Notification for Recipient
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
+                userId: otherUserId,
+                senderId: currentUser.$id,
+                type: 'message',
+                description: `sent you a ${mediaType === 'text' ? 'message' : mediaType}.`,
+                isRead: false,
+                link: `/dashboard/chat/${currentUser.$id}`,
+                createdAt: new Date().toISOString()
+            }).catch(() => {});
             
             setAudioBlob(null);
             setAudioUrl(null);
@@ -171,7 +188,6 @@ export default function ChatThreadPage() {
         }
     };
 
-    // Voice Recorder Logic
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -207,7 +223,6 @@ export default function ChatThreadPage() {
         return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
-    // Media Logic
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -254,16 +269,25 @@ export default function ChatThreadPage() {
         if (!msgToForward) return;
         const targetChatId = getChatId(currentUser?.$id, targetUserId);
         if (targetChatId) {
-            const status = 'sent'; // Simplified for forwarding
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, ID.unique()), { 
                 chatId: targetChatId, 
                 senderId: currentUser?.$id, 
                 text: msgToForward.text || '', 
                 mediaUrl: msgToForward.mediaUrl || '',
                 mediaType: msgToForward.mediaType,
-                status,
+                status: 'sent',
                 createdAt: serverTimestamp()
             });
+            
+            const chatRef = doc(db, COLLECTION_ID_CHATS, targetChatId);
+            await setDoc(chatRef, {
+                participants: [currentUser?.$id, targetUserId],
+                lastMessage: msgToForward.text || `Forwarded ${msgToForward.mediaType}`,
+                lastMessageAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+                [`unreadCount.${targetUserId}`]: increment(1)
+            }, { merge: true });
+
             toast({ title: 'Message Forwarded' });
             setIsForwarding(false);
             setMsgToForward(null);
@@ -273,7 +297,12 @@ export default function ChatThreadPage() {
     const deleteMessage = async (msgId: string, forEveryone: boolean) => {
         try {
             if (forEveryone) {
-                await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { deletedForEveryone: true });
+                await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { 
+                    deletedForEveryone: true,
+                    text: '🚫 This message was deleted.',
+                    mediaUrl: '',
+                    mediaType: 'text'
+                });
             } else {
                 await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { deletedFor: arrayUnion(currentUser?.$id) });
             }
@@ -294,7 +323,7 @@ export default function ChatThreadPage() {
     };
 
     return (
-        <div className="flex flex-col h-screen bg-white font-body">
+        <div className="flex flex-col h-screen bg-white font-body overflow-hidden">
             <header className="sticky top-0 bg-white border-b flex items-center p-2 gap-2 z-10 shadow-sm h-12">
                 <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-8 w-8"><ArrowLeft className="h-4 w-4" /></Button>
                 {otherUser && (
@@ -324,18 +353,23 @@ export default function ChatThreadPage() {
             <main className="flex-1 overflow-y-auto p-3 space-y-2 bg-neutral-50/50 scrollbar-hide">
                 {messages.map((msg) => {
                     const isMine = msg.senderId === currentUser?.$id;
+                    const isDeleted = msg.deletedForEveryone;
                     return (
                         <div key={msg.$id} className={cn("flex flex-col gap-0.5 max-w-[85%]", isMine ? "ml-auto items-end" : "mr-auto items-start")}>
                             <div className="flex items-center gap-1 group">
-                                <div className={cn("p-2 rounded-2xl shadow-sm relative", isMine ? "bg-primary text-white rounded-br-none" : "bg-white border rounded-bl-none")}>
-                                    {msg.mediaType === 'audio' && (
+                                <div className={cn(
+                                    "p-2 rounded-2xl shadow-sm relative", 
+                                    isMine ? "bg-primary text-white rounded-br-none" : "bg-white border rounded-bl-none",
+                                    isDeleted && "opacity-50 italic"
+                                )}>
+                                    {msg.mediaType === 'audio' && !isDeleted && (
                                         <div className="flex items-center gap-2 min-w-[150px]">
                                             <Button variant="ghost" size="icon" className="h-7 w-7 text-white" onClick={() => { const a = new Audio(msg.mediaUrl); a.play(); }}><Play className="h-4 w-4 fill-current" /></Button>
                                             <div className="h-1 bg-white/20 flex-1 rounded-full overflow-hidden"><div className="h-full bg-white w-1/3"></div></div>
                                             <span className="text-[8px] font-bold">VN</span>
                                         </div>
                                     )}
-                                    {msg.mediaType !== 'text' && msg.mediaType !== 'audio' && (
+                                    {msg.mediaType !== 'text' && msg.mediaType !== 'audio' && !isDeleted && (
                                         <Link href={`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=${msg.mediaType}`} className="block p-1 bg-black/5 rounded-lg mb-1">
                                             <div className="flex items-center gap-2 px-2 py-1">
                                                 {msg.mediaType === 'image' && <ImageIcon className="h-4 w-4" />}
@@ -345,23 +379,25 @@ export default function ChatThreadPage() {
                                             </div>
                                         </Link>
                                     )}
-                                    {msg.text && <p className="text-[11px] font-medium whitespace-pre-wrap">{msg.text}</p>}
+                                    <p className="text-[11px] font-medium whitespace-pre-wrap">{msg.text}</p>
                                     <div className="flex items-center justify-end gap-1 mt-0.5 opacity-60">
                                         <span className="text-[7px] font-mono">{msg.createdAt?.toDate ? format(msg.createdAt.toDate(), 'HH:mm') : ''}</span>
-                                        <MessageStatus status={msg.status} isMine={isMine} />
+                                        {!isDeleted && <MessageStatus status={msg.status} isMine={isMine} />}
                                     </div>
                                 </div>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100"><MoreVertical className="h-3 w-3" /></Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align={isMine ? "end" : "start"} className="w-32 font-black uppercase text-[9px]">
-                                        <DropdownMenuItem onClick={() => handleCopy(msg.text)}><Copy className="mr-2 h-3 w-3" /> Copy</DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => { setMsgToForward(msg); setIsForwarding(true); }}><Forward className="mr-2 h-3 w-3" /> Forward</DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => deleteMessage(msg.$id, false)} className="text-destructive"><Trash2 className="mr-2 h-3 w-3" /> Delete For Me</DropdownMenuItem>
-                                        {isMine && <DropdownMenuItem onClick={() => deleteMessage(msg.$id, true)} className="text-destructive font-black">Delete For Both</DropdownMenuItem>}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                {!isDeleted && (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100"><MoreVertical className="h-3 w-3" /></Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align={isMine ? "end" : "start"} className="w-32 font-black uppercase text-[9px]">
+                                            <DropdownMenuItem onClick={() => handleCopy(msg.text)}><Copy className="mr-2 h-3 w-3" /> Copy</DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => { setMsgToForward(msg); setIsForwarding(true); }}><Forward className="mr-2 h-3 w-3" /> Forward</DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => deleteMessage(msg.$id, false)} className="text-destructive"><Trash2 className="mr-2 h-3 w-3" /> Delete For Me</DropdownMenuItem>
+                                            {isMine && <DropdownMenuItem onClick={() => deleteMessage(msg.$id, true)} className="text-destructive font-black">Delete For Both</DropdownMenuItem>}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                )}
                             </div>
                         </div>
                     );
