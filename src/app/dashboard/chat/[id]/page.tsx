@@ -23,10 +23,6 @@ const getChatId = (userId1?: string, userId2?: string) => {
     return `${sortedIds[0].substring(0, 15)}_${sortedIds[1].substring(0, 15)}`;
 };
 
-/**
- * MessageStatus Component
- * Strictly renders ticks for the SENDER only.
- */
 const MessageStatus = ({ status, isMine }: { status: string, isMine: boolean }) => {
     if (!isMine) return null;
     switch (status) {
@@ -67,7 +63,6 @@ export default function ChatThreadPage() {
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
-        // Mark as Read instantly for Receiver
         const clearUnread = async () => {
             const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
             await updateDoc(chatRef, {
@@ -94,7 +89,6 @@ export default function ChatThreadPage() {
 
             setMessages(msgs);
 
-            // Mark Read logic
             snapshot.docs.forEach(d => {
                 const data = d.data();
                 if (data.senderId !== currentUser.$id && data.status !== 'read') {
@@ -125,20 +119,35 @@ export default function ChatThreadPage() {
     };
 
     const handleSend = async (text?: string, mediaUrl?: string, mediaType: 'text' | 'image' | 'video' | 'audio' | 'document' = 'text', duration?: string) => {
-        if (!text?.trim() && !mediaUrl && !audioBlob) return;
+        const hasVoice = !!audioBlob && !!audioUrl;
+        if (!text?.trim() && !mediaUrl && !hasVoice) return;
         if (!currentUser || !chatId || chatId === 'invalid_chat') return;
         
+        // Capture local state before clearing
+        const capturedAudioBlob = audioBlob;
+        const capturedAudioUrl = audioUrl;
+        const capturedTime = recordingTime;
+        const finalText = text?.trim() || '';
+
+        // INSTANT CLEAR PREVIEW (💧)
+        if (hasVoice) {
+            setAudioBlob(null);
+            setAudioUrl(null);
+            setRecordingTime(0);
+            setIsRecording(false);
+        }
+
         // INSTANT DROP (Optimistic Update)
         const tempId = `temp-${Date.now()}`;
         const optimisticMsg = {
             $id: tempId,
             chatId,
             senderId: currentUser.$id,
-            text: text?.trim() || '',
-            mediaUrl: mediaUrl || (audioUrl || ''),
-            mediaType,
+            text: finalText,
+            mediaUrl: capturedAudioUrl || mediaUrl || '',
+            mediaType: hasVoice ? 'audio' : mediaType,
             status: 'sent',
-            duration: duration || '',
+            duration: hasVoice ? formatDuration(capturedTime) : (duration || ''),
             createdAt: new Date(),
             isOptimistic: true
         };
@@ -147,14 +156,15 @@ export default function ChatThreadPage() {
         // Background Processing
         try {
             let finalMediaUrl = mediaUrl;
-            let finalMediaType = mediaType;
+            let finalMediaType = hasVoice ? 'audio' : mediaType;
+            let finalDuration = duration;
 
-            if (audioBlob) {
-                const file = new File([audioBlob], `voice-${Date.now()}.mp3`, { type: 'audio/mpeg' });
+            if (hasVoice && capturedAudioBlob) {
+                const file = new File([capturedAudioBlob], `voice-${Date.now()}.mp3`, { type: 'audio/mpeg' });
                 const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
                 finalMediaUrl = upload.url;
                 finalMediaType = 'audio';
-                duration = formatDuration(recordingTime);
+                finalDuration = formatDuration(capturedTime);
             }
 
             const status = otherUser?.isOnline ? 'delivered' : 'sent';
@@ -163,16 +173,16 @@ export default function ChatThreadPage() {
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { 
                 chatId, 
                 senderId: currentUser.$id, 
-                text: text?.trim() || '', 
+                text: finalText, 
                 mediaUrl: finalMediaUrl || '',
                 mediaType: finalMediaType,
                 status,
-                duration: duration || '',
+                duration: finalDuration || '',
                 createdAt: serverTimestamp()
             });
 
-            // Update Recent Chat Entry for BOTH
-            const lastText = finalMediaType === 'text' ? (text || '') : `Sent a ${finalMediaType}`;
+            // Update Recent Chat Entry for BOTH (Mutual Visibility)
+            const lastText = finalMediaType === 'text' ? finalText : `Sent a ${finalMediaType}`;
             const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
             await setDoc(chatRef, {
                 participants: [currentUser.$id, otherUserId],
@@ -193,13 +203,8 @@ export default function ChatThreadPage() {
                 createdAt: new Date().toISOString()
             }).catch(() => {});
             
-            // Clean up states
-            setAudioBlob(null);
-            setAudioUrl(null);
-            setRecordingTime(0);
             setSelectedMediaType(null);
         } catch (e: any) {
-            // Remove optimistic message on fail
             setMessages(prev => prev.filter(m => m.$id !== tempId));
             toast({ variant: 'destructive', title: 'Send Failed', description: e.message });
         }
