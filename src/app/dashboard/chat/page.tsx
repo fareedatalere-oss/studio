@@ -16,6 +16,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
+const RECENT_CACHE_KEY = 'ipay-recent-chats-v2';
+const ALL_USERS_CACHE_KEY = 'ipay-all-users-v2';
+
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
     const [otherUser, setOtherUser] = useState<any>(null);
     const { toast } = useToast();
@@ -87,14 +90,31 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
 
 export default function ChatPage() {
     const { user: currentUser, profile: currentUserProfile } = useUser();
-    const [allUsers, setAllUsers] = useState<any[]>([]);
-    const [recentChats, setRecentChats] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    
+    // INSTANT LOADING CACHE LOGIC
+    const [recentChats, setRecentChats] = useState<any[]>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem(RECENT_CACHE_KEY);
+            return saved ? JSON.parse(saved) : [];
+        }
+        return [];
+    });
+
+    const [allUsers, setAllUsers] = useState<any[]>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem(ALL_USERS_CACHE_KEY);
+            return saved ? JSON.parse(saved) : [];
+        }
+        return [];
+    });
+
+    const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         if (!currentUser?.$id) return;
 
+        // REAL-TIME RECENT CHATS
         const q = query(
             collection(db, COLLECTION_ID_CHATS),
             where('participants', 'array-contains', currentUser.$id),
@@ -103,13 +123,17 @@ export default function ChatPage() {
         );
 
         const unsubChats = onSnapshot(q, (snapshot) => {
-            setRecentChats(snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })));
-            setLoading(false);
-        }, () => setLoading(false));
+            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
+            setRecentChats(data);
+            localStorage.setItem(RECENT_CACHE_KEY, JSON.stringify(data));
+        });
 
-        const uQ = query(collection(db, COLLECTION_ID_PROFILES), limit(50));
+        // REAL-TIME ALL USERS
+        const uQ = query(collection(db, COLLECTION_ID_PROFILES), limit(100));
         const unsubUsers = onSnapshot(uQ, (snapshot) => {
-            setAllUsers(snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })));
+            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
+            setAllUsers(data);
+            localStorage.setItem(ALL_USERS_CACHE_KEY, JSON.stringify(data));
         });
 
         return () => { unsubChats(); unsubUsers(); };
