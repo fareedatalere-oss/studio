@@ -67,7 +67,7 @@ export default function ChatThreadPage() {
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
-        // Reset Unread Count for Receiver
+        // Mark as Read instantly for Receiver
         const clearUnread = async () => {
             const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
             await updateDoc(chatRef, {
@@ -86,16 +86,15 @@ export default function ChatThreadPage() {
             const msgs = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }))
                 .filter((m: any) => !m.deletedForEveryone && !(m.deletedFor || []).includes(currentUser.$id));
             
-            // Client-side sort
             msgs.sort((a: any, b: any) => {
-                const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt || 0);
-                const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt || 0);
+                const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt || 0);
+                const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt || 0);
                 return timeA - timeB;
             });
 
             setMessages(msgs);
 
-            // Mark as Read Logic
+            // Mark Read logic
             snapshot.docs.forEach(d => {
                 const data = d.data();
                 if (data.senderId !== currentUser.$id && data.status !== 'read') {
@@ -129,7 +128,23 @@ export default function ChatThreadPage() {
         if (!text?.trim() && !mediaUrl && !audioBlob) return;
         if (!currentUser || !chatId || chatId === 'invalid_chat') return;
         
-        setIsUploading(true);
+        // INSTANT DROP (Optimistic Update)
+        const tempId = `temp-${Date.now()}`;
+        const optimisticMsg = {
+            $id: tempId,
+            chatId,
+            senderId: currentUser.$id,
+            text: text?.trim() || '',
+            mediaUrl: mediaUrl || (audioUrl || ''),
+            mediaType,
+            status: 'sent',
+            duration: duration || '',
+            createdAt: new Date(),
+            isOptimistic: true
+        };
+        setMessages(prev => [...prev, optimisticMsg]);
+
+        // Background Processing
         try {
             let finalMediaUrl = mediaUrl;
             let finalMediaType = mediaType;
@@ -156,7 +171,7 @@ export default function ChatThreadPage() {
                 createdAt: serverTimestamp()
             });
 
-            // Update Global Chat Metadata for both
+            // Update Recent Chat Entry for BOTH
             const lastText = finalMediaType === 'text' ? (text || '') : `Sent a ${finalMediaType}`;
             const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
             await setDoc(chatRef, {
@@ -167,7 +182,7 @@ export default function ChatThreadPage() {
                 [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
 
-            // Trigger Offline Notification
+            // Send Notification
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
                 userId: otherUserId,
                 senderId: currentUser.$id,
@@ -178,14 +193,15 @@ export default function ChatThreadPage() {
                 createdAt: new Date().toISOString()
             }).catch(() => {});
             
+            // Clean up states
             setAudioBlob(null);
             setAudioUrl(null);
             setRecordingTime(0);
             setSelectedMediaType(null);
         } catch (e: any) {
+            // Remove optimistic message on fail
+            setMessages(prev => prev.filter(m => m.$id !== tempId));
             toast({ variant: 'destructive', title: 'Send Failed', description: e.message });
-        } finally {
-            setIsUploading(false);
         }
     };
 
@@ -221,7 +237,6 @@ export default function ChatThreadPage() {
         if (!file || !selectedMediaType) return;
 
         if (selectedMediaType === 'video') {
-            // Check for 5 minute limit (300 seconds)
             const video = document.createElement('video');
             video.preload = 'metadata';
             video.onloadedmetadata = async () => {
@@ -290,7 +305,7 @@ export default function ChatThreadPage() {
                         <div className="truncate">
                             <h2 className="font-black text-xs leading-none truncate uppercase tracking-tighter">@{otherUser.username}</h2>
                             <p className={cn("text-[8px] font-bold uppercase mt-1", otherUser.isOnline ? "text-green-500" : "text-muted-foreground")}>
-                                {otherUser.isOnline ? 'Online' : otherUser.lastSeen ? `Last seen ${formatDistanceToNow(new Date(otherUser.lastSeen.toDate()), { addSuffix: true })}` : 'Offline'}
+                                {otherUser.isOnline ? 'Online' : otherUser.lastSeen ? `Last seen ${formatDistanceToNow(new Date(otherUser.lastSeen.toMillis ? otherUser.lastSeen.toMillis() : otherUser.lastSeen), { addSuffix: true })}` : 'Offline'}
                             </p>
                         </div>
                     </div>
@@ -320,7 +335,7 @@ export default function ChatThreadPage() {
                                     {msg.mediaType === 'audio' && !isDeleted && (
                                         <div className="flex items-center gap-3 min-w-[160px]">
                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-white bg-white/10 rounded-full" onClick={() => { const a = new Audio(msg.mediaUrl); a.play(); }}><Play className="h-4 w-4 fill-current" /></Button>
-                                            <div className="h-1 bg-white/20 flex-1 rounded-full overflow-hidden"><div className="h-full bg-white w-1/3 animate-pulse"></div></div>
+                                            <div className="h-1 bg-white/20 flex-1 rounded-full overflow-hidden"><div className={cn("h-full bg-white", msg.isOptimistic ? "w-1/2 animate-pulse" : "w-full")}></div></div>
                                             <span className="text-[8px] font-black uppercase">{msg.duration || 'Voice'}</span>
                                         </div>
                                     )}
@@ -336,7 +351,7 @@ export default function ChatThreadPage() {
                                     )}
                                     <p className="text-[11px] font-bold whitespace-pre-wrap">{msg.text}</p>
                                     <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
-                                        <span className="text-[7px] font-mono">{msg.createdAt?.toDate ? format(msg.createdAt.toDate(), 'HH:mm') : ''}</span>
+                                        <span className="text-[7px] font-mono">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : format(new Date(msg.createdAt), 'HH:mm')}</span>
                                         <MessageStatus status={msg.status} isMine={isMine} />
                                     </div>
                                 </div>
@@ -381,8 +396,8 @@ export default function ChatThreadPage() {
                         <span className="text-[10px] font-black uppercase text-primary">Voice Preview ({formatDuration(recordingTime)})</span>
                         <div className="flex gap-2">
                             <Button variant="ghost" size="icon" onClick={() => { setAudioUrl(null); setAudioBlob(null); }} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
-                            <Button size="icon" onClick={() => handleSend()} className="rounded-full h-10 w-10 bg-primary" disabled={isUploading}>
-                                {isUploading ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
+                            <Button size="icon" onClick={() => handleSend()} className="rounded-full h-10 w-10 bg-primary">
+                                <Send className="h-4 w-4" />
                             </Button>
                         </div>
                     </div>
@@ -411,11 +426,11 @@ export default function ChatThreadPage() {
                             placeholder="Message..." 
                             value={newMessage} 
                             onChange={e => setNewMessage(e.target.value)} 
-                            onKeyPress={(e) => { if(e.key === 'Enter') handleSend(newMessage); }}
+                            onKeyPress={(e) => { if(e.key === 'Enter') { handleSend(newMessage); setNewMessage(''); } }}
                             className="h-10 rounded-full bg-muted/50 border-none px-4 text-[11px] font-bold" 
                         />
-                        <Button onClick={() => { handleSend(newMessage); setNewMessage(''); }} size="icon" disabled={!newMessage.trim() && !isUploading} className="h-10 w-10 rounded-full shadow-lg">
-                            {isUploading ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
+                        <Button onClick={() => { handleSend(newMessage); setNewMessage(''); }} size="icon" disabled={!newMessage.trim() && !audioBlob} className="h-10 w-10 rounded-full shadow-lg">
+                            <Send className="h-4 w-4" />
                         </Button>
                         <input type="file" ref={mediaInputRef} className="hidden" onChange={handleFileSelect} />
                     </div>

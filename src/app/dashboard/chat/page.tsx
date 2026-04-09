@@ -65,7 +65,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
                     <div className="flex justify-between items-center mb-0.5">
                         <p className="font-bold text-xs">@{otherUser.username}</p>
                         <p className="text-[7px] font-black uppercase text-muted-foreground">
-                            {chat.lastMessageAt?.toDate ? formatChatDate(chat.lastMessageAt.toDate()) : ''}
+                            {chat.lastMessageAt?.toMillis ? formatChatDate(new Date(chat.lastMessageAt.toMillis())) : ''}
                         </p>
                     </div>
                     <div className="flex justify-between items-center gap-2">
@@ -127,8 +127,8 @@ export default function ChatPage() {
             const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
             
             data.sort((a: any, b: any) => {
-                const timeA = a.lastMessageAt?.toDate ? a.lastMessageAt.toDate().getTime() : 0;
-                const timeB = b.lastMessageAt?.toDate ? b.lastMessageAt.toDate().getTime() : 0;
+                const timeA = a.lastMessageAt?.toMillis ? a.lastMessageAt.toMillis() : 0;
+                const timeB = b.lastMessageAt?.toMillis ? b.lastMessageAt.toMillis() : 0;
                 return timeB - timeA;
             });
 
