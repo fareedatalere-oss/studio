@@ -5,7 +5,7 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 /**
  * @fileOverview Landing Page for I-pay online world.
- * Branding: Welcome to I-pay online world (Sentence Case).
+ * Branding: Welcome To I-pay (Strict Case).
  */
 
 export default function Home() {
@@ -26,16 +26,16 @@ export default function Home() {
       <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background/80 to-background" />
       <div className="relative z-10 flex flex-col items-center">
         <h1 className="text-4xl font-headline font-bold tracking-tighter md:text-6xl lg:text-7xl">
-          Welcome to I-pay online world
+          Welcome To I-pay
         </h1>
         <p className="mt-4 max-w-xl text-lg text-foreground/80 md:text-xl font-medium">
           The new world of online business and transactions.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-4">
-          <Button asChild size="lg" className="rounded-2xl font-black uppercase text-xs tracking-widest px-8 h-14 shadow-xl">
+          <Button asChild size="default" className="rounded-2xl font-black uppercase text-[10px] tracking-widest px-8 h-11 shadow-xl">
             <Link href="/auth/signin">Sign In</Link>
           </Button>
-          <Button asChild size="lg" variant="secondary" className="rounded-2xl font-black uppercase text-xs tracking-widest px-8 h-14 shadow-lg">
+          <Button asChild size="default" variant="secondary" className="rounded-2xl font-black uppercase text-[10px] tracking-widest px-8 h-11 shadow-lg">
             <Link href="/auth/signup">Sign Up</Link>
           </Button>
         </div>

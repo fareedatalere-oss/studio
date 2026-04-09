@@ -76,7 +76,7 @@ export default function DashboardPage() {
       <Card className="rounded-[2.2rem] shadow-xl border-none bg-gradient-to-br from-white to-muted/20 overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between pb-2 px-6">
           <CardTitle className="text-[10px] font-black tracking-widest opacity-60">My Wallet</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => router.push('/dashboard/deposit')} disabled={isProcessing} className="rounded-full h-6 px-3 border-primary text-primary hover:bg-primary hover:text-white font-black text-[8px] uppercase transition-all">
+          <Button variant="outline" size="sm" onClick={() => router.push('/dashboard/deposit')} disabled={isProcessing} className="rounded-full h-6 px-3 border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white font-black text-[8px] uppercase transition-all">
             {isProcessing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CircleDollarSign className="mr-1 h-3 w-3" />}
             Fund
           </Button>
@@ -137,9 +137,9 @@ export default function DashboardPage() {
            <div key={action.label} className="flex flex-col items-center gap-1 cursor-pointer group" onClick={() => handleActionClick(action.key, action.href, action.onClick)}>
               <div
                   className={cn(
-                      "h-11 w-11 rounded-xl mx-auto flex items-center justify-center transition-all active:scale-90 shadow-sm border border-border/50 group-hover:border-primary/20",
+                      "h-11 w-11 rounded-xl mx-auto flex items-center justify-center transition-all active:scale-90 shadow-sm border border-border/50 group-hover:border-emerald-500/20",
                       !isFeatOn(action.key) && "opacity-50 grayscale",
-                      action.label === 'Sofia AI' ? "bg-primary text-white shadow-md border-none" : "bg-white text-foreground"
+                      action.label === 'Sofia AI' ? "bg-primary text-white shadow-md border-none" : "bg-emerald-50 text-emerald-700 border-emerald-100"
                   )}
               >
                   {isProcessing && action.label === 'Refresh' ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <action.icon className="h-5 w-5" />}
