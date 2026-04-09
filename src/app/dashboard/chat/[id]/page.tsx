@@ -81,8 +81,8 @@ export default function ChatThreadPage() {
                 .filter((m: any) => !m.deletedForEveryone && !(m.deletedFor || []).includes(currentUser.$id));
             
             msgs.sort((a: any, b: any) => {
-                const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt || 0);
-                const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt || 0);
+                const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : Date.now());
+                const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : Date.now());
                 return timeA - timeB;
             });
 
@@ -308,7 +308,7 @@ export default function ChatThreadPage() {
     return (
         <div className="flex flex-col h-screen bg-background font-body overflow-hidden">
             <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-50 shadow-sm pt-12">
-                <div className="flex items-center w-full max-w-2xl mx-auto gap-2">
+                <div className="flex items-center w-full max-w-xl mx-auto gap-2">
                     <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-8 w-8 rounded-full bg-muted/50"><ArrowLeft className="h-4 w-4" /></Button>
                     {otherUser && (
                         <div className="flex-1 flex items-center gap-2 overflow-hidden">
@@ -340,7 +340,7 @@ export default function ChatThreadPage() {
             </header>
             
             <main className="flex-1 overflow-y-auto p-4 space-y-2 bg-neutral-50/20 scrollbar-hide">
-                <div className="max-w-2xl mx-auto w-full space-y-2">
+                <div className="max-w-xl mx-auto w-full space-y-2">
                     <div className="text-center py-4 opacity-30 flex items-center justify-center gap-2">
                         <ShieldCheck className="h-3 w-3" />
                         <p className="text-[8px] font-black uppercase tracking-[0.2em]">End-to-End Encrypted</p>
@@ -400,7 +400,7 @@ export default function ChatThreadPage() {
             </main>
 
             <footer className="p-3 border-t bg-background safe-area-bottom pb-8">
-                <div className="max-w-2xl mx-auto w-full">
+                <div className="max-w-xl mx-auto w-full">
                     {isBlocked ? (
                         <div className="bg-muted/50 p-2 rounded-xl text-center"><p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Communication Restricted</p></div>
                     ) : isRecording ? (
