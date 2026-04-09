@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { Bell, Home, PlaySquare, Store, User, MessageSquare, X, Bot, Download } from 'lucide-react';
@@ -16,6 +17,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 /**
  * @fileOverview Dashboard Layout.
  * Simplified Navigation for a compact "Small Size" experience.
+ * Immersive mode active for Media, Chat Threads, and Meetings.
  */
 
 export default function DashboardLayout({
@@ -36,7 +38,13 @@ export default function DashboardLayout({
   
   const lastCountRef = useRef(0);
 
-  const isImmersive = pathname === '/dashboard/media' || pathname.startsWith('/dashboard/media/music') || pathname.includes('/text') || pathname.includes('/room/');
+  // Hide nav for media, private chat threads, text posts, and meeting rooms
+  const isImmersive = 
+    pathname === '/dashboard/media' || 
+    pathname.startsWith('/dashboard/media/music') || 
+    pathname.includes('/text') || 
+    pathname.includes('/room/') ||
+    pathname.match(/\/dashboard\/chat\/[a-zA-Z0-9]+/); // Detect private chat thread ID
 
   useEffect(() => {
     setIsMounted(true);

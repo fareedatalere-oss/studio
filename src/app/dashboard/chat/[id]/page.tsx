@@ -4,10 +4,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, storage, BUCKET_ID_UPLOADS, ID, increment } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, ID, increment } from '@/lib/appwrite';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, limit, doc, updateDoc, serverTimestamp, getDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
-import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, Trash2, Play, Pause, Check, CheckCheck, Copy, ShieldAlert, UserX, UserCheck, Image as ImageIcon, Video, FileText, X, Square, Music } from 'lucide-react';
+import { ArrowLeft, Send, MoreVertical, Loader2, Paperclip, Mic, Trash2, Play, Pause, Check, CheckCheck, Copy, ShieldAlert, UserX, UserCheck, Image as ImageIcon, Video, FileText, X, Square, Forward } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
+import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
@@ -73,8 +74,7 @@ export default function ChatThreadPage() {
 
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
-            where('chatId', '==', chatId),
-            limit(100)
+            where('chatId', '==', chatId)
         );
 
         const unsub = onSnapshot(q, (snapshot) => {
@@ -96,12 +96,6 @@ export default function ChatThreadPage() {
                 }
             });
         });
-
-        const fetchOther = async () => {
-            const d = await getDoc(doc(db, COLLECTION_ID_PROFILES, otherUserId));
-            if (d.exists()) setOtherUser(d.data());
-        };
-        fetchOther();
 
         const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
             if (d.exists()) setOtherUser(d.data());
@@ -153,15 +147,20 @@ export default function ChatThreadPage() {
         };
         setMessages(prev => [...prev, optimisticMsg]);
 
-        // Background Processing
+        // Background Processing (Cloudinary)
         try {
             let finalMediaUrl = mediaUrl;
             let finalMediaType = hasVoice ? 'audio' : mediaType;
             let finalDuration = duration;
 
             if (hasVoice && capturedAudioBlob) {
-                const file = new File([capturedAudioBlob], `voice-${Date.now()}.mp3`, { type: 'audio/mpeg' });
-                const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
+                const reader = new FileReader();
+                const base64 = await new Promise<string>((resolve) => {
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.readAsDataURL(capturedAudioBlob);
+                });
+                const upload = await uploadToCloudinary(base64, 'auto');
+                if (!upload.success) throw new Error(upload.message);
                 finalMediaUrl = upload.url;
                 finalMediaType = 'audio';
                 finalDuration = formatDuration(capturedTime);
@@ -181,7 +180,6 @@ export default function ChatThreadPage() {
                 createdAt: serverTimestamp()
             });
 
-            // Update Recent Chat Entry for BOTH (Mutual Visibility)
             const lastText = finalMediaType === 'text' ? finalText : `Sent a ${finalMediaType}`;
             const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
             await setDoc(chatRef, {
@@ -192,7 +190,6 @@ export default function ChatThreadPage() {
                 [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
 
-            // Send Notification
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
                 userId: otherUserId,
                 senderId: currentUser.$id,
@@ -261,7 +258,13 @@ export default function ChatThreadPage() {
     const uploadAndSend = async (file: File, type: 'image' | 'video' | 'document') => {
         setIsUploading(true);
         try {
-            const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
+            const reader = new FileReader();
+            const base64 = await new Promise<string>((resolve) => {
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(file);
+            });
+            const upload = await uploadToCloudinary(base64, type === 'document' ? 'raw' : 'auto');
+            if (!upload.success) throw new Error(upload.message);
             await handleSend('', upload.url, type);
         } catch (e: any) {
             toast({ variant: 'destructive', title: 'Upload Failed', description: e.message });
@@ -299,8 +302,8 @@ export default function ChatThreadPage() {
 
     return (
         <div className="flex flex-col h-screen bg-background font-body overflow-hidden">
-            <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-10 shadow-sm">
-                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-8 w-8"><ArrowLeft className="h-4 w-4" /></Button>
+            <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-50 shadow-sm pt-12">
+                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-8 w-8"><ArrowLeft className="h-4 w-4" /></Button>
                 {otherUser && (
                     <div className="flex-1 flex items-center gap-2 overflow-hidden">
                         <Avatar className="h-9 w-9 border-2 border-primary/10">
@@ -321,6 +324,10 @@ export default function ChatThreadPage() {
                         <DropdownMenuItem onClick={toggleBlock} className={cn(isBlocked ? "text-green-600" : "text-destructive")}>
                             {currentUserProfile?.blockedUsers?.includes(otherUserId) ? <><UserCheck className="mr-2 h-3.5 w-3.5" /> Unblock</> : <><ShieldAlert className="mr-2 h-3.5 w-3.5" /> Block User</>}
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={async () => {
+                            await setDoc(doc(db, COLLECTION_ID_CHATS, chatId!), { [`deletedFor.${currentUser!.$id}`]: serverTimestamp() }, { merge: true });
+                            router.push('/dashboard/chat');
+                        }} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" /> Delete Chat</DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </header>
@@ -367,6 +374,7 @@ export default function ChatThreadPage() {
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align={isMine ? "end" : "start"} className="w-32 font-black uppercase text-[9px]">
                                             <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.text); toast({title:'Copied'}); }}><Copy className="mr-2 h-3 w-3" /> Copy</DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => toast({ title: 'Forward coming soon' })}><Forward className="mr-2 h-3 w-3" /> Forward</DropdownMenuItem>
                                             <DropdownMenuItem onClick={() => deleteMessage(msg.$id, false)} className="text-destructive"><Trash2 className="mr-2 h-3 w-3" /> Delete For Me</DropdownMenuItem>
                                             {isMine && <DropdownMenuItem onClick={() => deleteMessage(msg.$id, true)} className="text-destructive font-black">Delete For Both</DropdownMenuItem>}
                                         </DropdownMenuContent>
@@ -379,7 +387,7 @@ export default function ChatThreadPage() {
                 <div ref={messagesEndRef} />
             </main>
 
-            <footer className="p-3 border-t bg-background safe-area-bottom">
+            <footer className="p-3 border-t bg-background safe-area-bottom pb-8">
                 {isBlocked ? (
                     <div className="bg-muted/50 p-2 rounded-xl text-center">
                         <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Communication Restricted</p>
