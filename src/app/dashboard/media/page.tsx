@@ -5,8 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Type, Image as ImageIcon, Clapperboard, Film, Music, Loader2, Search, ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
-import { Input } from '@/components/ui/input';
 import { databases, DATABASE_ID, COLLECTION_ID_POSTS, Query } from '@/lib/appwrite';
 import { useRouter } from 'next/navigation';
 import { PostCard } from '@/components/media-post-card';
@@ -55,11 +53,13 @@ export default function MediaPage() {
         return allPosts.filter(p => p.description?.toLowerCase().includes(q) || p.text?.toLowerCase().includes(q) || p.username?.toLowerCase().includes(q));
     }, [allPosts, searchQuery]);
 
+    // Combine Image and Text into one feed
+    const getMixedPosts = () => filteredPosts.filter(p => p.type === 'text' || p.type === 'image');
     const getPostsForType = (type: string) => filteredPosts.filter(p => p.type === type);
 
   return (
     <div className="relative h-screen bg-background overflow-hidden">
-      <Tabs defaultValue="reels" onValueChange={(val) => {
+      <Tabs defaultValue="posts" onValueChange={(val) => {
           if (val === 'music') router.push('/dashboard/media/music');
           if (val === 'film') router.push('/dashboard/media/film');
       }} className="h-full flex flex-col">
@@ -72,32 +72,21 @@ export default function MediaPage() {
                 <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="rounded-full bg-white/10 h-8 w-8">
                     <ArrowLeft className="h-4 w-4 text-white" />
                 </Button>
-                <div className="flex-1 flex justify-center">
+                <div className="flex-1 flex justify-center overflow-x-auto">
                     <TabsList className="bg-transparent h-10 p-0 gap-1">
-                        <TabsTrigger value="text" className="h-8 rounded-full font-black uppercase text-[9px] px-3 data-[state=active]:bg-primary data-[state=active]:text-white">Text</TabsTrigger>
-                        <TabsTrigger value="image" className="h-8 rounded-full font-black uppercase text-[9px] px-3 data-[state=active]:bg-primary data-[state=active]:text-white">Image</TabsTrigger>
+                        <TabsTrigger value="posts" className="h-8 rounded-full font-black uppercase text-[9px] px-3 data-[state=active]:bg-primary data-[state=active]:text-white">Posts</TabsTrigger>
                         <TabsTrigger value="reels" className="h-8 rounded-full font-black uppercase text-[9px] px-3 data-[state=active]:bg-primary data-[state=active]:text-white">Reels</TabsTrigger>
                         <TabsTrigger value="film" className="h-8 rounded-full font-black uppercase text-[9px] px-3 data-[state=active]:bg-primary data-[state=active]:text-white">Films</TabsTrigger>
                         <TabsTrigger value="music" className="h-8 rounded-full font-black uppercase text-[9px] px-3 data-[state=active]:bg-primary data-[state=active]:text-white">Music</TabsTrigger>
                     </TabsList>
                 </div>
             </div>
-             <div className="relative w-full max-w-sm px-4 pb-2">
-                <Search className="absolute left-7 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/50" />
-                <Input 
-                    placeholder="Search posts..." 
-                    className="pl-9 h-9 bg-white/10 border-none text-[10px] font-bold rounded-full text-white placeholder:text-white/30" 
-                    value={searchQuery} 
-                    onChange={(e) => setSearchQuery(e.target.value)} 
-                />
-            </div>
           </div>
         </header>
         <div className="flex-1 h-full overflow-hidden">
           {loading ? <div className="h-full w-full flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div> : (
             <div className="h-full w-full">
-              <TabsContent value="text" className="m-0 h-full"><PostFeed posts={getPostsForType('text')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} uiVisible={uiVisible} onToggleUi={() => setUiVisible(!uiVisible)} /></TabsContent>
-              <TabsContent value="image" className="m-0 h-full"><PostFeed posts={getPostsForType('image')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} uiVisible={uiVisible} onToggleUi={() => setUiVisible(!uiVisible)} /></TabsContent>
+              <TabsContent value="posts" className="m-0 h-full"><PostFeed posts={getMixedPosts()} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} uiVisible={uiVisible} onToggleUi={() => setUiVisible(!uiVisible)} /></TabsContent>
               <TabsContent value="reels" className="m-0 h-full"><PostFeed posts={getPostsForType('reels')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} uiVisible={uiVisible} onToggleUi={() => setUiVisible(!uiVisible)} /></TabsContent>
               <TabsContent value="film" className="m-0 h-full"><PostFeed posts={getPostsForType('film')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} uiVisible={uiVisible} onToggleUi={() => setUiVisible(!uiVisible)} /></TabsContent>
               <TabsContent value="music" className="m-0 h-full"><PostFeed posts={getPostsForType('music')} isMuted={isFeedMuted} onMuteChange={setIsFeedMuted} uiVisible={uiVisible} onToggleUi={() => setUiVisible(!uiVisible)} /></TabsContent>
@@ -110,11 +99,36 @@ export default function MediaPage() {
         <SheetContent side="bottom" className="rounded-t-[3rem] pb-12 shadow-2xl border-t-4 border-primary">
           <SheetHeader><SheetTitle className="text-center font-black uppercase text-[10px] tracking-[0.4em] pt-6">Create Post</SheetTitle></SheetHeader>
           <div className="grid grid-cols-3 gap-6 py-10 px-4">
-            <Link href="/dashboard/media/upload/text" onClick={() => setOpen(false)} className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all group"><Type className="h-8 w-8 group-hover:scale-110" /><span className="text-[10px] font-black uppercase">Text</span></Link>
-            <Link href="/dashboard/media/upload/image" onClick={() => setOpen(false)} className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all group"><ImageIcon className="h-8 w-8 group-hover:scale-110" /><span className="text-[10px] font-black uppercase">Image</span></Link>
-            <Link href="/dashboard/media/upload/reels" onClick={() => setOpen(false)} className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all group"><Clapperboard className="h-8 w-8 group-hover:scale-110" /><span className="text-[10px] font-black uppercase">Reels</span></Link>
-            <Link href="/dashboard/media/upload/film" onClick={() => setOpen(false)} className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all group"><Film className="h-8 w-8 group-hover:scale-110" /><span className="text-[10px] font-black uppercase">Film</span></Link>
-            <Link href="/dashboard/media/upload/music" onClick={() => setOpen(false)} className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all group"><Music className="h-8 w-8 group-hover:scale-110" /><span className="text-[10px] font-black uppercase">Music</span></Link>
+            <Button asChild variant="ghost" className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all group">
+                <a href="/dashboard/media/upload/text" onClick={() => setOpen(false)}>
+                    <Type className="h-8 w-8 group-hover:scale-110" />
+                    <span className="text-[10px] font-black uppercase">Text</span>
+                </a>
+            </Button>
+            <Button asChild variant="ghost" className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all group">
+                <a href="/dashboard/media/upload/image" onClick={() => setOpen(false)}>
+                    <ImageIcon className="h-8 w-8 group-hover:scale-110" />
+                    <span className="text-[10px] font-black uppercase">Image</span>
+                </a>
+            </Button>
+            <Button asChild variant="ghost" className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all group">
+                <a href="/dashboard/media/upload/reels" onClick={() => setOpen(false)}>
+                    <Clapperboard className="h-8 w-8 group-hover:scale-110" />
+                    <span className="text-[10px] font-black uppercase">Reels</span>
+                </a>
+            </Button>
+            <Button asChild variant="ghost" className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all group">
+                <a href="/dashboard/media/upload/film" onClick={() => setOpen(false)}>
+                    <Film className="h-8 w-8 group-hover:scale-110" />
+                    <span className="text-[10px] font-black uppercase">Film</span>
+                </a>
+            </Button>
+            <Button asChild variant="ghost" className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all group">
+                <a href="/dashboard/media/upload/music" onClick={() => setOpen(false)}>
+                    <Music className="h-8 w-8 group-hover:scale-110" />
+                    <span className="text-[10px] font-black uppercase">Music</span>
+                </a>
+            </Button>
           </div>
         </SheetContent>
       </Sheet>

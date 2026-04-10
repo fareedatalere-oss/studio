@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Sofia - The I-Pay Best Friend & Customer Care AI.
- * Enhanced with Deep Profile access (BVN, Account, Balance) and thinking process.
+ * Upgraded with Thinking Mode, Location awareness, Weather sensing, and Deep Profile access.
  */
 
 import { ai } from '@/ai/genkit';
@@ -40,7 +40,7 @@ export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 const getFullProfileTool = ai.defineTool(
   {
     name: 'getFullProfile',
-    description: 'Retrieves the complete user profile including Naira balance, BVN, and Account Number.',
+    description: 'Retrieves the complete user profile including Naira balance, BVN, and Account Number for customer care assistance.',
     inputSchema: z.object({ userId: z.string() }),
     outputSchema: z.any(),
   },
@@ -63,6 +63,19 @@ const getFullProfileTool = ai.defineTool(
   }
 );
 
+const getWeatherTool = ai.defineTool(
+  {
+    name: 'getWeather',
+    description: 'Provides information about the weather in the user\'s location.',
+    inputSchema: z.object({ location: z.string() }),
+    outputSchema: z.object({ condition: z.string(), temp: z.string() }),
+  },
+  async ({ location }) => {
+    // Mock weather engine
+    return { condition: 'Clear Skies', temp: '28°C' };
+  }
+);
+
 export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
   return chatSofiaFlow(input);
 }
@@ -72,7 +85,7 @@ const prompt = ai.definePrompt({
   model: googleAI.model('gemini-2.5-flash'),
   input: { schema: SofiaInputSchema },
   output: { schema: SofiaOutputSchema },
-  tools: [getFullProfileTool],
+  tools: [getFullProfileTool, getWeatherTool],
   config: {
     thinkingConfig: {
       includeThoughts: true,
@@ -83,7 +96,7 @@ const prompt = ai.definePrompt({
 **STRICT LANGUAGE RULE:**
 - You MUST respond in the EXACT same language the user uses to talk to you.
 - If the user types in Hausa, respond in Hausa. If English, respond in English. If French, respond in French.
-- Use the provided context 'language' ({{{language}}}) only as a hint for your initial greeting if needed.
+- Use the provided context 'language' ({{{language}}}) as a hint for your persona and initial greeting.
 
 **CONTEXT:**
 - **User:** @{{{username}}}
@@ -91,8 +104,8 @@ const prompt = ai.definePrompt({
 - **Current Time:** {{{currentTime}}}
 
 **YOUR ABILITIES:**
-- You know the user's Location and can discuss it.
-- You can access their FULL account details (Balance, Account Number, BVN) using the 'getFullProfile' tool. 
+- You know the user's Location and can sense the weather.
+- You can access their FULL account details (Balance, Account Number, BVN) using the 'getFullProfile' tool to answer customer care queries. 
 - You are here to solve problems, give advice, and be a trusted companion.
 
 **KNOWLEDGE:**

@@ -85,6 +85,29 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
     }
 }
 
+export async function initializeTransaction(payload: { email: string; userId: string; amount?: number }) {
+    if (!PAYSTACK_SECRET_KEY) return { success: false, message: 'Configuration error.' };
+    const amt = payload.amount || 25000; // Default to subscription fee if not provided
+    try {
+        const response = await fetch('https://api.paystack.co/transaction/initialize', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: payload.email,
+                amount: amt * 100,
+                callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/market/subscribe/verify`,
+                channels: ['bank_transfer', 'card'],
+                metadata: { user_id: payload.userId, type: 'subscription' }
+            }),
+        });
+        const data = await response.json();
+        if (data.status) return { success: true, data: data.data };
+        return { success: false, message: data.message };
+    } catch (error: any) {
+        return { success: false, message: error.message };
+    }
+}
+
 export async function initializeDeposit(payload: { email: string; userId: string; amount: number }) {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: 'Configuration error.' };
     try {
@@ -104,5 +127,24 @@ export async function initializeDeposit(payload: { email: string; userId: string
         return { success: false, message: data.message };
     } catch (error: any) {
         return { success: false, message: error.message };
+    }
+}
+
+export async function verifyMarketplaceSubscription(reference: string, userId: string) {
+    if (!PAYSTACK_SECRET_KEY) return { success: false, message: 'Configuration error.' };
+    try {
+        const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
+            headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}` }
+        });
+        const data = await response.json();
+        if (data.status && data.data.status === 'success') {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
+                isMarketplaceSubscribed: true
+            });
+            return { success: true, message: 'Subscription activated successfully.' };
+        }
+        return { success: false, message: 'Payment verification failed.' };
+    } catch (e: any) {
+        return { success: false, message: e.message };
     }
 }
