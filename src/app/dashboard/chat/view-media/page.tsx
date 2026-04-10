@@ -36,11 +36,11 @@ function MediaViewContent() {
                 {type === 'video' && (
                     <video src={url} controls autoPlay className="max-h-full max-w-full rounded-xl shadow-2xl" />
                 )}
-                {type === 'document' && (
+                {type === 'pdf' && (
                     <div className="text-center space-y-6">
                         <div className="bg-white/10 p-10 rounded-[3rem] border border-white/20">
                             <X className="h-20 w-20 mx-auto opacity-20" />
-                            <p className="mt-6 font-black uppercase text-sm tracking-widest">Document File</p>
+                            <p className="mt-6 font-black uppercase text-sm tracking-widest">PDF Document</p>
                         </div>
                         <Button size="lg" className="rounded-full font-black uppercase tracking-widest px-10" onClick={() => window.open(url)}>
                             Download to Open
