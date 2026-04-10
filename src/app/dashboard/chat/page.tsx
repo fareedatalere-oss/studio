@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -20,7 +21,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Hub Page.
- * COMPACT UI: Reduced Tab sizes and positioned them closer together.
+ * SMALL SIZE UI: Implementation of sleek, compact buttons.
  * Standardized to professional Title Case.
  */
 
@@ -155,9 +156,9 @@ export default function ChatPage() {
                 </div>
                 
                 <Tabs defaultValue="recent" className="flex flex-col w-full items-center">
-                    <TabsList className="flex items-center gap-1 bg-muted/50 h-8 p-1 rounded-full mb-6 justify-center w-fit px-2">
-                        <TabsTrigger value="recent" className="text-[10px] font-black uppercase rounded-full px-4 h-6 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="text-[10px] font-black uppercase rounded-full px-4 h-6 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
+                    <TabsList className="flex items-center gap-1 bg-muted/50 h-7 p-1 rounded-full mb-6 justify-center w-fit px-2 border">
+                        <TabsTrigger value="recent" className="text-[9px] font-black uppercase rounded-full px-4 h-5 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="text-[9px] font-black uppercase rounded-full px-4 h-5 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
                     </TabsList>
 
                     <div className="relative w-full mb-6 max-w-md">
@@ -204,7 +205,7 @@ export default function ChatPage() {
             </header>
 
             <div className="fixed bottom-20 left-0 right-0 flex justify-center z-50">
-                <Button asChild className="rounded-full h-10 px-8 shadow-2xl font-black text-[10px] tracking-[0.2em] uppercase gap-2 bg-primary">
+                <Button asChild className="rounded-full h-9 px-6 shadow-2xl font-black text-[9px] tracking-[0.2em] uppercase gap-2 bg-primary">
                     <Link href="/dashboard/meeting"><Video className="h-4 w-4" /> Meeting</Link>
                 </Button>
             </div>

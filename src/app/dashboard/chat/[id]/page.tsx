@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -19,8 +20,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Master Private Chat Thread.
- * PERMANENCE ENGINE V8: Uses ID-based Map reconciliation to strictly prevent message replacement.
- * Ensures every message is appended and never overwritten by new snapshots.
+ * PERMANENCE ENGINE V9: Uses an indestructible ID-Map reconciliation to prevent ANY message replacement.
+ * Ensures every message is strictly appended and remains visible forever unless deleted.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -70,7 +71,7 @@ export default function ChatThreadPage() {
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
-        // Unified Snapshot Engine: Ensures full history is fetched and merged by ID
+        // HIGH-PERSISTENCE LISTENER
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
             where('chatId', '==', chatId)
@@ -85,26 +86,28 @@ export default function ChatThreadPage() {
             setMessages(prev => {
                 const messageMap = new Map();
                 
-                // 1. Seed map with previous state
+                // 1. Load existing state
                 prev.forEach(msg => messageMap.set(msg.$id, msg));
                 
-                // 2. Overwrite with server data, replacing temporary ones if they exist
+                // 2. Merge server data (Server always wins for confirmed messages)
                 serverMsgs.forEach(msg => {
+                    // If this server message replaces an optimistic one, remove the temp ID
                     const tempId = (msg as any).tempId;
-                    if (tempId) {
+                    if (tempId && messageMap.has(tempId)) {
                         messageMap.delete(tempId);
                     }
                     messageMap.set(msg.$id, msg);
                 });
 
-                const combined = Array.from(messageMap.values());
-                return combined.sort((a: any, b: any) => {
+                // 3. Sort and return
+                return Array.from(messageMap.values()).sort((a: any, b: any) => {
                     const timeA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || 0;
                     const timeB = b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || 0;
                     return timeA - timeB;
                 });
             });
 
+            // Handle Read Receipts
             snapshot.docs.forEach(d => {
                 const data = d.data();
                 if (data.senderId !== currentUser.$id && data.status !== 'read') {
@@ -142,6 +145,7 @@ export default function ChatThreadPage() {
         setRecordingTime(0);
         setIsRecording(false);
 
+        // INSTANT DROP (💧)
         const optimisticMsg = {
             $id: tempId,
             chatId,

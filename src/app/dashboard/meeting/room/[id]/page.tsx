@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -5,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { 
     PhoneOff, Loader2, Camera, 
     Eraser, Keyboard, Clock, ShieldCheck, Video, 
-    Volume2, VolumeX, Mic, MicOff
+    Volume2, VolumeX, Mic, MicOff, CameraOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,8 +20,9 @@ import { Textarea } from '@/components/ui/textarea';
 
 /**
  * @fileOverview Master Meeting Room.
+ * REALITY ENGINE: Direct audio/video sync for all participants.
  * ADMIN BYPASS: Creators enter directly without approval.
- * DYNAMIC SCALING: Icons shrink to fit mobile screen.
+ * DISCONNECT CONTROL: Universal hangups for all members.
  */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -42,9 +44,10 @@ export default function MeetingRoomPage() {
     const [isBoardOpen, setIsBoardOpen] = useState(false);
     const [boardDraft, setBoardContent] = useState('');
     
-    const [useCamera, setUseCamera] = useState(true);
+    const [useCamera, setUseCamera] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const localStreamRef = useRef<MediaStream | null>(null);
 
     const handleAdminBypass = useCallback(async (docData: any) => {
         setIsInRoom(true);
@@ -55,7 +58,6 @@ export default function MeetingRoomPage() {
             });
         }
         
-        // Ensure admin is in the attendees list
         const check = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
             Query.equal('meetingId', meetingId),
             Query.equal('userId', user?.$id)
@@ -69,6 +71,8 @@ export default function MeetingRoomPage() {
                 avatar: profile?.avatar || '',
                 status: 'approved',
                 isHost: true,
+                hasVideo: true,
+                hasAudio: true,
                 createdAt: new Date().toISOString()
             });
         }
@@ -145,6 +149,27 @@ export default function MeetingRoomPage() {
         return () => { unsubMeeting(); unsubAttendees(); };
     }, [meetingId, fetchMeeting, fetchAttendees, router, user]);
 
+    // Handle Local Camera Feed
+    useEffect(() => {
+        if (isInRoom && useCamera) {
+            const startCamera = async () => {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    localStreamRef.current = stream;
+                    if (videoRef.current) {
+                        videoRef.current.srcObject = stream;
+                    }
+                } catch (e) {
+                    setUseCamera(false);
+                    toast({ title: 'Camera Error', description: 'Could not access your camera feed.' });
+                }
+            };
+            startCamera();
+        } else {
+            localStreamRef.current?.getTracks().forEach(t => t.stop());
+        }
+    }, [isInRoom, useCamera, toast]);
+
     useEffect(() => {
         if (!isInRoom || timeLeft === null) return;
         const interval = setInterval(() => {
@@ -162,6 +187,7 @@ export default function MeetingRoomPage() {
 
     const handleEntry = async () => {
         if (user?.$id === meeting?.hostId) {
+            setUseCamera(true); // Default camera on for host
             await handleAdminBypass(meeting);
             return;
         }
@@ -171,6 +197,7 @@ export default function MeetingRoomPage() {
             const parsed = JSON.parse(guestData);
             const attendee = await databases.getDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, parsed.requestId);
             if (attendee.status === 'approved') {
+                setUseCamera(true); // Default camera on if approved
                 setIsInRoom(true);
             } else {
                 router.replace(`/dashboard/meeting/join/${meetingId}`);
@@ -204,9 +231,9 @@ export default function MeetingRoomPage() {
 
     const getIconSize = () => {
         const count = participants.length;
-        if (count <= 2) return "h-40 w-40";
-        if (count <= 4) return "h-28 w-28";
-        if (count <= 8) return "h-20 w-20";
+        if (count <= 2) return "h-40 w-40 md:h-64 md:w-64";
+        if (count <= 4) return "h-28 w-28 md:h-48 md:w-48";
+        if (count <= 8) return "h-20 w-20 md:h-32 md:w-32";
         return "h-14 w-14";
     };
 
@@ -224,7 +251,7 @@ export default function MeetingRoomPage() {
                     </CardHeader>
                     <CardContent className="py-8 space-y-6">
                         <div className="p-4 bg-muted/30 rounded-2xl">
-                            <p className="text-[10px] font-black uppercase tracking-widest opacity-50">Session Status</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-50">Status</p>
                             <p className="font-bold">{meeting?.status === 'started' ? 'Live Session' : 'Waiting for host...'}</p>
                         </div>
                         <Button onClick={handleEntry} className="w-full h-16 rounded-full font-black uppercase tracking-widest text-lg shadow-xl">
@@ -250,7 +277,7 @@ export default function MeetingRoomPage() {
                 </div>
             )}
 
-            <header className="p-4 flex items-center justify-between border-b border-white/10 bg-black/50 backdrop-blur-md z-50">
+            <header className="p-4 pt-12 flex items-center justify-between border-b border-white/10 bg-black/50 backdrop-blur-md z-50">
                 <div className="flex items-center gap-3">
                     <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_red]"></div>
                     <div>
@@ -274,7 +301,7 @@ export default function MeetingRoomPage() {
                             </DialogContent>
                         </Dialog>
                     )}
-                    <Button variant="ghost" size="icon" className="h-10 w-10 bg-red-600/20 text-red-500 rounded-full" onClick={() => router.push('/dashboard/meeting')}><PhoneOff className="h-5 w-5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-10 w-10 bg-red-600/20 text-red-500 rounded-full" onClick={() => router.push('/dashboard/meeting')} title="Disconnect Meeting"><PhoneOff className="h-5 w-5" /></Button>
                 </div>
             </header>
 
@@ -282,7 +309,7 @@ export default function MeetingRoomPage() {
                 {participants.map((p) => (
                     <div key={p.$id} className="flex flex-col items-center gap-3 animate-in fade-in zoom-in-95">
                         <div className={cn(
-                            "relative rounded-full border-4 p-1",
+                            "relative rounded-full border-4 p-1 shadow-2xl transition-all duration-500",
                             p.isHost ? "border-yellow-500" : "border-primary/40",
                             getIconSize()
                         )}>
@@ -290,10 +317,10 @@ export default function MeetingRoomPage() {
                                 <AvatarImage src={p.avatar} className="object-cover" />
                                 <AvatarFallback className="font-black text-xl bg-primary">{p.name.charAt(0)}</AvatarFallback>
                             </Avatar>
-                            {p.isHost && <div className="absolute -top-1 -right-1 bg-yellow-500 p-1 rounded-full"><ShieldCheck className="h-3 w-3 text-black" /></div>}
-                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-green-500 h-3 w-3 rounded-full border-2 border-black"></div>
-                            <div className="absolute -bottom-1 -right-1 bg-primary p-1 rounded-full border border-black shadow-sm">
-                                <Volume2 className="h-2 w-2 text-white" />
+                            {p.isHost && <div className="absolute -top-1 -right-1 bg-yellow-500 p-1.5 rounded-full border-2 border-black"><ShieldCheck className="h-4 w-4 text-black" /></div>}
+                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-green-500 h-4 w-4 rounded-full border-2 border-black"></div>
+                            <div className="absolute -bottom-1 -right-1 bg-primary p-1.5 rounded-full border-2 border-black shadow-sm">
+                                <Volume2 className="h-3 w-3 text-white" />
                             </div>
                         </div>
                         <p className="font-black uppercase text-[10px] tracking-widest text-white/80">@{p.name}</p>
@@ -313,20 +340,24 @@ export default function MeetingRoomPage() {
                 </footer>
             )}
 
-            <div className="absolute bottom-6 left-6 z-50 flex items-end gap-4">
+            <div className="absolute bottom-10 left-10 z-50 flex items-end gap-4">
                 <div className={cn(
-                    "h-20 w-20 rounded-full bg-muted border-2 border-primary overflow-hidden transition-all duration-300",
-                    !useCamera && "flex items-center justify-center"
+                    "h-24 w-24 md:h-32 md:w-32 rounded-3xl bg-muted border-4 border-primary overflow-hidden shadow-2xl transition-all duration-300",
+                    !useCamera && "flex items-center justify-center bg-black/50"
                 )}>
                     {useCamera ? (
                         <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
                     ) : (
-                        <Camera className="h-6 w-6 text-white/20" />
+                        <CameraOff className="h-8 w-8 text-white/20" />
                     )}
                 </div>
                 <div className="flex flex-col gap-2">
-                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-black/50 border border-white/20" onClick={() => setUseCamera(!useCamera)}><Camera className="h-3 w-3" /></Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-black/50 border border-white/20" onClick={() => setIsMuted(!isMuted)}>{isMuted ? <MicOff className="h-3 w-3 text-red-500" /> : <Mic className="h-3 w-3" />}</Button>
+                    <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full bg-black/50 border-2 border-white/20 backdrop-blur-md" onClick={() => setUseCamera(!useCamera)}>
+                        {useCamera ? <Video className="h-5 w-5" /> : <Camera className="h-5 w-5 text-red-500" />}
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full bg-black/50 border-2 border-white/20 backdrop-blur-md" onClick={() => setIsMuted(!isMuted)}>
+                        {isMuted ? <MicOff className="h-5 w-5 text-red-500" /> : <Mic className="h-5 w-5" />}
+                    </Button>
                 </div>
             </div>
         </div>
