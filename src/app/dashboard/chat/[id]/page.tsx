@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -19,8 +20,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Master Private Chat Thread.
- * PERMANENCE ENGINE V5: Fixed the "Replacement" bug with ID-based Map reconciliation.
- * Ensures every message is appended and never overwritten.
+ * PERMANENCE ENGINE V6: Implemented ID-based Map reconciliation to stop message replacement.
+ * Ensures every message is appended and never overwritten by new snapshots.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -70,7 +71,7 @@ export default function ChatThreadPage() {
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
-        // No orderBy to avoid index requirement
+        // Unified Snapshot Engine: Ensures full history is fetched and merged
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
             where('chatId', '==', chatId)
@@ -85,19 +86,19 @@ export default function ChatThreadPage() {
             setMessages(prev => {
                 const messageMap = new Map();
                 
-                // Keep track of existing messages
+                // 1. Seed map with previous state (preserves existing history)
                 prev.forEach(msg => messageMap.set(msg.$id, msg));
                 
-                // Sync with server data (The truth)
+                // 2. Overwrite with server data (The source of truth)
                 serverMsgs.forEach(msg => {
-                    // If this server message was previously an optimistic one, remove the temp version
+                    // Match optimistic temp IDs to final server IDs if stored
                     if ((msg as any).tempId) {
                         messageMap.delete((msg as any).tempId);
                     }
                     messageMap.set(msg.$id, msg);
                 });
 
-                // Sort by timestamp
+                // 3. Return sorted array to prevent flickering
                 const combined = Array.from(messageMap.values());
                 return combined.sort((a: any, b: any) => {
                     const timeA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || 0;
@@ -157,6 +158,7 @@ export default function ChatThreadPage() {
             isOptimistic: true
         };
         
+        // Instant Drop Logic (💧)
         setMessages(prev => [...prev, optimisticMsg]);
 
         try {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -15,8 +16,8 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 /**
  * @fileOverview Sign In Page.
  * Branding: I-pay online world.
- * Updated: Reduced Card and Button sizes for a sleeker professional look.
- * Labels strictly following Title Case.
+ * UPDATED: Reduced Card and Button sizes for a sleeker professional look.
+ * Standards: Title Case strictly enforced.
  */
 
 export default function SignInPage() {
@@ -33,8 +34,9 @@ export default function SignInPage() {
     setIsLoading(true);
 
     try {
-      const authRes = await account.createEmailPasswordSession(email, password);
-      const userId = (authRes.user as any).uid;
+      await account.createEmailPasswordSession(email, password);
+      const userRes: any = await account.get();
+      const userId = userRes.$id;
 
       try {
         await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
@@ -47,8 +49,8 @@ export default function SignInPage() {
 
     } catch (error: any) {
         let message = "Invalid credentials. Please try again.";
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-            message = "This account isn't registered with this.";
+        if (error.code === 401 || error.code === 'auth/invalid-credential') {
+            message = "This account isn't registered or details are wrong.";
         } else if (error.message?.includes('network')) {
             message = "Connection failed. Check your internet.";
         }
@@ -102,7 +104,7 @@ export default function SignInPage() {
               </div>
             </div>
             <div className="flex items-center justify-end">
-              <Link href="/auth/forgot-password"  className="text-[9px] font-black uppercase underline opacity-50 hover:opacity-100 transition-opacity">Forgot password?</Link>
+              <Link href="/auth/forgot-password"  className="text-[9px] font-black uppercase underline opacity-50 hover:opacity-100 transition-opacity">Forgot Password?</Link>
             </div>
             <Button type="submit" className="w-full h-11 rounded-xl font-black uppercase tracking-widest shadow-lg mt-2 text-xs" disabled={isLoading}>
                 {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Sign In'}

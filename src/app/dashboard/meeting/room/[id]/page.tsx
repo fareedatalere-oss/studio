@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -86,7 +87,7 @@ export default function MeetingRoomPage() {
                 return;
             }
 
-            // ADMIN BYPASS LOGIC
+            // ADMIN BYPASS ENGINE
             if (user?.$id === doc.hostId) {
                 await handleAdminBypass(doc);
             }

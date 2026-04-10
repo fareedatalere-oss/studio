@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -119,7 +120,7 @@ function MarketContent() {
     <Link href={`/dashboard/market/apps/${app.$id}`}>
         <Card className="hover:bg-muted/50 transition-colors shadow-sm">
             <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                <Image src={app.iconUrl} alt={app.name} width={64} height={64} className="rounded-xl shadow-md" />
+                <Image src={app.iconUrl} alt={app.name || "App Icon"} width={64} height={64} className="rounded-xl shadow-md" />
                 <p className="font-bold text-sm truncate w-full tracking-tighter uppercase">{app.name}</p>
                 <p className="text-[10px] font-black text-primary uppercase">{app.priceType === 'free' ? 'Free' : `₦${app.price}`}</p>
             </CardContent>
@@ -130,7 +131,7 @@ function MarketContent() {
   const ProductItem = ({ product }: { product: any}) => (
     <Card className="flex flex-col shadow-sm">
         <CardContent className="p-4 flex flex-col items-center text-center gap-2 flex-1">
-            <Image src={product.imageUrl} alt={product.name} width={80} height={80} className="rounded-xl object-cover aspect-square shadow-sm" />
+            <Image src={product.imageUrl} alt={product.name || "Product"} width={80} height={80} className="rounded-xl object-cover aspect-square shadow-sm" />
             <p className="font-bold text-xs truncate w-full mt-2 uppercase">{product.name}</p>
             <p className="text-sm font-black text-primary">₦{(product.price + 80).toLocaleString()}</p>
         </CardContent>
@@ -176,7 +177,7 @@ function MarketContent() {
   const BookItem = ({ book }: { book: any}) => (
     <Card className="flex flex-col shadow-sm">
         <CardContent className="p-4 flex flex-col items-center text-center gap-2 flex-1">
-            <Image src={book.coverUrl} alt={book.name} width={80} height={120} className="rounded-md object-cover shadow-md" />
+            <Image src={book.coverUrl} alt={book.name || "Book Cover"} width={80} height={120} className="rounded-md object-cover shadow-md" />
             <p className="font-bold text-xs truncate w-full mt-2 uppercase">{book.name}</p>
             <p className="text-[10px] font-black text-muted-foreground uppercase">{book.priceType === 'free' ? 'Free' : `₦${(book.price + 50).toLocaleString()}`}</p>
         </CardContent>
@@ -260,7 +261,7 @@ function MarketContent() {
                         {cart.length > 0 ? cart.map(item => (
                             <div key={item.$id} className="flex items-center justify-between p-2 border rounded-xl">
                                 <div className='flex items-center gap-3'>
-                                    <Image src={item.imageUrl} alt={item.name} width={48} height={48} className="rounded-md" />
+                                    <Image src={item.imageUrl} alt={item.name || "Item"} width={48} height={48} className="rounded-md" />
                                     <div><p className='font-bold text-sm uppercase'>{item.name}</p></div>
                                 </div>
                                 <Button variant="ghost" size="icon" onClick={() => setCart(prev => prev.filter(c => c.$id !== item.$id))}><Trash2 className="h-4 w-4 text-destructive" /></Button>
