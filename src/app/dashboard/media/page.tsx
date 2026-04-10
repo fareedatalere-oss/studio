@@ -49,15 +49,6 @@ export default function MediaPage() {
             .finally(() => setLoading(false));
     }, []);
 
-    // FORCE BACK KEY TO HOME
-    useEffect(() => {
-        const handleBack = (e: PopStateEvent) => {
-            router.push('/dashboard');
-        };
-        window.addEventListener('popstate', handleBack);
-        return () => window.removeEventListener('popstate', handleBack);
-    }, [router]);
-
     const filteredPosts = useMemo(() => {
         if (!searchQuery) return allPosts;
         const q = searchQuery.toLowerCase();
@@ -73,23 +64,33 @@ export default function MediaPage() {
           if (val === 'film') router.push('/dashboard/media/film');
       }} className="h-full flex flex-col">
         <header className={cn(
-            "absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-background/60 via-background/30 to-transparent pt-12 pb-8 transition-all duration-300",
+            "absolute top-0 left-0 right-0 z-30 bg-background/60 backdrop-blur-md pt-12 pb-2 transition-all duration-300 border-b border-white/10",
             !uiVisible && "-translate-y-full opacity-0 pointer-events-none"
         )}>
-          <div className="container px-0">
-            <div className="flex items-center px-4 mb-2">
-                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="rounded-full bg-background/20 backdrop-blur-md">
-                    <ArrowLeft className="h-5 w-5 text-white" />
+          <div className="container px-0 flex flex-col items-center">
+            <div className="w-full flex items-center px-4 mb-2">
+                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="rounded-full bg-white/10 h-8 w-8">
+                    <ArrowLeft className="h-4 w-4 text-white" />
                 </Button>
+                <div className="flex-1 flex justify-center">
+                    <TabsList className="bg-transparent h-10 p-0 gap-1">
+                        <TabsTrigger value="text" className="h-8 rounded-full font-black uppercase text-[9px] px-3 data-[state=active]:bg-primary data-[state=active]:text-white">Text</TabsTrigger>
+                        <TabsTrigger value="image" className="h-8 rounded-full font-black uppercase text-[9px] px-3 data-[state=active]:bg-primary data-[state=active]:text-white">Image</TabsTrigger>
+                        <TabsTrigger value="reels" className="h-8 rounded-full font-black uppercase text-[9px] px-3 data-[state=active]:bg-primary data-[state=active]:text-white">Reels</TabsTrigger>
+                        <TabsTrigger value="film" className="h-8 rounded-full font-black uppercase text-[9px] px-3 data-[state=active]:bg-primary data-[state=active]:text-white">Films</TabsTrigger>
+                        <TabsTrigger value="music" className="h-8 rounded-full font-black uppercase text-[9px] px-3 data-[state=active]:bg-primary data-[state=active]:text-white">Music</TabsTrigger>
+                    </TabsList>
+                </div>
             </div>
-            <TabsList className="grid w-full grid-cols-5 bg-transparent h-12">
-              <TabsTrigger value="text" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[11px] tracking-wider">Text</TabsTrigger>
-              <TabsTrigger value="image" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[11px] tracking-wider">Image</TabsTrigger>
-              <TabsTrigger value="reels" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[11px] tracking-wider">Reels</TabsTrigger>
-              <TabsTrigger value="film" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[11px] tracking-wider">Film</TabsTrigger>
-              <TabsTrigger value="music" className="data-[state=active]:bg-transparent data-[state=active]:text-primary font-bold text-[11px] tracking-wider">Music</TabsTrigger>
-            </TabsList>
-             <div className="relative p-2 px-6 flex items-center gap-2 mt-2"><div className='relative flex-1'><Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/60" /><Input placeholder="Search posts..." className="pl-10 h-10 bg-background/30 border-border/10 text-xs rounded-full backdrop-blur-md" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></div></div>
+             <div className="relative w-full max-w-sm px-4 pb-2">
+                <Search className="absolute left-7 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/50" />
+                <Input 
+                    placeholder="Search posts..." 
+                    className="pl-9 h-9 bg-white/10 border-none text-[10px] font-bold rounded-full text-white placeholder:text-white/30" 
+                    value={searchQuery} 
+                    onChange={(e) => setSearchQuery(e.target.value)} 
+                />
+            </div>
           </div>
         </header>
         <div className="flex-1 h-full overflow-hidden">
@@ -105,9 +106,9 @@ export default function MediaPage() {
         </div>
       </Tabs>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger asChild><Button size="icon" className={cn("fixed bottom-10 left-1/2 -translate-x-1/2 h-16 w-16 rounded-full z-50 shadow-2xl bg-primary border-4 border-white/20 animate-bounce-slow transition-all", !uiVisible && "opacity-0 scale-0 pointer-events-none")}><Plus className="h-8 w-8" /></Button></SheetTrigger>
+        <SheetTrigger asChild><Button size="icon" className={cn("fixed bottom-10 left-1/2 -translate-x-1/2 h-16 w-16 rounded-full z-50 shadow-2xl bg-primary border-4 border-white animate-bounce-slow transition-all", !uiVisible && "opacity-0 scale-0 pointer-events-none")}><Plus className="h-8 w-8" /></Button></SheetTrigger>
         <SheetContent side="bottom" className="rounded-t-[3rem] pb-12 shadow-2xl border-t-4 border-primary">
-          <SheetHeader><SheetTitle className="text-center font-black uppercase text-xs tracking-[0.4em] pt-6">Create Post</SheetTitle></SheetHeader>
+          <SheetHeader><SheetTitle className="text-center font-black uppercase text-[10px] tracking-[0.4em] pt-6">Create Post</SheetTitle></SheetHeader>
           <div className="grid grid-cols-3 gap-6 py-10 px-4">
             <Link href="/dashboard/media/upload/text" onClick={() => setOpen(false)} className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all group"><Type className="h-8 w-8 group-hover:scale-110" /><span className="text-[10px] font-black uppercase">Text</span></Link>
             <Link href="/dashboard/media/upload/image" onClick={() => setOpen(false)} className="flex flex-col items-center gap-3 rounded-[2rem] p-6 bg-muted hover:bg-primary hover:text-white transition-all group"><ImageIcon className="h-8 w-8 group-hover:scale-110" /><span className="text-[10px] font-black uppercase">Image</span></Link>
