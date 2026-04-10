@@ -33,7 +33,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
  * @fileOverview Sofia AI Chat - High Performance Version.
  * CLOUD SAVING: All messages are stored in Firestore for permanence.
  * KEYBOARD FIX: Footer raised for mobile visibility.
- * DELETION: Click any message to trigger removal.
+ * INDEX FIX: Client-side sorting implemented to remove index requirement.
  */
 
 type Message = {
@@ -75,7 +75,7 @@ export default function AiChatPage() {
     try {
         const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
             Query.equal('chatId', chatId),
-            Query.orderAsc('$createdAt'),
+            // REMOVED orderAsc to fix Index Error
             Query.limit(100)
         ]);
         
@@ -92,9 +92,13 @@ export default function AiChatPage() {
                 role: doc.senderId === user?.$id ? 'user' : 'sofia',
                 text: doc.text,
                 image: doc.image,
-                timestamp: new Date(doc.$createdAt).getTime(),
+                timestamp: new Date(doc.$createdAt || doc.createdAt || Date.now()).getTime(),
                 thoughts: doc.thoughts
             } as Message));
+
+            // PERFORM CLIENT-SIDE SORT TO AVOID INDEX ERROR
+            mapped.sort((a, b) => a.timestamp - b.timestamp);
+
             setMessages(mapped);
         }
     } catch (e) {
@@ -205,9 +209,13 @@ export default function AiChatPage() {
       }
     } catch (error: any) {
       console.error("Sofia Error:", error);
-      const errorMsg = error.message?.includes('leaked') || error.message?.includes('403') 
-        ? "Access Denied: The API key has been revoked by Google. Please check your admin dashboard."
-        : "Sofia is temporarily unavailable. Check your connection.";
+      let errorMsg = "Sofia is temporarily unavailable. Check your connection.";
+      
+      if (error.message?.includes('leaked') || error.message?.includes('403')) {
+          errorMsg = "Access Denied: The API key has been revoked by Google. Please check your admin dashboard.";
+      } else if (error.message?.toLowerCase().includes('limit') || error.message?.includes('429')) {
+          errorMsg = "Sofia is resting! (API Limit Reached). Please wait a few seconds and try again.";
+      }
       
       toast({ variant: 'destructive', title: "Sofia Snagged", description: errorMsg });
     } finally {
