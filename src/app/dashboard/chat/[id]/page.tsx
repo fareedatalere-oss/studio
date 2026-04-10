@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -23,12 +24,6 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
-/**
- * @fileOverview Master Pro Chat - Cloudinary Integrated.
- * MEDIA: All media uploads go directly to Cloudinary.
- * PERSISTENCE: Firestore backed history with zero message dismissal.
- */
-
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
     const sortedIds = [userId1, userId2].sort();
@@ -49,7 +44,6 @@ export default function ChatThreadPage() {
     const [recentChats, setRecentChats] = useState<any[]>([]);
     const [selectedForForward, setSelectedForForward] = useState<string[]>([]);
     
-    // Media & Voice State
     const [isRecording, setIsRecording] = useState(false);
     const [recordingDuration, setRecordingDuration] = useState(0);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -72,7 +66,6 @@ export default function ChatThreadPage() {
     const isBlocked = myProfile?.blockedUsers?.includes(otherUserId);
     const hasBlockedMe = otherUser?.blockedUsers?.includes(currentUser?.$id);
 
-    // Offline Handling
     useEffect(() => {
         const handleOnline = () => {
             if (pendingMessage) {
@@ -183,7 +176,6 @@ export default function ChatThreadPage() {
         }
     };
 
-    // Voice Note Logic
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -203,7 +195,7 @@ export default function ChatThreadPage() {
             setRecordingDuration(0);
             durationIntervalRef.current = setInterval(() => {
                 setRecordingDuration(prev => {
-                    if (prev >= 3600) { // 1 Hour Limit
+                    if (prev >= 3600) {
                         stopRecording();
                         return 3600;
                     }
@@ -227,8 +219,6 @@ export default function ChatThreadPage() {
     const sendVoiceNote = async () => {
         if (!audioBlob) return;
         setIsUploading(true);
-        toast({ title: "Uploading voice note..." });
-        
         try {
             const reader = new FileReader();
             const base64: string = await new Promise((resolve) => {
@@ -254,7 +244,6 @@ export default function ChatThreadPage() {
         setRecordingDuration(0);
     };
 
-    // Media Upload Logic
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -277,7 +266,6 @@ export default function ChatThreadPage() {
 
     const uploadAndSendFile = async (file: File) => {
         setIsUploading(true);
-        toast({ title: "Sending media..." });
         try {
             const reader = new FileReader();
             const base64: string = await new Promise((resolve) => {
@@ -315,7 +303,6 @@ export default function ChatThreadPage() {
                 messageMapRef.current.delete(msgId);
                 setMessages(prev => prev.filter(m => m.$id !== msgId));
             }
-            toast({ title: 'Message Status Updated' });
         } catch (e) {}
     };
 
@@ -352,7 +339,6 @@ export default function ChatThreadPage() {
         const msg = messages.find(m => m.$id === isForwarding);
         if (!msg) return;
 
-        toast({ title: `Forwarding to ${selectedForForward.length} users...` });
         for (const targetId of selectedForForward) {
             const fwdChatId = getChatId(currentUser?.$id, targetId);
             const fwdMsgId = doc(collection(db, COLLECTION_ID_MESSAGES)).id;
@@ -438,7 +424,7 @@ export default function ChatThreadPage() {
                             <AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div className="truncate">
-                            <h2 className="font-black text-xs leading-none truncate uppercase tracking-tighter">@{otherUser.username}</h2>
+                            <h2 className="font-bold text-xs leading-none truncate tracking-tighter">@{otherUser.username}</h2>
                             <p className={cn("text-[8px] font-black uppercase mt-1.5", otherUser.isOnline ? "text-green-500 animate-pulse" : "text-muted-foreground")}>
                                 {otherUser.isOnline ? 'Online Now' : otherUser.lastSeen ? `Left ${formatDistanceToNow(new Date(otherUser.lastSeen.toMillis ? otherUser.lastSeen.toMillis() : otherUser.lastSeen), { addSuffix: true })}` : 'Offline'}
                             </p>
@@ -496,7 +482,7 @@ export default function ChatThreadPage() {
                                         </DropdownMenuItem>
                                         {isMine && !msg.isDeleted && (
                                             <DropdownMenuItem onClick={() => deleteMessage(msg.$id, true)} className="text-destructive">
-                                                <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for all
+                                                <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for both
                                             </DropdownMenuItem>
                                         )}
                                     </DropdownMenuContent>

@@ -19,11 +19,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-/**
- * @fileOverview Master Chat Dashboard v2.
- * Features: Recent/All search, Delete history, Meeting link.
- */
-
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
     const [otherUser, setOtherUser] = useState<any>(null);
     const { toast } = useToast();
@@ -79,7 +74,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
                         </p>
                     </div>
                     <div className="flex justify-between items-center gap-2">
-                        <p className={cn("text-[10px] truncate max-w-[80%]", unreadCount > 0 ? "font-black text-foreground" : "text-muted-foreground font-medium")}>
+                        <p className={cn("text-[10px] truncate max-w-[80%]", unreadCount > 0 ? "font-bold text-foreground" : "text-muted-foreground font-medium")}>
                             {chat.lastMessage}
                         </p>
                         {unreadCount > 0 && (
@@ -215,7 +210,7 @@ export default function ChatPage() {
                                             {user.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white"></div>}
                                         </div>
                                         <div className="flex-1 overflow-hidden">
-                                            <p className="font-black text-xs uppercase tracking-tight text-foreground/80">@{user.username}</p>
+                                            <p className="font-bold text-xs tracking-tight text-foreground/80">@{user.username}</p>
                                             <p className="text-[8px] font-bold uppercase text-primary/60">{user.isOnline ? 'Online Now' : 'Offline'}</p>
                                         </div>
                                     </Link>

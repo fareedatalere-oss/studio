@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -234,7 +235,7 @@ export const PostCard = ({ post: initialPost, isMuted, onMuteChange, forceUiVisi
                         <DropdownMenuItem asChild><Link href={`/dashboard/profile/view/${post.userId}`} className="flex items-center gap-2"><User className="h-4 w-4" /> View</Link></DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
-                <p className="font-black text-xs bg-background/50 px-2 py-1 rounded-full backdrop-blur-sm truncate max-w-[100px]">@{post.username}</p>
+                <p className="font-bold text-xs bg-background/50 px-2 py-1 rounded-full backdrop-blur-sm truncate max-w-[100px]">@{post.username}</p>
             </div>
             {currentUser?.$id !== post.userId && (
                 <div className="flex flex-col items-center gap-1">

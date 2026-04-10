@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState, useRef, useEffect, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Camera, ImageIcon, Loader2, Video, CheckCircle2, UploadCloud, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { Camera, ImageIcon, Loader2, Video, CheckCircle2, UploadCloud, ArrowLeft, ShieldCheck, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { useToast } from '@/hooks/use-toast';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, ID } from '@/lib/appwrite';
 import { useUser } from '@/hooks/use-appwrite';
-import Image from 'next/image';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -30,6 +31,7 @@ function MeetingJoinContent() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [hasCamera, setHasCamera] = useState(false);
     const [isExpired, setIsExpired] = useState(false);
+    const [isFull, setIsFull] = useState(false);
     
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -39,7 +41,21 @@ function MeetingJoinContent() {
         const checkMeeting = async () => {
             try {
                 const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
-                if (meeting.status === 'ended') setIsExpired(true);
+                if (meeting.status === 'ended') {
+                    setIsExpired(true);
+                    return;
+                }
+
+                // Check for Personal Meeting Limit
+                if (meeting.type === 'personal') {
+                    const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
+                        Query.equal('meetingId', meetingId),
+                        Query.equal('status', 'approved')
+                    ]);
+                    if (attendees.total >= 5) {
+                        setIsFull(true);
+                    }
+                }
             } catch (e) {
                 setIsExpired(true);
             }
@@ -90,6 +106,19 @@ function MeetingJoinContent() {
             const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
             const isAdmin = isAdminLink || authUser?.$id === meeting.hostId;
 
+            if (meeting.type === 'personal' && !isAdmin) {
+                const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
+                    Query.equal('meetingId', meetingId),
+                    Query.equal('status', 'approved')
+                ]);
+                if (attendees.total >= 5) {
+                    toast({ variant: 'destructive', title: 'Room Full', description: 'the meeting with this id is personal and already 5 have joined' });
+                    setIsFull(true);
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+
             const requestId = ID.unique();
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, requestId, {
                 meetingId,
@@ -98,6 +127,8 @@ function MeetingJoinContent() {
                 avatar,
                 status: isAdmin ? 'approved' : 'waiting',
                 isHost: isAdmin,
+                hasVideo: true,
+                hasAudio: true,
                 createdAt: new Date().toISOString()
             });
 
@@ -145,6 +176,25 @@ function MeetingJoinContent() {
         );
     }
 
+    if (isFull) {
+        return (
+            <div className="h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+                <Card className="max-w-md w-full rounded-[2.5rem] shadow-xl border-none p-10">
+                    <div className="bg-orange-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <XCircle className="h-10 w-10 text-orange-600" />
+                    </div>
+                    <h2 className="text-xl font-black uppercase tracking-tighter">Room is Full</h2>
+                    <p className="text-muted-foreground font-bold text-xs mt-2 italic">
+                        the meeting with this id is personal and already 5 have joined
+                    </p>
+                    <Button asChild className="w-full h-12 rounded-full font-black uppercase tracking-widest mt-8">
+                        <Link href="/dashboard/meeting">Return to Hub</Link>
+                    </Button>
+                </Card>
+            </div>
+        );
+    }
+
     if (step === 'waiting') {
         return (
             <div className="h-screen bg-black flex flex-col items-center justify-center p-6 text-center">
@@ -168,7 +218,7 @@ function MeetingJoinContent() {
                 <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/meeting')} className="font-black uppercase text-[10px] gap-2">
                     <ArrowLeft className="h-4 w-4" /> Hub
                 </Button>
-                {isAdminLink && <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 border-none font-black uppercase text-[8px]"><ShieldCheck className="mr-1 h-3 w-3" /> Chairman Link</Badge>}
+                {isAdminLink && <div className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-yellow-100 text-yellow-700 border-none flex items-center"><ShieldCheck className="mr-1 h-3 w-3" /> Chairman Link</div>}
             </header>
             <Card className="max-w-md w-full mx-auto rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
                 <CardHeader className="bg-primary text-white p-8 text-center">
@@ -187,7 +237,7 @@ function MeetingJoinContent() {
                     </div>
 
                     <div className="space-y-4">
-                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest">Identity Icon</Label>
+                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest">Identity Feed</Label>
                         <div className="relative aspect-video bg-black rounded-3xl overflow-hidden border-4 border-white shadow-xl">
                             {avatar ? (
                                 <img src={avatar} className="h-full w-full object-cover" alt="Preview" />
@@ -202,7 +252,7 @@ function MeetingJoinContent() {
                                 ) : (
                                     <Button onClick={handleCapture} size="sm" className="rounded-full font-black uppercase text-[9px] h-8 shadow-lg" disabled={!hasCamera}><Camera className="mr-1 h-3 w-3" /> Capture</Button>
                                 )}
-                                <Button onClick={() => fileInputRef.current?.click()} size="sm" variant="secondary" className="rounded-full font-black uppercase text-[9px] h-8 shadow-lg"><UploadCloud className="mr-1 h-3 w-3" /> Upload</Button>
+                                <Button onClick={() => fileInputRef.current?.click()} size="sm" variant="secondary" className="rounded-full font-black uppercase text-[9px] h-8 shadow-lg"><UploadCloud className="mr-1 h-3 w-3" /> Upload Icon</Button>
                             </div>
                         </div>
                         <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
@@ -217,14 +267,6 @@ function MeetingJoinContent() {
         </div>
     );
 }
-
-const XCircle = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-);
-
-const Badge = ({ children, className, variant }: any) => (
-    <div className={cn("px-2 py-0.5 rounded-full text-xs font-bold border", className)}>{children}</div>
-);
 
 export default function MeetingJoinPage() {
     return (
