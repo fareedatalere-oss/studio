@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -142,16 +143,16 @@ export default function ChatPage() {
     return (
         <div className="flex flex-col h-full bg-background text-foreground relative font-body overflow-y-auto pb-safe">
             <header className="p-4 pt-12 max-w-xl mx-auto w-full flex flex-col items-center">
-                <div className="w-full flex items-center justify-between mb-2">
+                <div className="w-full flex items-center justify-between mb-4">
                     <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-10 w-10 bg-muted/50 rounded-full">
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                 </div>
                 
                 <Tabs defaultValue="recent" className="flex flex-col w-full items-center">
-                    <TabsList className="flex items-center gap-1 bg-muted/50 h-10 p-1 rounded-full mb-6 justify-center w-fit px-4">
-                        <TabsTrigger value="recent" className="text-[10px] font-black uppercase rounded-full px-6 h-8 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="text-[10px] font-black uppercase rounded-full px-6 h-8 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
+                    <TabsList className="flex items-center gap-1 bg-muted/50 h-9 p-1 rounded-full mb-6 justify-center w-fit px-2">
+                        <TabsTrigger value="recent" className="text-[9px] font-black uppercase rounded-full px-4 h-7 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="text-[9px] font-black uppercase rounded-full px-4 h-7 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
                     </TabsList>
 
                     <div className="relative w-full mb-6">
@@ -198,7 +199,7 @@ export default function ChatPage() {
             </header>
 
             <div className="fixed bottom-20 left-0 right-0 flex justify-center z-50">
-                <Button asChild className="rounded-full h-12 px-10 shadow-2xl font-black text-[10px] tracking-[0.2em] uppercase gap-2 bg-primary">
+                <Button asChild className="rounded-full h-10 px-8 shadow-2xl font-black text-[9px] tracking-[0.2em] uppercase gap-2 bg-primary">
                     <Link href="/dashboard/meeting"><Video className="h-4 w-4" /> Meeting</Link>
                 </Button>
             </div>

@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 
 /**
  * @fileOverview Meeting Hub Page.
- * BUTTON SIZING: Professional "Small Size" buttons as requested.
- * SCHEDULE: Removed as requested.
+ * REDUCED SIZING: Implemented sleek "Small Size" buttons.
+ * CLEAN UI: Schedules section removed as requested.
  */
 
 export default function MeetingLandingPage() {
@@ -28,23 +28,23 @@ export default function MeetingLandingPage() {
         </header>
 
         <div className="grid gap-3">
-          <Button asChild className="h-14 flex items-center justify-between px-6 rounded-2xl group shadow-md" variant="default">
+          <Button asChild className="h-12 flex items-center justify-between px-6 rounded-2xl group shadow-md" variant="default">
             <Link href="/dashboard/meeting/book">
               <div className="flex items-center gap-3 text-left">
-                <Video className="h-5 w-5 text-white" />
-                <p className="font-black uppercase tracking-widest text-[10px] text-white">Book a Meeting</p>
+                <Video className="h-4 w-4 text-white" />
+                <p className="font-black uppercase tracking-widest text-[9px] text-white">Book a Meeting</p>
               </div>
-              <ArrowRight className="h-4 w-4 text-white/50" />
+              <ArrowRight className="h-3 w-3 text-white/50" />
             </Link>
           </Button>
 
-          <Button asChild className="h-14 flex items-center justify-between px-6 rounded-2xl group shadow-sm" variant="outline">
+          <Button asChild className="h-12 flex items-center justify-between px-6 rounded-2xl group shadow-sm" variant="outline">
             <Link href="/dashboard/meeting/enter">
               <div className="flex items-center gap-3 text-left text-foreground">
-                <Users className="h-5 w-5 text-primary" />
-                <p className="font-black uppercase tracking-widest text-[10px]">Enter Meeting</p>
+                <Users className="h-4 w-4 text-primary" />
+                <p className="font-black uppercase tracking-widest text-[9px]">Enter Meeting</p>
               </div>
-              <ArrowRight className="h-4 w-4 opacity-50" />
+              <ArrowRight className="h-3 w-3 opacity-50" />
             </Link>
           </Button>
         </div>
