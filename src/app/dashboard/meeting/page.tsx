@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -6,8 +7,8 @@ import { Button } from '@/components/ui/button';
 
 /**
  * @fileOverview Meeting Hub Page.
- * SMALL SIZE UI: Implementation of sleek, compact buttons.
- * TITLE CASE: Standardized all branding labels.
+ * SMALL SIZE UI: Sleek, compact buttons.
+ * TITLE CASE: Book a meeting, Enter meeting.
  */
 
 export default function MeetingLandingPage() {
@@ -31,7 +32,7 @@ export default function MeetingLandingPage() {
             <Link href="/dashboard/meeting/book">
               <div className="flex items-center gap-3 text-left">
                 <Video className="h-4 w-4 text-white" />
-                <p className="font-black uppercase tracking-widest text-[9px] text-white">Book a Meeting</p>
+                <p className="font-black uppercase tracking-widest text-[9px] text-white">Book a meeting</p>
               </div>
               <ArrowRight className="h-3 w-3 text-white/50" />
             </Link>
@@ -41,7 +42,7 @@ export default function MeetingLandingPage() {
             <Link href="/dashboard/meeting/enter">
               <div className="flex items-center gap-3 text-left text-foreground">
                 <Users className="h-4 w-4 text-primary" />
-                <p className="font-black uppercase tracking-widest text-[9px]">Enter Meeting</p>
+                <p className="font-black uppercase tracking-widest text-[9px]">Enter meeting</p>
               </div>
               <ArrowRight className="h-3 w-3 opacity-50" />
             </Link>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -16,21 +17,20 @@ import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_APPS, getAppwriteStorageUrl, ID } from '@/lib/appwrite';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { databases, DATABASE_ID, COLLECTION_ID_APPS, ID } from '@/lib/appwrite';
+import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 const APP_UPLOAD_PIN = '09075464786';
 const PIN_VERIFIED_KEY = 'app-upload-pin-verified';
 
+function toBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+    });
+}
 
 function AppUploadForm() {
     const { toast } = useToast();
@@ -80,7 +80,6 @@ function AppUploadForm() {
                 return;
             }
             setScreenshots(prev => [...prev, ...files]);
-            
             const newPreviews = files.map(file => URL.createObjectURL(file));
             setScreenshotPreviews(prev => [...prev, ...newPreviews]);
         }
@@ -94,37 +93,41 @@ function AppUploadForm() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!user) {
-            toast({ variant: 'destructive', title: 'You must be logged in to post.' });
-            return;
-        }
-
-        if (!appName || !appIcon || screenshots.length < 3 || !appFile || !platform || !description || (priceType === 'paid' && !price)) {
-            toast({ variant: 'destructive', title: 'Please fill all required fields and upload all files.' });
+        if (!user) return;
+        if (!appName || !appIcon || screenshots.length < 1 || !appFile || !platform) {
+            toast({ variant: 'destructive', title: 'Missing required files.' });
             return;
         }
 
         setIsLoading(true);
-        toast({ title: "Submitting your app...", description: "Uploading files and creating your listing. Please wait." });
+        toast({ title: "Uploading to Cloudinary..." });
 
         try {
-            const uploadPromises = [
-                storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), appIcon),
-                ...screenshots.map(file => storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file)),
-                storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), appFile),
-            ];
+            // 1. Upload Icon
+            const iconB64 = await toBase64(appIcon);
+            const iconUp = await uploadToCloudinary(iconB64);
+            if (!iconUp.success) throw new Error(iconUp.message);
 
-            const [appIconUpload, ...otherUploads] = await Promise.all(uploadPromises);
-            const screenshotUploads = otherUploads.slice(0, screenshots.length);
-            const appFileUpload = otherUploads[screenshots.length];
+            // 2. Upload App File (as raw)
+            const fileB64 = await toBase64(appFile);
+            const fileUp = await uploadToCloudinary(fileB64, 'raw');
+            if (!fileUp.success) throw new Error(fileUp.message);
+
+            // 3. Upload Screenshots
+            const screenshotUrls = [];
+            for (const shot of screenshots) {
+                const shotB64 = await toBase64(shot);
+                const shotUp = await uploadToCloudinary(shotB64);
+                if (shotUp.success) screenshotUrls.push(shotUp.url);
+            }
             
             const newApp = {
                 name: appName,
-                iconUrl: getAppwriteStorageUrl(appIconUpload.$id),
-                screenshots: screenshotUploads.map(upload => getAppwriteStorageUrl(upload.$id)),
+                iconUrl: iconUp.url,
+                screenshots: screenshotUrls,
                 platform: platform,
                 description: description,
-                appFileUrl: getAppwriteStorageUrl(appFileUpload.$id),
+                appFileUrl: fileUp.url,
                 price: priceType === 'paid' ? Number(price) : 0,
                 priceType: priceType,
                 sellerId: user.$id,
@@ -133,77 +136,69 @@ function AppUploadForm() {
             };
 
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_APPS, ID.unique(), newApp);
-            
-            toast({ title: 'App Submitted!', description: 'Your app is now live on the marketplace.' });
+            toast({ title: 'App Live!' });
             router.push('/dashboard/market?tab=apps');
 
         } catch (error: any) {
-            console.error(error);
-            toast({ variant: 'destructive', title: 'Upload Failed', description: error.message || 'An unknown error occurred.' });
+            toast({ variant: 'destructive', title: 'Direct Upload Failed', description: error.message });
         } finally {
             setIsLoading(false);
         }
     }
 
   return (
-     <Card className="w-full max-w-2xl mx-auto">
+     <Card className="w-full max-w-2xl mx-auto rounded-[2rem] shadow-xl">
         <CardHeader>
-            <CardTitle>Upload Your App</CardTitle>
-            <CardDescription>Fill in the details below to list your application on the marketplace.</CardDescription>
+            <CardTitle className="text-center font-black uppercase tracking-tighter">Upload App</CardTitle>
+            <CardDescription className="text-center font-bold">List your application directly to I-Pay Market</CardDescription>
         </CardHeader>
         <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
                  <div className="space-y-2">
-                    <Label htmlFor="appName">App Name</Label>
-                    <Input id="appName" value={appName} onChange={(e) => setAppName(e.target.value)} placeholder="e.g., I-Pay Connect" required/>
+                    <Label className="font-black uppercase text-[10px] opacity-70">App Name</Label>
+                    <Input value={appName} onChange={(e) => setAppName(e.target.value)} required className="rounded-xl bg-muted/50 border-none h-12" />
                 </div>
                  <div className="space-y-2">
-                    <Label htmlFor="appIcon">App Icon</Label>
+                    <Label className="font-black uppercase text-[10px] opacity-70">App Icon</Label>
                     <div className="flex items-center gap-4">
                         <div 
-                            className="w-24 h-24 bg-muted rounded-md flex items-center justify-center cursor-pointer border border-dashed"
+                            className="w-24 h-24 bg-muted rounded-2xl flex items-center justify-center cursor-pointer border-2 border-dashed overflow-hidden"
                              onClick={() => appIconInputRef.current?.click()}
                         >
                             {appIconPreview ? (
-                                <Image src={appIconPreview} alt="App Icon Preview" width={96} height={96} className="object-cover rounded-md"/>
+                                <Image src={appIconPreview} alt="App Icon Preview" width={96} height={96} className="object-cover"/>
                             ) : (
-                                <div className="text-center text-muted-foreground p-2">
-                                    <ImageIcon className="mx-auto h-8 w-8" />
-                                    <p className='text-xs'>Upload Icon</p>
-                                </div>
+                                <ImageIcon className="mx-auto h-8 w-8 opacity-30" />
                             )}
                         </div>
-                        <Button type="button" variant="outline" onClick={() => appIconInputRef.current?.click()}>Choose Image</Button>
+                        <Button type="button" variant="outline" onClick={() => appIconInputRef.current?.click()} className="rounded-full h-10 text-[10px] font-black uppercase">Choose Icon</Button>
                     </div>
-                    <Input id="appIcon" type="file" className="hidden" ref={appIconInputRef} onChange={handleIconChange} accept="image/png, image/jpeg, image/webp" required/>
+                    <Input type="file" className="hidden" ref={appIconInputRef} onChange={handleIconChange} accept="image/*" required/>
                 </div>
                 <div className="space-y-2">
-                    <Label>Screenshots (3-8 images)</Label>
+                    <Label className="font-black uppercase text-[10px] opacity-70">Screenshots (1-8)</Label>
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                         {screenshotPreviews.map((src, index) => (
                             <div key={index} className="relative aspect-square">
-                                <Image src={src} alt={`Screenshot ${index + 1}`} fill className="object-cover rounded-md"/>
+                                <Image src={src} alt="Shot" fill className="object-cover rounded-xl"/>
                                 <Button type="button" size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => removeScreenshot(index)}><X className="h-4 w-4"/></Button>
                             </div>
                         ))}
                         {screenshots.length < 8 && (
                             <div
-                                className="aspect-square bg-muted rounded-md flex items-center justify-center cursor-pointer border-2 border-dashed"
+                                className="aspect-square bg-muted rounded-xl flex items-center justify-center cursor-pointer border-2 border-dashed"
                                 onClick={() => screenshotInputRef.current?.click()}
                             >
-                                <div className="text-center text-muted-foreground">
-                                    <UploadCloud className="mx-auto h-8 w-8" />
-                                    <p className='text-xs'>Upload</p>
-                                </div>
+                                <UploadCloud className="h-6 w-6 opacity-30" />
                             </div>
                         )}
                     </div>
-                    <Input id="screenshots" type="file" multiple className="hidden" ref={screenshotInputRef} onChange={handleScreenshotsChange} accept="image/png, image/jpeg, image/webp" />
+                    <Input type="file" multiple className="hidden" ref={screenshotInputRef} onChange={handleScreenshotsChange} accept="image/*" />
                 </div>
                  <div className="space-y-2">
-                    <Label htmlFor="platform">Platform</Label>
+                    <Label className="font-black uppercase text-[10px] opacity-70">Platform</Label>
                     <Select required onValueChange={setPlatform} value={platform}>
-                        <SelectTrigger id="platform">
+                        <SelectTrigger className="h-12 rounded-xl bg-muted/50 border-none">
                             <SelectValue placeholder="Select platform" />
                         </SelectTrigger>
                         <SelectContent>
@@ -213,108 +208,53 @@ function AppUploadForm() {
                     </Select>
                 </div>
                  <div className="space-y-2">
-                    <Label htmlFor="description">App Description</Label>
-                    <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe what your app does..." required rows={4}/>
+                    <Label className="font-black uppercase text-[10px] opacity-70">Description</Label>
+                    <Textarea value={description} onChange={(e) => setDescription(e.target.value)} required rows={4} className="rounded-xl bg-muted/50 border-none" />
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="appFile">Application File</Label>
+                    <Label className="font-black uppercase text-[10px] opacity-70">App File</Label>
                      <div
                         className={cn(
-                            "h-32 bg-muted rounded-md flex items-center justify-center border-2 border-dashed",
+                            "h-32 bg-muted rounded-2xl flex items-center justify-center border-2 border-dashed",
                             platform ? "cursor-pointer" : "cursor-not-allowed opacity-50"
                         )}
                         onClick={() => platform && appFileInputRef.current?.click()}
                     >
                       {appFile ? (
-                          <div className="text-center text-foreground">
-                            <FileText className="mx-auto h-10 w-10" />
-                            <p className="font-semibold mt-2">{appFile.name}</p>
-                            <p className="text-xs text-muted-foreground">{(appFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                          <div className="text-center">
+                            <FileText className="mx-auto h-8 w-8" />
+                            <p className="font-bold text-[10px] mt-2 truncate max-w-[150px]">{appFile.name}</p>
                           </div>
                       ) : (
-                          <div className="text-center text-muted-foreground">
-                            <UploadCloud className="mx-auto h-10 w-10" />
-                            <p>Click or drag file to upload</p>
-                            {platform === 'android' && <p className="text-xs">.apk, .aab</p>}
-                            {platform === 'ios' && <p className="text-xs">.ipa file</p>}
-                            {!platform && <p className="text-xs">Select a platform first</p>}
+                          <div className="text-center opacity-30">
+                            <UploadCloud className="mx-auto h-8 w-8" />
+                            <p className="text-[10px] font-black uppercase">Choose .apk / .ipa</p>
                           </div>
                       )}
                     </div>
-                    <Input 
-                        id="appFile" 
-                        type="file" 
-                        className="hidden"
-                        ref={appFileInputRef}
-                        onChange={handleFileChange}
-                        required 
-                        disabled={!platform}
-                        accept={
-                            platform === 'ios' ? '.ipa' : 
-                            platform === 'android' ? '.apk,.aab' : '*'
-                        }
-                    />
+                    <Input type="file" className="hidden" ref={appFileInputRef} onChange={handleFileChange} required disabled={!platform} />
                 </div>
                 
                 <div className="space-y-3">
-                    <Label>Pricing</Label>
+                    <Label className="font-black uppercase text-[10px] opacity-70">Pricing</Label>
                      <RadioGroup defaultValue="free" value={priceType} onValueChange={setPriceType} className="flex gap-4">
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="free" id="free" />
-                            <Label htmlFor="free">Free</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="paid" id="paid" />
-                            <Label htmlFor="paid">Paid</Label>
-                        </div>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="free" id="free" /><Label htmlFor="free">Free</Label></div>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="paid" id="paid" /><Label htmlFor="paid">Paid</Label></div>
                     </RadioGroup>
                     {priceType === 'paid' && (
                         <div className='space-y-2'>
-                            <Label htmlFor="price">Price (₦)</Label>
-                            <Input id="price" type="number" placeholder='e.g., 500' value={price} onChange={(e) => setPrice(e.target.value)} required/>
-                            <p className="text-xs text-muted-foreground">A fee of ₦80 will be deducted from each sale.</p>
+                            <Input type="number" placeholder='Price (₦)' value={price} onChange={(e) => setPrice(e.target.value)} required className="h-12 rounded-xl bg-muted/50 border-none" />
                         </div>
                     )}
                 </div>
                 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Posting App...</> : "Post App"}
+                <Button type="submit" className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-lg" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="animate-spin h-6 w-6" /> : "Publish to Cloudinary"}
                 </Button>
             </form>
         </CardContent>
      </Card>
   );
-}
-
-function PinGate({ onPinVerified }: { onPinVerified: () => void }) {
-    const [pin, setPin] = useState('');
-    const { toast } = useToast();
-
-    const handleVerify = () => {
-        if (pin === APP_UPLOAD_PIN) {
-            sessionStorage.setItem(PIN_VERIFIED_KEY, 'true');
-            toast({ title: 'PIN Verified' });
-            onPinVerified();
-        } else {
-            toast({ variant: 'destructive', title: 'Incorrect PIN' });
-        }
-    };
-    
-    return (
-        <Card className="w-full max-w-md mx-auto">
-            <CardHeader>
-                <CardTitle>Enter App Upload PIN</CardTitle>
-                <CardDescription>A one-time PIN is required to access the app upload section.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-                 <Label htmlFor="upload-pin">Upload PIN</Label>
-                 <Input id="upload-pin" type="password" value={pin} onChange={(e) => setPin(e.target.value)} />
-            </CardContent>
-            <CardFooter>
-                <Button onClick={handleVerify} className="w-full">Continue</Button>
-            </CardFooter>
-        </Card>
-    );
 }
 
 export default function UploadAppPage() {
@@ -327,54 +267,32 @@ export default function UploadAppPage() {
     }
   }, []);
 
-  const PageContent = () => {
-    if (!pinVerified) {
-        return <PinGate onPinVerified={() => setPinVerified(true)} />;
+  const handlePinVerify = (pin: string) => {
+    if (pin === APP_UPLOAD_PIN) {
+        sessionStorage.setItem(PIN_VERIFIED_KEY, 'true');
+        setPinVerified(true);
     }
-    if (!accepted) {
-        return (
-            <Card className="w-full max-w-2xl mx-auto">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShieldAlert className="h-6 w-6 text-destructive" />
-                  Important: App Submission Rules
-                </CardTitle>
-                <CardDescription>Please read these terms carefully before uploading your application.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Alert variant="destructive">
-                  <AlertTitle>Warning!</AlertTitle>
-                  <AlertDescription>
-                    We take the security of our users very seriously. Uploading fake applications, malware, or any form of malicious software is strictly prohibited and will result in a permanent ban from our platform.
-                  </AlertDescription>
-                </Alert>
-                <div className="text-sm text-muted-foreground space-y-2">
-                    <p>By proceeding, you agree to the following:</p>
-                    <ul className="list-disc pl-5 space-y-1">
-                        <li>You are the rightful owner or have explicit permission to distribute the application you are uploading.</li>
-                        <li>Your application does not contain any malicious code, viruses, or spyware.</li>
-                        <li>All transactions made through the marketplace are subject to a service charge for both the buyer and the seller. This is to maintain the platform and ensure a secure environment.</li>
-                        <li>Violating these terms will lead to immediate account suspension and potential legal action.</li>
-                    </ul>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button onClick={() => setAccepted(true)} className="w-full">I have read and agree to the terms</Button>
-              </CardFooter>
+  };
+
+  if (!pinVerified) {
+      return (
+        <div className="container py-8 max-w-md">
+            <Card className="rounded-[2.5rem] p-8 shadow-2xl">
+                <CardHeader><CardTitle className="text-center font-black uppercase text-sm">Security Gate</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                    <Input type="password" placeholder="Enter Upload PIN" onChange={(e) => handlePinVerify(e.target.value)} className="h-14 rounded-2xl text-center text-2xl tracking-widest" />
+                </CardContent>
             </Card>
-        );
-    }
-    return <AppUploadForm />;
+        </div>
+      );
   }
 
   return (
     <div className="container py-8">
-      <Link href="/dashboard/market?tab=apps" className="flex items-center gap-2 mb-4 text-sm">
-        <ArrowLeft className="h-4 w-4" />
-        Back to Market
+      <Link href="/dashboard/market?tab=apps" className="flex items-center gap-2 mb-4 text-sm font-black uppercase text-muted-foreground hover:text-primary">
+        <ArrowLeft className="h-4 w-4" /> Back
       </Link>
-      
-      <PageContent />
+      <AppUploadForm />
     </div>
   );
 }

@@ -13,7 +13,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_PRODUCTS, ID } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PRODUCTS, ID } from '@/lib/appwrite';
+import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 export default function UploadProductPage() {
     const { toast } = useToast();
@@ -42,31 +43,33 @@ export default function UploadProductPage() {
             setProductImagePreview(URL.createObjectURL(file));
         }
     }
+
+    function toBase64(file: File): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = error => reject(error);
+        });
+    }
     
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        if (!user) {
-            toast({ variant: 'destructive', title: 'You must be logged in.' });
-            return;
-        }
-
-        if (!productName || !productImage || !description || !price || !phone) {
-            toast({ variant: 'destructive', title: 'Please fill all fields and upload an image.' });
-            return;
-        }
+        if (!user || !productImage) return;
 
         setIsLoading(true);
-        toast({ title: 'Posting your product...' });
+        toast({ title: 'Direct Cloudinary Uploading...' });
 
         try {
-            const imageUpload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), productImage);
-            const imageUrl = imageUpload.url;
+            const b64 = await toBase64(productImage);
+            const upload = await uploadToCloudinary(b64);
+            
+            if (!upload.success) throw new Error(upload.message);
 
             const newProduct = {
                 name: productName,
                 description: description,
-                imageUrl: imageUrl,
+                imageUrl: upload.url,
                 price: Number(price),
                 contactType: 'call',
                 contactInfo: phone,
@@ -76,13 +79,11 @@ export default function UploadProductPage() {
             };
 
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_PRODUCTS, ID.unique(), newProduct);
-            
-            toast({ title: "Product Submitted!", description: "Your product is now live on the marketplace." });
+            toast({ title: "Success!", description: "Product listed directly via Cloudinary." });
             router.push('/dashboard/market?tab=products');
 
         } catch (error: any) {
-            console.error(error);
-            toast({ variant: 'destructive', title: 'Submission Failed', description: error.message });
+            toast({ variant: 'destructive', title: 'Post Failed', description: error.message });
             setIsLoading(false);
         }
     }
@@ -90,7 +91,7 @@ export default function UploadProductPage() {
   return (
      <div className="container py-8">
         <Link href="/dashboard/market?tab=products" className="flex items-center gap-2 mb-4 text-sm font-black uppercase text-muted-foreground hover:text-primary">
-            <ArrowLeft className="h-4 w-4" /> Back to Market
+            <ArrowLeft className="h-4 w-4" /> Back
         </Link>
         <Card className="w-full max-w-2xl mx-auto rounded-[2rem] shadow-xl overflow-hidden border-none">
             <CardHeader className="bg-primary/5 pb-6">
@@ -100,50 +101,41 @@ export default function UploadProductPage() {
             <CardContent className="space-y-6 pt-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-2">
-                        <Label htmlFor="productName" className="font-black uppercase text-[10px] opacity-70 tracking-widest">Product Name</Label>
-                        <Input id="productName" value={productName} onChange={e => setProductName(e.target.value)} placeholder="e.g., Wireless Headphones" required className="rounded-xl bg-muted/50 border-none h-12 px-4" />
+                        <Label className="font-black uppercase text-[10px] opacity-70">Product Name</Label>
+                        <Input value={productName} onChange={e => setProductName(e.target.value)} required className="rounded-xl bg-muted/50 border-none h-12 px-4" />
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="productIcon" className="font-black uppercase text-[10px] opacity-70 tracking-widest">Display Photo</Label>
+                        <Label className="font-black uppercase text-[10px] opacity-70">Display Photo</Label>
                         <div className="flex items-center gap-4">
                             <div 
-                                className="w-24 h-24 bg-muted rounded-2xl flex items-center justify-center cursor-pointer border-2 border-dashed overflow-hidden shadow-sm"
+                                className="w-24 h-24 bg-muted rounded-2xl flex items-center justify-center cursor-pointer border-2 border-dashed overflow-hidden"
                                 onClick={() => productImageInputRef.current?.click()}
                             >
-                                {productImagePreview ? (
-                                    <Image src={productImagePreview} alt="Product Icon Preview" width={96} height={96} className="object-cover rounded-md"/>
-                                ) : (
-                                    <div className="text-center text-muted-foreground p-2">
-                                        <ImageIcon className="mx-auto h-6 w-6 opacity-30" />
-                                    </div>
-                                )}
+                                {productImagePreview ? <Image src={productImagePreview} alt="Preview" width={96} height={96} className="object-cover"/> : <ImageIcon className="mx-auto h-6 w-6 opacity-30" />}
                             </div>
-                            <Button type="button" variant="outline" onClick={() => productImageInputRef.current?.click()} className="rounded-full h-10 font-black uppercase text-[9px] tracking-widest px-6">
-                                Select Image
-                            </Button>
+                            <Button type="button" variant="outline" onClick={() => productImageInputRef.current?.click()} className="rounded-full h-10 font-black uppercase text-[9px]">Select Photo</Button>
                         </div>
-                        <Input id="productIcon" type="file" className="hidden" ref={productImageInputRef} onChange={handleImageChange} accept="image/png, image/jpeg, image/webp" required/>
+                        <input type="file" ref={productImageInputRef} className="hidden" accept="image/*" onChange={handleImageChange} required />
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="description" className="font-black uppercase text-[10px] opacity-70 tracking-widest">Product Description</Label>
-                        <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe your product (up to 200 characters)..." required rows={4} maxLength={200} className="rounded-xl bg-muted/50 border-none min-h-[100px]" />
+                        <Label className="font-black uppercase text-[10px] opacity-70">Description</Label>
+                        <Textarea value={description} onChange={e => setDescription(e.target.value)} required rows={4} className="rounded-xl bg-muted/50 border-none" />
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="phone" className="font-black uppercase text-[10px] opacity-70 tracking-widest">Contact Phone Number</Label>
-                        <Input id="phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="e.g., 08012345678" required className="rounded-xl bg-muted/50 border-none h-12 px-4" />
+                        <Label className="font-black uppercase text-[10px] opacity-70">Contact Phone</Label>
+                        <Input type="tel" value={phone} onChange={e => setPhone(e.target.value)} required className="rounded-xl bg-muted/50 border-none h-12 px-4" />
                     </div>
 
                     <div className='space-y-2'>
-                        <Label htmlFor="price" className="font-black uppercase text-[10px] opacity-70 tracking-widest">Selling Price (₦)</Label>
-                        <Input id="price" type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder='e.g., 5000' required className="rounded-xl bg-muted/50 border-none h-12 px-4 font-black" />
-                        <p className="text-[10px] text-muted-foreground font-bold italic">Note: An ₦80 service fee will be added to the final price for the buyer.</p>
+                        <Label className="font-black uppercase text-[10px] opacity-70">Price (₦)</Label>
+                        <Input type="number" value={price} onChange={e => setPrice(e.target.value)} required className="rounded-xl bg-muted/50 border-none h-12 px-4 font-black" />
                     </div>
 
                     <Button type="submit" className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-lg" disabled={isLoading}>
-                        {isLoading ? <Loader2 className="animate-spin" /> : 'Post Product'}
+                        {isLoading ? <Loader2 className="animate-spin" /> : 'Confirm & Post'}
                     </Button>
                 </form>
             </CardContent>

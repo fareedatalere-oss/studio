@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils';
 /**
  * @fileOverview Chat Hub Page.
  * SMALL SIZE UI: Implementation of sleek, compact buttons.
- * Standardized to professional Title Case.
+ * TITLE CASE: Recent, All.
  */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {

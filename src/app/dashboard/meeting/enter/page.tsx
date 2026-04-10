@@ -19,27 +19,33 @@ export default function EnterMeetingPage() {
 
   const handleJoin = async () => {
     let cleanId = meetingId.trim();
-    if (cleanId.includes('?id=')) {
-        cleanId = cleanId.split('?id=')[1];
+    
+    // Robust ID Extraction from pasted links
+    if (cleanId.includes('/meeting/room/')) {
+        cleanId = cleanId.split('/meeting/room/')[1].split('?')[0];
+    } else if (cleanId.includes('/meeting/join/')) {
+        cleanId = cleanId.split('/meeting/join/')[1].split('?')[0];
+    } else if (cleanId.includes('?id=')) {
+        cleanId = cleanId.split('?id=')[1].split('&')[0];
     }
 
-    if (!cleanId) return;
+    if (!cleanId) {
+        toast({ variant: 'destructive', title: 'Invalid ID', description: 'Please enter a valid Meeting ID or Link.' });
+        return;
+    }
 
     setIsVerifying(true);
     try {
         const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, cleanId);
         
         if (meeting.status === 'ended') {
-            toast({ variant: 'destructive', title: 'Meeting Expired', description: 'This session has already ended.' });
-        } else if (meeting.status === 'pending') {
-            // Take them to the lobby/landing page
-            router.push(`/dashboard/meeting/room/${cleanId}`);
+            toast({ variant: 'destructive', title: 'Meeting Expired', description: 'This session has concluded.' });
         } else {
-            // Meeting is 'started', go straight in
+            // Success: Take them to the lobby/landing
             router.push(`/dashboard/meeting/room/${cleanId}`);
         }
     } catch (error) {
-        toast({ variant: 'destructive', title: 'Invalid ID', description: 'Could not find a meeting with this ID.' });
+        toast({ variant: 'destructive', title: 'Not Found', description: 'Could not find a meeting with this ID.' });
     } finally {
         setIsVerifying(false);
     }
@@ -52,7 +58,7 @@ export default function EnterMeetingPage() {
       </Link>
       <Card className="rounded-[2.5rem] shadow-2xl border-none">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-black uppercase tracking-tighter">Enter Meeting</CardTitle>
+          <CardTitle className="text-2xl font-black uppercase tracking-tighter">Enter meeting</CardTitle>
           <CardDescription>Paste your meeting ID or Link here</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

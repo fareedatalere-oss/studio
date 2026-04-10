@@ -20,8 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 
 /**
  * @fileOverview Master Meeting Room.
- * REALITY ENGINE: Direct audio/video sync for all participants.
- * ADMIN BYPASS: Creators enter directly without approval.
+ * ADMIN BYPASS: Creators enter directly without identity capture or approval.
  * DISCONNECT CONTROL: Universal hangups for all members.
  */
 
@@ -50,6 +49,8 @@ export default function MeetingRoomPage() {
     const localStreamRef = useRef<MediaStream | null>(null);
 
     const handleAdminBypass = useCallback(async (docData: any) => {
+        if (isInRoom) return;
+        
         setIsInRoom(true);
         if (!docData.startedAt) {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
@@ -76,7 +77,15 @@ export default function MeetingRoomPage() {
                 createdAt: new Date().toISOString()
             });
         }
-    }, [meetingId, user?.$id, profile]);
+        setUseCamera(true);
+    }, [meetingId, user?.$id, profile, isInRoom]);
+
+    const endMeeting = async () => {
+        try {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'ended' });
+            router.replace('/dashboard/meeting');
+        } catch (e) {}
+    };
 
     const fetchMeeting = useCallback(async () => {
         try {
@@ -90,7 +99,7 @@ export default function MeetingRoomPage() {
                 return;
             }
 
-            // ADMIN BYPASS ENGINE
+            // --- CRITICAL ADMIN BYPASS ---
             if (user?.$id && user.$id === docData.hostId) {
                 await handleAdminBypass(docData);
             }
@@ -111,13 +120,6 @@ export default function MeetingRoomPage() {
             setLoading(false);
         }
     }, [meetingId, router, toast, user, handleAdminBypass]);
-
-    const endMeeting = async () => {
-        try {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'ended' });
-            router.replace('/dashboard/meeting');
-        } catch (e) {}
-    };
 
     const fetchAttendees = useCallback(async () => {
         try {
@@ -149,7 +151,6 @@ export default function MeetingRoomPage() {
         return () => { unsubMeeting(); unsubAttendees(); };
     }, [meetingId, fetchMeeting, fetchAttendees, router, user]);
 
-    // Handle Local Camera Feed
     useEffect(() => {
         if (isInRoom && useCamera) {
             const startCamera = async () => {
@@ -161,14 +162,13 @@ export default function MeetingRoomPage() {
                     }
                 } catch (e) {
                     setUseCamera(false);
-                    toast({ title: 'Camera Error', description: 'Could not access your camera feed.' });
                 }
             };
             startCamera();
         } else {
             localStreamRef.current?.getTracks().forEach(t => t.stop());
         }
-    }, [isInRoom, useCamera, toast]);
+    }, [isInRoom, useCamera]);
 
     useEffect(() => {
         if (!isInRoom || timeLeft === null) return;
@@ -187,7 +187,6 @@ export default function MeetingRoomPage() {
 
     const handleEntry = async () => {
         if (user?.$id === meeting?.hostId) {
-            setUseCamera(true); // Default camera on for host
             await handleAdminBypass(meeting);
             return;
         }
@@ -197,8 +196,8 @@ export default function MeetingRoomPage() {
             const parsed = JSON.parse(guestData);
             const attendee = await databases.getDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, parsed.requestId);
             if (attendee.status === 'approved') {
-                setUseCamera(true); // Default camera on if approved
                 setIsInRoom(true);
+                setUseCamera(true);
             } else {
                 router.replace(`/dashboard/meeting/join/${meetingId}`);
             }
@@ -233,8 +232,7 @@ export default function MeetingRoomPage() {
         const count = participants.length;
         if (count <= 2) return "h-40 w-40 md:h-64 md:w-64";
         if (count <= 4) return "h-28 w-28 md:h-48 md:w-48";
-        if (count <= 8) return "h-20 w-20 md:h-32 md:w-32";
-        return "h-14 w-14";
+        return "h-20 w-20 md:h-32 md:w-32";
     };
 
     if (loading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-white h-12 w-12" /></div>;
@@ -250,12 +248,8 @@ export default function MeetingRoomPage() {
                         <CardTitle className="text-3xl font-black uppercase tracking-tighter mt-4">{meeting?.name}</CardTitle>
                     </CardHeader>
                     <CardContent className="py-8 space-y-6">
-                        <div className="p-4 bg-muted/30 rounded-2xl">
-                            <p className="text-[10px] font-black uppercase tracking-widest opacity-50">Status</p>
-                            <p className="font-bold">{meeting?.status === 'started' ? 'Live Session' : 'Waiting for host...'}</p>
-                        </div>
                         <Button onClick={handleEntry} className="w-full h-16 rounded-full font-black uppercase tracking-widest text-lg shadow-xl">
-                            Enter Meeting Room
+                            Enter meeting room
                         </Button>
                     </CardContent>
                 </Card>
@@ -301,12 +295,12 @@ export default function MeetingRoomPage() {
                             </DialogContent>
                         </Dialog>
                     )}
-                    <Button variant="ghost" size="icon" className="h-10 w-10 bg-red-600/20 text-red-500 rounded-full" onClick={() => router.push('/dashboard/meeting')} title="Disconnect Meeting"><PhoneOff className="h-5 w-5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-10 w-10 bg-red-600/20 text-red-500 rounded-full" onClick={() => router.push('/dashboard/meeting')} title="Disconnect"><PhoneOff className="h-5 w-5" /></Button>
                 </div>
             </header>
 
             <main className="flex-1 p-6 flex flex-wrap items-center justify-center gap-6 overflow-y-auto content-center">
-                {participants.map((p) => (
+                {participants.filter(p => p.userId !== user?.$id).map((p) => (
                     <div key={p.$id} className="flex flex-col items-center gap-3 animate-in fade-in zoom-in-95">
                         <div className={cn(
                             "relative rounded-full border-4 p-1 shadow-2xl transition-all duration-500",
@@ -317,8 +311,6 @@ export default function MeetingRoomPage() {
                                 <AvatarImage src={p.avatar} className="object-cover" />
                                 <AvatarFallback className="font-black text-xl bg-primary">{p.name.charAt(0)}</AvatarFallback>
                             </Avatar>
-                            {p.isHost && <div className="absolute -top-1 -right-1 bg-yellow-500 p-1.5 rounded-full border-2 border-black"><ShieldCheck className="h-4 w-4 text-black" /></div>}
-                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-green-500 h-4 w-4 rounded-full border-2 border-black"></div>
                             <div className="absolute -bottom-1 -right-1 bg-primary p-1.5 rounded-full border-2 border-black shadow-sm">
                                 <Volume2 className="h-3 w-3 text-white" />
                             </div>
@@ -330,7 +322,7 @@ export default function MeetingRoomPage() {
 
             {isAdmin && joinRequests.length > 0 && (
                 <footer className="p-4 bg-white/5 border-t border-white/10 backdrop-blur-lg flex items-center gap-4 overflow-x-auto">
-                    <p className="text-[10px] font-black uppercase text-primary shrink-0 mr-2">Requests:</p>
+                    <p className="text-[10px] font-black uppercase text-primary shrink-0 mr-2">Waiting:</p>
                     {joinRequests.map(req => (
                         <Button key={req.$id} onClick={() => approveUser(req)} variant="ghost" className="h-12 px-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3 shrink-0 hover:bg-white/10">
                             <Avatar className="h-8 w-8"><AvatarImage src={req.avatar} /></Avatar>
