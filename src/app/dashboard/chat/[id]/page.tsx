@@ -6,12 +6,12 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, ID, increment } from '@/lib/appwrite';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, setDoc, arrayUnion } from 'firebase/firestore';
-import { ArrowLeft, Send, MoreVertical, Paperclip, Mic, Trash2, Play, Image as ImageIcon, Video, FileText, Square, Forward, ShieldCheck } from 'lucide-react';
+import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { ArrowLeft, Send, MoreVertical, Paperclip, Mic, Trash2, Play, Image as ImageIcon, Video, FileText, Square, ShieldCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -20,8 +20,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Master Private Chat Thread.
- * PERMANENCE ENGINE: Ensures no history is ever lost when sending new messages.
- * Uses a robust merging logic for optimistic and server states.
+ * PERMANENCE ENGINE V4: Fixed the "Replacement" bug. 
+ * Logic ensures messages are APPENDED and never overwritten by new snapshots.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -43,7 +43,7 @@ const MessageStatus = ({ status, isMine }: { status: string, isMine: boolean }) 
 export default function ChatThreadPage() {
     const params = useParams();
     const router = useRouter();
-    const { user: currentUser, profile: currentUserProfile, recheckUser } = useUser();
+    const { user: currentUser, profile: currentUserProfile } = useUser();
     const { toast } = useToast();
 
     const otherUserId = params.id as string;
@@ -68,35 +68,40 @@ export default function ChatThreadPage() {
         return getChatId(currentUser.$id, otherUserId);
     }, [currentUser?.$id, otherUserId]);
 
-    const isBlocked = currentUserProfile?.blockedUsers?.includes(otherUserId) || otherUser?.blockedUsers?.includes(currentUser?.$id);
-
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
-        // FETCH ALL PERMANENT MESSAGES
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
             where('chatId', '==', chatId)
         );
 
         const unsub = onSnapshot(q, (snapshot) => {
-            const serverMsgs = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }))
-                .filter((m: any) => !m.deletedForEveryone && (!m.deletedFor || !m.deletedFor.includes(currentUser.$id)))
-                .sort((a: any, b: any) => {
-                    const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt instanceof Date ? a.createdAt.getTime() : 0);
-                    const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt instanceof Date ? b.createdAt.getTime() : 0);
-                    return timeA - timeB;
-                });
+            const serverMsgs = snapshot.docs.map(doc => ({ 
+                $id: doc.id, 
+                ...doc.data() 
+            })).sort((a: any, b: any) => {
+                const timeA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || 0;
+                const timeB = b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || 0;
+                return timeA - timeB;
+            });
             
-            // Merge with local state to ensure no loss during sync
             setMessages(prev => {
                 const optimistic = prev.filter(m => m.isOptimistic);
-                // Filter out optimistic messages that now have a server counterpart
-                const filteredOptimistic = optimistic.filter(opt => !serverMsgs.some(srv => srv.tempId === opt.$id));
-                return [...serverMsgs, ...filteredOptimistic];
+                // Remove optimistic messages that now have a server ID (matched via tempId)
+                const remainingOptimistic = optimistic.filter(opt => !serverMsgs.some(srv => srv.tempId === opt.$id));
+                
+                // Combine and ensure NO REPLACEMENT - the set union by ID is the most stable
+                const combined = [...serverMsgs, ...remainingOptimistic];
+                // Final safeguard: filter unique by $id to prevent duplicates/flicker
+                const unique = Array.from(new Map(combined.map(m => [m.$id, m])).values());
+                return unique.sort((a: any, b: any) => {
+                    const tA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || 0;
+                    const tB = b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || 0;
+                    return tA - tB;
+                });
             });
 
-            // Update status to read
             snapshot.docs.forEach(d => {
                 const data = d.data();
                 if (data.senderId !== currentUser.$id && data.status !== 'read') {
@@ -118,12 +123,6 @@ export default function ChatThreadPage() {
         }
     }, [messages.length]);
 
-    const formatDuration = (seconds: number) => {
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        return `${m}:${s.toString().padStart(2, '0')}`;
-    };
-
     const handleSend = async (text?: string, mediaUrl?: string, mediaType: 'text' | 'image' | 'video' | 'audio' | 'document' = 'text', duration?: string) => {
         if (!text?.trim() && !mediaUrl && !audioBlob) return;
         if (!currentUser || !chatId) return;
@@ -134,14 +133,12 @@ export default function ChatThreadPage() {
         const finalText = text?.trim() || '';
         const tempId = `temp-${Date.now()}`;
 
-        // Clear inputs
         setNewMessage('');
         setAudioBlob(null);
         setAudioUrl(null);
         setRecordingTime(0);
         setIsRecording(false);
 
-        // INSTANT DROP (💧)
         const optimisticMsg = {
             $id: tempId,
             chatId,
@@ -150,10 +147,11 @@ export default function ChatThreadPage() {
             mediaUrl: capturedAudioUrl || mediaUrl || '',
             mediaType: capturedAudioBlob ? 'audio' : mediaType,
             status: 'sent',
-            duration: capturedAudioBlob ? formatDuration(capturedTime) : (duration || ''),
+            duration: capturedAudioBlob ? `${Math.floor(capturedTime/60)}:${(capturedTime%60).toString().padStart(2,'0')}` : (duration || ''),
             createdAt: new Date(),
             isOptimistic: true
         };
+        
         setMessages(prev => [...prev, optimisticMsg]);
 
         try {
@@ -171,7 +169,7 @@ export default function ChatThreadPage() {
                 if (!upload.success) throw new Error(upload.message);
                 finalMediaUrl = upload.url;
                 finalMediaType = 'audio';
-                finalDuration = formatDuration(capturedTime);
+                finalDuration = `${Math.floor(capturedTime/60)}:${(capturedTime%60).toString().padStart(2,'0')}`;
             }
 
             const msgId = ID.unique();
@@ -183,15 +181,13 @@ export default function ChatThreadPage() {
                 mediaType: finalMediaType,
                 status: otherUser?.isOnline ? 'delivered' : 'sent',
                 duration: finalDuration || '',
-                tempId: tempId, // Link to optimistic message
+                tempId: tempId,
                 createdAt: serverTimestamp()
             });
 
-            // Update chat entry for Recent List
-            const lastText = finalMediaType === 'text' ? finalText : `Sent a ${finalMediaType}`;
             await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
                 participants: [currentUser.$id, otherUserId],
-                lastMessage: lastText,
+                lastMessage: finalMediaType === 'text' ? finalText : `Sent a ${finalMediaType}`,
                 lastMessageAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
                 [`unreadCount.${otherUserId}`]: increment(1)
@@ -303,7 +299,7 @@ export default function ChatThreadPage() {
                 </div>
             </header>
             
-            <main className="flex-1 overflow-y-auto p-4 space-y-2 overscroll-contain scrollbar-hide">
+            <main className="flex-1 overflow-y-auto p-4 space-y-2 overscroll-contain">
                 <div className="max-w-xl mx-auto w-full space-y-2">
                     <div className="text-center py-4 opacity-30 flex items-center justify-center gap-2">
                         <ShieldCheck className="h-3 w-3" />
@@ -336,7 +332,7 @@ export default function ChatThreadPage() {
                                     )}
                                     <p className="text-[10px] font-bold whitespace-pre-wrap">{msg.text}</p>
                                     <div className="flex items-center justify-end gap-1 mt-0.5 opacity-60">
-                                        <span className="text-[6px] font-mono">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : format(new Date(msg.createdAt), 'HH:mm')}</span>
+                                        <span className="text-[6px] font-mono">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : format(new Date(), 'HH:mm')}</span>
                                         <MessageStatus status={msg.status} isMine={isMine} />
                                     </div>
                                 </div>
@@ -353,7 +349,7 @@ export default function ChatThreadPage() {
                         <div className="flex items-center justify-between gap-3 bg-red-50 p-2 rounded-2xl">
                             <div className="flex items-center gap-2 text-red-600">
                                 <div className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
-                                <span className="text-xs font-black font-mono">{formatDuration(recordingTime)}</span>
+                                <span className="text-xs font-black font-mono">{Math.floor(recordingTime/60)}:{(recordingTime%60).toString().padStart(2,'0')}</span>
                             </div>
                             <Button size="icon" onClick={stopRecording} className="h-10 w-10 bg-red-600 rounded-full"><Square className="h-4 w-4" /></Button>
                         </div>

@@ -150,16 +150,16 @@ export default function ChatPage() {
                 </div>
                 
                 <Tabs defaultValue="recent" className="flex flex-col w-full items-center">
-                    <TabsList className="flex items-center gap-1 bg-muted/50 h-9 p-1 rounded-full mb-6 justify-center w-fit px-2">
-                        <TabsTrigger value="recent" className="text-[9px] font-black uppercase rounded-full px-4 h-7 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="text-[9px] font-black uppercase rounded-full px-4 h-7 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
+                    <TabsList className="flex items-center gap-1 bg-muted/50 h-8 p-1 rounded-full mb-6 justify-center w-fit px-2">
+                        <TabsTrigger value="recent" className="text-[9px] font-black uppercase rounded-full px-4 h-6 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="text-[9px] font-black uppercase rounded-full px-4 h-6 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
                     </TabsList>
 
-                    <div className="relative w-full mb-6">
+                    <div className="relative w-full mb-6 max-w-md">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
                         <Input
                             placeholder="Find conversations..."
-                            className="pl-11 h-12 text-sm rounded-full bg-muted/50 border-none shadow-none font-bold"
+                            className="pl-11 h-11 text-sm rounded-full bg-muted/50 border-none shadow-none font-bold"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />

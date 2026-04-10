@@ -1,14 +1,15 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { 
     PhoneOff, Loader2, Camera, 
-    X, Monitor, Eraser, Send,
-    Clock, Check, UserMinus, ShieldCheck, Keyboard, LayoutTemplate
+    Eraser, Keyboard, Clock, ShieldCheck, Video, 
+    Volume2, VolumeX, Mic, MicOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, Query, ID } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
@@ -31,14 +32,13 @@ export default function MeetingRoomPage() {
     const [isInRoom, setIsInRoom] = useState(false);
     const [timeLeft, setTimeLeft] = useState<number | null>(null);
     
-    // UI States
     const [participants, setParticipants] = useState<any[]>([]);
     const [joinRequests, setJoinRequests] = useState<any[]>([]);
     const [isBoardOpen, setIsBoardOpen] = useState(false);
     const [boardDraft, setBoardContent] = useState('');
     
-    // Media States
     const [useCamera, setUseCamera] = useState(true);
+    const [isMuted, setIsMuted] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
 
     const fetchMeeting = useCallback(async () => {
@@ -53,8 +53,7 @@ export default function MeetingRoomPage() {
                 return;
             }
 
-            // ENFORCE LIMITS
-            const limit = doc.type === 'personal' ? 3600 : 10800; // 1h vs 3h
+            const limit = doc.type === 'personal' ? 3600 : 10800;
             if (doc.startedAt) {
                 const elapsed = Math.floor((Date.now() - new Date(doc.startedAt).getTime()) / 1000);
                 const remaining = limit - elapsed;
@@ -64,12 +63,42 @@ export default function MeetingRoomPage() {
                     setTimeLeft(remaining);
                 }
             }
+
+            // AUTO BYPASS FOR ADMIN
+            if (user?.$id === doc.hostId) {
+                handleAdminBypass();
+            }
         } catch (e) {
             router.replace('/dashboard/meeting');
         } finally {
             setLoading(false);
         }
-    }, [meetingId, router, toast]);
+    }, [meetingId, router, toast, user]);
+
+    const handleAdminBypass = async () => {
+        setIsInRoom(true);
+        if (!meeting?.startedAt) {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
+                status: 'started',
+                startedAt: new Date().toISOString()
+            });
+        }
+        // Check if admin is already recorded as attendee
+        const check = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
+            Query.equal('meetingId', meetingId),
+            Query.equal('userId', user?.$id)
+        ]);
+        if (check.total === 0) {
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, ID.unique(), {
+                meetingId,
+                userId: user?.$id,
+                name: profile?.username || 'Admin',
+                avatar: profile?.avatar || '',
+                status: 'approved',
+                isHost: true
+            });
+        }
+    };
 
     const endMeeting = async () => {
         try {
@@ -123,28 +152,14 @@ export default function MeetingRoomPage() {
     }, [isInRoom, timeLeft]);
 
     const handleEntry = async () => {
-        const guestData = sessionStorage.getItem(`meeting_guest_${meetingId}`);
         const isAdmin = user?.$id === meeting?.hostId;
-
         if (isAdmin) {
-            setIsInRoom(true);
-            if (!meeting.startedAt) {
-                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
-                    status: 'started',
-                    startedAt: new Date().toISOString()
-                });
-            }
-            // Auto-approve host
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, ID.unique(), {
-                meetingId,
-                userId: user?.$id,
-                name: profile?.username || 'Admin',
-                avatar: profile?.avatar || '',
-                status: 'approved',
-                isHost: true
-            });
-        } else if (guestData) {
-            // Check if guest was already approved
+            handleAdminBypass();
+            return;
+        }
+
+        const guestData = sessionStorage.getItem(`meeting_guest_${meetingId}`);
+        if (guestData) {
             const parsed = JSON.parse(guestData);
             const attendee = await databases.getDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, parsed.requestId);
             if (attendee.status === 'approved') {
@@ -199,8 +214,8 @@ export default function MeetingRoomPage() {
                     </CardHeader>
                     <CardContent className="py-8 space-y-6">
                         <div className="p-4 bg-muted/30 rounded-2xl">
-                            <p className="text-[10px] font-black uppercase tracking-widest opacity-50">Lobby Status</p>
-                            <p className="font-bold">{meeting?.status === 'started' ? 'Live Session' : 'Host not in room yet'}</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-50">Session Status</p>
+                            <p className="font-bold">{meeting?.status === 'started' ? 'Live Session' : 'Waiting for host...'}</p>
                         </div>
                         <Button onClick={handleEntry} className="w-full h-16 rounded-full font-black uppercase tracking-widest text-lg shadow-xl">
                             Enter Meeting Room
@@ -213,7 +228,6 @@ export default function MeetingRoomPage() {
 
     return (
         <div className="h-screen w-full bg-black flex flex-col overflow-hidden relative font-body text-white">
-            {/* Community Board Overlay */}
             {meeting?.boardVisible && (
                 <div className="absolute inset-0 z-[100] bg-black p-10 flex flex-col items-center justify-center text-center animate-in zoom-in-95 duration-300">
                     <div className="max-w-3xl w-full p-10 bg-white/5 border border-white/10 rounded-[3rem] shadow-2xl">
@@ -236,31 +250,21 @@ export default function MeetingRoomPage() {
                 </div>
                 <div className="flex gap-2">
                     {user?.$id === meeting.hostId && (
-                        <>
-                            <Dialog open={isBoardOpen} onOpenChange={setIsBoardOpen}>
-                                <DialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-10 w-10 bg-white/10 rounded-full"><Keyboard className="h-5 w-5" /></Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-md rounded-[2.5rem] p-8 border-none bg-black text-white">
-                                    <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-xs">Community Board</DialogTitle></DialogHeader>
-                                    <Textarea 
-                                        className="h-40 bg-white/5 border-white/10 rounded-2xl mt-4 font-bold text-lg" 
-                                        placeholder="Write message..."
-                                        value={boardDraft}
-                                        onChange={e => setBoardContent(e.target.value)}
-                                    />
-                                    <div className="grid grid-cols-2 gap-3 mt-6">
-                                        <Button variant="ghost" onClick={() => setBoardContent('')} className="rounded-full uppercase font-black text-[10px]"><Eraser className="mr-2 h-4 w-4" /> Clear</Button>
-                                        <Button onClick={() => toggleBoard(true)} className="rounded-full uppercase font-black text-[10px]">Display All</Button>
-                                    </div>
-                                </DialogContent>
-                            </Dialog>
-                            <Button variant="ghost" size="icon" className="h-10 w-10 bg-red-600/20 text-red-500 rounded-full" onClick={endMeeting}><PhoneOff className="h-5 w-5" /></Button>
-                        </>
+                        <Dialog open={isBoardOpen} onOpenChange={setIsBoardOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-10 w-10 bg-white/10 rounded-full"><Keyboard className="h-5 w-5" /></Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-md rounded-[2.5rem] p-8 border-none bg-black text-white">
+                                <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-xs">Community Board</DialogTitle></DialogHeader>
+                                <Textarea className="h-40 bg-white/5 border-white/10 rounded-2xl mt-4 font-bold text-lg" placeholder="Write message..." value={boardDraft} onChange={e => setBoardContent(e.target.value)} />
+                                <div className="grid grid-cols-2 gap-3 mt-6">
+                                    <Button variant="ghost" onClick={() => setBoardContent('')} className="rounded-full uppercase font-black text-[10px]"><Eraser className="mr-2 h-4 w-4" /> Clear</Button>
+                                    <Button onClick={() => toggleBoard(true)} className="rounded-full uppercase font-black text-[10px]">Display All</Button>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
                     )}
-                    {user?.$id !== meeting.hostId && (
-                        <Button variant="ghost" size="icon" className="h-10 w-10 bg-red-600/20 text-red-500 rounded-full" onClick={() => router.push('/dashboard/meeting')}><PhoneOff className="h-5 w-5" /></Button>
-                    )}
+                    <Button variant="ghost" size="icon" className="h-10 w-10 bg-red-600/20 text-red-500 rounded-full" onClick={() => router.push('/dashboard/meeting')}><PhoneOff className="h-5 w-5" /></Button>
                 </div>
             </header>
 
@@ -278,23 +282,21 @@ export default function MeetingRoomPage() {
                             </Avatar>
                             {p.isHost && <div className="absolute -top-1 -right-1 bg-yellow-500 p-1 rounded-full"><ShieldCheck className="h-3 w-3 text-black" /></div>}
                             <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-green-500 h-3 w-3 rounded-full border-2 border-black"></div>
+                            {/* Audio Indicator */}
+                            <div className="absolute -bottom-1 -right-1 bg-primary p-1 rounded-full border border-black shadow-sm">
+                                <Volume2 className="h-2 w-2 text-white" />
+                            </div>
                         </div>
                         <p className="font-black uppercase text-[10px] tracking-widest text-white/80">@{p.name}</p>
                     </div>
                 ))}
             </main>
 
-            {/* Admin Join Requests Bar */}
             {user?.$id === meeting.hostId && joinRequests.length > 0 && (
                 <footer className="p-4 bg-white/5 border-t border-white/10 backdrop-blur-lg flex items-center gap-4 overflow-x-auto">
                     <p className="text-[10px] font-black uppercase text-primary shrink-0 mr-2">Requests:</p>
                     {joinRequests.map(req => (
-                        <Button 
-                            key={req.$id} 
-                            onClick={() => approveUser(req)}
-                            variant="ghost" 
-                            className="h-12 px-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3 shrink-0 hover:bg-white/10"
-                        >
+                        <Button key={req.$id} onClick={() => approveUser(req)} variant="ghost" className="h-12 px-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3 shrink-0 hover:bg-white/10">
                             <Avatar className="h-8 w-8"><AvatarImage src={req.avatar} /></Avatar>
                             <span className="text-[10px] font-black uppercase">Approve {req.name}</span>
                         </Button>
@@ -302,10 +304,10 @@ export default function MeetingRoomPage() {
                 </footer>
             )}
 
-            {/* Self Media Control */}
-            <div className="absolute bottom-6 left-6 z-50 group">
+            {/* Media Controls */}
+            <div className="absolute bottom-6 left-6 z-50 flex items-end gap-4">
                 <div className={cn(
-                    "h-20 w-20 rounded-full bg-muted border-2 border-primary overflow-hidden transition-all duration-300 group-hover:scale-150 group-hover:-translate-y-10",
+                    "h-20 w-20 rounded-full bg-muted border-2 border-primary overflow-hidden transition-all duration-300",
                     !useCamera && "flex items-center justify-center"
                 )}>
                     {useCamera ? (
@@ -314,14 +316,10 @@ export default function MeetingRoomPage() {
                         <Camera className="h-6 w-6 text-white/20" />
                     )}
                 </div>
-                <Button 
-                    size="icon" 
-                    variant="ghost" 
-                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-black/50 border border-white/20"
-                    onClick={() => setUseCamera(!useCamera)}
-                >
-                    <Camera className="h-3 w-3" />
-                </Button>
+                <div className="flex flex-col gap-2">
+                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-black/50 border border-white/20" onClick={() => setUseCamera(!useCamera)}><Camera className="h-3 w-3" /></Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-black/50 border border-white/20" onClick={() => setIsMuted(!isMuted)}>{isMuted ? <MicOff className="h-3 w-3 text-red-500" /> : <Mic className="h-3 w-3" />}</Button>
+                </div>
             </div>
         </div>
     );

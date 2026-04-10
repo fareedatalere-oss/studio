@@ -27,8 +27,8 @@ export default function MeetingLandingPage() {
           <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Digital Communication Center</p>
         </header>
 
-        <div className="grid gap-3">
-          <Button asChild className="h-12 flex items-center justify-between px-6 rounded-2xl group shadow-md" variant="default">
+        <div className="grid gap-3 max-w-[280px] mx-auto">
+          <Button asChild className="h-11 flex items-center justify-between px-6 rounded-2xl group shadow-md" variant="default">
             <Link href="/dashboard/meeting/book">
               <div className="flex items-center gap-3 text-left">
                 <Video className="h-4 w-4 text-white" />
@@ -38,7 +38,7 @@ export default function MeetingLandingPage() {
             </Link>
           </Button>
 
-          <Button asChild className="h-12 flex items-center justify-between px-6 rounded-2xl group shadow-sm" variant="outline">
+          <Button asChild className="h-11 flex items-center justify-between px-6 rounded-2xl group shadow-sm" variant="outline">
             <Link href="/dashboard/meeting/enter">
               <div className="flex items-center gap-3 text-left text-foreground">
                 <Users className="h-4 w-4 text-primary" />
