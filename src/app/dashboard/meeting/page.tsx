@@ -5,12 +5,6 @@ import Link from 'next/link';
 import { ArrowLeft, Video, Users, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-/**
- * @fileOverview Meeting Hub Page.
- * COMPACT UI: Small size buttons for optimized mobile space.
- * TITLE CASE: Book a meeting, Enter meeting.
- */
-
 export default function MeetingLandingPage() {
   return (
     <div className="container py-8 max-lg">
@@ -23,7 +17,7 @@ export default function MeetingLandingPage() {
           <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-primary/20">
             <Video className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="text-2xl font-black tracking-tighter">Meeting</h1>
+          <h1 className="text-2xl font-black tracking-tighter uppercase">Meeting</h1>
           <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Digital Communication Center</p>
         </header>
 

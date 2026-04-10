@@ -29,12 +29,6 @@ import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
-/**
- * @fileOverview Dashboard Page.
- * UPDATED: Reduced Wallet Card size and added Blue theme + Balance Toggle.
- * UI Standard: Emerald Green buttons for actions.
- */
-
 export default function DashboardPage() {
   const { user, profile: userProfile, loading: userLoading, proof, recheckUser } = useUser();
   const { toast } = useToast();
@@ -83,7 +77,7 @@ export default function DashboardPage() {
 
   return (
     <div className="container py-6 space-y-6">
-      {/* Wallet Card - Compact Blue Design */}
+      {/* WALLET BOARD: COMPACT BLUE DESIGN */}
       <Card className="rounded-[1.2rem] shadow-xl border-none bg-primary text-primary-foreground overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between pb-1 px-4 pt-4">
           <CardTitle className="text-[9px] font-black uppercase tracking-widest opacity-80">My Wallet</CardTitle>

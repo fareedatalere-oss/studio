@@ -20,7 +20,7 @@ export default function MeetingJoinPage() {
     const params = useParams();
     const router = useRouter();
     const { toast } = useToast();
-    const { user: authUser } = useUser();
+    const { user: authUser, profile: authProfile } = useUser();
     const meetingId = params.id as string;
 
     const [name, setName] = useState('');
@@ -92,7 +92,7 @@ export default function MeetingJoinPage() {
             sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ name, avatar, requestId }));
 
             if (isAdmin) {
-                // Instantly Land Admin - SKIP WAIT
+                // ADMIN BYPASS: Instantly enter room
                 router.replace(`/dashboard/meeting/room/${meetingId}`);
             } else {
                 setStep('waiting');

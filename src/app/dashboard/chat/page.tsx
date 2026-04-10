@@ -19,12 +19,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-/**
- * @fileOverview Chat Hub Page.
- * COMPACT UI: Small size buttons and centered tabs.
- * TITLE CASE: Recent, All.
- */
-
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
     const [otherUser, setOtherUser] = useState<any>(null);
     const { toast } = useToast();
@@ -157,8 +151,8 @@ export default function ChatPage() {
                 
                 <Tabs defaultValue="recent" className="flex flex-col w-full items-center">
                     <TabsList className="flex items-center gap-1 bg-muted/50 h-7 p-1 rounded-full mb-6 justify-center w-fit px-1 border">
-                        <TabsTrigger value="recent" className="text-[8px] font-black rounded-full px-4 h-5 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="text-[8px] font-black rounded-full px-4 h-5 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
+                        <TabsTrigger value="recent" className="text-[8px] font-black rounded-full px-4 h-5 data-[state=active]:bg-primary data-[state=active]:text-white uppercase tracking-widest">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="text-[8px] font-black rounded-full px-4 h-5 data-[state=active]:bg-primary data-[state=active]:text-white uppercase tracking-widest">All</TabsTrigger>
                     </TabsList>
 
                     <div className="relative w-full mb-6 max-w-md">

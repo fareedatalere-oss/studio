@@ -2,7 +2,6 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -10,7 +9,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    unoptimized: true, // Force images to load directly to bypass bandwidth optimization limits
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
@@ -20,7 +19,7 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: '10mb', // INCREASED: Prevents "hanging" on large photo/book uploads
+      bodySizeLimit: '10mb',
     },
   },
 };

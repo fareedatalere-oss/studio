@@ -4,19 +4,16 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, ID, increment } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, ID } from '@/lib/appwrite';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { ArrowLeft, Send, MoreVertical, Paperclip, Mic, Trash2, Play, Image as ImageIcon, Video, FileText, Square, ShieldCheck, Loader2 } from 'lucide-react';
+import { collection, query, where, onSnapshot, doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { ArrowLeft, Send, ShieldCheck, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import Link from 'next/link';
-import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
@@ -34,7 +31,6 @@ export default function ChatThreadPage() {
     const [otherUser, setOtherUser] = useState<any>(null);
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
-    const [isUploading, setIsUploading] = useState(false);
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messageMapRef = useRef<Map<string, any>>(new Map());
@@ -44,12 +40,16 @@ export default function ChatThreadPage() {
         return getChatId(currentUser.$id, otherUserId);
     }, [currentUser?.$id, otherUserId]);
 
+    // REAL-TIME LISTENER WITH DELTA RECONCILIATION
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
-        // NEW TECHNOLOGY: Delta Syncing
-        // We remove orderBy to avoid the Firestore Index Error. 
-        // We sort client-side for 100% reliability.
+        // Fetch other user profile
+        const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
+            if (d.exists()) setOtherUser(d.data());
+        });
+
+        // Delta Syncing: Removed orderBy to fix Firestore Index Error
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
             where('chatId', '==', chatId)
@@ -63,7 +63,7 @@ export default function ChatThreadPage() {
                 if (change.type === 'removed') {
                     messageMapRef.current.delete(id);
                 } else {
-                    // If this is a server update for a message we already have locally (optimistic)
+                    // Reconcile: If we have a temp optimistic message, replace it with server data
                     if (data.tempId && messageMapRef.current.has(data.tempId)) {
                         messageMapRef.current.delete(data.tempId);
                     }
@@ -71,7 +71,7 @@ export default function ChatThreadPage() {
                 }
             });
 
-            // Convert Map to Array and Sort by Timestamp
+            // Re-render: Convert Map to Sorted Array (Client-Side Sorting)
             const sorted = Array.from(messageMapRef.current.values()).sort((a, b) => {
                 const timeA = a.createdAt?.toMillis?.() || new Date(a.createdAt || 0).getTime() || 0;
                 const timeB = b.createdAt?.toMillis?.() || new Date(b.createdAt || 0).getTime() || 0;
@@ -79,10 +79,6 @@ export default function ChatThreadPage() {
             });
             
             setMessages(sorted);
-        });
-
-        const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
-            if (d.exists()) setOtherUser(d.data());
         });
 
         return () => { unsub(); unsubOther(); };
@@ -99,7 +95,7 @@ export default function ChatThreadPage() {
         const messageText = text.trim();
         setNewMessage('');
 
-        // 1. Instant Optimistic Drop (Indestructible position)
+        // 1. Optimistic UI: Add to map immediately
         const optimisticMsg = {
             $id: tempId,
             chatId,
@@ -138,7 +134,7 @@ export default function ChatThreadPage() {
     };
 
     return (
-        <div className="flex flex-col h-[100dvh] bg-background font-body overflow-hidden">
+        <div className="flex flex-col h-screen bg-background font-body overflow-hidden">
             <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-50 pt-12">
                 <div className="flex items-center w-full max-w-xl mx-auto gap-2">
                     <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-8 w-8 rounded-full bg-muted/50"><ArrowLeft className="h-4 w-4" /></Button>

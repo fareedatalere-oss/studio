@@ -41,7 +41,6 @@ export default function EnterMeetingPage() {
         if (meeting.status === 'ended') {
             toast({ variant: 'destructive', title: 'Meeting Expired', description: 'This session has already concluded.' });
         } else {
-            // Take them to identity setup, logic in join page will handle Admin bypass
             router.push(`/dashboard/meeting/join/${cleanId}`);
         }
     } catch (error) {
