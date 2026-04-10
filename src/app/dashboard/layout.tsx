@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Bell, Home, PlaySquare, Store, User, MessageSquare, X, Bot, Download } from 'lucide-react';
+import { Bell, Home, PlaySquare, Store, User, X, Bot, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -30,7 +30,6 @@ export default function DashboardLayout({
   const { user, profile, loading, proof } = useUser();
   const [isMounted, setIsMounted] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [unreadMsgCount, setUnreadMsgCount] = useState(0);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [isPulsing, setIsPulsing] = useState(false);
@@ -76,23 +75,16 @@ export default function DashboardLayout({
   const fetchUnreadCounts = useCallback(async () => {
     if (!user?.$id) return;
     try {
-      const [totalRes, msgRes] = await Promise.all([
+      const [totalRes] = await Promise.all([
         databases.listDocuments(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, [
           Query.equal('userId', user.$id),
           Query.equal('isRead', false),
-          Query.limit(1)
-        ]),
-        databases.listDocuments(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, [
-          Query.equal('userId', user.$id),
-          Query.equal('isRead', false),
-          Query.equal('type', 'message'),
           Query.limit(1)
         ])
       ]);
       
       const newTotal = totalRes.total;
       setUnreadCount(newTotal);
-      setUnreadMsgCount(msgRes.total);
 
       if (newTotal > lastCountRef.current) {
         setIsPulsing(true);
@@ -194,19 +186,10 @@ export default function DashboardLayout({
 
       {!isImmersive && (
         <footer className="fixed bottom-0 z-40 w-full border-t bg-background md:hidden shadow-lg h-14">
-          <div className="container grid h-full grid-cols-5 items-center justify-around text-center px-2">
+          <div className="container grid h-full grid-cols-4 items-center justify-around text-center px-2">
             <Link href="/dashboard" onClick={(e) => handleTabClick(e, 'tab_home')} className={cn("flex flex-col items-center gap-0.5", pathname === '/dashboard' ? "text-primary" : "text-muted-foreground")}>
               <Home className="h-4 w-4" />
               <span className="text-[9px] font-bold">Home</span>
-            </Link>
-            <Link href="/dashboard/chat" onClick={(e) => handleTabClick(e, 'tab_chat')} className={cn("flex flex-col items-center gap-0.5 relative", pathname.startsWith('/dashboard/chat') ? "text-primary" : "text-muted-foreground")}>
-              <MessageSquare className="h-4 w-4" />
-              {unreadMsgCount > 0 && (
-                <Badge variant="destructive" className="absolute -top-1 right-2 h-3 min-w-3 justify-center p-0.5 rounded-full text-[6px] font-black border-2 border-white">
-                  {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
-                </Badge>
-              )}
-              <span className="text-[9px] font-bold">Chat</span>
             </Link>
             <Link href="/dashboard/media" onClick={(e) => handleTabClick(e, 'tab_media')} className={cn("flex flex-col items-center gap-0.5", (pathname === '/dashboard/media' || pathname.startsWith('/dashboard/media/')) ? "text-primary" : "text-muted-foreground")}>
               <PlaySquare className="h-4 w-4" />
