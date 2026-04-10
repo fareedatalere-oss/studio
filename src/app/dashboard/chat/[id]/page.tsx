@@ -7,11 +7,11 @@ import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, ID } from '@/lib/appwrite';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, doc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { ArrowLeft, Send, ShieldCheck, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Mic } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -40,16 +40,16 @@ export default function ChatThreadPage() {
         return getChatId(currentUser.$id, otherUserId);
     }, [currentUser?.$id, otherUserId]);
 
-    // REAL-TIME LISTENER WITH DELTA RECONCILIATION
+    // REAL-TIME LISTENER
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
-        // Fetch other user profile
+        // Sync other user presence and profile
         const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
             if (d.exists()) setOtherUser(d.data());
         });
 
-        // Delta Syncing: Removed orderBy to fix Firestore Index Error
+        // Sync messages
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
             where('chatId', '==', chatId)
@@ -63,7 +63,6 @@ export default function ChatThreadPage() {
                 if (change.type === 'removed') {
                     messageMapRef.current.delete(id);
                 } else {
-                    // Reconcile: If we have a temp optimistic message, replace it with server data
                     if (data.tempId && messageMapRef.current.has(data.tempId)) {
                         messageMapRef.current.delete(data.tempId);
                     }
@@ -71,7 +70,6 @@ export default function ChatThreadPage() {
                 }
             });
 
-            // Re-render: Convert Map to Sorted Array (Client-Side Sorting)
             const sorted = Array.from(messageMapRef.current.values()).sort((a, b) => {
                 const timeA = a.createdAt?.toMillis?.() || new Date(a.createdAt || 0).getTime() || 0;
                 const timeB = b.createdAt?.toMillis?.() || new Date(b.createdAt || 0).getTime() || 0;
@@ -88,19 +86,19 @@ export default function ChatThreadPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
     }, [messages]);
 
-    const handleSend = async (text: string) => {
-        if (!text.trim() || !currentUser || !chatId) return;
+    const handleSend = async () => {
+        const text = newMessage.trim();
+        if (!text || !currentUser || !chatId) return;
         
         const tempId = `temp-${Date.now()}`;
-        const messageText = text.trim();
         setNewMessage('');
 
-        // 1. Optimistic UI: Add to map immediately
+        // Optimistic UI
         const optimisticMsg = {
             $id: tempId,
             chatId,
             senderId: currentUser.$id,
-            text: messageText,
+            text: text,
             status: 'sent',
             createdAt: new Date(),
             isOptimistic: true
@@ -114,7 +112,7 @@ export default function ChatThreadPage() {
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { 
                 chatId, 
                 senderId: currentUser.$id, 
-                text: messageText, 
+                text: text, 
                 tempId: tempId,
                 status: 'sent',
                 createdAt: serverTimestamp()
@@ -122,56 +120,56 @@ export default function ChatThreadPage() {
 
             await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
                 participants: [currentUser.$id, otherUserId],
-                lastMessage: messageText.length > 30 ? messageText.substring(0,30)+'...' : messageText,
+                lastMessage: text.length > 30 ? text.substring(0,30)+'...' : text,
                 lastMessageAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             }, { merge: true });
 
         } catch (e: any) {
             messageMapRef.current.delete(tempId);
-            toast({ variant: 'destructive', title: 'Error', description: 'Message failed to send.' });
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to send message.' });
         }
     };
 
     return (
         <div className="flex flex-col h-screen bg-background font-body overflow-hidden">
-            <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-50 pt-12">
-                <div className="flex items-center w-full max-w-xl mx-auto gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-8 w-8 rounded-full bg-muted/50"><ArrowLeft className="h-4 w-4" /></Button>
-                    {otherUser && (
-                        <div className="flex-1 flex items-center gap-2 overflow-hidden">
-                            <Avatar className="h-9 w-9 border-2 border-primary/10">
-                                <AvatarImage src={otherUser.avatar} />
-                                <AvatarFallback className="text-xs font-black">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                            <div className="truncate">
-                                <h2 className="font-black text-xs leading-none truncate uppercase tracking-tighter">@{otherUser.username}</h2>
-                                <p className={cn("text-[8px] font-bold uppercase mt-1", otherUser.isOnline ? "text-green-500" : "text-muted-foreground")}>
-                                    {otherUser.isOnline ? 'Online' : 'Offline'}
-                                </p>
-                            </div>
+            <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-3 z-50 pt-12 shadow-sm">
+                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-10 w-10 rounded-full bg-muted/50">
+                    <ArrowLeft className="h-5 w-5" />
+                </Button>
+                {otherUser && (
+                    <div className="flex-1 flex items-center gap-3 overflow-hidden">
+                        <Avatar className="h-11 w-11 border-2 border-primary/10 shadow-sm">
+                            <AvatarImage src={otherUser.avatar} className="object-cover" />
+                            <AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div className="truncate">
+                            <h2 className="font-black text-xs leading-none truncate uppercase tracking-tighter">@{otherUser.username}</h2>
+                            <p className={cn("text-[8px] font-black uppercase mt-1.5", otherUser.isOnline ? "text-green-500 animate-pulse" : "text-muted-foreground")}>
+                                {otherUser.isOnline ? 'Online Now' : otherUser.lastSeen ? `Left ${formatDistanceToNow(new Date(otherUser.lastSeen.toMillis ? otherUser.lastSeen.toMillis() : otherUser.lastSeen), { addSuffix: true })}` : 'Offline'}
+                            </p>
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </header>
             
-            <main className="flex-1 overflow-y-auto p-4 space-y-2 overscroll-contain">
-                <div className="max-w-xl mx-auto w-full space-y-2">
-                    <div className="text-center py-4 opacity-20 flex items-center justify-center gap-2">
-                        <ShieldCheck className="h-3 w-3" />
-                        <p className="text-[8px] font-black uppercase tracking-[0.2em]">End-to-End Encrypted</p>
+            <main className="flex-1 overflow-y-auto p-4 space-y-2 overscroll-contain bg-muted/5">
+                <div className="max-w-xl mx-auto w-full space-y-3">
+                    <div className="text-center py-6 opacity-20 flex flex-col items-center gap-2">
+                        <ShieldCheck className="h-4 w-4" />
+                        <p className="text-[7px] font-black uppercase tracking-[0.4em]">End-to-End Encrypted</p>
                     </div>
                     {messages.map((msg) => {
                         const isMine = msg.senderId === currentUser?.$id;
                         return (
-                            <div key={msg.$id} className={cn("flex flex-col gap-0.5 max-w-[85%]", isMine ? "ml-auto items-end" : "mr-auto items-start")}>
+                            <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%]", isMine ? "ml-auto items-end" : "mr-auto items-start")}>
                                 <div className={cn(
-                                    "p-3 rounded-[1.2rem] shadow-sm relative", 
-                                    isMine ? "bg-primary text-white rounded-br-none" : "bg-muted text-foreground rounded-bl-none"
+                                    "p-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold leading-relaxed", 
+                                    isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border"
                                 )}>
-                                    <p className="text-[11px] font-bold whitespace-pre-wrap">{msg.text}</p>
-                                    <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
-                                        <span className="text-[6px] font-mono">
+                                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                                    <div className="flex items-center justify-end gap-1 mt-1 opacity-40">
+                                        <span className="text-[6px] font-black uppercase">
                                             {msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : (msg.createdAt instanceof Date ? format(msg.createdAt, 'HH:mm') : '...')}
                                         </span>
                                     </div>
@@ -183,18 +181,36 @@ export default function ChatThreadPage() {
                 </div>
             </main>
 
-            <footer className="p-3 border-t bg-background safe-area-bottom pb-8">
+            <footer className="p-4 border-t bg-background safe-area-bottom pb-8">
                 <div className="max-w-xl mx-auto w-full flex items-center gap-2">
+                    {/* LEFT ICON: Paperclip */}
+                    <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-muted-foreground hover:bg-muted">
+                        <Paperclip className="h-5 w-5" />
+                    </Button>
+
+                    {/* CENTER: Input (Keyboard) */}
                     <Input 
-                        placeholder="Message..." 
+                        placeholder="Type text only..." 
                         value={newMessage} 
                         onChange={e => setNewMessage(e.target.value)} 
-                        onKeyPress={(e) => { if(e.key === 'Enter') handleSend(newMessage); }}
-                        className="h-11 rounded-full bg-muted/50 border-none px-4 text-[11px] font-bold" 
+                        onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }}
+                        className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner focus-visible:ring-1 focus-visible:ring-primary" 
                     />
-                    <Button onClick={() => handleSend(newMessage)} size="icon" disabled={!newMessage.trim()} className="h-11 w-11 rounded-full shadow-lg">
-                        <Send className="h-4 w-4" />
-                    </Button>
+
+                    {/* RIGHT ICONS: Mic & Send */}
+                    <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-muted-foreground hover:bg-muted">
+                            <Mic className="h-5 w-5" />
+                        </Button>
+                        <Button 
+                            onClick={handleSend} 
+                            size="icon" 
+                            disabled={!newMessage.trim()} 
+                            className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90"
+                        >
+                            <Send className="h-5 w-5 text-white" />
+                        </Button>
+                    </div>
                 </div>
             </footer>
         </div>

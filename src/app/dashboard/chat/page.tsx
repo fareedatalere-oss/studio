@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Search, Video, MoreVertical, Trash2, ArrowLeft } from 'lucide-react';
+import { Search, MoreVertical, Trash2, ArrowLeft, Loader2 } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, doc, getDoc, deleteDoc } from 'firebase/firestore';
@@ -18,6 +18,11 @@ import { isYesterday, isToday, format } from 'date-fns';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+
+/**
+ * @fileOverview Master Chat Dashboard.
+ * Logic for "All" users and "Recent" conversations.
+ */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
     const [otherUser, setOtherUser] = useState<any>(null);
@@ -53,9 +58,9 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
         <div className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all group max-w-xl mx-auto">
             <Link href={`/dashboard/chat/${otherUserId}`} className="flex-1 flex items-center gap-3 overflow-hidden">
                 <div className="relative">
-                    <Avatar className="h-12 w-12 border-2 border-primary/5">
-                        <AvatarImage src={otherUser.avatar} />
-                        <AvatarFallback className="font-black">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                    <Avatar className="h-12 w-12 border-2 border-primary/5 shadow-sm">
+                        <AvatarImage src={otherUser.avatar} className="object-cover" />
+                        <AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     {otherUser.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>}
                 </div>
@@ -99,10 +104,12 @@ export default function ChatPage() {
     const [recentChats, setRecentChats] = useState<any[]>([]);
     const [allUsers, setAllUsers] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (!currentUser?.$id) return;
 
+        // Fetch Recent Chats
         const q = query(
             collection(db, COLLECTION_ID_CHATS),
             where('participants', 'array-contains', currentUser.$id)
@@ -116,8 +123,10 @@ export default function ChatPage() {
                 return timeB - timeA;
             });
             setRecentChats(data);
+            setLoading(false);
         });
 
+        // Fetch All Users Directory
         const unsubUsers = onSnapshot(collection(db, COLLECTION_ID_PROFILES), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
             setAllUsers(data);
@@ -141,68 +150,75 @@ export default function ChatPage() {
     );
 
     return (
-        <div className="flex flex-col h-full bg-background text-foreground relative font-body overflow-y-auto pb-safe">
-            <header className="p-4 pt-12 max-w-xl mx-auto w-full flex flex-col items-center">
-                <div className="w-full flex items-center justify-between mb-4">
-                    <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-9 w-9 bg-muted/50 rounded-full">
-                        <ArrowLeft className="h-4.5 w-4.5" />
+        <div className="flex flex-col h-full bg-background font-body">
+            <header className="p-4 pt-12 max-w-xl mx-auto w-full border-b bg-muted/5">
+                <div className="flex items-center justify-between mb-6">
+                    <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-10 w-10 bg-muted/50 rounded-full border shadow-sm">
+                        <ArrowLeft className="h-5 w-5" />
                     </Button>
+                    <h1 className="font-black uppercase text-xs tracking-[0.3em] text-primary">Chat Center</h1>
+                    <div className="w-10" /> {/* Spacer */}
                 </div>
                 
-                <Tabs defaultValue="recent" className="flex flex-col w-full items-center">
-                    <TabsList className="flex items-center gap-1 bg-muted/50 h-7 p-1 rounded-full mb-6 justify-center w-fit px-1 border">
-                        <TabsTrigger value="recent" className="text-[8px] font-black rounded-full px-4 h-5 data-[state=active]:bg-primary data-[state=active]:text-white uppercase tracking-widest">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="text-[8px] font-black rounded-full px-4 h-5 data-[state=active]:bg-primary data-[state=active]:text-white uppercase tracking-widest">All</TabsTrigger>
+                <Tabs defaultValue="recent" className="w-full">
+                    <TabsList className="grid grid-cols-2 bg-muted/50 h-12 rounded-2xl p-1 mb-6 border">
+                        <TabsTrigger value="recent" className="rounded-xl font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="rounded-xl font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
                     </TabsList>
 
-                    <div className="relative w-full mb-6 max-w-md">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground opacity-50" />
-                        <Input
-                            placeholder="Search..."
-                            className="pl-10 h-9 text-xs rounded-full bg-muted/50 border-none shadow-none font-bold"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
+                    <TabsContent value="recent" className="m-0 space-y-1">
+                        <div className="relative w-full mb-4">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
+                            <Input
+                                placeholder="Search recent..."
+                                className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none shadow-none font-bold"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                        {loading ? (
+                            <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary/30" /></div>
+                        ) : filteredRecent.length > 0 ? (
+                            filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUserProfile} />)
+                        ) : (
+                            <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-[0.3em] opacity-30">No Recent Chats</div>
+                        )}
+                    </TabsContent>
 
-                    <main className="w-full pb-24">
-                        <TabsContent value="recent" className="m-0 space-y-1">
-                            {filteredRecent.length > 0 ? (
-                                filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUserProfile} />)
-                            ) : (
-                                <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-[0.3em] opacity-30">No Recent Chats</div>
-                            )}
-                        </TabsContent>
-                        <TabsContent value="all" className="m-0 space-y-1">
+                    <TabsContent value="all" className="m-0 space-y-1">
+                        <div className="relative w-full mb-4">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
+                            <Input
+                                placeholder="Search I-Pay users..."
+                                className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none shadow-none font-bold"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                        <div className="grid gap-1 pb-24">
                             {filteredUsers.length > 0 ? (
                                 filteredUsers.map(user => (
-                                    <Link key={user.$id} href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all max-w-xl mx-auto w-full">
+                                    <Link key={user.$id} href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all active:scale-[0.98]">
                                         <div className="relative">
-                                            <Avatar className="h-11 w-11 border-2 border-primary/5">
-                                                <AvatarImage src={user.avatar} />
-                                                <AvatarFallback className="font-black">{user.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                                            <Avatar className="h-12 w-12 border-2 border-primary/10 shadow-sm">
+                                                <AvatarImage src={user.avatar} className="object-cover" />
+                                                <AvatarFallback className="font-black bg-muted text-foreground/50">{user.username?.charAt(0).toUpperCase()}</AvatarFallback>
                                             </Avatar>
-                                            {user.isOnline && <div className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></div>}
+                                            {user.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white"></div>}
                                         </div>
-                                        <div className="flex-1">
-                                            <p className="font-bold text-xs">@{user.username}</p>
-                                            <p className="text-[8px] font-black uppercase text-primary/60">{user.isOnline ? 'Online' : 'Offline'}</p>
+                                        <div className="flex-1 overflow-hidden">
+                                            <p className="font-black text-xs uppercase tracking-tight text-foreground/80">@{user.username}</p>
+                                            <p className="text-[8px] font-bold uppercase text-primary/60">{user.isOnline ? 'Online Now' : 'Offline'}</p>
                                         </div>
                                     </Link>
                                 ))
                             ) : (
                                 <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-[0.3em] opacity-30">No Users Found</div>
                             )}
-                        </TabsContent>
-                    </main>
+                        </div>
+                    </TabsContent>
                 </Tabs>
             </header>
-
-            <div className="fixed bottom-20 left-0 right-0 flex justify-center z-50">
-                <Button asChild className="rounded-full h-8 px-5 shadow-2xl font-black text-[8px] tracking-[0.2em] uppercase gap-2 bg-primary">
-                    <Link href="/dashboard/meeting"><Video className="h-3.5 w-3.5" /> Meeting</Link>
-                </Button>
-            </div>
         </div>
     );
 }
