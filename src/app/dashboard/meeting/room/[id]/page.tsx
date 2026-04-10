@@ -65,11 +65,14 @@ export default function MeetingRoomPage() {
         ]);
         
         if (check.total === 0 && user?.$id) {
+            const guestData = sessionStorage.getItem(`meeting_guest_${meetingId}`);
+            const parsed = guestData ? JSON.parse(guestData) : null;
+
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, ID.unique(), {
                 meetingId,
                 userId: user.$id,
-                name: profile?.username || 'Admin',
-                avatar: profile?.avatar || '',
+                name: parsed?.name || profile?.username || 'Admin',
+                avatar: parsed?.avatar || profile?.avatar || '',
                 status: 'approved',
                 isHost: true,
                 hasVideo: true,

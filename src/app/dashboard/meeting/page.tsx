@@ -32,7 +32,7 @@ export default function MeetingLandingPage() {
             <Link href="/dashboard/meeting/book">
               <div className="flex items-center gap-2 text-left">
                 <Video className="h-3 w-3 text-white" />
-                <p className="font-black uppercase tracking-widest text-[7px] text-white">Book a meeting</p>
+                <p className="font-black tracking-widest text-[7px] text-white">Book a meeting</p>
               </div>
               <ArrowRight className="h-3 w-3 text-white/50" />
             </Link>
@@ -42,7 +42,7 @@ export default function MeetingLandingPage() {
             <Link href="/dashboard/meeting/enter">
               <div className="flex items-center gap-2 text-left text-foreground">
                 <Users className="h-3 w-3 text-primary" />
-                <p className="font-black uppercase tracking-widest text-[7px]">Enter meeting</p>
+                <p className="font-black tracking-widest text-[7px]">Enter meeting</p>
               </div>
               <ArrowRight className="h-3 w-3 opacity-50" />
             </Link>

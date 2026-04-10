@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, ID, increment } from '@/lib/appwrite';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, setDoc, orderBy } from 'firebase/firestore';
 import { ArrowLeft, Send, MoreVertical, Paperclip, Mic, Trash2, Play, Image as ImageIcon, Video, FileText, Square, ShieldCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Master Private Chat Thread.
- * PERMANENCE ENGINE V10: Uses indestructible Map-based reconciliation to ensure history never vanishes.
+ * INDESTRUCTIBLE MAP ENGINE: Uses Map reconciliation to prevent history loss.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -67,43 +67,42 @@ export default function ChatThreadPage() {
         return getChatId(currentUser.$id, otherUserId);
     }, [currentUser?.$id, otherUserId]);
 
+    // Indestructible Map Cache
+    const messageMapRef = useRef<Map<string, any>>(new Map());
+
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
-            where('chatId', '==', chatId)
+            where('chatId', '==', chatId),
+            orderBy('createdAt', 'asc')
         );
 
         const unsub = onSnapshot(q, (snapshot) => {
-            const serverMsgs = snapshot.docs.map(doc => ({ 
-                $id: doc.id, 
-                ...doc.data() 
-            }));
-            
-            setMessages(prev => {
-                const messageMap = new Map();
+            snapshot.docChanges().forEach(change => {
+                const data = change.doc.data();
+                const id = change.doc.id;
                 
-                // Keep existing messages in state
-                prev.forEach(msg => messageMap.set(msg.$id, msg));
-                
-                // Overwrite or Add new server messages
-                serverMsgs.forEach(msg => {
-                    // Remove temporary local messages if the server version has arrived
-                    const tempId = (msg as any).tempId;
-                    if (tempId && messageMap.has(tempId)) {
-                        messageMap.delete(tempId);
+                if (change.type === 'removed') {
+                    messageMapRef.current.delete(id);
+                } else {
+                    // Reconciliation: Replace temporary optimistic messages if server version arrives
+                    if (data.tempId && messageMapRef.current.has(data.tempId)) {
+                        messageMapRef.current.delete(data.tempId);
                     }
-                    messageMap.set(msg.$id, msg);
-                });
-
-                // Convert Map to Array and sort by creation time
-                return Array.from(messageMap.values()).sort((a: any, b: any) => {
-                    const timeA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || 0;
-                    const timeB = b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || 0;
-                    return timeA - timeB;
-                });
+                    messageMapRef.current.set(id, { $id: id, ...data });
+                }
             });
+
+            // Convert to sorted array for rendering
+            const sortedMsgs = Array.from(messageMapRef.current.values()).sort((a, b) => {
+                const timeA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || 0;
+                const timeB = b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || 0;
+                return timeA - timeB;
+            });
+            
+            setMessages(sortedMsgs);
 
             // Handle Read Receipts
             snapshot.docs.forEach(d => {
@@ -143,7 +142,7 @@ export default function ChatThreadPage() {
         setRecordingTime(0);
         setIsRecording(false);
 
-        // Optimistic UI Append
+        // Optimistic UI Drop
         const optimisticMsg = {
             $id: tempId,
             chatId,
@@ -157,7 +156,8 @@ export default function ChatThreadPage() {
             isOptimistic: true
         };
         
-        setMessages(prev => [...prev, optimisticMsg]);
+        messageMapRef.current.set(tempId, optimisticMsg);
+        setMessages(Array.from(messageMapRef.current.values()));
 
         try {
             let finalMediaUrl = mediaUrl;
@@ -209,7 +209,8 @@ export default function ChatThreadPage() {
             }).catch(() => {});
             
         } catch (e: any) {
-            setMessages(prev => prev.filter(m => m.$id !== tempId));
+            messageMapRef.current.delete(tempId);
+            setMessages(Array.from(messageMapRef.current.values()));
             toast({ variant: 'destructive', title: 'Send Failed', description: e.message });
         }
     };
