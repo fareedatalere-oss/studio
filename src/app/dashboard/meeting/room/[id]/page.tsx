@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -102,7 +101,6 @@ export default function MeetingRoomPage() {
                 return;
             }
 
-            // --- CRITICAL ADMIN BYPASS ---
             if (user?.$id && user.$id === docData.hostId) {
                 await handleAdminBypass(docData);
             }
@@ -284,21 +282,26 @@ export default function MeetingRoomPage() {
                 </div>
                 <div className="flex gap-2">
                     {isAdmin && (
-                        <Dialog open={isBoardOpen} onOpenChange={setIsBoardOpen}>
-                            <DialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-10 w-10 bg-white/10 rounded-full"><Keyboard className="h-5 w-5" /></Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-md rounded-[2.5rem] p-8 border-none bg-black text-white">
-                                <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-xs">Community Board</DialogTitle></DialogHeader>
-                                <Textarea className="h-40 bg-white/5 border-white/10 rounded-2xl mt-4 font-bold text-lg" placeholder="Write message..." value={boardDraft} onChange={e => setBoardContent(e.target.value)} />
-                                <div className="grid grid-cols-2 gap-3 mt-6">
-                                    <Button variant="ghost" onClick={() => setBoardContent('')} className="rounded-full uppercase font-black text-[10px]"><Eraser className="mr-2 h-4 w-4" /> Clear</Button>
-                                    <Button onClick={() => toggleBoard(true)} className="rounded-full uppercase font-black text-[10px]">Display All</Button>
-                                </div>
-                            </DialogContent>
-                        </Dialog>
+                        <>
+                            <Dialog open={isBoardOpen} onOpenChange={setIsBoardOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-8 rounded-full bg-white/10 font-black uppercase text-[9px]">board</Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-md rounded-[2.5rem] p-8 border-none bg-black text-white">
+                                    <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-xs">Community Board</DialogTitle></DialogHeader>
+                                    <Textarea className="h-40 bg-white/5 border-white/10 rounded-2xl mt-4 font-bold text-lg" placeholder="Write message..." value={boardDraft} onChange={e => setBoardContent(e.target.value)} />
+                                    <div className="grid grid-cols-2 gap-3 mt-6">
+                                        <Button variant="ghost" onClick={() => setBoardContent('')} className="rounded-full uppercase font-black text-[10px]"><Eraser className="mr-2 h-4 w-4" /> Clear</Button>
+                                        <Button onClick={() => toggleBoard(true)} className="rounded-full uppercase font-black text-[10px]">display</Button>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
+                            <Button variant="ghost" size="sm" onClick={endMeeting} className="h-8 rounded-full bg-red-600/20 text-red-500 font-black uppercase text-[9px]">hang up</Button>
+                        </>
                     )}
-                    <Button variant="ghost" size="icon" className="h-10 w-10 bg-red-600/20 text-red-500 rounded-full" onClick={() => router.push('/dashboard/meeting')} title="Disconnect"><PhoneOff className="h-5 w-5" /></Button>
+                    {!isAdmin && (
+                        <Button variant="ghost" size="icon" className="h-10 w-10 bg-red-600/20 text-red-500 rounded-full" onClick={() => router.push('/dashboard/meeting')} title="Disconnect"><PhoneOff className="h-5 w-5" /></Button>
+                    )}
                 </div>
             </header>
 

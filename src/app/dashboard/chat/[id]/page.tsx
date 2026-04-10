@@ -62,6 +62,7 @@ export default function ChatThreadPage() {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [activeMediaType, setActiveMediaType] = useState<'image' | 'video' | 'pdf' | null>(null);
     
     const chatId = useMemo(() => {
         if (!currentUser?.$id || !otherUserId) return null;
@@ -235,7 +236,7 @@ export default function ChatThreadPage() {
                 reader.readAsDataURL(audioBlob);
             });
 
-            const upload = await uploadToCloudinary(base64, 'video'); // Cloudinary treats audio as video/auto
+            const upload = await uploadToCloudinary(base64, 'video'); 
             if (upload.success) {
                 handleSend('', { url: upload.url, type: 'audio', duration: recordingDuration });
                 discardVoiceNote();
@@ -258,7 +259,6 @@ export default function ChatThreadPage() {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Video limit: 3 minutes check
         if (file.type.startsWith('video/')) {
             const video = document.createElement('video');
             video.preload = 'metadata';
@@ -295,13 +295,13 @@ export default function ChatThreadPage() {
             toast({ variant: 'destructive', title: "Media send failed" });
         } finally {
             setIsUploading(false);
+            setActiveMediaType(null);
         }
     };
 
     const deleteMessage = async (msgId: string, forAll: boolean) => {
         try {
             if (forAll) {
-                // Instead of deleting document, update it to show "deleted a message"
                 await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), {
                     text: "deleted a message",
                     isDeleted: true,
@@ -516,7 +516,6 @@ export default function ChatThreadPage() {
                 </footer>
             ) : (
                 <footer className="p-4 border-t bg-background safe-area-bottom pb-8">
-                    {/* Voice Recording Preview */}
                     {audioUrl && (
                         <div className="max-w-xl mx-auto mb-4 p-4 bg-muted/50 rounded-[2rem] flex items-center gap-4 animate-in slide-in-from-bottom-2">
                             <audio src={audioUrl} controls className="flex-1 h-10" />
@@ -528,9 +527,25 @@ export default function ChatThreadPage() {
                     )}
 
                     <div className="max-w-xl mx-auto w-full flex items-center gap-2">
-                        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-muted-foreground hover:bg-muted" onClick={() => fileInputRef.current?.click()}>
-                            <Paperclip className="h-5 w-5" />
-                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-muted-foreground hover:bg-muted">
+                                    <Paperclip className="h-5 w-5" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40 font-black uppercase text-[10px]">
+                                <DropdownMenuItem onClick={() => { setActiveMediaType('image'); fileInputRef.current?.click(); }}>
+                                    <ImageIcon className="mr-2 h-4 w-4" /> Image
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setActiveMediaType('video'); fileInputRef.current?.click(); }}>
+                                    <Video className="mr-2 h-4 w-4" /> Video
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setActiveMediaType('pdf'); fileInputRef.current?.click(); }}>
+                                    <FileText className="mr-2 h-4 w-4" /> PDF
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
                         <Input 
                             placeholder={isRecording ? "Recording voice..." : "Type text only..."} 
                             value={newMessage} 
@@ -559,7 +574,13 @@ export default function ChatThreadPage() {
                             )}
                         </div>
                     </div>
-                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,application/pdf" onChange={handleFileSelect} />
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        className="hidden" 
+                        accept={activeMediaType === 'image' ? 'image/*' : activeMediaType === 'video' ? 'video/*' : 'application/pdf'} 
+                        onChange={handleFileSelect} 
+                    />
                 </footer>
             )}
 

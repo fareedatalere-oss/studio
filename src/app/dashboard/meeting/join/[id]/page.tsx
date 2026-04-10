@@ -1,9 +1,8 @@
-
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { Camera, ImageIcon, Loader2, Video, CheckCircle2, UploadCloud, ArrowLeft } from 'lucide-react';
+import { useState, useRef, useEffect, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { Camera, ImageIcon, Loader2, Video, CheckCircle2, UploadCloud, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,24 +15,37 @@ import { cn } from '@/lib/utils';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
-export default function MeetingJoinPage() {
+function MeetingJoinContent() {
     const params = useParams();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { toast } = useToast();
     const { user: authUser, profile: authProfile } = useUser();
     const meetingId = params.id as string;
+    const isAdminLink = searchParams.get('role') === 'admin';
 
     const [name, setName] = useState('');
     const [avatar, setAvatar] = useState<string | null>(null);
     const [step, setStep] = useState<'info' | 'waiting'>('info');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [hasCamera, setHasCamera] = useState(false);
+    const [isExpired, setIsExpired] = useState(false);
     
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
+        const checkMeeting = async () => {
+            try {
+                const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
+                if (meeting.status === 'ended') setIsExpired(true);
+            } catch (e) {
+                setIsExpired(true);
+            }
+        };
+        checkMeeting();
+
         const setupCamera = async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -46,7 +58,7 @@ export default function MeetingJoinPage() {
             }
         };
         setupCamera();
-    }, []);
+    }, [meetingId]);
 
     const handleCapture = () => {
         if (videoRef.current && canvasRef.current) {
@@ -76,7 +88,7 @@ export default function MeetingJoinPage() {
         setIsSubmitting(true);
         try {
             const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
-            const isAdmin = authUser?.$id === meeting.hostId;
+            const isAdmin = isAdminLink || authUser?.$id === meeting.hostId;
 
             const requestId = ID.unique();
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, requestId, {
@@ -92,7 +104,6 @@ export default function MeetingJoinPage() {
             sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ name, avatar, requestId }));
 
             if (isAdmin) {
-                // ADMIN BYPASS: Instantly enter room
                 router.replace(`/dashboard/meeting/room/${meetingId}`);
             } else {
                 setStep('waiting');
@@ -102,7 +113,7 @@ export default function MeetingJoinPage() {
                         if (payload.status === 'approved') {
                             router.replace(`/dashboard/meeting/room/${meetingId}`);
                         } else if (payload.status === 'declined') {
-                            toast({ variant: 'destructive', title: 'Access Denied', description: 'The admin declined your request.' });
+                            toast({ variant: 'destructive', title: 'Access Denied', description: 'you have been denied by the host' });
                             setStep('info');
                             setIsSubmitting(false);
                         }
@@ -116,6 +127,23 @@ export default function MeetingJoinPage() {
             setIsSubmitting(false);
         }
     };
+
+    if (isExpired) {
+        return (
+            <div className="h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+                <Card className="max-w-md w-full rounded-[2.5rem] shadow-xl border-none p-10">
+                    <div className="bg-destructive/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <XCircle className="h-10 w-10 text-destructive" />
+                    </div>
+                    <h2 className="text-2xl font-black uppercase tracking-tighter">this meeting is expired</h2>
+                    <p className="text-muted-foreground font-bold text-sm mt-2">The session has already concluded or reached its time limit.</p>
+                    <Button asChild className="w-full h-12 rounded-full font-black uppercase tracking-widest mt-8">
+                        <Link href="/dashboard/meeting">Return to Hub</Link>
+                    </Button>
+                </Card>
+            </div>
+        );
+    }
 
     if (step === 'waiting') {
         return (
@@ -136,15 +164,16 @@ export default function MeetingJoinPage() {
 
     return (
         <div className="h-screen bg-background flex flex-col p-6 overflow-y-auto pb-20">
-            <header className="pt-10 mb-6">
+            <header className="pt-10 mb-6 flex justify-between items-center">
                 <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/meeting')} className="font-black uppercase text-[10px] gap-2">
                     <ArrowLeft className="h-4 w-4" /> Hub
                 </Button>
+                {isAdminLink && <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 border-none font-black uppercase text-[8px]"><ShieldCheck className="mr-1 h-3 w-3" /> Chairman Link</Badge>}
             </header>
             <Card className="max-w-md w-full mx-auto rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
                 <CardHeader className="bg-primary text-white p-8 text-center">
-                    <CardTitle className="text-2xl font-black uppercase tracking-widest leading-none">Identity Check</CardTitle>
-                    <CardDescription className="text-white/70 font-bold mt-2">Setup your feed before entering</CardDescription>
+                    <CardTitle className="text-xl font-black uppercase tracking-widest leading-none">Welcome to I-pay meeting</CardTitle>
+                    <CardDescription className="text-white/70 font-bold mt-2">Setup your identity before entry</CardDescription>
                 </CardHeader>
                 <CardContent className="p-8 space-y-6">
                     <div className="space-y-2">
@@ -158,7 +187,7 @@ export default function MeetingJoinPage() {
                     </div>
 
                     <div className="space-y-4">
-                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest">Face or Icon</Label>
+                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest">Identity Icon</Label>
                         <div className="relative aspect-video bg-black rounded-3xl overflow-hidden border-4 border-white shadow-xl">
                             {avatar ? (
                                 <img src={avatar} className="h-full w-full object-cover" alt="Preview" />
@@ -186,5 +215,21 @@ export default function MeetingJoinPage() {
                 </CardFooter>
             </Card>
         </div>
+    );
+}
+
+const XCircle = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+);
+
+const Badge = ({ children, className, variant }: any) => (
+    <div className={cn("px-2 py-0.5 rounded-full text-xs font-bold border", className)}>{children}</div>
+);
+
+export default function MeetingJoinPage() {
+    return (
+        <Suspense fallback={<div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>}>
+            <MeetingJoinContent />
+        </Suspense>
     );
 }
