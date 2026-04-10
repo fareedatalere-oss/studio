@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -16,6 +17,12 @@ import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
+
+/**
+ * @fileOverview Master Private Chat Thread.
+ * PERMANENCE: All messages are saved in Firestore & Media in Cloudinary.
+ * Logic: Snapshot listener ensures old chats NEVER disappear when new ones arrive.
+ */
 
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
@@ -56,7 +63,7 @@ export default function ChatThreadPage() {
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     
-    // Memoize chatId to prevent unnecessary listener resets
+    // FORCED CHAT ID PERSISTENCE
     const chatId = useMemo(() => {
         if (!currentUser?.$id || !otherUserId) return null;
         return getChatId(currentUser.$id, otherUserId);
@@ -67,18 +74,7 @@ export default function ChatThreadPage() {
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
-        // Reset local state for new thread
-        setMessages([]);
-
-        const clearUnread = async () => {
-            const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
-            await updateDoc(chatRef, {
-                [`unreadCount.${currentUser.$id}`]: 0
-            }).catch(() => {});
-        };
-        clearUnread();
-
-        // Optimized query: No server-side order to bypass index requirement
+        // FETCH ALL MESSAGES - NO LIMITS TO PREVENT LOSS
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
             where('chatId', '==', chatId)
@@ -90,6 +86,7 @@ export default function ChatThreadPage() {
                 return;
             }
 
+            // Client-side sort to ensure history order without index errors
             const msgs = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }))
                 .filter((m: any) => !m.deletedForEveryone)
                 .sort((a: any, b: any) => {
@@ -109,6 +106,7 @@ export default function ChatThreadPage() {
             });
         });
 
+        // Other user status monitor
         const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
             if (d.exists()) setOtherUser(d.data());
         });
@@ -138,7 +136,7 @@ export default function ChatThreadPage() {
         const capturedTime = recordingTime;
         const finalText = text?.trim() || '';
 
-        // Instant clear UI
+        // Clear input instantly
         if (hasVoice) {
             setAudioBlob(null);
             setAudioUrl(null);
@@ -146,7 +144,7 @@ export default function ChatThreadPage() {
             setIsRecording(false);
         }
 
-        // Optimistic UI Drop (💧)
+        // INSTANT DROP (💧) - Local Preview
         const tempId = `temp-${Date.now()}`;
         const optimisticMsg = {
             $id: tempId,
@@ -167,6 +165,7 @@ export default function ChatThreadPage() {
             let finalMediaType = hasVoice ? 'audio' : mediaType;
             let finalDuration = duration;
 
+            // Media Storage Engine (Cloudinary)
             if (hasVoice && capturedAudioBlob) {
                 const reader = new FileReader();
                 const base64 = await new Promise<string>((resolve) => {
@@ -183,6 +182,7 @@ export default function ChatThreadPage() {
             const status = otherUser?.isOnline ? 'delivered' : 'sent';
             const msgId = ID.unique();
 
+            // Save to Firestore permanently
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { 
                 chatId, 
                 senderId: currentUser.$id, 
@@ -194,7 +194,7 @@ export default function ChatThreadPage() {
                 createdAt: serverTimestamp()
             });
 
-            // Mutual Persistent Recent Entry
+            // Update Recent list for both participants
             const lastText = finalMediaType === 'text' ? finalText : `Sent a ${finalMediaType}`;
             const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
             await setDoc(chatRef, {
@@ -205,7 +205,7 @@ export default function ChatThreadPage() {
                 [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
 
-            // Trigger Notification
+            // Trigger real-time notifications
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
                 userId: otherUserId,
                 senderId: currentUser.$id,
