@@ -9,35 +9,34 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Languages, Mic, Send, Loader2, Trash2, ImageIcon, X, Search, Globe, BrainCircuit } from 'lucide-react';
 import { chatSofia } from '@/ai/flows/chat-flow';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/use-appwrite';
 import { useRouter } from 'next/navigation';
-import { account } from '@/lib/appwrite';
+import { account, databases, DATABASE_ID, COLLECTION_ID_MESSAGES, Query, ID, client } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-const allLanguages = [
-  { name: "English", code: "en-US" },
-  { name: "Hausa", code: "ha-NG" },
-  { name: "Yoruba", code: "yo-NG" },
-  { name: "Igbo", code: "ig-NG" },
-  { name: "Arabic", code: "ar-SA" },
-  { name: "French", code: "fr-FR" },
-  { name: "Spanish", code: "es-ES" }
-];
-
 type Message = {
+    $id: string;
     role: 'user' | 'sofia';
     text: string;
     image?: string;
     timestamp: number;
     thoughts?: string;
 }
-
-const STORAGE_KEY = 'ipay-sofia-history-v2';
 
 export default function AiChatPage() {
   const { user, profile } = useUser();
@@ -47,6 +46,7 @@ export default function AiChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [langSearch, setLangSearch] = useState('');
   const [locationStr, setLocationStr] = useState('Determining Location...');
@@ -54,25 +54,60 @@ export default function AiChatPage() {
   const [isListening, setIsListening] = useState(false);
   const [isLangPopoverOpen, setIsLangPopoverOpen] = useState(false);
   
+  // Deletion State
+  const [msgToDelete, setMsgToDelete] = useState<string | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
 
+  const chatId = useMemo(() => user?.$id ? `ai_${user.$id}` : null, [user?.$id]);
+
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
+    if (!chatId) return;
+
+    const fetchHistory = async () => {
         try {
-            setMessages(JSON.parse(saved));
+            const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
+                Query.equal('chatId', chatId),
+                Query.orderAsc('$createdAt'),
+                Query.limit(100)
+            ]);
+            
+            if (res.total === 0) {
+                // Initial message if empty
+                setMessages([{
+                    $id: 'welcome',
+                    role: 'sofia',
+                    text: "Hello! I am Sofia, your best friend and I-Pay companion. I know where you are and I'm ready to help you manage your world instantly.",
+                    timestamp: Date.now()
+                }]);
+            } else {
+                const mapped = res.documents.map(doc => ({
+                    $id: doc.$id,
+                    role: doc.senderId === user?.$id ? 'user' : 'sofia',
+                    text: doc.text,
+                    image: doc.image,
+                    timestamp: new Date(doc.$createdAt).getTime(),
+                    thoughts: doc.thoughts
+                } as Message));
+                setMessages(mapped);
+            }
         } catch (e) {
-            console.error("History load failed", e);
+            console.error("History fetch failed", e);
+        } finally {
+            setDataLoading(false);
         }
-    } else {
-        setMessages([{
-            role: 'sofia',
-            text: "Hello! I am Sofia, your best friend and I-Pay companion. I know where you are and I'm ready to help you manage your world instantly.",
-            timestamp: Date.now()
-        }]);
-    }
+    };
+
+    fetchHistory();
+
+    const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`], response => {
+        const payload = response.payload as any;
+        if (payload.chatId === chatId) {
+            fetchHistory();
+        }
+    });
 
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((pos) => {
@@ -95,20 +130,13 @@ export default function AiChatPage() {
         recognitionRef.current.onerror = () => setIsListening(false);
         recognitionRef.current.onend = () => setIsListening(false);
     }
-  }, []);
+
+    return () => unsub();
+  }, [chatId, user?.$id]);
 
   useEffect(() => {
-    if (messages.length > 0) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-    }
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  const filteredLanguages = useMemo(() => {
-    return allLanguages.filter(l => 
-        l.name.toLowerCase().includes(langSearch.toLowerCase())
-    );
-  }, [langSearch]);
 
   const handleMicClick = () => {
     if (isListening) {
@@ -116,8 +144,7 @@ export default function AiChatPage() {
     } else {
         try {
             if (recognitionRef.current) {
-                const langObj = allLanguages.find(l => l.name === selectedLanguage);
-                recognitionRef.current.lang = langObj?.code || 'en-US';
+                recognitionRef.current.lang = 'en-US';
                 recognitionRef.current.start();
                 setIsListening(true);
             }
@@ -129,18 +156,25 @@ export default function AiChatPage() {
 
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if ((!input.trim() && !selectedImage) || isLoading || !user) return;
+    if ((!input.trim() && !selectedImage) || isLoading || !user || !chatId) return;
 
     const userMsg = input.trim();
     const currentImg = selectedImage;
     setInput('');
     setSelectedImage(null);
-
-    const newMessage: Message = { role: 'user', text: userMsg, image: currentImg || undefined, timestamp: Date.now() };
-    setMessages(prev => [...prev, newMessage]);
     setIsLoading(true);
 
     try {
+      // 1. Save User Message to DB
+      await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
+          chatId: chatId,
+          senderId: user.$id,
+          text: userMsg,
+          image: currentImg || undefined,
+          status: 'sent'
+      });
+
+      // 2. Call Sofia
       const response = await chatSofia({
         message: userMsg,
         language: selectedLanguage,
@@ -151,23 +185,36 @@ export default function AiChatPage() {
         photoDataUri: currentImg || undefined
       });
 
-      const sofiaMsg: Message = { 
-        role: 'sofia', 
-        text: response.text, 
-        thoughts: response.thoughts,
-        timestamp: Date.now() 
-      };
-      setMessages(prev => [...prev, sofiaMsg]);
+      // 3. Save Sofia Message to DB
+      await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
+          chatId: chatId,
+          senderId: 'sofia_system',
+          text: response.text,
+          thoughts: response.thoughts,
+          status: 'sent'
+      });
       
       if (response.action && response.action !== 'none') {
           handleSofiaAction(response.action, response.email);
       }
     } catch (error: any) {
       console.error("Sofia Error:", error);
-      setMessages(prev => [...prev, { role: 'sofia', text: "I hit a snag, my friend. Let me try that again.", timestamp: Date.now() }]);
+      toast({ variant: 'destructive', title: "Sofia Snagged", description: "The API key may be limited or your connection is weak." });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleDeleteMessage = async () => {
+      if (!msgToDelete) return;
+      try {
+          await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, msgToDelete);
+          toast({ title: "Message Deleted" });
+      } catch (e) {
+          toast({ variant: 'destructive', title: "Delete Failed" });
+      } finally {
+          setMsgToDelete(null);
+      }
   };
 
   const handleSofiaAction = (action: string, email?: string) => {
@@ -191,13 +238,13 @@ export default function AiChatPage() {
                 <AvatarFallback className="bg-primary text-white">S</AvatarFallback>
             </Avatar>
             <div>
-                <h2 className="font-black text-xs uppercase tracking-widest">Sofia</h2>
+                <h2 className="font-black text-xs uppercase tracking-widest text-primary">Sofia</h2>
                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{locationStr}</p>
             </div>
         </div>
         <Popover open={isLangPopoverOpen} onOpenChange={setIsLangPopoverOpen}>
             <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 rounded-full font-black uppercase text-[9px] gap-2">
+                <Button variant="outline" size="sm" className="h-8 rounded-full font-black uppercase text-[9px] gap-2 border-primary/20">
                     <Globe className="h-3 w-3 text-primary" /> {selectedLanguage}
                 </Button>
             </PopoverTrigger>
@@ -206,23 +253,28 @@ export default function AiChatPage() {
                     <Input placeholder="Search..." value={langSearch} onChange={e => setLangSearch(e.target.value)} className="h-8 text-xs rounded-xl" />
                 </div>
                 <ScrollArea className="h-[200px]">
-                    {filteredLanguages.map(l => (
-                        <Button key={l.name} variant="ghost" className="w-full justify-start text-[10px] font-bold uppercase h-10" onClick={() => { setSelectedLanguage(l.name); setIsLangPopoverOpen(false); }}>{l.name}</Button>
+                    {['English', 'Hausa', 'Yoruba', 'Igbo', 'French', 'Arabic'].map(l => (
+                        <Button key={l} variant="ghost" className="w-full justify-start text-[10px] font-bold uppercase h-10" onClick={() => { setSelectedLanguage(l); setIsLangPopoverOpen(false); }}>{l}</Button>
                     ))}
                 </ScrollArea>
             </PopoverContent>
         </Popover>
       </header>
 
-      <div className="flex-1 p-4 overflow-y-auto space-y-6 pb-24">
-        {messages.map((msg) => (
-            <div key={msg.timestamp} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
-                <div className={cn(
-                    "max-w-[85%] rounded-[1.5rem] p-4 text-sm relative shadow-sm",
-                    msg.role === 'user' 
-                        ? "bg-primary text-white rounded-tr-none" 
-                        : "bg-muted text-foreground rounded-tl-none border"
-                )}>
+      <div className="flex-1 p-4 overflow-y-auto space-y-6 pb-32">
+        {dataLoading ? (
+            <div className="flex justify-center p-10"><Loader2 className="animate-spin h-8 w-8 text-primary/30" /></div>
+        ) : messages.map((msg) => (
+            <div key={msg.$id} className={cn("flex flex-col animate-in fade-in slide-in-from-bottom-2", msg.role === 'user' ? "items-end" : "items-start")}>
+                <div 
+                    onClick={() => setMsgToDelete(msg.$id)}
+                    className={cn(
+                        "max-w-[85%] rounded-[1.5rem] p-4 text-sm relative shadow-sm cursor-pointer active:scale-[0.98] transition-transform",
+                        msg.role === 'user' 
+                            ? "bg-primary text-white rounded-tr-none" 
+                            : "bg-muted text-foreground rounded-tl-none border"
+                    )}
+                >
                     {msg.image && (
                         <div className="mb-3 relative h-48 w-full rounded-xl overflow-hidden">
                             <Image src={msg.image} alt="Upload" fill className="object-cover" />
@@ -252,19 +304,19 @@ export default function AiChatPage() {
         <div ref={scrollRef} />
       </div>
 
-      <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t safe-area-bottom pb-8">
+      <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t safe-area-bottom pb-12 z-50">
         {selectedImage && (
-            <div className="mb-3 p-2 bg-muted rounded-xl relative border w-fit">
+            <div className="mb-3 p-2 bg-muted rounded-xl relative border w-fit mx-auto">
                 <Image src={selectedImage} alt="Preview" width={80} height={80} className="rounded-lg" />
                 <Button variant="destructive" size="icon" className="h-5 w-5 absolute -top-2 -right-2 rounded-full shadow-md" onClick={() => setSelectedImage(null)}><X className="h-3 w-3" /></Button>
             </div>
         )}
-        <form onSubmit={handleSend} className="flex items-center gap-2 max-w-2xl mx-auto">
+        <form onSubmit={handleSend} className="flex items-center gap-2 max-w-2xl mx-auto px-2">
           <Input 
-            placeholder={`Talk to Sofia in ${selectedLanguage}...`} 
+            placeholder={`Talk to Sofia...`} 
             value={input}
             onChange={e => setInput(e.target.value)}
-            className="h-12 bg-muted/50 border-none rounded-[1.2rem] px-6 font-bold"
+            className="h-12 bg-muted/50 border-none rounded-[1.2rem] px-6 font-bold shadow-inner"
           />
           <Button variant="ghost" size="icon" type="button" onClick={() => fileInputRef.current?.click()} className={cn("h-12 w-12 rounded-full", selectedImage && "text-primary bg-primary/10")}>
             <ImageIcon className="h-6 w-6" />
@@ -273,11 +325,25 @@ export default function AiChatPage() {
             <Mic className="h-6 w-6" />
           </Button>
           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => { if(e.target.files?.[0]) { const r = new FileReader(); r.onload = (ev) => setSelectedImage(ev.target?.result as string); r.readAsDataURL(e.target.files[0]); } }} />
-          <Button size="icon" type="submit" className="h-12 w-12 rounded-full shadow-lg" disabled={isLoading || (!input.trim() && !selectedImage)}>
-            <Send className="h-5 w-5" />
+          <Button size="icon" type="submit" className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90" disabled={isLoading || (!input.trim() && !selectedImage)}>
+            <Send className="h-5 w-5 text-white" />
           </Button>
         </form>
       </footer>
+
+      {/* Deletion Dialog */}
+      <AlertDialog open={!!msgToDelete} onOpenChange={(o) => !o && setMsgToDelete(null)}>
+          <AlertDialogContent className="rounded-[2rem]">
+              <AlertDialogHeader>
+                  <AlertDialogTitle className="font-black uppercase text-sm text-center">Delete Message?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-center font-bold text-xs">This will remove this message from your cloud history permanently.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-row gap-2">
+                  <AlertDialogCancel className="flex-1 rounded-xl font-black uppercase text-[10px]">Keep</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteMessage} className="flex-1 rounded-xl font-black uppercase text-[10px] bg-destructive text-white hover:bg-destructive/90">Delete</AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

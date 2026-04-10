@@ -3,15 +3,13 @@ import { googleAI } from '@genkit-ai/google-genai';
 
 /**
  * @fileOverview Sofia AI Engine configuration.
- * SECURITY NOTICE: Using environment variables to prevent API key leaks.
- * Please set GOOGLE_GENAI_API_KEY in your .env or provider settings.
+ * SECURITY NOTICE: Using master key provided by the administrator.
  */
 
 export const ai = genkit({
   plugins: [
     googleAI({
-      // Checks multiple standard environment variable names for compatibility
-      apiKey: process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || 'AIzaSy_REPLACE_WITH_NEW_KEY_FROM_AI_STUDIO',
+      apiKey: 'AIzaSyCAqpvfRI4HrhTcsDnjCSw0wck9dzZ7P0I',
     }),
   ],
   model: 'googleai/gemini-2.5-flash',
