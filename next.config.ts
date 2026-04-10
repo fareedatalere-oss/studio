@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -16,6 +17,11 @@ const nextConfig: NextConfig = {
         hostname: '**',
       }
     ],
+  },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb', // INCREASED: Prevents "hanging" on large photo/book uploads
+    },
   },
 };
 

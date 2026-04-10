@@ -18,7 +18,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Upwork Profile Upload.
- * INSTANT CLOUDINARY LOGIC: Files go directly to Cloudinary.
+ * FORCED INSTANT CLOUDINARY LOGIC: Optimized for 10MB payloads.
  */
 
 function toBase64(file: File): Promise<string> {
@@ -55,24 +55,26 @@ export default function UploadUpworkProfilePage() {
         }
 
         setIsLoading(true);
-        toast({ title: 'Uploading Identity...' });
+        toast({ title: 'Uploading Profile...' });
 
         try {
-            // 1. Convert to Base64
-            const avatarB64 = await toBase64(avatar);
-            const certB64 = await toBase64(certificate);
+            // 1. Parallel Instant Conversions
+            const [avatarB64, certB64] = await Promise.all([
+                toBase64(avatar),
+                toBase64(certificate)
+            ]);
 
-            // 2. Parallel Instant Cloudinary Uploads
+            // 2. Direct Cloudinary Storage (Master Force)
             const [avatarUp, certUp] = await Promise.all([
                 uploadToCloudinary(avatarB64, 'image'),
                 uploadToCloudinary(certB64, 'raw')
             ]);
 
             if (!avatarUp.success || !certUp.success) {
-                throw new Error("Direct upload failed.");
+                throw new Error(avatarUp.message || certUp.message || "Cloud upload failed.");
             }
 
-            // 3. Save to Database
+            // 3. Instant Database Commit
             const newProfile = {
                 name: user.name || 'Freelancer',
                 title,
@@ -86,11 +88,12 @@ export default function UploadUpworkProfilePage() {
             };
 
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_UPWORK_PROFILES, ID.unique(), newProfile);
-            toast({ title: "Freelance Profile Active!" });
+            toast({ title: "Identity Live!" });
             router.push('/dashboard/market?tab=upwork');
 
         } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Failed', description: error.message });
+            console.error("Upwork Upload Error:", error);
+            toast({ variant: 'destructive', title: 'Upload Error', description: error.message });
             setIsLoading(false);
         }
     }
@@ -100,18 +103,18 @@ export default function UploadUpworkProfilePage() {
         <Link href="/dashboard/market/upwork/warning" className="flex items-center gap-2 mb-4 text-sm font-black uppercase text-muted-foreground hover:text-primary">
             <ArrowLeft className="h-4 w-4" /> Back
         </Link>
-        <Card className="w-full max-w-2xl mx-auto rounded-[2rem] shadow-xl">
-            <CardHeader>
-                <CardTitle className="text-center font-black uppercase tracking-tighter">Freelance Identity</CardTitle>
-                <CardDescription className="text-center font-bold">Instantly published to Cloudinary</CardDescription>
+        <Card className="w-full max-w-2xl mx-auto rounded-[2rem] shadow-xl overflow-hidden border-none">
+            <CardHeader className="bg-primary/5 pb-6">
+                <CardTitle className="text-center font-black uppercase tracking-tighter">Freelance Profile</CardTitle>
+                <CardDescription className="text-center font-bold">Fast Cloudinary direct sync active</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-2">
                         <Label className="font-black uppercase text-[10px] opacity-70">Profile Avatar</Label>
                         <div className="flex items-center gap-4">
                              <div 
-                                className="w-24 h-24 bg-muted rounded-full flex items-center justify-center cursor-pointer border-2 border-dashed overflow-hidden shadow-sm"
+                                className="w-24 h-24 bg-muted rounded-full flex items-center justify-center cursor-pointer border-2 border-dashed overflow-hidden"
                                  onClick={() => avatarInputRef.current?.click()}
                             >
                                 {avatarPreview ? <Image src={avatarPreview} alt="Avatar" width={96} height={96} className="object-cover"/> : <ImageIcon className="h-8 w-8 opacity-30" />}
@@ -122,7 +125,7 @@ export default function UploadUpworkProfilePage() {
                     </div>
                     <div className="space-y-2">
                         <Label className="font-black uppercase text-[10px] opacity-70">Professional Title</Label>
-                        <Input value={title} onChange={e => setTitle(e.target.value)} required className="h-12 rounded-xl bg-muted/50 border-none" />
+                        <Input value={title} onChange={e => setTitle(e.target.value)} required className="h-12 rounded-xl bg-muted/50 border-none" placeholder="e.g. Graphic Designer" />
                     </div>
                     <div className="space-y-2">
                         <Label className="font-black uppercase text-[10px] opacity-70">About Your Work</Label>
@@ -131,21 +134,17 @@ export default function UploadUpworkProfilePage() {
                     <div className="space-y-2">
                         <Label className="font-black uppercase text-[10px] opacity-70">Operation Certificate</Label>
                         <Button type="button" variant="outline" className="w-full justify-start gap-2 h-12 rounded-xl" onClick={() => certInputRef.current?.click()}>
-                            <UploadCloud className="h-5 w-5" /> {certificate ? certificate.name : 'Choose Certificate File'}
+                            <UploadCloud className="h-5 w-5" /> {certificate ? certificate.name : 'Upload Credentials'}
                         </Button>
-                        <input type="file" ref={certInputRef} className="hidden" onChange={(e) => { if(e.target.files?.[0]) setOficate(e.target.files[0]); }} required />
+                        <input type="file" ref={certInputRef} className="hidden" onChange={(e) => { if(e.target.files?.[0]) setCertificate(e.target.files[0]); }} required />
                     </div>
                     <div className="space-y-2">
-                        <Label className="font-black uppercase text-[10px] opacity-70">Business Address</Label>
-                        <Input value={address} onChange={e => setAddress(e.target.value)} required className="h-12 rounded-xl bg-muted/50 border-none" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="font-black uppercase text-[10px] opacity-70">Phone Number</Label>
+                        <Label className="font-black uppercase text-[10px] opacity-70">Contact Number</Label>
                         <Input type="tel" value={phone} onChange={e => setPhone(e.target.value)} required className="h-12 rounded-xl bg-muted/50 border-none" />
                     </div>
 
                     <Button type="submit" className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-lg" disabled={isLoading}>
-                        {isLoading ? <Loader2 className="animate-spin h-6 w-6" /> : "Complete Upload"}
+                        {isLoading ? <Loader2 className="animate-spin h-6 w-6" /> : "Publish Instantly"}
                     </Button>
                 </form>
             </CardContent>
