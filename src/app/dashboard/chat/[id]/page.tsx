@@ -20,7 +20,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Master Private Chat Thread.
- * PERMANENCE ENGINE V6: Implemented ID-based Map reconciliation to stop message replacement.
+ * PERMANENCE ENGINE V7: Uses ID-based Map reconciliation to prevent message replacement.
  * Ensures every message is appended and never overwritten by new snapshots.
  */
 
