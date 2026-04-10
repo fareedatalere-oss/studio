@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 
 export default function MeetingLandingPage() {
   return (
-    <div className="container py-8 max-w-lg">
+    <div className="container py-8 max-lg">
       <Link href="/dashboard/chat" className="flex items-center gap-2 mb-6 text-sm font-black uppercase text-muted-foreground hover:text-primary">
         <ArrowLeft className="h-4 w-4" /> Hub
       </Link>

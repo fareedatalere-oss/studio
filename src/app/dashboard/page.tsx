@@ -83,7 +83,7 @@ export default function DashboardPage() {
 
   return (
     <div className="container py-6 space-y-6">
-      {/* Wallet Card - Reduced Size & Blue Theme */}
+      {/* Wallet Card - Compact Blue Design */}
       <Card className="rounded-[1.5rem] shadow-xl border-none bg-primary text-primary-foreground overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between pb-1 px-4 pt-4">
           <CardTitle className="text-[9px] font-black uppercase tracking-widest opacity-80">My Wallet</CardTitle>

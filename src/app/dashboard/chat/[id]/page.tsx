@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, ID, increment } from '@/lib/appwrite';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, setDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { ArrowLeft, Send, MoreVertical, Paperclip, Mic, Trash2, Play, Image as ImageIcon, Video, FileText, Square, ShieldCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -17,11 +17,6 @@ import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
-
-/**
- * @fileOverview Master Private Chat Thread.
- * INDESTRUCTIBLE MAP ENGINE: Uses Map reconciliation to prevent history loss.
- */
 
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
@@ -67,16 +62,17 @@ export default function ChatThreadPage() {
         return getChatId(currentUser.$id, otherUserId);
     }, [currentUser?.$id, otherUserId]);
 
-    // Indestructible Map Cache
+    // Indestructible Map Cache for Delta Sync
     const messageMapRef = useRef<Map<string, any>>(new Map());
 
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
+        // FIXED: Removed orderBy to satisfy Firestore Index requirement.
+        // We now sort client-side to ensure 100% stability.
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
-            where('chatId', '==', chatId),
-            orderBy('createdAt', 'asc')
+            where('chatId', '==', chatId)
         );
 
         const unsub = onSnapshot(q, (snapshot) => {
@@ -95,10 +91,10 @@ export default function ChatThreadPage() {
                 }
             });
 
-            // Convert to sorted array for rendering
+            // FIXED: Professional Client-Side Sorting
             const sortedMsgs = Array.from(messageMapRef.current.values()).sort((a, b) => {
-                const timeA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || 0;
-                const timeB = b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || 0;
+                const timeA = a.createdAt?.toMillis?.() || new Date(a.createdAt || 0).getTime() || 0;
+                const timeB = b.createdAt?.toMillis?.() || new Date(b.createdAt || 0).getTime() || 0;
                 return timeA - timeB;
             });
             
@@ -111,6 +107,8 @@ export default function ChatThreadPage() {
                     updateDoc(doc(db, COLLECTION_ID_MESSAGES, d.id), { status: 'read' }).catch(() => {});
                 }
             });
+        }, (error) => {
+            console.error("Chat sync error:", error);
         });
 
         const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
@@ -142,7 +140,7 @@ export default function ChatThreadPage() {
         setRecordingTime(0);
         setIsRecording(false);
 
-        // Optimistic UI Drop
+        // Optimistic UI Drop (Indestructible History)
         const optimisticMsg = {
             $id: tempId,
             chatId,
@@ -157,7 +155,10 @@ export default function ChatThreadPage() {
         };
         
         messageMapRef.current.set(tempId, optimisticMsg);
-        setMessages(Array.from(messageMapRef.current.values()));
+        setMessages(prev => {
+            const current = Array.from(messageMapRef.current.values());
+            return current.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        });
 
         try {
             let finalMediaUrl = mediaUrl;
@@ -210,7 +211,6 @@ export default function ChatThreadPage() {
             
         } catch (e: any) {
             messageMapRef.current.delete(tempId);
-            setMessages(Array.from(messageMapRef.current.values()));
             toast({ variant: 'destructive', title: 'Send Failed', description: e.message });
         }
     };

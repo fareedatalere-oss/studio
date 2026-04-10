@@ -92,7 +92,7 @@ export default function MeetingJoinPage() {
             sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ name, avatar, requestId }));
 
             if (isAdmin) {
-                // Instantly Land Admin
+                // Instantly Land Admin - SKIP WAIT
                 router.replace(`/dashboard/meeting/room/${meetingId}`);
             } else {
                 setStep('waiting');
