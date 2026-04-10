@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -21,7 +20,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Hub Page.
- * COMPACT UI: Reduced Tab sizes and brought them closer together.
+ * COMPACT UI: Reduced Tab sizes and positioned them closer together.
  * Standardized to professional Title Case.
  */
 
@@ -156,7 +155,6 @@ export default function ChatPage() {
                 </div>
                 
                 <Tabs defaultValue="recent" className="flex flex-col w-full items-center">
-                    {/* Compact Tabs closer together */}
                     <TabsList className="flex items-center gap-1 bg-muted/50 h-8 p-1 rounded-full mb-6 justify-center w-fit px-2">
                         <TabsTrigger value="recent" className="text-[10px] font-black uppercase rounded-full px-4 h-6 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
                         <TabsTrigger value="all" className="text-[10px] font-black uppercase rounded-full px-4 h-6 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>

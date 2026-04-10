@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -47,9 +46,9 @@ export default function MeetingRoomPage() {
     const [isMuted, setIsMuted] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
 
-    const handleAdminBypass = useCallback(async (doc: any) => {
+    const handleAdminBypass = useCallback(async (docData: any) => {
         setIsInRoom(true);
-        if (!doc.startedAt) {
+        if (!docData.startedAt) {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
                 status: 'started',
                 startedAt: new Date().toISOString()
@@ -62,10 +61,10 @@ export default function MeetingRoomPage() {
             Query.equal('userId', user?.$id)
         ]);
         
-        if (check.total === 0) {
+        if (check.total === 0 && user?.$id) {
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, ID.unique(), {
                 meetingId,
-                userId: user?.$id,
+                userId: user.$id,
                 name: profile?.username || 'Admin',
                 avatar: profile?.avatar || '',
                 status: 'approved',
@@ -77,24 +76,24 @@ export default function MeetingRoomPage() {
 
     const fetchMeeting = useCallback(async () => {
         try {
-            const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
-            setMeeting(doc);
-            setBoardContent(doc.boardContent || '');
+            const docData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
+            setMeeting(docData);
+            setBoardContent(docData.boardContent || '');
             
-            if (doc.status === 'ended') {
+            if (docData.status === 'ended') {
                 toast({ variant: 'destructive', title: 'Meeting Expired' });
                 router.replace('/dashboard/meeting');
                 return;
             }
 
             // ADMIN BYPASS ENGINE
-            if (user?.$id === doc.hostId) {
-                await handleAdminBypass(doc);
+            if (user?.$id && user.$id === docData.hostId) {
+                await handleAdminBypass(docData);
             }
 
-            const limit = doc.type === 'personal' ? 3600 : 10800;
-            if (doc.startedAt) {
-                const elapsed = Math.floor((Date.now() - new Date(doc.startedAt).getTime()) / 1000);
+            const limit = docData.type === 'personal' ? 3600 : 10800;
+            if (docData.startedAt) {
+                const elapsed = Math.floor((Date.now() - new Date(docData.startedAt).getTime()) / 1000);
                 const remaining = limit - elapsed;
                 if (remaining <= 0) {
                     await endMeeting();
@@ -162,7 +161,6 @@ export default function MeetingRoomPage() {
     }, [isInRoom, timeLeft]);
 
     const handleEntry = async () => {
-        // Double check admin status for safety
         if (user?.$id === meeting?.hostId) {
             await handleAdminBypass(meeting);
             return;
@@ -214,6 +212,8 @@ export default function MeetingRoomPage() {
 
     if (loading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-white h-12 w-12" /></div>;
 
+    const isAdmin = user?.$id === meeting?.hostId;
+
     if (!isInRoom) {
         return (
             <div className="h-screen bg-background flex flex-col items-center justify-center p-6">
@@ -244,7 +244,7 @@ export default function MeetingRoomPage() {
                         <p className="text-primary font-black uppercase tracking-[0.5em] text-[10px] mb-6">Board Display</p>
                         <p className="text-2xl md:text-4xl font-bold leading-relaxed whitespace-pre-wrap">{meeting.boardContent}</p>
                     </div>
-                    {user?.$id === meeting.hostId && (
+                    {isAdmin && (
                         <Button onClick={() => toggleBoard(false)} variant="secondary" className="mt-10 rounded-full font-black uppercase tracking-widest h-12 px-8">Close Board</Button>
                     )}
                 </div>
@@ -259,7 +259,7 @@ export default function MeetingRoomPage() {
                     </div>
                 </div>
                 <div className="flex gap-2">
-                    {user?.$id === meeting.hostId && (
+                    {isAdmin && (
                         <Dialog open={isBoardOpen} onOpenChange={setIsBoardOpen}>
                             <DialogTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-10 w-10 bg-white/10 rounded-full"><Keyboard className="h-5 w-5" /></Button>
@@ -292,7 +292,6 @@ export default function MeetingRoomPage() {
                             </Avatar>
                             {p.isHost && <div className="absolute -top-1 -right-1 bg-yellow-500 p-1 rounded-full"><ShieldCheck className="h-3 w-3 text-black" /></div>}
                             <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-green-500 h-3 w-3 rounded-full border-2 border-black"></div>
-                            {/* Audio Indicator */}
                             <div className="absolute -bottom-1 -right-1 bg-primary p-1 rounded-full border border-black shadow-sm">
                                 <Volume2 className="h-2 w-2 text-white" />
                             </div>
@@ -302,7 +301,7 @@ export default function MeetingRoomPage() {
                 ))}
             </main>
 
-            {user?.$id === meeting.hostId && joinRequests.length > 0 && (
+            {isAdmin && joinRequests.length > 0 && (
                 <footer className="p-4 bg-white/5 border-t border-white/10 backdrop-blur-lg flex items-center gap-4 overflow-x-auto">
                     <p className="text-[10px] font-black uppercase text-primary shrink-0 mr-2">Requests:</p>
                     {joinRequests.map(req => (
@@ -314,7 +313,6 @@ export default function MeetingRoomPage() {
                 </footer>
             )}
 
-            {/* Media Controls */}
             <div className="absolute bottom-6 left-6 z-50 flex items-end gap-4">
                 <div className={cn(
                     "h-20 w-20 rounded-full bg-muted border-2 border-primary overflow-hidden transition-all duration-300",

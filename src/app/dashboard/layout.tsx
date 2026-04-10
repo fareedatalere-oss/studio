@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { Bell, Home, PlaySquare, Store, User, MessageSquare, X, Bot, Download } from 'lucide-react';
@@ -17,8 +16,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 /**
  * @fileOverview Dashboard Layout.
  * Immersive mode active for Private Chat Threads and Meetings.
- * Navigation is hidden in private chats to match the user's sketch requirements.
- * Integrated with Browser Notifications for real-time alerts.
+ * FIXED: Use ServiceWorkerRegistration for notifications to prevent "Illegal constructor" error.
  */
 
 export default function DashboardLayout({
@@ -39,7 +37,6 @@ export default function DashboardLayout({
   
   const lastCountRef = useRef(0);
 
-  // Hide nav for private chat threads (matching ID with underscores) and meeting rooms
   const isImmersive = 
     pathname.includes('/room/') ||
     pathname.match(/\/dashboard\/chat\/[a-zA-Z0-9_]+/);
@@ -101,11 +98,14 @@ export default function DashboardLayout({
         setIsPulsing(true);
         setTimeout(() => setIsPulsing(false), 3000);
         
-        if (Notification.permission === 'granted') {
-            new Notification("I-Pay Online World", {
-                body: "You have a new update in your dashboard.",
-                icon: "/logo.png"
-            });
+        if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then(registration => {
+                registration.showNotification("I-Pay Online World", {
+                    body: "You have a new update in your dashboard.",
+                    icon: "/logo.png",
+                    badge: "/logo.png"
+                });
+            }).catch(() => {});
         }
       }
       lastCountRef.current = newTotal;

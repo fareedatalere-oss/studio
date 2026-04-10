@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -7,7 +6,7 @@ import { Button } from '@/components/ui/button';
 
 /**
  * @fileOverview Meeting Hub Page.
- * SMALL SIZE UI: Implementation of sleek, compact buttons as requested.
+ * SMALL SIZE UI: Implementation of sleek, compact buttons.
  * TITLE CASE: Standardized all branding labels.
  */
 
@@ -28,7 +27,6 @@ export default function MeetingLandingPage() {
         </header>
 
         <div className="grid gap-3 max-w-[280px] mx-auto">
-          {/* Reduced Button Sizes */}
           <Button asChild className="h-11 flex items-center justify-between px-6 rounded-2xl group shadow-md" variant="default">
             <Link href="/dashboard/meeting/book">
               <div className="flex items-center gap-3 text-left">
