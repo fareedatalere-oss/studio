@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/button';
 
 /**
  * @fileOverview Meeting Hub Page.
- * SMALL SIZE UI: Sleek, compact buttons.
+ * COMPACT UI: Small size buttons for optimized mobile space.
  * TITLE CASE: Book a meeting, Enter meeting.
  */
 

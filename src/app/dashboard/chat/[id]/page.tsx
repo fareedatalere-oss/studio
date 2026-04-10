@@ -20,8 +20,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Master Private Chat Thread.
- * PERMANENCE ENGINE V9: Uses an indestructible ID-Map reconciliation to prevent ANY message replacement.
- * Ensures every message is strictly appended and remains visible forever unless deleted.
+ * PERMANENCE ENGINE V10: Uses indestructible Map-based reconciliation to ensure history never vanishes.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -71,7 +70,6 @@ export default function ChatThreadPage() {
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
-        // HIGH-PERSISTENCE LISTENER
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
             where('chatId', '==', chatId)
@@ -86,12 +84,12 @@ export default function ChatThreadPage() {
             setMessages(prev => {
                 const messageMap = new Map();
                 
-                // 1. Load existing state
+                // Keep existing messages in state
                 prev.forEach(msg => messageMap.set(msg.$id, msg));
                 
-                // 2. Merge server data (Server always wins for confirmed messages)
+                // Overwrite or Add new server messages
                 serverMsgs.forEach(msg => {
-                    // If this server message replaces an optimistic one, remove the temp ID
+                    // Remove temporary local messages if the server version has arrived
                     const tempId = (msg as any).tempId;
                     if (tempId && messageMap.has(tempId)) {
                         messageMap.delete(tempId);
@@ -99,7 +97,7 @@ export default function ChatThreadPage() {
                     messageMap.set(msg.$id, msg);
                 });
 
-                // 3. Sort and return
+                // Convert Map to Array and sort by creation time
                 return Array.from(messageMap.values()).sort((a: any, b: any) => {
                     const timeA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || 0;
                     const timeB = b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || 0;
@@ -145,7 +143,7 @@ export default function ChatThreadPage() {
         setRecordingTime(0);
         setIsRecording(false);
 
-        // INSTANT DROP (💧)
+        // Optimistic UI Append
         const optimisticMsg = {
             $id: tempId,
             chatId,

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -91,11 +92,10 @@ export default function MeetingJoinPage() {
             sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ name, avatar, requestId }));
 
             if (isAdmin) {
-                toast({ title: 'Welcome Admin', description: 'Entering meeting room instantly.' });
+                // Instantly Land Admin
                 router.replace(`/dashboard/meeting/room/${meetingId}`);
             } else {
                 setStep('waiting');
-                // Wait for Admin Approval
                 const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_ATTENDEES}.documents`], response => {
                     const payload = response.payload as any;
                     if (payload.$id === requestId) {

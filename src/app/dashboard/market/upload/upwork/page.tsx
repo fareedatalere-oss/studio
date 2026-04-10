@@ -16,6 +16,20 @@ import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_UPWORK_PROFILES, ID } from '@/lib/appwrite';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
+/**
+ * @fileOverview Upwork Profile Upload.
+ * INSTANT CLOUDINARY LOGIC: Files go directly to Cloudinary.
+ */
+
+function toBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+    });
+}
+
 export default function UploadUpworkProfilePage() {
     const { toast } = useToast();
     const router = useRouter();
@@ -33,35 +47,34 @@ export default function UploadUpworkProfilePage() {
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const certInputRef = useRef<HTMLInputElement>(null);
 
-    function toBase64(file: File): Promise<string> {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = error => reject(error);
-        });
-    }
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !avatar || !certificate) return;
+        if (!user || !avatar || !certificate) {
+            toast({ variant: 'destructive', title: 'Missing required files.' });
+            return;
+        }
 
         setIsLoading(true);
-        toast({ title: 'Direct Cloudinary Multi-Upload...' });
+        toast({ title: 'Uploading Identity...' });
 
         try {
+            // 1. Convert to Base64
             const avatarB64 = await toBase64(avatar);
             const certB64 = await toBase64(certificate);
 
+            // 2. Parallel Instant Cloudinary Uploads
             const [avatarUp, certUp] = await Promise.all([
-                uploadToCloudinary(avatarB64),
+                uploadToCloudinary(avatarB64, 'image'),
                 uploadToCloudinary(certB64, 'raw')
             ]);
 
-            if (!avatarUp.success || !certUp.success) throw new Error("File upload failed.");
+            if (!avatarUp.success || !certUp.success) {
+                throw new Error("Direct upload failed.");
+            }
 
+            // 3. Save to Database
             const newProfile = {
-                name: user.name,
+                name: user.name || 'Freelancer',
                 title,
                 description,
                 phoneNumber: phone,
@@ -90,7 +103,7 @@ export default function UploadUpworkProfilePage() {
         <Card className="w-full max-w-2xl mx-auto rounded-[2rem] shadow-xl">
             <CardHeader>
                 <CardTitle className="text-center font-black uppercase tracking-tighter">Freelance Identity</CardTitle>
-                <CardDescription className="text-center font-bold">Cloudinary Direct Payout logic integrated</CardDescription>
+                <CardDescription className="text-center font-bold">Instantly published to Cloudinary</CardDescription>
             </CardHeader>
             <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-6">
@@ -120,15 +133,19 @@ export default function UploadUpworkProfilePage() {
                         <Button type="button" variant="outline" className="w-full justify-start gap-2 h-12 rounded-xl" onClick={() => certInputRef.current?.click()}>
                             <UploadCloud className="h-5 w-5" /> {certificate ? certificate.name : 'Choose Certificate File'}
                         </Button>
-                        <input type="file" ref={certInputRef} className="hidden" onChange={(e) => { if(e.target.files?.[0]) setCertificate(e.target.files[0]); }} required />
+                        <input type="file" ref={certInputRef} className="hidden" onChange={(e) => { if(e.target.files?.[0]) setOficate(e.target.files[0]); }} required />
                     </div>
                     <div className="space-y-2">
                         <Label className="font-black uppercase text-[10px] opacity-70">Business Address</Label>
                         <Input value={address} onChange={e => setAddress(e.target.value)} required className="h-12 rounded-xl bg-muted/50 border-none" />
                     </div>
+                    <div className="space-y-2">
+                        <Label className="font-black uppercase text-[10px] opacity-70">Phone Number</Label>
+                        <Input type="tel" value={phone} onChange={e => setPhone(e.target.value)} required className="h-12 rounded-xl bg-muted/50 border-none" />
+                    </div>
 
                     <Button type="submit" className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-lg" disabled={isLoading}>
-                        {isLoading ? <Loader2 className="animate-spin" /> : "Submit directly to Market"}
+                        {isLoading ? <Loader2 className="animate-spin h-6 w-6" /> : "Complete Upload"}
                     </Button>
                 </form>
             </CardContent>

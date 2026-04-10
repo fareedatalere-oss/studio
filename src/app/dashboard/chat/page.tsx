@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -20,7 +21,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Hub Page.
- * SMALL SIZE UI: Implementation of sleek, compact buttons and tabs.
+ * COMPACT UI: Small size buttons and centered tabs.
  * TITLE CASE: Recent, All.
  */
 
