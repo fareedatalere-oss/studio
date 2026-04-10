@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Camera, ImageIcon, Loader2, Video, CheckCircle2 } from 'lucide-react';
+import { Camera, ImageIcon, Loader2, Video, CheckCircle2, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,10 +24,39 @@ export default function MeetingJoinPage() {
     const [avatar, setAvatar] = useState<string | null>(null);
     const [step, setStep] = useState<'info' | 'waiting'>('info');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [hasCamera, setHasCamera] = useState(false);
     
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    useEffect(() => {
+        const setupCamera = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                    setHasCamera(true);
+                }
+            } catch (e) {
+                setHasCamera(false);
+            }
+        };
+        setupCamera();
+    }, []);
+
+    const handleCapture = () => {
+        if (videoRef.current && canvasRef.current) {
+            const canvas = canvasRef.current;
+            const video = videoRef.current;
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d')?.drawImage(video, 0, 0);
+            setAvatar(canvas.toDataURL('image/png'));
+        }
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const reader = new FileReader();
             reader.onload = (ev) => setAvatar(ev.target?.result as string);
@@ -37,7 +66,7 @@ export default function MeetingJoinPage() {
 
     const handleRequestJoin = async () => {
         if (!name || !avatar) {
-            toast({ variant: 'destructive', title: 'Details Required', description: 'Please enter your name and choose an avatar.' });
+            toast({ variant: 'destructive', title: 'Identity Required', description: 'Enter your name and provide a photo.' });
             return;
         }
 
@@ -53,18 +82,17 @@ export default function MeetingJoinPage() {
                 createdAt: new Date().toISOString()
             });
 
-            // Save identity to session so they can enter room once approved
             sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ name, avatar, requestId }));
             setStep('waiting');
 
-            // Listen for host approval
+            // Wait for Admin Approval
             const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_ATTENDEES}.documents`], response => {
                 const payload = response.payload as any;
                 if (payload.$id === requestId) {
                     if (payload.status === 'approved') {
                         router.replace(`/dashboard/meeting/room/${meetingId}`);
                     } else if (payload.status === 'declined') {
-                        toast({ variant: 'destructive', title: 'Request Denied', description: 'The host has declined your request to join.' });
+                        toast({ variant: 'destructive', title: 'Access Denied', description: 'The admin declined your request.' });
                         setStep('info');
                         setIsSubmitting(false);
                     }
@@ -81,92 +109,67 @@ export default function MeetingJoinPage() {
 
     if (step === 'waiting') {
         return (
-            <div className="h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-                <Card className="max-w-md w-full rounded-[3rem] p-10 shadow-2xl border-none space-y-8">
-                    <div className="relative mx-auto">
-                        <Loader2 className="h-32 w-32 animate-spin text-primary opacity-20" />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <AvatarContainer className="h-20 w-20 ring-4 ring-primary p-1">
-                                <AvatarImg src={avatar || ''} />
-                                <AvatarFall>{name.charAt(0)}</AvatarFall>
-                            </AvatarContainer>
+            <div className="h-screen bg-black flex flex-col items-center justify-center p-6 text-center">
+                <div className="relative mb-10">
+                    <div className="h-32 w-32 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="h-24 w-24 rounded-full overflow-hidden border-2 border-white/20">
+                            <img src={avatar || ''} className="h-full w-full object-cover" />
                         </div>
                     </div>
-                    <div>
-                        <h2 className="text-2xl font-black uppercase tracking-tighter">Waiting for Admin...</h2>
-                        <p className="text-sm font-bold text-muted-foreground mt-2 italic">@{name}, the host has been notified of your presence.</p>
-                    </div>
-                    <div className="bg-primary/5 p-4 rounded-2xl">
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary animate-pulse">Request Status: Pending</p>
-                    </div>
-                </Card>
+                </div>
+                <h2 className="text-white text-2xl font-black uppercase tracking-tighter">Lobby: @{name}</h2>
+                <p className="text-primary font-bold text-xs uppercase mt-2 animate-pulse">Waiting for admin to let you in...</p>
             </div>
         );
     }
 
     return (
-        <div className="h-screen bg-background flex flex-col items-center justify-center p-6">
-            <Card className="max-w-md w-full rounded-[3rem] shadow-2xl border-none overflow-hidden">
-                <CardHeader className="bg-primary text-primary-foreground p-8 text-center">
-                    <div className="mx-auto h-12 w-12 bg-white/20 rounded-2xl flex items-center justify-center mb-4">
-                        <Video className="h-6 w-6 text-white" />
-                    </div>
-                    <CardTitle className="text-2xl font-black uppercase tracking-tighter">Join Meeting</CardTitle>
-                    <CardDescription className="text-white/70 font-bold">Identity setup for this session</CardDescription>
+        <div className="h-screen bg-background flex flex-col p-6 overflow-y-auto pb-20">
+            <Card className="max-w-md w-full mx-auto rounded-[2.5rem] shadow-2xl border-none overflow-hidden mt-10">
+                <CardHeader className="bg-primary text-white p-8 text-center">
+                    <CardTitle className="text-2xl font-black uppercase tracking-widest">Meeting Identity</CardTitle>
+                    <CardDescription className="text-white/70 font-bold">Prepare your feed to enter</CardDescription>
                 </CardHeader>
                 <CardContent className="p-8 space-y-6">
                     <div className="space-y-2">
-                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest">Your Display Name</Label>
+                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest">Display Name</Label>
                         <Input 
-                            placeholder="Enter your name..." 
-                            className="h-14 rounded-2xl bg-muted border-none px-6 font-black text-lg"
+                            placeholder="Your Name..." 
+                            className="h-12 rounded-2xl bg-muted border-none px-6 font-bold"
                             value={name}
                             onChange={e => setName(e.target.value)}
                         />
                     </div>
 
-                    <div className="space-y-2">
-                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest">Meeting Avatar</Label>
-                        <div className="flex gap-4 items-center">
-                            <div 
-                                className="h-24 w-24 rounded-[2rem] bg-muted border-2 border-dashed border-primary/20 flex items-center justify-center cursor-pointer overflow-hidden relative group"
-                                onClick={() => fileInputRef.current?.click()}
-                            >
+                    <div className="space-y-4">
+                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest">Live Face / Icon</Label>
+                        <div className="relative aspect-video bg-black rounded-3xl overflow-hidden border-4 border-white shadow-xl">
+                            {avatar ? (
+                                <img src={avatar} className="h-full w-full object-cover" />
+                            ) : (
+                                <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+                            )}
+                            <canvas ref={canvasRef} className="hidden" />
+                            
+                            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3">
                                 {avatar ? (
-                                    <Image src={avatar} alt="Avatar" fill className="object-cover" />
+                                    <Button onClick={() => setAvatar(null)} size="sm" variant="destructive" className="rounded-full font-black uppercase text-[9px] h-8">Reset</Button>
                                 ) : (
-                                    <ImageIcon className="h-8 w-8 text-muted-foreground opacity-30" />
+                                    <Button onClick={handleCapture} size="sm" className="rounded-full font-black uppercase text-[9px] h-8" disabled={!hasCamera}><Camera className="mr-1 h-3 w-3" /> Capture</Button>
                                 )}
-                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Camera className="h-5 w-5 text-white" />
-                                </div>
-                            </div>
-                            <div className="flex-1 space-y-2">
-                                <Button variant="outline" className="w-full rounded-2xl h-10 font-black uppercase text-[9px] tracking-widest" onClick={() => fileInputRef.current?.click()}>
-                                    Choose Photo
-                                </Button>
-                                <p className="text-[8px] font-bold text-muted-foreground leading-tight italic">Select a clear face photo from your gallery or use camera.</p>
+                                <Button onClick={() => fileInputRef.current?.click()} size="sm" variant="secondary" className="rounded-full font-black uppercase text-[9px] h-8"><UploadCloud className="mr-1 h-3 w-3" /> Upload</Button>
                             </div>
                         </div>
-                        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageChange} />
+                        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
                     </div>
                 </CardContent>
-                <CardFooter className="p-8 bg-muted/30">
-                    <Button onClick={handleRequestJoin} className="w-full h-16 rounded-full font-black uppercase tracking-widest text-lg shadow-xl" disabled={isSubmitting || !name || !avatar}>
-                        {isSubmitting ? <Loader2 className="animate-spin" /> : 'Request to Join'}
+                <CardFooter className="p-8 pt-0">
+                    <Button onClick={handleRequestJoin} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-xl" disabled={isSubmitting || !name || !avatar}>
+                        {isSubmitting ? <Loader2 className="animate-spin" /> : 'Enter Meeting'}
                     </Button>
                 </CardFooter>
             </Card>
         </div>
     );
-}
-
-function AvatarContainer({ children, className }: { children: React.ReactNode, className?: string }) {
-    return <div className={cn("relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full", className)}>{children}</div>;
-}
-function AvatarImg({ src }: { src: string }) {
-    return <img src={src} className="aspect-square h-full w-full object-cover" />;
-}
-function AvatarFall({ children, className }: { children: React.ReactNode, className?: string }) {
-    return <div className={cn("flex h-full w-full items-center justify-center rounded-full bg-muted", className)}>{children}</div>;
 }

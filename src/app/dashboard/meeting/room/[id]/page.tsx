@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -6,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { 
     PhoneOff, Loader2, Camera, 
     X, Monitor, Eraser, Send,
-    Clock, Check, UserMinus, ShieldCheck
+    Clock, Check, UserMinus, ShieldCheck, Keyboard, LayoutTemplate
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,17 +37,9 @@ export default function MeetingRoomPage() {
     const [isBoardOpen, setIsBoardOpen] = useState(false);
     const [boardDraft, setBoardContent] = useState('');
     
-    // Presence & Media States
+    // Media States
     const [useCamera, setUseCamera] = useState(true);
     const videoRef = useRef<HTMLVideoElement>(null);
-
-    // GATEKEEPER CHECK: Redirect guests if no identity set
-    useEffect(() => {
-        const guestIdentity = sessionStorage.getItem(`meeting_guest_${meetingId}`);
-        if (!user && !guestIdentity) {
-            router.replace(`/dashboard/meeting/join/${meetingId}`);
-        }
-    }, [user, meetingId, router]);
 
     const fetchMeeting = useCallback(async () => {
         try {
@@ -57,12 +48,13 @@ export default function MeetingRoomPage() {
             setBoardContent(doc.boardContent || '');
             
             if (doc.status === 'ended') {
-                toast({ title: 'Meeting Expired', description: 'This link is no longer valid.' });
+                toast({ variant: 'destructive', title: 'Meeting Expired' });
                 router.replace('/dashboard/meeting');
                 return;
             }
 
-            const limit = doc.type === 'personal' ? 3600 : 10800;
+            // ENFORCE LIMITS
+            const limit = doc.type === 'personal' ? 3600 : 10800; // 1h vs 3h
             if (doc.startedAt) {
                 const elapsed = Math.floor((Date.now() - new Date(doc.startedAt).getTime()) / 1000);
                 const remaining = limit - elapsed;
@@ -92,10 +84,8 @@ export default function MeetingRoomPage() {
                 Query.equal('meetingId', meetingId),
                 Query.limit(100)
             ]);
-            
-            const all = res.documents;
-            setParticipants(all.filter(a => a.status === 'approved'));
-            setJoinRequests(all.filter(a => a.status === 'waiting'));
+            setParticipants(res.documents.filter(a => a.status === 'approved'));
+            setJoinRequests(res.documents.filter(a => a.status === 'waiting'));
         } catch (e) {}
     }, [meetingId]);
 
@@ -107,7 +97,6 @@ export default function MeetingRoomPage() {
             const payload = response.payload as any;
             if (payload.status === 'ended') router.replace('/dashboard/meeting');
             setMeeting(payload);
-            setBoardContent(payload.boardContent || '');
         });
 
         const unsubAttendees = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_ATTENDEES}.documents`], response => {
@@ -133,90 +122,88 @@ export default function MeetingRoomPage() {
         return () => clearInterval(interval);
     }, [isInRoom, timeLeft]);
 
-    const startSession = async () => {
-        setIsInRoom(true);
-        if (user && meeting && meeting.hostId === user.$id && !meeting.startedAt) {
-            try {
+    const handleEntry = async () => {
+        const guestData = sessionStorage.getItem(`meeting_guest_${meetingId}`);
+        const isAdmin = user?.$id === meeting?.hostId;
+
+        if (isAdmin) {
+            setIsInRoom(true);
+            if (!meeting.startedAt) {
                 await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
                     status: 'started',
                     startedAt: new Date().toISOString()
                 });
-                
-                // Add host as approved attendee
-                await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, ID.unique(), {
-                    meetingId,
-                    userId: user.$id,
-                    name: profile?.username || 'Admin',
-                    avatar: profile?.avatar || '',
-                    status: 'approved',
-                    isHost: true
-                });
-            } catch (e) {}
+            }
+            // Auto-approve host
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, ID.unique(), {
+                meetingId,
+                userId: user?.$id,
+                name: profile?.username || 'Admin',
+                avatar: profile?.avatar || '',
+                status: 'approved',
+                isHost: true
+            });
+        } else if (guestData) {
+            // Check if guest was already approved
+            const parsed = JSON.parse(guestData);
+            const attendee = await databases.getDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, parsed.requestId);
+            if (attendee.status === 'approved') {
+                setIsInRoom(true);
+            } else {
+                router.replace(`/dashboard/meeting/join/${meetingId}`);
+            }
+        } else {
+            router.replace(`/dashboard/meeting/join/${meetingId}`);
         }
     };
 
-    const approveUser = async (id: string) => {
-        try {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, id, { status: 'approved' });
-            toast({ title: 'User Approved' });
-        } catch (e) {}
+    const approveUser = async (req: any) => {
+        if (meeting.type === 'personal' && participants.length >= 5) {
+            toast({ variant: 'destructive', title: 'Limit Reached', description: 'Personal meetings are limited to 5 people.' });
+            return;
+        }
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, req.$id, { status: 'approved' });
     };
 
-    const declineUser = async (id: string) => {
-        try {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, id, { status: 'declined' });
-        } catch (e) {}
-    };
-
-    const updateBoard = async () => {
-        if (meeting.hostId !== user?.$id) return;
-        try {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { boardContent: boardDraft });
-            toast({ title: 'Board Updated' });
-        } catch (e) {}
+    const toggleBoard = async (visible: boolean) => {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
+            boardVisible: visible,
+            boardContent: boardDraft 
+        });
+        setIsBoardOpen(false);
     };
 
     const formatTime = (seconds: number) => {
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
+        const m = Math.floor(seconds / 60);
         const s = seconds % 60;
-        return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
-    useEffect(() => {
-        if (isInRoom && useCamera && videoRef.current) {
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                .then(stream => { if (videoRef.current) videoRef.current.srcObject = stream; })
-                .catch(() => {});
-        }
-    }, [isInRoom, useCamera]);
+    const getIconSize = () => {
+        const count = participants.length;
+        if (count <= 2) return "h-40 w-40";
+        if (count <= 4) return "h-28 w-28";
+        if (count <= 8) return "h-20 w-20";
+        return "h-14 w-14";
+    };
 
     if (loading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-white h-12 w-12" /></div>;
 
     if (!isInRoom) {
         return (
-            <div className="h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-                <Card className="max-w-md w-full rounded-[3rem] overflow-hidden shadow-2xl border-none">
-                    <CardHeader className="bg-primary/5 pt-10 pb-6">
-                        <div className="mx-auto h-20 w-20 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                            <Monitor className="h-10 w-10 text-primary" />
-                        </div>
-                        <CardTitle className="text-3xl font-black uppercase tracking-tighter">{meeting?.name}</CardTitle>
-                        <CardDescription className="font-bold text-sm">{meeting?.description}</CardDescription>
+            <div className="h-screen bg-background flex flex-col items-center justify-center p-6">
+                <Card className="max-w-md w-full rounded-[3rem] overflow-hidden shadow-2xl border-none text-center">
+                    <CardHeader className="bg-primary/5 pt-10">
+                        <Video className="mx-auto h-12 w-12 text-primary" />
+                        <CardTitle className="text-3xl font-black uppercase tracking-tighter mt-4">{meeting?.name}</CardTitle>
                     </CardHeader>
-                    <CardContent className="pt-4 space-y-6 pb-10">
-                        <div className="flex items-center justify-center gap-6 text-[10px] font-black uppercase text-muted-foreground">
-                            <div className="flex flex-col items-center gap-1">
-                                <Clock className="h-4 w-4 opacity-50" />
-                                <span>{meeting?.type === 'personal' ? '1 Hour' : '3 Hours'}</span>
-                            </div>
-                            <div className="flex flex-col items-center gap-1">
-                                <UserMinus className="h-4 w-4 opacity-50" />
-                                <span>{meeting?.type === 'personal' ? 'Up to 5' : 'Unlimited'}</span>
-                            </div>
+                    <CardContent className="py-8 space-y-6">
+                        <div className="p-4 bg-muted/30 rounded-2xl">
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-50">Lobby Status</p>
+                            <p className="font-bold">{meeting?.status === 'started' ? 'Live Session' : 'Host not in room yet'}</p>
                         </div>
-                        <Button onClick={startSession} className="w-full h-16 rounded-full font-black uppercase tracking-widest text-lg shadow-xl" size="sm">
-                            {meeting?.hostId === user?.$id ? 'Start Session' : 'Enter Lobby'}
+                        <Button onClick={handleEntry} className="w-full h-16 rounded-full font-black uppercase tracking-widest text-lg shadow-xl">
+                            Enter Meeting Room
                         </Button>
                     </CardContent>
                 </Card>
@@ -225,107 +212,117 @@ export default function MeetingRoomPage() {
     }
 
     return (
-        <div className="h-screen w-full relative overflow-hidden bg-black flex flex-col font-body">
-            <header className="relative z-20 p-4 bg-black/60 backdrop-blur-md border-b border-white/10 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="bg-red-500 h-2.5 w-2.5 rounded-full animate-pulse shadow-[0_0_10px_red]"></div>
-                    <div className="flex flex-col">
-                        <h2 className="text-white font-black uppercase text-[10px] tracking-widest truncate max-w-[120px]">{meeting?.name}</h2>
-                        {timeLeft !== null && <p className="text-white/60 font-mono text-[8px] uppercase">{formatTime(timeLeft)} left</p>}
+        <div className="h-screen w-full bg-black flex flex-col overflow-hidden relative font-body text-white">
+            {/* Community Board Overlay */}
+            {meeting?.boardVisible && (
+                <div className="absolute inset-0 z-[100] bg-black p-10 flex flex-col items-center justify-center text-center animate-in zoom-in-95 duration-300">
+                    <div className="max-w-3xl w-full p-10 bg-white/5 border border-white/10 rounded-[3rem] shadow-2xl">
+                        <p className="text-primary font-black uppercase tracking-[0.5em] text-[10px] mb-6">Board Display</p>
+                        <p className="text-2xl md:text-4xl font-bold leading-relaxed whitespace-pre-wrap">{meeting.boardContent}</p>
                     </div>
-                </div>
-                <div className="flex gap-2">
-                    <Button variant="ghost" size="icon" className={cn("h-10 w-10 rounded-full", useCamera ? "bg-primary text-white" : "bg-white/10 text-white")} onClick={() => setUseCamera(!useCamera)}><Camera className="h-5 w-5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full bg-red-600 text-white" onClick={endMeeting}><PhoneOff className="h-5 w-5" /></Button>
-                </div>
-            </header>
-
-            <main className="flex-1 relative z-10 p-6 overflow-y-auto">
-                <div className="flex flex-wrap justify-center items-center gap-8 max-w-4xl mx-auto h-full content-center">
-                    {participants.map((p) => (
-                        <div key={p.$id} className="flex flex-col items-center gap-2 group">
-                            <div className="relative">
-                                <Avatar className={cn(
-                                    "h-16 w-16 border-4 p-1 shadow-2xl transition-transform hover:scale-110",
-                                    p.isHost ? "border-yellow-500" : "border-primary/40"
-                                )}>
-                                    <AvatarImage src={p.avatar} />
-                                    <AvatarFallback className="font-black text-2xl uppercase bg-primary text-white">{p.name?.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                                {p.isHost && <div className="absolute -top-1 -right-1 bg-yellow-500 rounded-full p-1 border-2 border-black"><ShieldCheck className="h-3 w-3 text-black" /></div>}
-                                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-green-500 h-3 w-3 rounded-full border-2 border-black"></div>
-                            </div>
-                            <div className="text-center">
-                                <p className="text-[10px] font-black text-white uppercase tracking-tighter">@{p.name}</p>
-                                <p className="text-[8px] font-bold text-primary animate-pulse uppercase">Live</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </main>
-
-            {meeting?.hostId === user?.$id && joinRequests.length > 0 && (
-                <div className="absolute bottom-24 left-4 right-4 z-30 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-4 flex items-center justify-between shadow-2xl animate-in slide-in-from-bottom-10">
-                    <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10 ring-2 ring-primary">
-                            <AvatarImage src={joinRequests[0].avatar} />
-                            <AvatarFallback>{joinRequests[0].name?.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                            <p className="text-[10px] font-black uppercase text-white tracking-widest">Entry Request</p>
-                            <p className="text-sm font-bold text-white">@{joinRequests[0].name} is waiting...</p>
-                        </div>
-                    </div>
-                    <div className="flex gap-2">
-                        <Button size="sm" variant="destructive" className="rounded-full h-10 px-4 font-black text-[10px] uppercase" onClick={() => declineUser(joinRequests[0].$id)}><X className="h-4 w-4 mr-1" /> Deny</Button>
-                        <Button size="sm" className="rounded-full h-10 px-6 font-black text-[10px] uppercase bg-green-500 hover:bg-green-600" onClick={() => approveUser(joinRequests[0].$id)}><Check className="h-4 w-4 mr-1" /> Approve</Button>
-                    </div>
+                    {user?.$id === meeting.hostId && (
+                        <Button onClick={() => toggleBoard(false)} variant="secondary" className="mt-10 rounded-full font-black uppercase tracking-widest h-12 px-8">Close Board</Button>
+                    )}
                 </div>
             )}
 
-            <footer className="relative z-20 p-6 bg-gradient-to-t from-black to-transparent flex items-center justify-center gap-6">
-                <Dialog open={isBoardOpen} onOpenChange={setIsBoardOpen}>
-                    <DialogTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-16 w-16 rounded-full bg-white/10 border-white/20 text-white shadow-xl hover:bg-white/20 transition-all">
-                            <Monitor className="h-7 w-7" />
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl h-[80vh] flex flex-col rounded-[3rem] p-8 border-none shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-                        <DialogHeader className="border-b pb-4">
-                            <div className="flex items-center justify-between">
-                                <DialogTitle className="font-black uppercase tracking-widest text-sm">Meeting Board</DialogTitle>
-                                {meeting?.hostId === user?.$id && (
-                                    <div className="flex gap-2">
-                                        <Button size="icon" variant="ghost" onClick={() => setBoardContent('')}><Eraser className="h-4 w-4 text-destructive" /></Button>
-                                        <Button size="icon" variant="ghost" onClick={updateBoard}><Send className="h-4 w-4 text-primary" /></Button>
-                                    </div>
-                                )}
-                            </div>
-                        </DialogHeader>
-                        <div className="flex-1 py-6">
-                            {meeting?.hostId === user?.$id ? (
-                                <Textarea 
-                                    className="h-full resize-none border-none text-lg font-bold placeholder:opacity-30 focus-visible:ring-0" 
-                                    placeholder="Write on the community board..."
-                                    value={boardDraft}
-                                    onChange={(e) => setBoardContent(e.target.value)}
-                                />
-                            ) : (
-                                <div className="h-full w-full bg-muted/30 rounded-3xl p-6 overflow-y-auto">
-                                    <p className="whitespace-pre-wrap font-bold text-lg leading-relaxed">{boardDraft || "Admin hasn't written anything yet."}</p>
-                                </div>
-                            )}
-                        </div>
-                    </DialogContent>
-                </Dialog>
-
-                <div className="relative group">
-                    <video ref={videoRef} className="h-16 w-16 rounded-full bg-muted object-cover border-2 border-primary group-hover:scale-150 group-hover:-translate-y-10 transition-all duration-300" autoPlay muted playsInline />
-                    <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                        <Camera className="h-4 w-4 text-white" />
+            <header className="p-4 flex items-center justify-between border-b border-white/10 bg-black/50 backdrop-blur-md z-50">
+                <div className="flex items-center gap-3">
+                    <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_red]"></div>
+                    <div>
+                        <h2 className="font-black uppercase text-[10px] tracking-widest leading-none">{meeting?.name}</h2>
+                        {timeLeft !== null && <p className="text-[8px] font-mono text-white/50 uppercase mt-1">End in: {formatTime(timeLeft)}</p>}
                     </div>
                 </div>
-            </footer >
+                <div className="flex gap-2">
+                    {user?.$id === meeting.hostId && (
+                        <>
+                            <Dialog open={isBoardOpen} onOpenChange={setIsBoardOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-10 w-10 bg-white/10 rounded-full"><Keyboard className="h-5 w-5" /></Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-md rounded-[2.5rem] p-8 border-none bg-black text-white">
+                                    <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-xs">Community Board</DialogTitle></DialogHeader>
+                                    <Textarea 
+                                        className="h-40 bg-white/5 border-white/10 rounded-2xl mt-4 font-bold text-lg" 
+                                        placeholder="Write message..."
+                                        value={boardDraft}
+                                        onChange={e => setBoardContent(e.target.value)}
+                                    />
+                                    <div className="grid grid-cols-2 gap-3 mt-6">
+                                        <Button variant="ghost" onClick={() => setBoardContent('')} className="rounded-full uppercase font-black text-[10px]"><Eraser className="mr-2 h-4 w-4" /> Clear</Button>
+                                        <Button onClick={() => toggleBoard(true)} className="rounded-full uppercase font-black text-[10px]">Display All</Button>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
+                            <Button variant="ghost" size="icon" className="h-10 w-10 bg-red-600/20 text-red-500 rounded-full" onClick={endMeeting}><PhoneOff className="h-5 w-5" /></Button>
+                        </>
+                    )}
+                    {user?.$id !== meeting.hostId && (
+                        <Button variant="ghost" size="icon" className="h-10 w-10 bg-red-600/20 text-red-500 rounded-full" onClick={() => router.push('/dashboard/meeting')}><PhoneOff className="h-5 w-5" /></Button>
+                    )}
+                </div>
+            </header>
+
+            <main className="flex-1 p-6 flex flex-wrap items-center justify-center gap-6 overflow-y-auto content-center">
+                {participants.map((p) => (
+                    <div key={p.$id} className="flex flex-col items-center gap-3 animate-in fade-in zoom-in-95">
+                        <div className={cn(
+                            "relative rounded-full border-4 p-1",
+                            p.isHost ? "border-yellow-500" : "border-primary/40",
+                            getIconSize()
+                        )}>
+                            <Avatar className="h-full w-full">
+                                <AvatarImage src={p.avatar} className="object-cover" />
+                                <AvatarFallback className="font-black text-xl bg-primary">{p.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            {p.isHost && <div className="absolute -top-1 -right-1 bg-yellow-500 p-1 rounded-full"><ShieldCheck className="h-3 w-3 text-black" /></div>}
+                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-green-500 h-3 w-3 rounded-full border-2 border-black"></div>
+                        </div>
+                        <p className="font-black uppercase text-[10px] tracking-widest text-white/80">@{p.name}</p>
+                    </div>
+                ))}
+            </main>
+
+            {/* Admin Join Requests Bar */}
+            {user?.$id === meeting.hostId && joinRequests.length > 0 && (
+                <footer className="p-4 bg-white/5 border-t border-white/10 backdrop-blur-lg flex items-center gap-4 overflow-x-auto">
+                    <p className="text-[10px] font-black uppercase text-primary shrink-0 mr-2">Requests:</p>
+                    {joinRequests.map(req => (
+                        <Button 
+                            key={req.$id} 
+                            onClick={() => approveUser(req)}
+                            variant="ghost" 
+                            className="h-12 px-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-3 shrink-0 hover:bg-white/10"
+                        >
+                            <Avatar className="h-8 w-8"><AvatarImage src={req.avatar} /></Avatar>
+                            <span className="text-[10px] font-black uppercase">Approve {req.name}</span>
+                        </Button>
+                    ))}
+                </footer>
+            )}
+
+            {/* Self Media Control */}
+            <div className="absolute bottom-6 left-6 z-50 group">
+                <div className={cn(
+                    "h-20 w-20 rounded-full bg-muted border-2 border-primary overflow-hidden transition-all duration-300 group-hover:scale-150 group-hover:-translate-y-10",
+                    !useCamera && "flex items-center justify-center"
+                )}>
+                    {useCamera ? (
+                        <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
+                    ) : (
+                        <Camera className="h-6 w-6 text-white/20" />
+                    )}
+                </div>
+                <Button 
+                    size="icon" 
+                    variant="ghost" 
+                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-black/50 border border-white/20"
+                    onClick={() => setUseCamera(!useCamera)}
+                >
+                    <Camera className="h-3 w-3" />
+                </Button>
+            </div>
         </div>
     );
 }
