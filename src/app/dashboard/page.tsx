@@ -21,6 +21,8 @@ import {
   Tv,
   Lightbulb,
   Bot,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-appwrite';
@@ -29,8 +31,8 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Dashboard Page.
- * UI Standard: Emerald Green buttons (Professional, not too green).
- * Standard: Title Case labels.
+ * UPDATED: Reduced Wallet Card size and added Blue theme + Balance Toggle.
+ * UI Standard: Emerald Green buttons for actions.
  */
 
 export default function DashboardPage() {
@@ -39,6 +41,7 @@ export default function DashboardPage() {
   const router = useRouter();
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showBalance, setShowBalance] = useState(false);
   
   const isLoading = userLoading;
 
@@ -80,55 +83,71 @@ export default function DashboardPage() {
 
   return (
     <div className="container py-6 space-y-6">
-      <Card className="rounded-[2.2rem] shadow-xl border-none bg-gradient-to-br from-white to-muted/20 overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between pb-2 px-6">
-          <CardTitle className="text-[10px] font-black tracking-widest opacity-60">My Wallet</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => router.push('/dashboard/deposit')} disabled={isProcessing} className="rounded-full h-6 px-3 border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white font-black text-[8px] uppercase transition-all">
+      {/* Wallet Card - Reduced Size & Blue Theme */}
+      <Card className="rounded-[1.5rem] shadow-xl border-none bg-primary text-primary-foreground overflow-hidden">
+        <CardHeader className="flex flex-row items-center justify-between pb-1 px-4 pt-4">
+          <CardTitle className="text-[9px] font-black uppercase tracking-widest opacity-80">My Wallet</CardTitle>
+          <Button 
+            variant="secondary" 
+            size="sm" 
+            onClick={() => router.push('/dashboard/deposit')} 
+            disabled={isProcessing} 
+            className="rounded-full h-6 px-3 bg-white text-primary hover:bg-white/90 font-black text-[8px] uppercase transition-all"
+          >
             {isProcessing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <CircleDollarSign className="mr-1 h-3 w-3" />}
             Fund
           </Button>
         </CardHeader>
-        <CardContent className="space-y-3 pb-6 px-6">
-          <div className="space-y-0.5 min-h-[35px]">
-            <p className="text-[7px] font-black opacity-40 tracking-widest">Account Number</p>
+        <CardContent className="space-y-2 pb-4 px-4">
+          <div className="space-y-0.5">
+            <p className="text-[7px] font-black opacity-70 uppercase tracking-widest">Account Number</p>
             {isLoading ? (
-              <div className="space-y-1 pt-1">
-                <Skeleton className="h-3.5 w-28" />
-                <Skeleton className="h-2 w-16" />
-              </div>
+              <Skeleton className="h-3 w-24 bg-white/20 mt-1" />
             ) : userProfile?.accountNumber ? (
               <div>
-                <p className="font-black text-base tracking-tighter leading-none">{userProfile.accountNumber}</p>
-                <p className="text-[7px] text-primary font-black uppercase mt-0.5">{userProfile.bankName}</p>
+                <p className="font-black text-sm tracking-tighter leading-none">{userProfile.accountNumber}</p>
+                <p className="text-[7px] font-black uppercase opacity-80 mt-0.5">{userProfile.bankName}</p>
               </div>
             ) : (
-              <Button asChild size="sm" className="mt-1 rounded-full font-black uppercase text-[7px] tracking-widest h-6 px-4">
+              <Button asChild size="sm" variant="secondary" className="mt-1 rounded-full font-black uppercase text-[7px] tracking-widest h-5 px-3 bg-white/20 text-white hover:bg-white/30 border-none">
                 <Link href="/dashboard/get-account-number">Get Account Number</Link>
               </Button>
             )}
           </div>
 
           <div>
-            <p className="text-[7px] font-black opacity-40 tracking-widest">Available Balance</p>
-            {isLoading ? (
-              <Skeleton className="h-5 w-24 mt-1" />
-            ) : (
-              <p className="text-xl font-black tracking-tighter text-foreground">₦{userProfile?.nairaBalance?.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}</p>
-            )}
+            <p className="text-[7px] font-black opacity-70 uppercase tracking-widest">Available Balance</p>
+            <div className="flex items-center gap-2">
+                {isLoading ? (
+                <Skeleton className="h-5 w-24 bg-white/20 mt-1" />
+                ) : (
+                <p className="text-xl font-black tracking-tighter">
+                    {showBalance ? `₦${userProfile?.nairaBalance?.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}` : '₦ • • • •'}
+                </p>
+                )}
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => setShowBalance(!showBalance)} 
+                    className="h-6 w-6 text-white/70 hover:text-white hover:bg-white/10 rounded-full"
+                >
+                    {showBalance ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </Button>
+            </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4 pt-3 border-t border-dashed">
+          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-white/10">
             <div>
-                <p className="text-[6px] font-black opacity-40 tracking-widest">Reward</p>
-                 {isLoading ? <Skeleton className="h-3 w-10 mt-1" /> : <p className="font-black text-xs text-orange-500">{userProfile?.rewardBalance?.toLocaleString() || '0'}</p>}
+                <p className="text-[6px] font-black opacity-70 uppercase tracking-widest">Reward</p>
+                 {isLoading ? <Skeleton className="h-3 w-10 bg-white/20 mt-1" /> : <p className="font-black text-xs text-white">{userProfile?.rewardBalance?.toLocaleString() || '0'}</p>}
             </div>
             <div>
-              <p className="text-[6px] font-black opacity-40 tracking-widest">Click</p>
-               {isLoading ? <Skeleton className="h-3 w-8 mt-1" /> : (
+              <p className="text-[6px] font-black opacity-70 uppercase tracking-widest">Click</p>
+               {isLoading ? <Skeleton className="h-3 w-8 bg-white/20 mt-1" /> : (
                   <div className="flex items-center gap-2">
-                  <p className="font-black text-xs text-blue-500">{userProfile?.clickCount?.toLocaleString() || 0}</p>
+                  <p className="font-black text-xs text-white">{userProfile?.clickCount?.toLocaleString() || 0}</p>
                   {userProfile?.accountNumber && (
-                      <Button onClick={() => handleActionClick('feat_get_reward', '/dashboard/rewards')} size="sm" className="h-3 px-1.5 text-[5px] font-black uppercase rounded-full">
+                      <Button onClick={() => handleActionClick('feat_get_reward', '/dashboard/rewards')} size="sm" className="h-3 px-1.5 text-[5px] font-black uppercase rounded-full bg-white text-primary hover:bg-white/90 border-none">
                       Claim
                       </Button>
                   )}
