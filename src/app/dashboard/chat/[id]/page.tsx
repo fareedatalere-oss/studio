@@ -4,13 +4,21 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, ID } from '@/lib/appwrite';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, doc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Mic } from 'lucide-react';
+import { 
+    collection, query, where, onSnapshot, doc, 
+    serverTimestamp, setDoc, updateDoc, deleteDoc, 
+    getDoc, writeBatch, getDocs, arrayUnion, arrayRemove 
+} from 'firebase/firestore';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } from '@/lib/appwrite';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Mic, MoreVertical, UserX, Trash2, Forward, Check } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { 
+    DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -24,13 +32,16 @@ const getChatId = (userId1?: string, userId2?: string) => {
 export default function ChatThreadPage() {
     const params = useParams();
     const router = useRouter();
-    const { user: currentUser } = useUser();
+    const { user: currentUser, profile: myProfile, recheckUser } = useUser();
     const { toast } = useToast();
 
     const otherUserId = params.id as string;
     const [otherUser, setOtherUser] = useState<any>(null);
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
+    const [isForwarding, setIsForwarding] = useState<string | null>(null);
+    const [recentChats, setRecentChats] = useState<any[]>([]);
+    const [selectedForForward, setSelectedForForward] = useState<string[]>([]);
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messageMapRef = useRef<Map<string, any>>(new Map());
@@ -40,32 +51,27 @@ export default function ChatThreadPage() {
         return getChatId(currentUser.$id, otherUserId);
     }, [currentUser?.$id, otherUserId]);
 
-    // REAL-TIME LISTENER
-    useEffect(() => {
-        if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
+    const isBlocked = myProfile?.blockedUsers?.includes(otherUserId);
+    const hasBlockedMe = otherUser?.blockedUsers?.includes(currentUser?.$id);
 
-        // Sync other user presence and profile
+    useEffect(() => {
+        if (!chatId || !currentUser) return;
+
         const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
             if (d.exists()) setOtherUser(d.data());
         });
 
-        // Sync messages
-        const q = query(
-            collection(db, COLLECTION_ID_MESSAGES),
-            where('chatId', '==', chatId)
-        );
-
+        const q = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', chatId));
         const unsub = onSnapshot(q, (snapshot) => {
             snapshot.docChanges().forEach(change => {
                 const data = change.doc.data();
                 const id = change.doc.id;
                 
-                if (change.type === 'removed') {
+                if (data.deletedFor?.includes(currentUser.$id)) {
+                    messageMapRef.current.delete(id);
+                } else if (change.type === 'removed') {
                     messageMapRef.current.delete(id);
                 } else {
-                    if (data.tempId && messageMapRef.current.has(data.tempId)) {
-                        messageMapRef.current.delete(data.tempId);
-                    }
                     messageMapRef.current.set(id, { $id: id, ...data });
                 }
             });
@@ -77,44 +83,47 @@ export default function ChatThreadPage() {
             });
             
             setMessages(sorted);
+
+            // Mark as read logic
+            const unread = snapshot.docs.filter(d => d.data().senderId !== currentUser.$id && d.data().status !== 'read');
+            if (unread.length > 0) {
+                const batch = writeBatch(db);
+                unread.forEach(d => batch.update(d.ref, { status: 'read' }));
+                batch.commit();
+            }
         });
 
         return () => { unsub(); unsubOther(); };
     }, [chatId, currentUser, otherUserId]);
 
-    useEffect(() => { 
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
-    }, [messages]);
+    useEffect(() => {
+        if (currentUser?.$id) {
+            const q = query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', currentUser.$id));
+            const unsub = onSnapshot(q, (snap) => {
+                setRecentChats(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            });
+            return () => unsub();
+        }
+    }, [currentUser]);
 
-    const handleSend = async () => {
-        const text = newMessage.trim();
-        if (!text || !currentUser || !chatId) return;
-        
-        const tempId = `temp-${Date.now()}`;
-        setNewMessage('');
+    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-        // Optimistic UI
-        const optimisticMsg = {
-            $id: tempId,
-            chatId,
-            senderId: currentUser.$id,
-            text: text,
-            status: 'sent',
-            createdAt: new Date(),
-            isOptimistic: true
-        };
+    const handleSend = async (textOverride?: string) => {
+        const text = textOverride || newMessage.trim();
+        if (!text || !currentUser || !chatId || isBlocked || hasBlockedMe) return;
         
-        messageMapRef.current.set(tempId, optimisticMsg);
-        setMessages(Array.from(messageMapRef.current.values()).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)));
+        if (!textOverride) setNewMessage('');
+
+        const msgId = doc(collection(db, COLLECTION_ID_MESSAGES)).id;
+        const initialStatus = otherUser?.isOnline ? 'delivered' : 'sent';
 
         try {
-            const msgId = ID.unique();
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { 
                 chatId, 
                 senderId: currentUser.$id, 
                 text: text, 
-                tempId: tempId,
-                status: 'sent',
+                status: initialStatus,
+                deletedFor: [],
                 createdAt: serverTimestamp()
             });
 
@@ -126,8 +135,81 @@ export default function ChatThreadPage() {
             }, { merge: true });
 
         } catch (e: any) {
-            messageMapRef.current.delete(tempId);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to send message.' });
+        }
+    };
+
+    const deleteMessage = async (msgId: string, forAll: boolean) => {
+        try {
+            if (forAll) {
+                await deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msgId));
+            } else {
+                await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), {
+                    deletedFor: arrayUnion(currentUser?.$id)
+                });
+                messageMapRef.current.delete(msgId);
+                setMessages(prev => prev.filter(m => m.$id !== msgId));
+            }
+            toast({ title: 'Message Deleted' });
+        } catch (e) {}
+    };
+
+    const handleBlock = async () => {
+        if (!currentUser) return;
+        try {
+            const myRef = doc(db, COLLECTION_ID_PROFILES, currentUser.$id);
+            if (isBlocked) {
+                await updateDoc(myRef, { blockedUsers: arrayRemove(otherUserId) });
+                toast({ title: 'User Unblocked' });
+            } else {
+                await updateDoc(myRef, { blockedUsers: arrayUnion(otherUserId) });
+                toast({ title: 'User Blocked' });
+            }
+            await recheckUser();
+        } catch (e) {}
+    };
+
+    const deleteChatHistory = async () => {
+        try {
+            const q = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', chatId));
+            const snap = await getDocs(q);
+            const batch = writeBatch(db);
+            snap.docs.forEach(d => batch.update(d.ref, { deletedFor: arrayUnion(currentUser?.$id) }));
+            await batch.commit();
+            messageMapRef.current.clear();
+            setMessages([]);
+            toast({ title: 'History Cleared' });
+        } catch (e) {}
+    };
+
+    const handleForward = async () => {
+        if (!isForwarding || selectedForForward.length === 0) return;
+        const msg = messages.find(m => m.$id === isForwarding);
+        if (!msg) return;
+
+        toast({ title: `Forwarding to ${selectedForForward.length} users...` });
+        for (const targetId of selectedForForward) {
+            const fwdChatId = getChatId(currentUser?.$id, targetId);
+            const fwdMsgId = doc(collection(db, COLLECTION_ID_MESSAGES)).id;
+            await setDoc(doc(db, COLLECTION_ID_MESSAGES, fwdMsgId), {
+                chatId: fwdChatId,
+                senderId: currentUser?.$id,
+                text: `[Forwarded]: ${msg.text}`,
+                status: 'sent',
+                deletedFor: [],
+                createdAt: serverTimestamp()
+            });
+        }
+        setIsForwarding(null);
+        setSelectedForForward([]);
+        toast({ title: 'Message Forwarded' });
+    };
+
+    const getTickIcon = (status: string) => {
+        switch (status) {
+            case 'read': return <div className="flex gap-[-2px]"><Check className="h-2 w-2 text-green-400" /><Check className="h-2 w-2 text-green-400 -ml-1" /></div>;
+            case 'delivered': return <div className="flex gap-[-2px]"><Check className="h-2 w-2 text-muted-foreground" /><Check className="h-2 w-2 text-muted-foreground -ml-1" /></div>;
+            default: return <Check className="h-2 w-2 text-muted-foreground" />;
         }
     };
 
@@ -151,6 +233,19 @@ export default function ChatThreadPage() {
                         </div>
                     </div>
                 )}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full"><MoreVertical className="h-5 w-5" /></Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48 font-black uppercase text-[10px]">
+                        <DropdownMenuItem onClick={handleBlock} className={isBlocked ? "text-green-600" : "text-destructive"}>
+                            <UserX className="mr-2 h-4 w-4" /> {isBlocked ? 'Unblock User' : 'Block User'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={deleteChatHistory} className="text-destructive">
+                            <Trash2 className="mr-2 h-4 w-4" /> Clear History
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </header>
             
             <main className="flex-1 overflow-y-auto p-4 space-y-2 overscroll-contain bg-muted/5">
@@ -163,17 +258,35 @@ export default function ChatThreadPage() {
                         const isMine = msg.senderId === currentUser?.$id;
                         return (
                             <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%]", isMine ? "ml-auto items-end" : "mr-auto items-start")}>
-                                <div className={cn(
-                                    "p-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold leading-relaxed", 
-                                    isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border"
-                                )}>
-                                    <p className="whitespace-pre-wrap">{msg.text}</p>
-                                    <div className="flex items-center justify-end gap-1 mt-1 opacity-40">
-                                        <span className="text-[6px] font-black uppercase">
-                                            {msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : (msg.createdAt instanceof Date ? format(msg.createdAt, 'HH:mm') : '...')}
-                                        </span>
-                                    </div>
-                                </div>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <div className={cn(
+                                            "p-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold leading-relaxed cursor-pointer active:scale-95 transition-transform", 
+                                            isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border"
+                                        )}>
+                                            <p className="whitespace-pre-wrap">{msg.text}</p>
+                                            <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
+                                                <span className="text-[6px] font-black uppercase">
+                                                    {msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : '...'}
+                                                </span>
+                                                {isMine && getTickIcon(msg.status)}
+                                            </div>
+                                        </div>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-40 font-black uppercase text-[9px]">
+                                        <DropdownMenuItem onClick={() => setIsForwarding(msg.$id)}>
+                                            <Forward className="mr-2 h-3.5 w-3.5" /> Forward
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => deleteMessage(msg.$id, false)}>
+                                            <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for me
+                                        </DropdownMenuItem>
+                                        {isMine && (
+                                            <DropdownMenuItem onClick={() => deleteMessage(msg.$id, true)} className="text-destructive">
+                                                <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for all
+                                            </DropdownMenuItem>
+                                        )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
                         );
                     })}
@@ -181,38 +294,66 @@ export default function ChatThreadPage() {
                 </div>
             </main>
 
-            <footer className="p-4 border-t bg-background safe-area-bottom pb-8">
-                <div className="max-w-xl mx-auto w-full flex items-center gap-2">
-                    {/* LEFT ICON: Paperclip */}
-                    <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-muted-foreground hover:bg-muted">
-                        <Paperclip className="h-5 w-5" />
-                    </Button>
-
-                    {/* CENTER: Input (Keyboard) */}
-                    <Input 
-                        placeholder="Type text only..." 
-                        value={newMessage} 
-                        onChange={e => setNewMessage(e.target.value)} 
-                        onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }}
-                        className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner focus-visible:ring-1 focus-visible:ring-primary" 
-                    />
-
-                    {/* RIGHT ICONS: Mic & Send */}
-                    <div className="flex items-center gap-1">
+            {(isBlocked || hasBlockedMe) ? (
+                <footer className="p-10 border-t bg-destructive/5 text-center">
+                    <p className="text-[10px] font-black uppercase text-destructive tracking-widest">
+                        {isBlocked ? 'You have blocked this user' : 'This user has blocked you'}
+                    </p>
+                </footer>
+            ) : (
+                <footer className="p-4 border-t bg-background safe-area-bottom pb-8">
+                    <div className="max-w-xl mx-auto w-full flex items-center gap-2">
                         <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-muted-foreground hover:bg-muted">
-                            <Mic className="h-5 w-5" />
+                            <Paperclip className="h-5 w-5" />
                         </Button>
-                        <Button 
-                            onClick={handleSend} 
-                            size="icon" 
-                            disabled={!newMessage.trim()} 
-                            className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90"
-                        >
-                            <Send className="h-5 w-5 text-white" />
+                        <Input 
+                            placeholder="Type text only..." 
+                            value={newMessage} 
+                            onChange={e => setNewMessage(e.target.value)} 
+                            onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }}
+                            className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" 
+                        />
+                        <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-muted-foreground hover:bg-muted">
+                                <Mic className="h-5 w-5" />
+                            </Button>
+                            <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim()} className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90">
+                                <Send className="h-5 w-5 text-white" />
+                            </Button>
+                        </div>
+                    </div>
+                </footer>
+            )}
+
+            <Dialog open={!!isForwarding} onOpenChange={(o) => !o && setIsForwarding(null)}>
+                <DialogContent className="max-w-md rounded-[2.5rem] p-8 border-none bg-background">
+                    <DialogHeader><DialogTitle className="text-center font-black uppercase tracking-tighter">Forward Message</DialogTitle></DialogHeader>
+                    <div className="space-y-4 mt-4">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase text-center">Select up to 10 users</p>
+                        <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
+                            {recentChats.map(chat => {
+                                const id = chat.participants.find((p: string) => p !== currentUser?.$id);
+                                return (
+                                    <div 
+                                        key={chat.id} 
+                                        onClick={() => {
+                                            if (selectedForForward.includes(id)) setSelectedForForward(prev => prev.filter(i => i !== id));
+                                            else if (selectedForForward.length < 10) setSelectedForForward(prev => [...prev, id]);
+                                        }}
+                                        className={cn("flex items-center justify-between p-3 rounded-2xl cursor-pointer border-2 transition-all", selectedForForward.includes(id) ? "border-primary bg-primary/5" : "border-transparent bg-muted/30")}
+                                    >
+                                        <p className="font-bold text-xs">Chat ID: {id.substring(0, 8)}...</p>
+                                        {selectedForForward.includes(id) && <Check className="h-4 w-4 text-primary" />}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <Button className="w-full h-12 rounded-full font-black uppercase text-[10px]" onClick={handleForward} disabled={selectedForForward.length === 0}>
+                            Send Forward ({selectedForForward.length})
                         </Button>
                     </div>
-                </div>
-            </footer>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
