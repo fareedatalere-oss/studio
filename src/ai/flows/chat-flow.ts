@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Sofia - The I-Pay Best Friend & Customer Care AI.
- * Upgraded with Thinking Mode, Location awareness, Weather sensing, and Deep Profile access.
+ * Upgraded with Thinking Mode, Location awareness, and Deep Profile access.
  */
 
 import { ai } from '@/ai/genkit';
