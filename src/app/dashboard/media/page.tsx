@@ -17,10 +17,10 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 /**
- * @fileOverview Streamlined Media Hub.
- * Optimized for high-end mobile experiences.
- * Header strictly contains: Tabs, Text/Image, Reels, Films, Music, Search, and a small Post icon.
- * Empty feed as requested.
+ * @fileOverview Streamlined Media Hub v2.
+ * Spacing refined: Increased gaps between navigation buttons.
+ * Post Button: Reduced to a small professional icon.
+ * Content: Strictly empty (no database calls).
  */
 
 export default function MediaPage() {
@@ -30,12 +30,12 @@ export default function MediaPage() {
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">
       <header className="p-4 pt-12 bg-background border-b z-30 shadow-sm space-y-6">
-        {/* Row 1: Back Button & Five Navigation Buttons with generous gap */}
+        {/* Row 1: Back Button & Five Navigation Buttons with increased gaps */}
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="rounded-full bg-muted/50 h-8 w-8 shrink-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="flex-1 flex justify-center gap-8 overflow-x-auto no-scrollbar">
+          <div className="flex-1 flex justify-center gap-10 overflow-x-auto no-scrollbar">
             <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl hover:bg-primary/10 text-primary shrink-0" title="Tabs">
               <LayoutGrid className="h-6 w-6" />
             </Button>
@@ -65,17 +65,17 @@ export default function MediaPage() {
           />
         </div>
 
-        {/* Row 3: Small Icon Post Button */}
-        <div className="flex justify-center">
-            <Button asChild size="icon" className="h-10 w-10 rounded-full font-black shadow-lg bg-primary hover:bg-primary/90">
+        {/* Row 3: Reduced Small Icon Post Button */}
+        <div className="flex justify-center pt-2">
+            <Button asChild size="icon" className="h-10 w-10 rounded-full font-black shadow-lg bg-primary hover:bg-primary/90 transition-transform active:scale-90">
             <Link href="/dashboard/media/upload/text" title="Create New Post">
-                <Plus className="h-6 w-6 text-white" />
+                <Plus className="h-5 w-5 text-white" />
             </Link>
             </Button>
         </div>
       </header>
 
-      {/* Media content area: Empty. No database calls. */}
+      {/* Media content area: Strictly empty. No database calls. */}
       <main className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-10 text-center">
         <div className="opacity-10 grayscale">
             <Clapperboard className="h-20 w-20 mx-auto mb-4" />
