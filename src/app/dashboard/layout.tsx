@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Bell, Home, PlaySquare, Store, User, X, Bot, Download } from 'lucide-react';
+import { Bell, Home, PlaySquare, Store, User, X, Bot, Download, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -16,7 +16,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 /**
  * @fileOverview Dashboard Layout.
  * Immersive mode active for Private Chat Threads and Meetings.
- * FIXED: Use ServiceWorkerRegistration for notifications to prevent "Illegal constructor" error.
+ * UPDATED: Added "Chat" button after Home button in the footer navigation.
  */
 
 export default function DashboardLayout({
@@ -186,10 +186,14 @@ export default function DashboardLayout({
 
       {!isImmersive && (
         <footer className="fixed bottom-0 z-40 w-full border-t bg-background md:hidden shadow-lg h-14">
-          <div className="container grid h-full grid-cols-4 items-center justify-around text-center px-2">
+          <div className="container grid h-full grid-cols-5 items-center justify-around text-center px-2">
             <Link href="/dashboard" onClick={(e) => handleTabClick(e, 'tab_home')} className={cn("flex flex-col items-center gap-0.5", pathname === '/dashboard' ? "text-primary" : "text-muted-foreground")}>
               <Home className="h-4 w-4" />
               <span className="text-[9px] font-bold">Home</span>
+            </Link>
+            <Link href="/dashboard/chat" onClick={(e) => handleTabClick(e, 'tab_chat')} className={cn("flex flex-col items-center gap-0.5", pathname === '/dashboard/chat' ? "text-primary" : "text-muted-foreground")}>
+              <MessageSquare className="h-4 w-4" />
+              <span className="text-[9px] font-bold">Chat</span>
             </Link>
             <Link href="/dashboard/media" onClick={(e) => handleTabClick(e, 'tab_media')} className={cn("flex flex-col items-center gap-0.5", (pathname === '/dashboard/media' || pathname.startsWith('/dashboard/media/')) ? "text-primary" : "text-muted-foreground")}>
               <PlaySquare className="h-4 w-4" />
