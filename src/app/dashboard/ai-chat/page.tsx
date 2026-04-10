@@ -29,6 +29,13 @@ import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+/**
+ * @fileOverview Sofia AI Chat - High Performance Version.
+ * CLOUD SAVING: All messages are stored in Firestore for permanence.
+ * KEYBOARD FIX: Footer raised for mobile visibility.
+ * DELETION: Click any message to trigger removal.
+ */
+
 type Message = {
     $id: string;
     role: 'user' | 'sofia';
@@ -63,43 +70,42 @@ export default function AiChatPage() {
 
   const chatId = useMemo(() => user?.$id ? `ai_${user.$id}` : null, [user?.$id]);
 
+  const fetchHistory = async () => {
+    if (!chatId) return;
+    try {
+        const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
+            Query.equal('chatId', chatId),
+            Query.orderAsc('$createdAt'),
+            Query.limit(100)
+        ]);
+        
+        if (res.total === 0) {
+            setMessages([{
+                $id: 'welcome',
+                role: 'sofia',
+                text: "Hello! I am Sofia, your best friend and I-Pay companion. I know where you are and I'm ready to help you manage your world instantly.",
+                timestamp: Date.now()
+            }]);
+        } else {
+            const mapped = res.documents.map(doc => ({
+                $id: doc.$id,
+                role: doc.senderId === user?.$id ? 'user' : 'sofia',
+                text: doc.text,
+                image: doc.image,
+                timestamp: new Date(doc.$createdAt).getTime(),
+                thoughts: doc.thoughts
+            } as Message));
+            setMessages(mapped);
+        }
+    } catch (e) {
+        console.error("History fetch failed", e);
+    } finally {
+        setDataLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!chatId) return;
-
-    const fetchHistory = async () => {
-        try {
-            const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
-                Query.equal('chatId', chatId),
-                Query.orderAsc('$createdAt'),
-                Query.limit(100)
-            ]);
-            
-            if (res.total === 0) {
-                // Initial message if empty
-                setMessages([{
-                    $id: 'welcome',
-                    role: 'sofia',
-                    text: "Hello! I am Sofia, your best friend and I-Pay companion. I know where you are and I'm ready to help you manage your world instantly.",
-                    timestamp: Date.now()
-                }]);
-            } else {
-                const mapped = res.documents.map(doc => ({
-                    $id: doc.$id,
-                    role: doc.senderId === user?.$id ? 'user' : 'sofia',
-                    text: doc.text,
-                    image: doc.image,
-                    timestamp: new Date(doc.$createdAt).getTime(),
-                    thoughts: doc.thoughts
-                } as Message));
-                setMessages(mapped);
-            }
-        } catch (e) {
-            console.error("History fetch failed", e);
-        } finally {
-            setDataLoading(false);
-        }
-    };
-
     fetchHistory();
 
     const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`], response => {
@@ -165,7 +171,7 @@ export default function AiChatPage() {
     setIsLoading(true);
 
     try {
-      // 1. Save User Message to DB
+      // 1. Save User Message to Cloud DB
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
           chatId: chatId,
           senderId: user.$id,
@@ -185,7 +191,7 @@ export default function AiChatPage() {
         photoDataUri: currentImg || undefined
       });
 
-      // 3. Save Sofia Message to DB
+      // 3. Save Sofia Message to Cloud DB
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
           chatId: chatId,
           senderId: 'sofia_system',
@@ -199,7 +205,11 @@ export default function AiChatPage() {
       }
     } catch (error: any) {
       console.error("Sofia Error:", error);
-      toast({ variant: 'destructive', title: "Sofia Snagged", description: "The API key may be limited or your connection is weak." });
+      const errorMsg = error.message?.includes('leaked') || error.message?.includes('403') 
+        ? "Access Denied: The API key has been revoked by Google. Please check your admin dashboard."
+        : "Sofia is temporarily unavailable. Check your connection.";
+      
+      toast({ variant: 'destructive', title: "Sofia Snagged", description: errorMsg });
     } finally {
       setIsLoading(false);
     }
@@ -210,6 +220,7 @@ export default function AiChatPage() {
       try {
           await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, msgToDelete);
           toast({ title: "Message Deleted" });
+          fetchHistory();
       } catch (e) {
           toast({ variant: 'destructive', title: "Delete Failed" });
       } finally {
@@ -261,7 +272,7 @@ export default function AiChatPage() {
         </Popover>
       </header>
 
-      <div className="flex-1 p-4 overflow-y-auto space-y-6 pb-32">
+      <div className="flex-1 p-4 overflow-y-auto space-y-6 pb-40">
         {dataLoading ? (
             <div className="flex justify-center p-10"><Loader2 className="animate-spin h-8 w-8 text-primary/30" /></div>
         ) : messages.map((msg) => (
@@ -304,7 +315,7 @@ export default function AiChatPage() {
         <div ref={scrollRef} />
       </div>
 
-      <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t safe-area-bottom pb-12 z-50">
+      <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t safe-area-bottom pb-20 z-50">
         {selectedImage && (
             <div className="mb-3 p-2 bg-muted rounded-xl relative border w-fit mx-auto">
                 <Image src={selectedImage} alt="Preview" width={80} height={80} className="rounded-lg" />
@@ -324,7 +335,7 @@ export default function AiChatPage() {
           <Button variant="ghost" size="icon" type="button" onClick={handleMicClick} className={cn("h-12 w-12 rounded-full", isListening && "text-red-500 bg-red-50 animate-pulse")}>
             <Mic className="h-6 w-6" />
           </Button>
-          <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => { if(e.target.files?.[0]) { const r = new FileReader(); r.onload = (ev) => setSelectedImage(ev.target?.result as string); r.readAsDataURL(e.target.files[0]); } }} />
+          <input type="file" className="hidden" ref={fileInputRef} accept="image/*" onChange={(e) => { if(e.target.files?.[0]) { const r = new FileReader(); r.onload = (ev) => setSelectedImage(ev.target?.result as string); r.readAsDataURL(e.target.files[0]); } }} />
           <Button size="icon" type="submit" className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90" disabled={isLoading || (!input.trim() && !selectedImage)}>
             <Send className="h-5 w-5 text-white" />
           </Button>
