@@ -156,9 +156,9 @@ export default function ChatPage() {
                 </div>
                 
                 <Tabs defaultValue="recent" className="flex flex-col w-full items-center">
-                    <TabsList className="flex items-center gap-1 bg-muted/50 h-7 p-1 rounded-full mb-6 justify-center w-fit px-1.5 border">
-                        <TabsTrigger value="recent" className="text-[8px] font-black uppercase rounded-full px-3 h-5 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="text-[8px] font-black uppercase rounded-full px-3 h-5 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
+                    <TabsList className="flex items-center gap-1 bg-muted/50 h-6 p-1 rounded-full mb-6 justify-center w-fit px-1 border">
+                        <TabsTrigger value="recent" className="text-[7px] font-black uppercase rounded-full px-3 h-4 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="text-[7px] font-black uppercase rounded-full px-3 h-4 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
                     </TabsList>
 
                     <div className="relative w-full mb-6 max-w-md">

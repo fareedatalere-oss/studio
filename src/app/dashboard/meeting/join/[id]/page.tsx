@@ -129,7 +129,7 @@ export default function MeetingJoinPage() {
                     </div>
                 </div>
                 <h2 className="text-white text-2xl font-black uppercase tracking-tighter">Lobby: @{name}</h2>
-                <p className="text-primary font-bold text-xs uppercase mt-2 animate-pulse">Waiting for Admin approval...</p>
+                <p className="text-primary font-bold text-xs uppercase mt-2 animate-pulse">Waiting for admin approval...</p>
             </div>
         );
     }
@@ -138,13 +138,13 @@ export default function MeetingJoinPage() {
         <div className="h-screen bg-background flex flex-col p-6 overflow-y-auto pb-20">
             <header className="pt-10 mb-6">
                 <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/meeting')} className="font-black uppercase text-[10px] gap-2">
-                    <ArrowLeft className="h-4 w-4" /> Back to Hub
+                    <ArrowLeft className="h-4 w-4" /> Hub
                 </Button>
             </header>
             <Card className="max-w-md w-full mx-auto rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
                 <CardHeader className="bg-primary text-white p-8 text-center">
-                    <CardTitle className="text-2xl font-black uppercase tracking-widest leading-none">Meeting Identity</CardTitle>
-                    <CardDescription className="text-white/70 font-bold mt-2">Set your feed before entering</CardDescription>
+                    <CardTitle className="text-2xl font-black uppercase tracking-widest leading-none">Identity Check</CardTitle>
+                    <CardDescription className="text-white/70 font-bold mt-2">Setup your feed before entering</CardDescription>
                 </CardHeader>
                 <CardContent className="p-8 space-y-6">
                     <div className="space-y-2">
