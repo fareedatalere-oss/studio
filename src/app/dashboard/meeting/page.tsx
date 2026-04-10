@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -7,8 +6,8 @@ import { Button } from '@/components/ui/button';
 
 /**
  * @fileOverview Meeting Hub Page.
- * REDUCED SIZING: Implemented sleek "Small Size" buttons.
- * CLEAN UI: Schedules section removed as requested.
+ * SMALL SIZE UI: Implementation of sleek, compact buttons as requested.
+ * TITLE CASE: Standardized all branding labels.
  */
 
 export default function MeetingLandingPage() {

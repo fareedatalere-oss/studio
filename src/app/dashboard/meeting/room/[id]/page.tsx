@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -17,6 +16,12 @@ import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+
+/**
+ * @fileOverview Master Meeting Room.
+ * ADMIN BYPASS: Creators enter directly without approval.
+ * DYNAMIC SCALING: Icons shrink to fit mobile screen.
+ */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
@@ -41,6 +46,34 @@ export default function MeetingRoomPage() {
     const [isMuted, setIsMuted] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
 
+    const handleAdminBypass = useCallback(async (doc: any) => {
+        setIsInRoom(true);
+        if (!doc.startedAt) {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
+                status: 'started',
+                startedAt: new Date().toISOString()
+            });
+        }
+        
+        // Ensure admin is in the attendees list
+        const check = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
+            Query.equal('meetingId', meetingId),
+            Query.equal('userId', user?.$id)
+        ]);
+        
+        if (check.total === 0) {
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, ID.unique(), {
+                meetingId,
+                userId: user?.$id,
+                name: profile?.username || 'Admin',
+                avatar: profile?.avatar || '',
+                status: 'approved',
+                isHost: true,
+                createdAt: new Date().toISOString()
+            });
+        }
+    }, [meetingId, user?.$id, profile]);
+
     const fetchMeeting = useCallback(async () => {
         try {
             const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
@@ -53,6 +86,11 @@ export default function MeetingRoomPage() {
                 return;
             }
 
+            // ADMIN BYPASS LOGIC
+            if (user?.$id === doc.hostId) {
+                await handleAdminBypass(doc);
+            }
+
             const limit = doc.type === 'personal' ? 3600 : 10800;
             if (doc.startedAt) {
                 const elapsed = Math.floor((Date.now() - new Date(doc.startedAt).getTime()) / 1000);
@@ -63,42 +101,12 @@ export default function MeetingRoomPage() {
                     setTimeLeft(remaining);
                 }
             }
-
-            // AUTO BYPASS FOR ADMIN
-            if (user?.$id === doc.hostId) {
-                handleAdminBypass();
-            }
         } catch (e) {
             router.replace('/dashboard/meeting');
         } finally {
             setLoading(false);
         }
-    }, [meetingId, router, toast, user]);
-
-    const handleAdminBypass = async () => {
-        setIsInRoom(true);
-        if (!meeting?.startedAt) {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
-                status: 'started',
-                startedAt: new Date().toISOString()
-            });
-        }
-        // Check if admin is already recorded as attendee
-        const check = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
-            Query.equal('meetingId', meetingId),
-            Query.equal('userId', user?.$id)
-        ]);
-        if (check.total === 0) {
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, ID.unique(), {
-                meetingId,
-                userId: user?.$id,
-                name: profile?.username || 'Admin',
-                avatar: profile?.avatar || '',
-                status: 'approved',
-                isHost: true
-            });
-        }
-    };
+    }, [meetingId, router, toast, user, handleAdminBypass]);
 
     const endMeeting = async () => {
         try {
@@ -119,6 +127,7 @@ export default function MeetingRoomPage() {
     }, [meetingId]);
 
     useEffect(() => {
+        if (!user) return;
         fetchMeeting();
         fetchAttendees();
 
@@ -134,7 +143,7 @@ export default function MeetingRoomPage() {
         });
 
         return () => { unsubMeeting(); unsubAttendees(); };
-    }, [meetingId, fetchMeeting, fetchAttendees, router]);
+    }, [meetingId, fetchMeeting, fetchAttendees, router, user]);
 
     useEffect(() => {
         if (!isInRoom || timeLeft === null) return;
@@ -152,9 +161,9 @@ export default function MeetingRoomPage() {
     }, [isInRoom, timeLeft]);
 
     const handleEntry = async () => {
-        const isAdmin = user?.$id === meeting?.hostId;
-        if (isAdmin) {
-            handleAdminBypass();
+        // Double check admin status for safety
+        if (user?.$id === meeting?.hostId) {
+            await handleAdminBypass(meeting);
             return;
         }
 

@@ -16,6 +16,7 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
  * @fileOverview Sign In Page.
  * Branding: I-pay online world.
  * Updated: Reduced Card and Button sizes for a sleeker professional look.
+ * Labels strictly following Title Case.
  */
 
 export default function SignInPage() {
@@ -33,7 +34,7 @@ export default function SignInPage() {
 
     try {
       const authRes = await account.createEmailPasswordSession(email, password);
-      const userId = authRes.user.uid;
+      const userId = (authRes.user as any).uid;
 
       try {
         await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);

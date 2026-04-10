@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -18,6 +17,12 @@ import { isYesterday, isToday, format } from 'date-fns';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+
+/**
+ * @fileOverview Chat Hub Page.
+ * COMPACT UI: Reduced Tab sizes and brought them closer together.
+ * Standardized to professional Title Case.
+ */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
     const [otherUser, setOtherUser] = useState<any>(null);
@@ -50,7 +55,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     if (!otherUser) return null;
 
     return (
-        <div className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all group">
+        <div className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all group max-w-xl mx-auto">
             <Link href={`/dashboard/chat/${otherUserId}`} className="flex-1 flex items-center gap-3 overflow-hidden">
                 <div className="relative">
                     <Avatar className="h-12 w-12 border-2 border-primary/5">
@@ -151,15 +156,15 @@ export default function ChatPage() {
                 
                 <Tabs defaultValue="recent" className="flex flex-col w-full items-center">
                     <TabsList className="flex items-center gap-1 bg-muted/50 h-8 p-1 rounded-full mb-6 justify-center w-fit px-2">
-                        <TabsTrigger value="recent" className="text-[9px] font-black uppercase rounded-full px-4 h-6 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="text-[9px] font-black uppercase rounded-full px-4 h-6 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
+                        <TabsTrigger value="recent" className="text-[10px] font-black uppercase rounded-full px-4 h-6 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="text-[10px] font-black uppercase rounded-full px-4 h-6 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
                     </TabsList>
 
                     <div className="relative w-full mb-6 max-w-md">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
                         <Input
-                            placeholder="Find conversations..."
-                            className="pl-11 h-11 text-sm rounded-full bg-muted/50 border-none shadow-none font-bold"
+                            placeholder="Search..."
+                            className="pl-11 h-10 text-sm rounded-full bg-muted/50 border-none shadow-none font-bold"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -176,7 +181,7 @@ export default function ChatPage() {
                         <TabsContent value="all" className="m-0 space-y-1">
                             {filteredUsers.length > 0 ? (
                                 filteredUsers.map(user => (
-                                    <Link key={user.$id} href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all">
+                                    <Link key={user.$id} href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all max-w-xl mx-auto w-full">
                                         <div className="relative">
                                             <Avatar className="h-11 w-11 border-2 border-primary/5">
                                                 <AvatarImage src={user.avatar} />
@@ -199,7 +204,7 @@ export default function ChatPage() {
             </header>
 
             <div className="fixed bottom-20 left-0 right-0 flex justify-center z-50">
-                <Button asChild className="rounded-full h-10 px-8 shadow-2xl font-black text-[9px] tracking-[0.2em] uppercase gap-2 bg-primary">
+                <Button asChild className="rounded-full h-10 px-8 shadow-2xl font-black text-[10px] tracking-[0.2em] uppercase gap-2 bg-primary">
                     <Link href="/dashboard/meeting"><Video className="h-4 w-4" /> Meeting</Link>
                 </Button>
             </div>

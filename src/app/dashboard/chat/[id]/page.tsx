@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -20,8 +19,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Master Private Chat Thread.
- * PERMANENCE ENGINE V4: Fixed the "Replacement" bug. 
- * Logic ensures messages are APPENDED and never overwritten by new snapshots.
+ * PERMANENCE ENGINE V5: Fixed the "Replacement" bug with ID-based Map reconciliation.
+ * Ensures every message is appended and never overwritten.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -43,7 +42,7 @@ const MessageStatus = ({ status, isMine }: { status: string, isMine: boolean }) 
 export default function ChatThreadPage() {
     const params = useParams();
     const router = useRouter();
-    const { user: currentUser, profile: currentUserProfile } = useUser();
+    const { user: currentUser } = useUser();
     const { toast } = useToast();
 
     const otherUserId = params.id as string;
@@ -71,6 +70,7 @@ export default function ChatThreadPage() {
     useEffect(() => {
         if (!chatId || chatId === 'invalid_chat' || !currentUser) return;
 
+        // No orderBy to avoid index requirement
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
             where('chatId', '==', chatId)
@@ -80,28 +80,33 @@ export default function ChatThreadPage() {
             const serverMsgs = snapshot.docs.map(doc => ({ 
                 $id: doc.id, 
                 ...doc.data() 
-            })).sort((a: any, b: any) => {
-                const timeA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || 0;
-                const timeB = b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || 0;
-                return timeA - timeB;
-            });
+            }));
             
             setMessages(prev => {
-                const optimistic = prev.filter(m => m.isOptimistic);
-                // Remove optimistic messages that now have a server ID (matched via tempId)
-                const remainingOptimistic = optimistic.filter(opt => !serverMsgs.some(srv => srv.tempId === opt.$id));
+                const messageMap = new Map();
                 
-                // Combine and ensure NO REPLACEMENT - the set union by ID is the most stable
-                const combined = [...serverMsgs, ...remainingOptimistic];
-                // Final safeguard: filter unique by $id to prevent duplicates/flicker
-                const unique = Array.from(new Map(combined.map(m => [m.$id, m])).values());
-                return unique.sort((a: any, b: any) => {
-                    const tA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || 0;
-                    const tB = b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || 0;
-                    return tA - tB;
+                // Keep track of existing messages
+                prev.forEach(msg => messageMap.set(msg.$id, msg));
+                
+                // Sync with server data (The truth)
+                serverMsgs.forEach(msg => {
+                    // If this server message was previously an optimistic one, remove the temp version
+                    if ((msg as any).tempId) {
+                        messageMap.delete((msg as any).tempId);
+                    }
+                    messageMap.set(msg.$id, msg);
+                });
+
+                // Sort by timestamp
+                const combined = Array.from(messageMap.values());
+                return combined.sort((a: any, b: any) => {
+                    const timeA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || 0;
+                    const timeB = b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || 0;
+                    return timeA - timeB;
                 });
             });
 
+            // Mark unread as read
             snapshot.docs.forEach(d => {
                 const data = d.data();
                 if (data.senderId !== currentUser.$id && data.status !== 'read') {
@@ -187,7 +192,7 @@ export default function ChatThreadPage() {
 
             await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
                 participants: [currentUser.$id, otherUserId],
-                lastMessage: finalMediaType === 'text' ? finalText : `Sent a ${finalMediaType}`,
+                lastMessage: finalMediaType === 'text' ? (finalText.length > 30 ? finalText.substring(0,30)+'...' : finalText) : `Sent a ${finalMediaType}`,
                 lastMessageAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
                 [`unreadCount.${otherUserId}`]: increment(1)
@@ -332,7 +337,9 @@ export default function ChatThreadPage() {
                                     )}
                                     <p className="text-[10px] font-bold whitespace-pre-wrap">{msg.text}</p>
                                     <div className="flex items-center justify-end gap-1 mt-0.5 opacity-60">
-                                        <span className="text-[6px] font-mono">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : format(new Date(), 'HH:mm')}</span>
+                                        <span className="text-[6px] font-mono">
+                                            {msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : (msg.createdAt instanceof Date ? format(msg.createdAt, 'HH:mm') : '...')}
+                                        </span>
                                         <MessageStatus status={msg.status} isMine={isMine} />
                                     </div>
                                 </div>
