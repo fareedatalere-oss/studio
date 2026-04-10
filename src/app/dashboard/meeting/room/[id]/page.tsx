@@ -300,8 +300,13 @@ export default function MeetingRoomPage() {
 
     const hostParticipant = participants.find(p => p.isHost);
     const otherParticipants = participants.filter(p => !p.isHost);
-    const selfId = user?.$id || JSON.parse(sessionStorage.getItem(`meeting_guest_${meetingId}`) || '{}').requestId;
-    const selfParticipant = participants.find(p => p.userId === selfId || p.$id === selfId);
+    
+    // Centering Logic: Insert the Host in the middle of the array for a balanced display
+    const centeredParticipants = [...otherParticipants];
+    if (hostParticipant) {
+        const middleIndex = Math.floor(centeredParticipants.length / 2);
+        centeredParticipants.splice(middleIndex, 0, hostParticipant);
+    }
 
     return (
         <div className="h-screen w-full bg-black flex flex-col overflow-hidden relative font-body text-white">
@@ -310,7 +315,7 @@ export default function MeetingRoomPage() {
                 <div className="absolute inset-0 z-[100] bg-[#4e342e] p-10 flex flex-col items-center justify-center text-center animate-in zoom-in-95 duration-300">
                     <div className="max-w-3xl w-full p-10 bg-white/5 border border-white/10 rounded-[3rem] shadow-2xl relative">
                         {isAdmin && (
-                            <Button onClick={() => toggleBoard(false)} variant="ghost" size="icon" className="absolute top-6 right-6 rounded-full bg-white/10 hover:bg-white/20"><X className="h-6 w-6" /></Button>
+                            <Button onClick={() => toggleBoard(false)} variant="ghost" size="icon" className="absolute top-6 right-6 rounded-full bg-white/10 hover:bg-white/20 text-white"><X className="h-6 w-6" /></Button>
                         )}
                         <p className="text-primary font-black uppercase tracking-[0.5em] text-[10px] mb-6">Board Display</p>
                         <p className="text-2xl md:text-4xl font-bold leading-relaxed whitespace-pre-wrap">{meeting.boardContent}</p>
@@ -323,7 +328,7 @@ export default function MeetingRoomPage() {
                 <div className="absolute inset-0 z-[90] bg-[#4e342e] flex flex-col items-center justify-center animate-in fade-in duration-300">
                     <div className="max-w-5xl w-full aspect-video bg-black rounded-[2.5rem] overflow-hidden border border-white/10 relative shadow-2xl">
                         {isAdmin && (
-                            <Button onClick={closeDisplay} variant="ghost" size="icon" className="absolute top-6 right-6 z-[100] rounded-full bg-black/50 hover:bg-black/80"><X className="h-6 w-6" /></Button>
+                            <Button onClick={closeDisplay} variant="ghost" size="icon" className="absolute top-6 right-6 z-[100] rounded-full bg-black/50 hover:bg-black/80 text-white"><X className="h-6 w-6" /></Button>
                         )}
                         {meeting.displayType === 'image' && <Image src={meeting.displayUrl} alt="Display" fill className="object-contain" unoptimized />}
                         {meeting.displayType === 'video' && <video src={meeting.displayUrl} controls autoPlay className="w-full h-full" />}
@@ -352,18 +357,18 @@ export default function MeetingRoomPage() {
                                 <>
                                     <Dialog open={isBoardOpen} onOpenChange={setIsBoardOpen}>
                                         <DialogTrigger asChild>
-                                            <Button variant="ghost" size="sm" className="h-8 rounded-full bg-white/10 font-black uppercase text-[9px]">board</Button>
+                                            <Button variant="ghost" size="sm" className="h-8 rounded-full bg-white/10 font-black uppercase text-[9px] text-white">board</Button>
                                         </DialogTrigger>
                                         <DialogContent className="max-w-md rounded-[2.5rem] p-8 border-none bg-black text-white">
                                             <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-xs">Community Board</DialogTitle></DialogHeader>
                                             <Textarea className="h-40 bg-white/5 border-white/10 rounded-2xl mt-4 font-bold text-lg" placeholder="Write message..." value={boardDraft} onChange={e => setBoardContent(e.target.value)} />
                                             <div className="grid grid-cols-2 gap-3 mt-6">
-                                                <Button variant="ghost" onClick={() => setBoardContent('')} className="rounded-full uppercase font-black text-[10px]"><Eraser className="mr-2 h-4 w-4" /> Clear</Button>
-                                                <Button onClick={() => toggleBoard(true)} className="rounded-full uppercase font-black text-[10px]">display</Button>
+                                                <Button variant="ghost" onClick={() => setBoardContent('')} className="rounded-full uppercase font-black text-[10px] text-white"><Eraser className="mr-2 h-4 w-4" /> Clear</Button>
+                                                <Button onClick={() => toggleBoard(true)} className="rounded-full uppercase font-black text-[10px] text-white">display</Button>
                                             </div>
                                         </DialogContent>
                                     </Dialog>
-                                    <Button variant="ghost" size="sm" onClick={() => mediaInputRef.current?.click()} className="h-8 rounded-full bg-white/10 font-black uppercase text-[9px]">
+                                    <Button variant="ghost" size="sm" onClick={() => mediaInputRef.current?.click()} className="h-8 rounded-full bg-white/10 font-black uppercase text-[9px] text-white">
                                         {isUploadingMedia ? <Loader2 className="animate-spin h-3 w-3" /> : 'display'}
                                     </Button>
                                     <input type="file" ref={mediaInputRef} className="hidden" accept="image/*,video/*,audio/*" onChange={handleMediaUpload} />
@@ -375,44 +380,13 @@ export default function MeetingRoomPage() {
                 </div>
             </header>
 
-            <main className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden">
-                {!isAdmin ? (
-                    /* GUEST SCREEN LAYOUT */
-                    <div className="w-full h-full flex flex-col items-center justify-between">
-                        {/* Top row of others */}
-                        <div className="flex flex-wrap justify-center gap-4 py-4">
-                            {otherParticipants.slice(0, Math.ceil(otherParticipants.length / 2)).map(p => (
-                                <ParticipantIcon key={p.$id} p={p} isAdmin={isAdmin} kickUser={kickUser} />
-                            ))}
-                        </div>
-
-                        {/* Admin in the center */}
-                        <div className="flex flex-col items-center gap-2">
-                            <div className="relative rounded-full border-4 border-yellow-500 p-1 shadow-[0_0_20px_rgba(234,179,8,0.3)] h-28 w-28 md:h-32 md:w-32 animate-in zoom-in duration-500">
-                                <Avatar className="h-full w-full">
-                                    <AvatarImage src={hostParticipant?.avatar} className="object-cover" />
-                                    <AvatarFallback className="font-black text-3xl bg-primary text-white">{hostParticipant?.name?.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-500 text-black text-[8px] font-black uppercase px-2 py-0.5 rounded-full shadow-lg">Admin</div>
-                            </div>
-                            <p className="font-black text-xs tracking-tighter">@{hostParticipant?.name}</p>
-                        </div>
-
-                        {/* Bottom row of others */}
-                        <div className="flex flex-wrap justify-center gap-4 py-4">
-                            {otherParticipants.slice(Math.ceil(otherParticipants.length / 2)).map(p => (
-                                <ParticipantIcon key={p.$id} p={p} isAdmin={isAdmin} kickUser={kickUser} />
-                            ))}
-                        </div>
-                    </div>
-                ) : (
-                    /* ADMIN SCREEN LAYOUT */
-                    <div className="w-full h-full grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-6 p-10 items-center justify-items-center">
-                        {otherParticipants.map(p => (
-                            <ParticipantIcon key={p.$id} p={p} isAdmin={isAdmin} kickUser={kickUser} />
-                        ))}
-                    </div>
-                )}
+            <main className="flex-1 overflow-y-auto p-10 scrollbar-hide z-10">
+                {/* UNIFORM GRID LAYOUT FOR EVERYONE */}
+                <div className="w-full h-full flex flex-wrap items-center justify-center gap-8 max-w-6xl mx-auto">
+                    {centeredParticipants.map(p => (
+                        <ParticipantIcon key={p.$id} p={p} isAdmin={isAdmin} kickUser={kickUser} />
+                    ))}
+                </div>
             </main>
 
             {isAdmin && joinRequests.length > 0 && (
@@ -440,24 +414,24 @@ export default function MeetingRoomPage() {
                 </footer>
             )}
 
-            {/* OWN FEED (BOTTOM LEFT AS IN SKETCH) */}
+            {/* OWN FEED (BOTTOM LEFT - SMALL & CIRCULAR) */}
             <div className="absolute bottom-6 left-6 z-[80] flex items-end gap-4">
                 <div className={cn(
-                    "h-20 w-20 md:h-24 md:w-24 rounded-full bg-muted border-2 border-primary overflow-hidden shadow-2xl transition-all duration-300 ring-4 ring-black",
+                    "h-16 w-16 md:h-20 md:w-20 rounded-full bg-muted border-2 border-primary overflow-hidden shadow-2xl transition-all duration-300 ring-4 ring-black",
                     !useCamera && "flex items-center justify-center bg-black/50"
                 )}>
                     {useCamera ? (
                         <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
                     ) : (
-                        <CameraOff className="h-6 w-6 text-white/20" />
+                        <CameraOff className="h-5 w-5 text-white/20" />
                     )}
                 </div>
                 <div className="flex flex-col gap-2">
-                    <Button size="icon" variant="ghost" className="h-9 w-9 rounded-full bg-black/50 border border-white/20 backdrop-blur-md" onClick={() => setUseCamera(!useCamera)}>
-                        {useCamera ? <Video className="h-4 w-4" /> : <Camera className="h-4 w-4 text-red-500" />}
+                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-black/50 border border-white/20 backdrop-blur-md text-white" onClick={() => setUseCamera(!useCamera)}>
+                        {useCamera ? <Video className="h-3.5 w-3.5" /> : <Camera className="h-3.5 w-3.5 text-red-500" />}
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-9 w-9 rounded-full bg-black/50 border border-white/20 backdrop-blur-md" onClick={() => setIsMuted(!isMuted)}>
-                        {isMuted ? <MicOff className="h-4 w-4 text-red-500" /> : <Mic className="h-4 w-4" />}
+                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-black/50 border border-white/20 backdrop-blur-md text-white" onClick={() => setIsMuted(!isMuted)}>
+                        {isMuted ? <MicOff className="h-3.5 w-3.5 text-red-500" /> : <Mic className="h-3.5 w-3.5" />}
                     </Button>
                 </div>
             </div>
@@ -467,30 +441,30 @@ export default function MeetingRoomPage() {
 
 function ParticipantIcon({ p, isAdmin, kickUser }: { p: any, isAdmin: boolean, kickUser: (id: string) => void }) {
     return (
-        <div className="flex flex-col items-center gap-1.5 animate-in fade-in zoom-in-95 group">
+        <div className="flex flex-col items-center gap-2 animate-in fade-in zoom-in-95 group">
             <div className={cn(
-                "relative rounded-full border-2 p-0.5 shadow-xl transition-all duration-500 h-14 w-14 md:h-16 md:w-16 bg-muted",
+                "relative rounded-full border-2 p-0.5 shadow-xl transition-all duration-500 h-20 w-20 md:h-24 md:w-24 bg-muted",
                 p.isHost ? "border-yellow-500" : "border-primary/40"
             )}>
                 <Avatar className="h-full w-full">
                     <AvatarImage src={p.avatar} className="object-cover" />
-                    <AvatarFallback className="font-black text-base bg-primary text-white">{p.name?.charAt(0)}</AvatarFallback>
+                    <AvatarFallback className="font-bold text-xl bg-primary text-white">{p.name?.charAt(0)}</AvatarFallback>
                 </Avatar>
                 {p.hasVideo && (
-                    <div className="absolute top-0 right-0 bg-red-500 text-[5px] font-black uppercase px-1 rounded-full border border-black shadow-sm">LIVE</div>
+                    <div className="absolute top-0 right-0 bg-red-500 text-[6px] font-black uppercase px-1.5 py-0.5 rounded-full border border-black shadow-sm">LIVE</div>
                 )}
                 {isAdmin && !p.isHost && (
                     <Button 
                         onClick={() => kickUser(p.$id)}
                         variant="destructive" 
                         size="icon" 
-                        className="absolute -top-1 -left-1 h-5 w-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute -top-1 -left-1 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                     >
-                        <UserX className="h-3 w-3" />
+                        <X className="h-3.5 w-3.5" />
                     </Button>
                 )}
             </div>
-            <p className="font-bold text-[8px] text-white/60 truncate max-w-[60px]">@{p.name}</p>
+            <p className="font-bold text-[10px] text-white/80 tracking-tight">@{p.name}</p>
         </div>
     );
 }
