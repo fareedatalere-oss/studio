@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -20,7 +19,7 @@ import Link from 'next/link';
 /**
  * @fileOverview Streamlined Media Hub.
  * Header strictly contains: Tabs, Text/Image, Reels, Films, Music, Search, and Post.
- * Body is empty as per user command (No database calls).
+ * Refined with better spacing and smaller post button for mobile.
  */
 
 export default function MediaPage() {
@@ -29,13 +28,13 @@ export default function MediaPage() {
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">
-      <header className="p-4 pt-12 bg-background border-b z-30 shadow-sm space-y-4">
-        {/* Row 1: Back Button & Five Navigation Buttons */}
+      <header className="p-4 pt-12 bg-background border-b z-30 shadow-sm space-y-5">
+        {/* Row 1: Back Button & Five Navigation Buttons with increased gap */}
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="rounded-full bg-muted/50 h-8 w-8 shrink-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="flex-1 flex justify-center gap-1 overflow-x-auto no-scrollbar">
+          <div className="flex-1 flex justify-center gap-4 overflow-x-auto no-scrollbar">
             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-primary/10 text-primary" title="Tabs">
               <LayoutGrid className="h-5 w-5" />
             </Button>
@@ -65,15 +64,17 @@ export default function MediaPage() {
           />
         </div>
 
-        {/* Row 3: Post Button */}
-        <Button asChild className="w-full h-11 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg gap-2">
-          <Link href="/dashboard/media/upload/text">
-            <Plus className="h-4 w-4" /> Create New Post
-          </Link>
-        </Button>
+        {/* Row 3: Reduced Post Button */}
+        <div className="flex justify-center">
+            <Button asChild className="w-full max-w-sm h-9 rounded-xl font-black uppercase text-[9px] tracking-widest shadow-md gap-2">
+            <Link href="/dashboard/media/upload/text">
+                <Plus className="h-3 w-3" /> Create New Post
+            </Link>
+            </Button>
+        </div>
       </header>
 
-      {/* Media content area: Empty as requested. No database calls are made to display feeds. */}
+      {/* Media content area: Empty as requested. No database calls. */}
       <main className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-10 text-center">
         <div className="opacity-10 grayscale">
             <Clapperboard className="h-20 w-20 mx-auto mb-4" />
