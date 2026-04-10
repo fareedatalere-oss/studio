@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -20,7 +19,7 @@ export default function EnterMeetingPage() {
   const handleJoin = async () => {
     let cleanId = meetingId.trim();
     
-    // Robust ID Extraction from pasted links
+    // Improved Parsing for full links and nested IDs
     if (cleanId.includes('/meeting/room/')) {
         cleanId = cleanId.split('/meeting/room/')[1].split('?')[0];
     } else if (cleanId.includes('/meeting/join/')) {
@@ -39,13 +38,13 @@ export default function EnterMeetingPage() {
         const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, cleanId);
         
         if (meeting.status === 'ended') {
-            toast({ variant: 'destructive', title: 'Meeting Expired', description: 'This session has concluded.' });
+            toast({ variant: 'destructive', title: 'Meeting Expired', description: 'This session has already concluded.' });
         } else {
-            // Success: Take them to the lobby/landing
-            router.push(`/dashboard/meeting/room/${cleanId}`);
+            // Take them to identity setup, logic in join page will handle Admin bypass
+            router.push(`/dashboard/meeting/join/${cleanId}`);
         }
     } catch (error) {
-        toast({ variant: 'destructive', title: 'Not Found', description: 'Could not find a meeting with this ID.' });
+        toast({ variant: 'destructive', title: 'Not Found', description: 'No meeting found with this ID.' });
     } finally {
         setIsVerifying(false);
     }
@@ -56,22 +55,22 @@ export default function EnterMeetingPage() {
       <Link href="/dashboard/meeting" className="flex items-center gap-2 mb-6 text-sm font-black uppercase text-muted-foreground hover:text-primary">
         <ArrowLeft className="h-4 w-4" /> Hub
       </Link>
-      <Card className="rounded-[2.5rem] shadow-2xl border-none">
-        <CardHeader className="text-center">
+      <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
+        <CardHeader className="text-center bg-primary/5 pb-8">
           <CardTitle className="text-2xl font-black uppercase tracking-tighter">Enter meeting</CardTitle>
-          <CardDescription>Paste your meeting ID or Link here</CardDescription>
+          <CardDescription className="font-bold">Paste your ID or Link below</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-8">
           <Input 
             value={meetingId}
             onChange={e => setMeetingId(e.target.value)}
-            placeholder="Paste ID or Link..." 
-            className="h-14 rounded-2xl bg-muted border-none text-center font-bold text-lg" 
+            placeholder="Paste Link here..." 
+            className="h-14 rounded-2xl bg-muted border-none text-center font-bold text-lg focus-visible:ring-1 focus-visible:ring-primary" 
           />
         </CardContent>
-        <CardFooter>
+        <CardFooter className="p-8 bg-muted/30">
           <Button onClick={handleJoin} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-lg" disabled={isVerifying || !meetingId}>
-            {isVerifying ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2" /> Verify & Join</>}
+            {isVerifying ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2 h-5 w-5" /> Verify & Continue</>}
           </Button>
         </CardFooter>
       </Card>

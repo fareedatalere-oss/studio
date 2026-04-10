@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -27,22 +26,22 @@ export default function MeetingLandingPage() {
           <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Digital Communication Center</p>
         </header>
 
-        <div className="grid gap-3 max-w-[280px] mx-auto">
-          <Button asChild className="h-11 flex items-center justify-between px-6 rounded-2xl group shadow-md" variant="default">
+        <div className="grid gap-3 max-w-[240px] mx-auto">
+          <Button asChild className="h-10 flex items-center justify-between px-5 rounded-xl group shadow-sm" variant="default">
             <Link href="/dashboard/meeting/book">
-              <div className="flex items-center gap-3 text-left">
-                <Video className="h-4 w-4 text-white" />
-                <p className="font-black uppercase tracking-widest text-[9px] text-white">Book a meeting</p>
+              <div className="flex items-center gap-2.5 text-left">
+                <Video className="h-3.5 w-3.5 text-white" />
+                <p className="font-black uppercase tracking-widest text-[8px] text-white">Book a meeting</p>
               </div>
               <ArrowRight className="h-3 w-3 text-white/50" />
             </Link>
           </Button>
 
-          <Button asChild className="h-11 flex items-center justify-between px-6 rounded-2xl group shadow-sm" variant="outline">
+          <Button asChild className="h-10 flex items-center justify-between px-5 rounded-xl group shadow-sm" variant="outline">
             <Link href="/dashboard/meeting/enter">
-              <div className="flex items-center gap-3 text-left text-foreground">
-                <Users className="h-4 w-4 text-primary" />
-                <p className="font-black uppercase tracking-widest text-[9px]">Enter meeting</p>
+              <div className="flex items-center gap-2.5 text-left text-foreground">
+                <Users className="h-3.5 w-3.5 text-primary" />
+                <p className="font-black uppercase tracking-widest text-[8px]">Enter meeting</p>
               </div>
               <ArrowRight className="h-3 w-3 opacity-50" />
             </Link>

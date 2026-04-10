@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -21,7 +20,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Hub Page.
- * SMALL SIZE UI: Implementation of sleek, compact buttons.
+ * SMALL SIZE UI: Implementation of sleek, compact buttons and tabs.
  * TITLE CASE: Recent, All.
  */
 
@@ -150,22 +149,22 @@ export default function ChatPage() {
         <div className="flex flex-col h-full bg-background text-foreground relative font-body overflow-y-auto pb-safe">
             <header className="p-4 pt-12 max-w-xl mx-auto w-full flex flex-col items-center">
                 <div className="w-full flex items-center justify-between mb-4">
-                    <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-10 w-10 bg-muted/50 rounded-full">
-                        <ArrowLeft className="h-5 w-5" />
+                    <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-9 w-9 bg-muted/50 rounded-full">
+                        <ArrowLeft className="h-4.5 w-4.5" />
                     </Button>
                 </div>
                 
                 <Tabs defaultValue="recent" className="flex flex-col w-full items-center">
-                    <TabsList className="flex items-center gap-1 bg-muted/50 h-7 p-1 rounded-full mb-6 justify-center w-fit px-2 border">
-                        <TabsTrigger value="recent" className="text-[9px] font-black uppercase rounded-full px-4 h-5 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="text-[9px] font-black uppercase rounded-full px-4 h-5 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
+                    <TabsList className="flex items-center gap-1 bg-muted/50 h-7 p-1 rounded-full mb-6 justify-center w-fit px-1.5 border">
+                        <TabsTrigger value="recent" className="text-[8px] font-black uppercase rounded-full px-3 h-5 data-[state=active]:bg-primary data-[state=active]:text-white">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="text-[8px] font-black uppercase rounded-full px-3 h-5 data-[state=active]:bg-primary data-[state=active]:text-white">All</TabsTrigger>
                     </TabsList>
 
                     <div className="relative w-full mb-6 max-w-md">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground opacity-50" />
                         <Input
                             placeholder="Search..."
-                            className="pl-11 h-10 text-sm rounded-full bg-muted/50 border-none shadow-none font-bold"
+                            className="pl-10 h-9 text-xs rounded-full bg-muted/50 border-none shadow-none font-bold"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -176,7 +175,7 @@ export default function ChatPage() {
                             {filteredRecent.length > 0 ? (
                                 filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUserProfile} />)
                             ) : (
-                                <div className="text-center py-20 text-muted-foreground font-black text-[9px] uppercase tracking-[0.3em] opacity-30">No Recent Chats</div>
+                                <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-[0.3em] opacity-30">No Recent Chats</div>
                             )}
                         </TabsContent>
                         <TabsContent value="all" className="m-0 space-y-1">
@@ -197,7 +196,7 @@ export default function ChatPage() {
                                     </Link>
                                 ))
                             ) : (
-                                <div className="text-center py-20 text-muted-foreground font-black text-[9px] uppercase tracking-[0.3em] opacity-30">No Users Found</div>
+                                <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-[0.3em] opacity-30">No Users Found</div>
                             )}
                         </TabsContent>
                     </main>
@@ -205,8 +204,8 @@ export default function ChatPage() {
             </header>
 
             <div className="fixed bottom-20 left-0 right-0 flex justify-center z-50">
-                <Button asChild className="rounded-full h-9 px-6 shadow-2xl font-black text-[9px] tracking-[0.2em] uppercase gap-2 bg-primary">
-                    <Link href="/dashboard/meeting"><Video className="h-4 w-4" /> Meeting</Link>
+                <Button asChild className="rounded-full h-8 px-5 shadow-2xl font-black text-[8px] tracking-[0.2em] uppercase gap-2 bg-primary">
+                    <Link href="/dashboard/meeting"><Video className="h-3.5 w-3.5" /> Meeting</Link>
                 </Button>
             </div>
         </div>
