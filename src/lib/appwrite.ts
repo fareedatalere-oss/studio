@@ -32,6 +32,7 @@ import {
 /**
  * @fileOverview Master Firebase Bridge (Named appwrite.ts for compatibility).
  * This file reroutes all Appwrite calls to your Firebase Project.
+ * SAFETY UPDATE: Automatic sanitization of 'undefined' fields to prevent setDoc crashes.
  */
 
 // --- Constants for Firestore Collections & Storage ---
@@ -53,6 +54,20 @@ export const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 export const BUCKET_ID_UPLOADS = 'uploads';
 
 export const MEETING_BOT_ID = 'ipay_meeting_system';
+
+/**
+ * Strips 'undefined' fields from objects to prevent Firestore setDoc errors.
+ */
+const sanitize = (data: any) => {
+    if (!data || typeof data !== 'object') return data;
+    const clean: any = {};
+    Object.keys(data).forEach(key => {
+        if (data[key] !== undefined) {
+            clean[key] = data[key];
+        }
+    });
+    return clean;
+};
 
 const mapDoc = (snapshot: any) => {
     if (!snapshot.exists()) return null;
@@ -92,12 +107,14 @@ export const databases = {
     },
     createDocument: async (dbId: string, collId: string, docId: string, data: any) => {
         const id = docId === 'unique()' ? doc(collection(db, collId)).id : docId;
-        const d = { ...data, createdAt: serverTimestamp() };
+        const clean = sanitize(data);
+        const d = { ...clean, createdAt: serverTimestamp() };
         await setDoc(doc(db, collId, id), d);
         return { $id: id, uid: id, ...d };
     },
     updateDocument: async (dbId: string, collId: string, docId: string, data: any) => {
-        const d = { ...data, updatedAt: serverTimestamp() };
+        const clean = sanitize(data);
+        const d = { ...clean, updatedAt: serverTimestamp() };
         await updateDoc(doc(db, collId, docId), d);
         return { $id: docId };
     },

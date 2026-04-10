@@ -33,7 +33,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
  * @fileOverview Sofia AI Chat - High Performance Version.
  * CLOUD SAVING: All messages are stored in Firestore for permanence.
  * KEYBOARD FIX: Footer raised for mobile visibility.
- * INDEX FIX: Client-side sorting implemented to remove index requirement.
+ * ERROR FIX: Sanitized data payload to prevent setDoc undefined errors.
  */
 
 type Message = {
@@ -75,7 +75,6 @@ export default function AiChatPage() {
     try {
         const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
             Query.equal('chatId', chatId),
-            // REMOVED orderAsc to fix Index Error
             Query.limit(100)
         ]);
         
@@ -175,16 +174,19 @@ export default function AiChatPage() {
     setIsLoading(true);
 
     try {
-      // 1. Save User Message to Cloud DB
-      await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
+      // 1. Build User Payload carefully (NO undefined fields)
+      const userPayload: any = {
           chatId: chatId,
           senderId: user.$id,
           text: userMsg,
-          image: currentImg || undefined,
           status: 'sent'
-      });
+      };
+      if (currentImg) userPayload.image = currentImg;
 
-      // 2. Call Sofia
+      // 2. Save User Message to Cloud DB
+      await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), userPayload);
+
+      // 3. Call Sofia
       const response = await chatSofia({
         message: userMsg,
         language: selectedLanguage,
@@ -195,14 +197,17 @@ export default function AiChatPage() {
         photoDataUri: currentImg || undefined
       });
 
-      // 3. Save Sofia Message to Cloud DB
-      await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
+      // 4. Build Sofia Payload carefully (NO undefined fields)
+      const sofiaPayload: any = {
           chatId: chatId,
           senderId: 'sofia_system',
           text: response.text,
-          thoughts: response.thoughts,
           status: 'sent'
-      });
+      };
+      if (response.thoughts) sofiaPayload.thoughts = response.thoughts;
+
+      // 5. Save Sofia Message to Cloud DB
+      await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), sofiaPayload);
       
       if (response.action && response.action !== 'none') {
           handleSofiaAction(response.action, response.email);
