@@ -28,12 +28,12 @@ import { account, databases, DATABASE_ID, COLLECTION_ID_MESSAGES, Query, ID, cli
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Sofia AI Chat - High Performance Version.
- * CLOUD SAVING: All messages are stored in Firestore for permanence.
- * KEYBOARD FIX: Footer raised for mobile visibility.
- * ERROR FIX: Sanitized data payload to prevent setDoc undefined errors.
+ * @fileOverview Sofia AI Chat - Cloudinary Integrated Version.
+ * MEDIA: All images are uploaded to Cloudinary before database commit.
+ * PERSISTENCE: Zero message loss with enforced database writing.
  */
 
 type Message = {
@@ -168,25 +168,35 @@ export default function AiChatPage() {
     if ((!input.trim() && !selectedImage) || isLoading || !user || !chatId) return;
 
     const userMsg = input.trim();
-    const currentImg = selectedImage;
+    const currentImgB64 = selectedImage;
     setInput('');
     setSelectedImage(null);
     setIsLoading(true);
 
     try {
-      // 1. Build User Payload carefully (NO undefined fields)
+      let finalImgUrl = '';
+      
+      // 1. Upload to Cloudinary if image exists
+      if (currentImgB64) {
+          const uploadRes = await uploadToCloudinary(currentImgB64, 'image');
+          if (uploadRes.success) {
+              finalImgUrl = uploadRes.url;
+          }
+      }
+
+      // 2. Build User Payload carefully (NO undefined fields)
       const userPayload: any = {
           chatId: chatId,
           senderId: user.$id,
           text: userMsg,
           status: 'sent'
       };
-      if (currentImg) userPayload.image = currentImg;
+      if (finalImgUrl) userPayload.image = finalImgUrl;
 
-      // 2. Save User Message to Cloud DB
+      // 3. Save User Message to Cloud DB
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), userPayload);
 
-      // 3. Call Sofia
+      // 4. Call Sofia (Analyze image if provided)
       const response = await chatSofia({
         message: userMsg,
         language: selectedLanguage,
@@ -194,10 +204,10 @@ export default function AiChatPage() {
         username: profile?.username || 'Friend',
         location: locationStr,
         currentTime: new Date().toLocaleString(),
-        photoDataUri: currentImg || undefined
+        photoDataUri: currentImgB64 || undefined
       });
 
-      // 4. Build Sofia Payload carefully (NO undefined fields)
+      // 5. Build Sofia Payload carefully (NO undefined fields)
       const sofiaPayload: any = {
           chatId: chatId,
           senderId: 'sofia_system',
@@ -206,7 +216,7 @@ export default function AiChatPage() {
       };
       if (response.thoughts) sofiaPayload.thoughts = response.thoughts;
 
-      // 5. Save Sofia Message to Cloud DB
+      // 6. Save Sofia Message to Cloud DB
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), sofiaPayload);
       
       if (response.action && response.action !== 'none') {
@@ -301,7 +311,7 @@ export default function AiChatPage() {
                 >
                     {msg.image && (
                         <div className="mb-3 relative h-48 w-full rounded-xl overflow-hidden">
-                            <Image src={msg.image} alt="Upload" fill className="object-cover" />
+                            <Image src={msg.image} alt="Upload" fill className="object-cover" unoptimized />
                         </div>
                     )}
                     <p className="font-bold leading-relaxed whitespace-pre-wrap">{msg.text}</p>
@@ -331,7 +341,7 @@ export default function AiChatPage() {
       <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t safe-area-bottom pb-20 z-50">
         {selectedImage && (
             <div className="mb-3 p-2 bg-muted rounded-xl relative border w-fit mx-auto">
-                <Image src={selectedImage} alt="Preview" width={80} height={80} className="rounded-lg" />
+                <Image src={selectedImage} alt="Preview" width={80} height={80} className="rounded-lg" unoptimized />
                 <Button variant="destructive" size="icon" className="h-5 w-5 absolute -top-2 -right-2 rounded-full shadow-md" onClick={() => setSelectedImage(null)}><X className="h-3 w-3" /></Button>
             </div>
         )}

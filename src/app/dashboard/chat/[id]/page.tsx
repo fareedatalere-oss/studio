@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -10,7 +9,7 @@ import {
     serverTimestamp, setDoc, updateDoc, deleteDoc, 
     getDoc, writeBatch, getDocs, arrayUnion, arrayRemove 
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } from '@/lib/appwrite';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID } from '@/lib/appwrite';
 import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Mic, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, X, Play, Pause, Trash } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -23,6 +22,12 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
+
+/**
+ * @fileOverview Master Pro Chat - Cloudinary Integrated.
+ * MEDIA: All media uploads go directly to Cloudinary.
+ * PERSISTENCE: Firestore backed history with zero message dismissal.
+ */
 
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
@@ -280,11 +285,11 @@ export default function ChatThreadPage() {
                 reader.readAsDataURL(file);
             });
 
-            const type = file.type.startsWith('image/') ? 'image' : (file.type.startsWith('video/') ? 'video' : 'pdf');
-            const upload = await uploadToCloudinary(base64, type === 'pdf' ? 'raw' : (type === 'image' ? 'image' : 'video'));
+            const type = file.type.startsWith('image/') ? 'image' : (file.type.startsWith('video/') ? 'video' : 'raw');
+            const upload = await uploadToCloudinary(base64, type === 'raw' ? 'raw' : (type === 'image' ? 'image' : 'video'));
             
             if (upload.success) {
-                handleSend('', { url: upload.url, type });
+                handleSend('', { url: upload.url, type: type === 'raw' ? 'pdf' : type });
             }
         } catch (e) {
             toast({ variant: 'destructive', title: "Media send failed" });
