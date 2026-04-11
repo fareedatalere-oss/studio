@@ -8,18 +8,17 @@ import { db } from '@/lib/firebase';
 import { 
     collection, query, where, onSnapshot, doc, 
     serverTimestamp, setDoc, updateDoc, 
-    writeBatch, arrayUnion, increment 
+    arrayUnion, increment 
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, Phone, Mic } from 'lucide-react';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, MoreVertical, UserX, Trash2, Image as ImageIcon, Video, FileText, Phone, Mic } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { 
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
@@ -40,14 +39,13 @@ export default function ChatThreadPage() {
     const [otherUser, setOtherUser] = useState<any>(null);
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
-    const [isForwarding, setIsForwarding] = useState<string | null>(null);
-    const [recentChats, setRecentChats] = useState<any[]>([]);
-    const [selectedForForward, setSelectedForForward] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
+    const [isListening, setIsListening] = useState(false);
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messageMapRef = useRef<Map<string, any>>(new Map());
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const recognitionRef = useRef<any>(null);
     const [activeMediaType, setActiveMediaType] = useState<'image' | 'video' | 'pdf' | null>(null);
     
     const chatId = useMemo(() => {
@@ -80,6 +78,22 @@ export default function ChatThreadPage() {
             });
             setMessages(sorted);
         });
+
+        // Initialize Speech Recognition
+        if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+            const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+            recognitionRef.current = new SpeechRecognition();
+            recognitionRef.current.continuous = false;
+            recognitionRef.current.interimResults = false;
+            recognitionRef.current.onresult = (event: any) => {
+                const transcript = event.results[0][0].transcript;
+                setNewMessage(prev => prev + (prev ? ' ' : '') + transcript);
+                setIsListening(false);
+            };
+            recognitionRef.current.onerror = () => setIsListening(false);
+            recognitionRef.current.onend = () => setIsListening(false);
+        }
+
         return () => { unsub(); unsubOther(); };
     }, [chatId, currentUser, otherUserId]);
 
@@ -119,9 +133,27 @@ export default function ChatThreadPage() {
                 invitedUsers: [otherUserId],
                 createdAt: new Date().toISOString()
             });
-            router.push(`/dashboard/meeting/room/${callId}`);
+            router.push(`/dashboard/chat/call/${callId}`);
         } catch (e) {
             toast({ variant: 'destructive', title: 'Call Failed' });
+        }
+    };
+
+    const handleMicClick = () => {
+        if (isListening) {
+            recognitionRef.current?.stop();
+        } else {
+            try {
+                if (recognitionRef.current) {
+                    recognitionRef.current.lang = 'en-US';
+                    recognitionRef.current.start();
+                    setIsListening(true);
+                } else {
+                    toast({ title: "Not Supported", description: "Your browser doesn't support voice recognition." });
+                }
+            } catch (e) {
+                toast({ title: "Microphone error", description: "Could not start speech recognition." });
+            }
         }
     };
 
@@ -175,7 +207,6 @@ export default function ChatThreadPage() {
                                     <p className="whitespace-pre-wrap">{msg.text}</p>
                                     <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
                                         <span className="text-[6px] font-black uppercase">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : '...'}</span>
-                                        {isMine && <Check className={cn("h-2 w-2", msg.status === 'read' ? 'text-green-400' : 'text-muted-foreground')} />}
                                     </div>
                                 </div>
                             </div>
@@ -200,9 +231,20 @@ export default function ChatThreadPage() {
                         <Phone className="h-5 w-5" />
                     </Button>
 
-                    <Input placeholder="Type text only..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />
+                    <Input 
+                        placeholder="Type text only..." 
+                        value={newMessage} 
+                        onChange={e => setNewMessage(e.target.value)} 
+                        onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} 
+                        className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" 
+                    />
                     
-                    <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-muted-foreground hover:bg-muted">
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={handleMicClick}
+                        className={cn("h-11 w-11 rounded-full transition-all", isListening ? "text-red-500 bg-red-50 animate-pulse" : "text-muted-foreground hover:bg-muted")}
+                    >
                         <Mic className="h-5 w-5" />
                     </Button>
 
