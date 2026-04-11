@@ -11,7 +11,7 @@ import {
     arrayUnion, increment 
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, MoreVertical, UserX, Trash2, Image as ImageIcon, Video, FileText, Phone, Mic, MicOff } from 'lucide-react';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, MoreVertical, UserX, Trash2, Image as ImageIcon, Video, FileText, Phone, Mic, MicOff, Play, Pause, X, Check } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -40,15 +40,19 @@ export default function ChatThreadPage() {
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [isUploading, setIsUploading] = useState(false);
+    
+    // Voice Note State
     const [isRecording, setIsRecording] = useState(false);
+    const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
+    const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+    const [isPlayingReview, setIsPlayingReview] = useState(false);
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messageMapRef = useRef<Map<string, any>>(new Map());
     const fileInputRef = useRef<HTMLInputElement>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
-    
-    const [activeMediaType, setActiveMediaType] = useState<'image' | 'video' | 'pdf' | null>(null);
+    const reviewAudioRef = useRef<HTMLAudioElement | null>(null);
     
     const chatId = useMemo(() => {
         if (!currentUser?.$id || !otherUserId) return null;
@@ -119,24 +123,17 @@ export default function ChatThreadPage() {
                 if (event.data.size > 0) audioChunksRef.current.push(event.data);
             };
 
-            mediaRecorder.onstop = async () => {
+            mediaRecorder.onstop = () => {
                 const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-                const reader = new FileReader();
-                reader.readAsDataURL(audioBlob);
-                reader.onloadend = async () => {
-                    const base64 = reader.result as string;
-                    setIsUploading(true);
-                    const upload = await uploadToCloudinary(base64, 'raw');
-                    if (upload.success) {
-                        handleSend('', { url: upload.url, type: 'audio' });
-                    }
-                    setIsUploading(false);
-                };
+                setRecordedBlob(audioBlob);
+                setRecordedAudioUrl(URL.createObjectURL(audioBlob));
                 stream.getTracks().forEach(track => track.stop());
             };
 
             mediaRecorder.start();
             setIsRecording(true);
+            setRecordedAudioUrl(null);
+            setRecordedBlob(null);
         } catch (e) {
             toast({ variant: 'destructive', title: 'Mic error', description: 'Please allow microphone access.' });
         }
@@ -146,6 +143,28 @@ export default function ChatThreadPage() {
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
             setIsRecording(false);
+        }
+    };
+
+    const handleSendVoiceNote = async () => {
+        if (!recordedBlob) return;
+        setIsUploading(true);
+        try {
+            const reader = new FileReader();
+            const base64: string = await new Promise((resolve) => {
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(recordedBlob);
+            });
+            const upload = await uploadToCloudinary(base64, 'raw');
+            if (upload.success) {
+                handleSend('', { url: upload.url, type: 'audio' });
+                setRecordedAudioUrl(null);
+                setRecordedBlob(null);
+            }
+        } catch (e) {
+            toast({ variant: 'destructive', title: 'Upload failed' });
+        } finally {
+            setIsUploading(false);
         }
     };
 
@@ -177,7 +196,7 @@ export default function ChatThreadPage() {
             const type = file.type.startsWith('image/') ? 'image' : (file.type.startsWith('video/') ? 'video' : 'raw');
             const upload = await uploadToCloudinary(base64, type === 'raw' ? 'raw' : (type === 'image' ? 'image' : 'video'));
             if (upload.success) handleSend('', { url: upload.url, type: type === 'raw' ? 'pdf' : type });
-        } catch (e) { toast({ variant: 'destructive', title: "Media send failed" }); } finally { setIsUploading(false); setActiveMediaType(null); }
+        } catch (e) { toast({ variant: 'destructive', title: "Media send failed" }); } finally { setIsUploading(false); }
     };
 
     return (
@@ -195,13 +214,9 @@ export default function ChatThreadPage() {
                         </div>
                     </div>
                 )}
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-10 w-10 rounded-full"><MoreVertical className="h-5 w-5" /></Button></DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48 font-black uppercase text-[10px]">
-                        <DropdownMenuItem onClick={() => updateDoc(doc(db, COLLECTION_ID_PROFILES, currentUser.$id), { blockedUsers: arrayUnion(otherUserId) })} className="text-destructive"><UserX className="mr-2 h-4 w-4" /> Block User</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push('/dashboard/chat')}><Trash2 className="mr-2 h-4 w-4" /> Clear History</DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                <Button variant="ghost" size="icon" onClick={handleStartCall} className="h-10 w-10 rounded-full text-primary hover:bg-primary/10">
+                    <Phone className="h-5 w-5" />
+                </Button>
             </header>
             
             <main className="flex-1 overflow-y-auto p-4 space-y-2 overscroll-contain bg-muted/5">
@@ -227,20 +242,42 @@ export default function ChatThreadPage() {
                 </div>
             </main>
 
+            {/* Voice Note Review Bar */}
+            {recordedAudioUrl && (
+                <div className="px-4 py-3 bg-muted border-t flex items-center justify-between animate-in slide-in-from-bottom-2">
+                    <div className="flex items-center gap-3">
+                        <Button variant="ghost" size="icon" onClick={() => { if(reviewAudioRef.current?.paused) reviewAudioRef.current?.play(); else reviewAudioRef.current?.pause(); }} className="h-10 w-10 rounded-full bg-background shadow-sm">
+                            {isPlayingReview ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                        </Button>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Voice Note Review</p>
+                        <audio 
+                            ref={reviewAudioRef} 
+                            src={recordedAudioUrl} 
+                            onPlay={() => setIsPlayingReview(true)}
+                            onPause={() => setIsPlayingReview(false)}
+                            onEnded={() => setIsPlayingReview(false)}
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" onClick={() => { setRecordedAudioUrl(null); setRecordedBlob(null); }} className="h-10 w-10 rounded-full text-destructive"><X className="h-5 w-5" /></Button>
+                        <Button onClick={handleSendVoiceNote} size="icon" className="h-10 w-10 rounded-full bg-green-500 hover:bg-green-600 text-white shadow-md" disabled={isUploading}>
+                            {isUploading ? <Loader2 className="animate-spin h-4 w-4" /> : <Check className="h-5 w-5" />}
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             <footer className="p-4 border-t bg-background safe-area-bottom pb-8">
                 <div className="max-w-xl mx-auto w-full flex items-center gap-2">
                     <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-full text-muted-foreground hover:bg-muted"><Paperclip className="h-5 w-5" /></Button>
                     
-                    <Button variant="ghost" size="icon" onClick={handleStartCall} className="h-11 w-11 rounded-full text-primary hover:bg-primary/10">
-                        <Phone className="h-5 w-5" />
-                    </Button>
-
                     <Input 
-                        placeholder="Type text only..." 
+                        placeholder={isRecording ? "Recording..." : "Type text only..."} 
                         value={newMessage} 
                         onChange={e => setNewMessage(e.target.value)} 
                         onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} 
                         className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" 
+                        disabled={isRecording || !!recordedAudioUrl}
                     />
                     
                     <Button 
@@ -250,12 +287,16 @@ export default function ChatThreadPage() {
                         onMouseUp={stopRecording}
                         onTouchStart={startRecording}
                         onTouchEnd={stopRecording}
-                        className={cn("h-11 w-11 rounded-full transition-all", isRecording ? "text-red-500 bg-red-50 animate-pulse scale-125" : "text-muted-foreground hover:bg-muted")}
+                        className={cn(
+                            "h-11 w-11 rounded-full transition-all", 
+                            isRecording ? "text-red-500 bg-red-50 animate-pulse scale-125 shadow-lg" : "text-muted-foreground hover:bg-muted"
+                        )}
+                        disabled={!!recordedAudioUrl || !!newMessage.trim()}
                     >
                         {isRecording ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
                     </Button>
 
-                    <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() || isUploading} className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90">{isUploading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5 text-white" />}</Button>
+                    <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() || isUploading || !!recordedAudioUrl} className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90">{isUploading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5 text-white" />}</Button>
                 </div>
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,application/pdf" onChange={handleFileSelect} />
             </footer>
