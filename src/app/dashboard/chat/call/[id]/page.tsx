@@ -1,11 +1,11 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { 
     PhoneOff, Loader2, Video, X, Send, 
-    Mic, MicOff, MessageSquare, Layout, Smile
+    Mic, MicOff, MessageSquare, Layout, Smile,
+    ImageIcon, Music, Film, MonitorPlay, UploadCloud, Volume2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-appwrite';
@@ -14,6 +14,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
+import { uploadToCloudinary } from '@/app/actions/cloudinary';
+import { useToast } from '@/hooks/use-toast';
+import Image from 'next/image';
 
 const CALL_EMOJIS = ["💐","🌹","🏵️","🌻","🎈","💋","🥀","🍫","🎉","💮","🎊","🎂","😍","🎁","💏","👩‍❤️_💋_👨","👨_❤️_💋_👨","👩_❤️_💋_👩","👩_❤️_👩","👨_❤️_👨","👩_❤️_👨","💑","🥰","😍","😇","🤩","😘","🫣","🥳","💓","💗","💖","💝","💘","💌","💞","💕","💟","❣️","💔","❤️‍🔥","❤️‍🩹","❤️","🤎","💜","🩵","💙","💚","💛","🧡","🩷","🖤","🩶","🤍","🫀","🫂","👥"];
 
@@ -21,6 +24,7 @@ export default function PrivateCallPage() {
     const params = useParams();
     const router = useRouter();
     const { user } = useUser();
+    const { toast } = useToast();
     const callId = params.id as string;
 
     const [call, setCall] = useState<any>(null);
@@ -31,13 +35,17 @@ export default function PrivateCallPage() {
     // Feature Overlays
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isVideoOpen, setIsVideoOpen] = useState(false);
+    const [isDisplayOpen, setIsDisplayOpen] = useState(false);
     
     const [chatInput, setChatInput] = useState('');
     const [messages, setMessages] = useState<any[]>([]);
+    const [isUploadingMedia, setIsUploadingMedia] = useState(false);
     
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const selfVideoRef = useRef<HTMLVideoElement>(null);
+    const mediaInputRef = useRef<HTMLInputElement>(null);
+    const [uploadType, setUploadType] = useState<'image' | 'video' | 'music' | null>(null);
 
     const chatId = useMemo(() => {
         if (!user?.$id || !partner?.$id) return null;
@@ -101,7 +109,7 @@ export default function PrivateCallPage() {
                 if (selfVideoRef.current) selfVideoRef.current.srcObject = stream;
             }).catch(() => toast({ title: 'Camera Error' }));
         }
-    }, [isVideoOpen]);
+    }, [isVideoOpen, toast]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -112,6 +120,37 @@ export default function PrivateCallPage() {
         await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
             chatId, senderId: user.$id, text: txt, status: 'sent'
         });
+    };
+
+    const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !uploadType) return;
+
+        setIsUploadingMedia(true);
+        toast({ title: `Sharing ${uploadType}...` });
+
+        try {
+            const reader = new FileReader();
+            const base64: string = await new Promise((resolve) => {
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(file);
+            });
+
+            const uploadRes = await uploadToCloudinary(base64, uploadType === 'music' ? 'auto' : uploadType);
+            if (uploadRes.success) {
+                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, {
+                    displayUrl: uploadRes.url,
+                    displayType: uploadType,
+                    displayVisible: true
+                });
+                toast({ title: 'Shared successfully!' });
+            }
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Upload failed' });
+        } finally {
+            setIsUploadingMedia(false);
+            setUploadType(null);
+        }
     };
 
     const formatDuration = (seconds: number) => {
@@ -167,7 +206,7 @@ export default function PrivateCallPage() {
                             <span className="text-[8px] font-black uppercase opacity-40">Video</span>
                         </div>
                         <div className="flex flex-col items-center gap-2">
-                            <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
+                            <Button onClick={() => setIsDisplayOpen(true)} variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
                                 <Layout className="h-5 w-5" />
                             </Button>
                             <span className="text-[8px] font-black uppercase opacity-40">Display</span>
@@ -181,7 +220,7 @@ export default function PrivateCallPage() {
                 <span className="text-[10px] font-black uppercase text-red-600 tracking-widest">Hang up</span>
             </footer>
 
-            {/* SKETCH-ACCURATE VIDEO OVERLAY */}
+            {/* VIDEO CALL OVERLAY */}
             {isVideoOpen && (
                 <div className="absolute inset-0 z-[250] bg-black flex flex-col animate-in fade-in duration-300">
                     <header className="absolute top-12 left-0 right-0 flex items-center justify-between p-6 z-10">
@@ -189,14 +228,12 @@ export default function PrivateCallPage() {
                         <Button variant="ghost" size="icon" onClick={() => setIsVideoOpen(false)} className="rounded-full bg-white/10 text-white h-12 w-12"><X className="h-8 w-8" /></Button>
                     </header>
 
-                    {/* MAIN VIEW: RECEIVER */}
                     <div className="flex-1 relative flex flex-col items-center justify-center">
                         <div className="absolute inset-0 flex items-center justify-center opacity-30 grayscale">
                              <Avatar className="h-64 w-64"><AvatarImage src={partner.avatar}/></Avatar>
                         </div>
                         <p className="absolute top-[45%] text-white/40 font-black uppercase text-xl tracking-[0.2em]">Receiver</p>
                         
-                        {/* INSET VIEW: YOU (SKETCH POSITION) */}
                         <div className="absolute bottom-10 right-10 w-32 aspect-[9/16] bg-muted rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl">
                             <video ref={selfVideoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
                             <p className="absolute bottom-2 left-0 right-0 text-center text-[8px] font-black uppercase text-white/60">You</p>
@@ -257,6 +294,79 @@ export default function PrivateCallPage() {
                                 </div>
                             </ScrollArea>
                         </div>
+                    </footer>
+                </div>
+            )}
+
+            {/* BLACK DISPLAY HUB OVERLAY */}
+            {(isDisplayOpen || (call.displayVisible && isConnected)) && (
+                <div className="absolute inset-0 z-[300] bg-black flex flex-col animate-in fade-in duration-300">
+                    <header className="absolute top-12 left-0 right-0 flex items-center justify-between p-6 z-10">
+                        <div className="flex items-center gap-3">
+                            <Layout className="h-6 w-6 text-primary" />
+                            <h2 className="text-white text-xl font-black uppercase tracking-widest">Display Hub</h2>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={async () => {
+                            if (user.$id === call.hostId) {
+                                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { displayVisible: false });
+                            }
+                            setIsDisplayOpen(false);
+                        }} className="rounded-full bg-white/10 text-white h-12 w-12"><X className="h-8 w-8" /></Button>
+                    </header>
+
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
+                        {call.displayVisible ? (
+                            <div className="w-full h-full rounded-[2.5rem] overflow-hidden bg-white/5 border border-white/10 relative flex items-center justify-center shadow-2xl">
+                                {call.displayType === 'image' && (
+                                    <Image src={call.displayUrl} alt="Shared Display" fill className="object-contain" unoptimized />
+                                )}
+                                {call.displayType === 'video' && (
+                                    <video src={call.displayUrl} controls autoPlay className="w-full h-full" />
+                                )}
+                                {call.displayType === 'music' && (
+                                    <div className="flex flex-col items-center gap-8">
+                                        <div className="h-40 w-40 rounded-full bg-primary/20 flex items-center justify-center border-4 border-primary animate-pulse">
+                                            <Music className="h-20 w-20 text-primary" />
+                                        </div>
+                                        <audio src={call.displayUrl} controls autoPlay className="w-full max-w-xs" />
+                                        <p className="text-white font-black uppercase text-xs tracking-widest">Playing Live Audio...</p>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="text-center space-y-8 max-w-xs">
+                                <MonitorPlay className="h-20 w-20 mx-auto text-primary opacity-30" />
+                                <div className="space-y-2">
+                                    <p className="text-white font-black uppercase text-lg tracking-tighter">Nothing Shared Yet</p>
+                                    <p className="text-white/40 text-[10px] font-bold uppercase leading-relaxed">
+                                        You can share images, films, or music tracks with each other in real-time.
+                                    </p>
+                                </div>
+                                
+                                <div className="grid grid-cols-3 gap-4">
+                                    <Button onClick={() => { setUploadType('image'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10">
+                                        <ImageIcon className="h-6 w-6 text-primary" />
+                                        <span className="text-[8px] font-black uppercase">Image</span>
+                                    </Button>
+                                    <Button onClick={() => { setUploadType('video'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10">
+                                        <Film className="h-6 w-6 text-primary" />
+                                        <span className="text-[8px] font-black uppercase">Video</span>
+                                    </Button>
+                                    <Button onClick={() => { setUploadType('music'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10">
+                                        <Music className="h-6 w-6 text-primary" />
+                                        <span className="text-[8px] font-black uppercase">Music</span>
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <input type="file" ref={mediaInputRef} className="hidden" onChange={handleMediaUpload} />
+                    
+                    <footer className="p-8 flex justify-center">
+                        <Button onClick={async () => { await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { status: 'ended' }); }} variant="destructive" className="rounded-full h-14 px-10 font-black uppercase text-xs tracking-widest shadow-2xl">
+                            <PhoneOff className="mr-2 h-5 w-5" /> Hang Up Call
+                        </Button>
                     </footer>
                 </div>
             )}

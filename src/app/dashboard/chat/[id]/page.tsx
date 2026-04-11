@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -112,14 +111,11 @@ export default function ChatThreadPage() {
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
     const handleSend = async (textOverride?: string, mediaData?: any) => {
-        const text = textOverride || newMessage.trim();
+        const text = textOverride !== undefined ? textOverride : newMessage.trim();
         if (!text && !mediaData) return;
-        if (!textOverride && !mediaData) setNewMessage('');
+        if (textOverride === undefined && !mediaData) setNewMessage('');
 
         const msgId = doc(collection(db, COLLECTION_ID_MESSAGES)).id;
-        
-        // Delivery Report Calculation
-        // ☑️ if offline, ☑️☑️ if online
         const initialStatus = otherUser?.isOnline ? 'delivered' : 'sent';
 
         try {
@@ -157,6 +153,7 @@ export default function ChatThreadPage() {
                 setRecordedBlob(audioBlob);
                 setRecordedAudioUrl(URL.createObjectURL(audioBlob));
                 stream.getTracks().forEach(track => track.stop());
+                setIsRecording(false); // Reset recording state here
             };
 
             mediaRecorder.start();
@@ -171,7 +168,6 @@ export default function ChatThreadPage() {
     const stopRecording = () => {
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
-            setIsRecording(false);
         }
     };
 
@@ -186,15 +182,23 @@ export default function ChatThreadPage() {
             });
             const upload = await uploadToCloudinary(base64, 'auto');
             if (upload.success) {
-                handleSend('', { url: upload.url, type: 'audio' });
+                await handleSend('', { url: upload.url, type: 'audio' });
                 setRecordedAudioUrl(null);
                 setRecordedBlob(null);
+            } else {
+                throw new Error(upload.message);
             }
-        } catch (e) {
-            toast({ variant: 'destructive', title: 'Upload failed' });
+        } catch (e: any) {
+            toast({ variant: 'destructive', title: 'Upload failed', description: e.message });
         } finally {
             setIsUploading(false);
         }
+    };
+
+    const clearVoiceNote = () => {
+        setRecordedAudioUrl(null);
+        setRecordedBlob(null);
+        setIsRecording(false);
     };
 
     const handleStartCall = async () => {
@@ -280,7 +284,7 @@ export default function ChatThreadPage() {
                         />
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => { setRecordedAudioUrl(null); setRecordedBlob(null); }} className="h-10 w-10 rounded-full text-destructive"><X className="h-5 w-5" /></Button>
+                        <Button variant="ghost" size="icon" onClick={clearVoiceNote} className="h-10 w-10 rounded-full text-destructive"><X className="h-5 w-5" /></Button>
                         <Button onClick={handleSendVoiceNote} size="icon" className="h-10 w-10 rounded-full bg-green-500 hover:bg-green-600 text-white shadow-md" disabled={isUploading}>
                             {isUploading ? <Loader2 className="animate-spin h-4 w-4" /> : <Check className="h-5 w-5" />}
                         </Button>
