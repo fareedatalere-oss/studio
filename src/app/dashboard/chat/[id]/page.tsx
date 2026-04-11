@@ -8,16 +8,29 @@ import { db } from '@/lib/firebase';
 import { 
     collection, query, where, onSnapshot, doc, 
     serverTimestamp, setDoc, updateDoc, 
-    increment, getDocs, writeBatch
+    increment, getDocs, writeBatch, deleteDoc
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, Check, CheckCheck } from 'lucide-react';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, Check, CheckCheck, MoreHorizontal, Trash2, Forward } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
 
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
@@ -36,6 +49,8 @@ export default function ChatThreadPage() {
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [isUploading, setIsUploading] = useState(false);
+    const [recentChats, setRecentChats] = useState<any[]>([]);
+    const [forwardMsg, setForwardMsg] = useState<any>(null);
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messageMapRef = useRef<Map<string, any>>(new Map());
@@ -98,36 +113,60 @@ export default function ChatThreadPage() {
             setMessages(sorted);
         });
 
-        return () => { unsub(); unsubOther(); };
+        // Fetch recent chats for forwarding
+        const qRecent = query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', currentUser.$id));
+        const unsubRecent = onSnapshot(qRecent, async (snap) => {
+            const chats = await Promise.all(snap.docs.map(async (d) => {
+                const data = d.data();
+                const targetId = data.participants.find((p: string) => p !== currentUser.$id);
+                const prof = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, targetId).catch(() => null);
+                return { $id: d.id, ...data, targetUser: prof };
+            }));
+            setRecentChats(chats.filter(c => c.targetUser));
+        });
+
+        return () => { unsub(); unsubOther(); unsubRecent(); };
     }, [chatId, currentUser, otherUserId]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-    const handleSend = async (textOverride?: string, mediaData?: any) => {
+    const handleSend = async (textOverride?: string, mediaData?: any, targetChatId?: string, targetParticipantId?: string) => {
+        const activeChatId = targetChatId || chatId;
+        const activeParticipantId = targetParticipantId || otherUserId;
         const text = textOverride !== undefined ? textOverride : newMessage.trim();
+        
         if (!text && !mediaData) return;
         if (textOverride === undefined && !mediaData) setNewMessage('');
 
         const msgId = doc(collection(db, COLLECTION_ID_MESSAGES)).id;
-        const initialStatus = otherUser?.isOnline ? 'delivered' : 'sent';
-
         try {
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { 
-                chatId, 
+                chatId: activeChatId, 
                 senderId: currentUser.$id, 
                 text: text || '', 
-                status: initialStatus,
+                status: 'sent',
                 deletedFor: [], 
                 createdAt: serverTimestamp(),
                 ...(mediaData && { mediaUrl: mediaData.url, mediaType: mediaData.type, duration: mediaData.duration })
             });
-            await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
-                participants: [currentUser.$id, otherUserId],
-                lastMessage: text ? (text.length > 30 ? text.substring(0,30)+'...' : text) : `Sent a ${mediaData?.type || 'file'}`,
+            await setDoc(doc(db, COLLECTION_ID_CHATS, activeChatId!), {
+                participants: [currentUser.$id, activeParticipantId],
+                lastMessage: text ? (text.length > 30 ? text.substring(0,30)+'...' : text) : `Sent a media file`,
                 lastMessageAt: serverTimestamp(),
-                [`unreadCount.${otherUserId}`]: increment(1)
+                [`unreadCount.${activeParticipantId}`]: increment(1)
             }, { merge: true });
+            
+            if (targetChatId) toast({ title: "Message Forwarded" });
         } catch (e) { toast({ variant: 'destructive', title: 'Error sending message' }); }
+    };
+
+    const handleDeleteMessage = async (msgId: string) => {
+        try {
+            await deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msgId));
+            toast({ title: "Message Deleted" });
+        } catch (e) {
+            toast({ variant: 'destructive', title: "Delete Failed" });
+        }
     };
 
     const handleStartCall = async () => {
@@ -142,7 +181,7 @@ export default function ChatThreadPage() {
                 invitedUsers: [otherUserId],
                 createdAt: new Date().toISOString()
             });
-            router.push(`/dashboard/meeting/room/${callId}`);
+            router.push(`/dashboard/chat/call/${callId}`);
         } catch (e) {
             toast({ variant: 'destructive', title: 'Call Failed' });
         }
@@ -180,9 +219,26 @@ export default function ChatThreadPage() {
                     {messages.map((msg) => {
                         const isMine = msg.senderId === currentUser?.$id;
                         return (
-                            <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%]", isMine ? "ml-auto items-end" : "items-start")}>
+                            <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%] group", isMine ? "ml-auto items-end" : "items-start")}>
                                 <div className={cn("p-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold leading-relaxed", isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
-                                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                                    <div className="flex items-start justify-between gap-4">
+                                        <p className="whitespace-pre-wrap flex-1">{msg.text}</p>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 -mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align={isMine ? 'end' : 'start'} className="font-black uppercase text-[9px]">
+                                                <DropdownMenuItem onClick={() => setForwardMsg(msg)}>
+                                                    <Forward className="mr-2 h-3.5 w-3.5" /> Forward
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleDeleteMessage(msg.$id)} className="text-destructive">
+                                                    <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
                                     <div className="flex items-center justify-end gap-1 mt-1">
                                         <span className="text-[6px] font-black uppercase opacity-60">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : '...'}</span>
                                         {isMine && <DeliveryStatus status={msg.status} />}
@@ -214,6 +270,32 @@ export default function ChatThreadPage() {
                 </div>
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,application/pdf" />
             </footer>
+
+            {/* Forwarding Dialog */}
+            <Dialog open={!!forwardMsg} onOpenChange={(o) => !o && setForwardMsg(null)}>
+                <DialogContent className="rounded-[2.5rem] p-0 overflow-hidden border-none max-w-sm">
+                    <DialogHeader className="p-6 bg-primary text-white">
+                        <DialogTitle className="font-black uppercase tracking-widest text-center text-sm">Forward Message</DialogTitle>
+                    </DialogHeader>
+                    <div className="max-h-[400px] overflow-y-auto p-4 space-y-2">
+                        <p className="text-[9px] font-black uppercase text-muted-foreground mb-4 px-2">Recent Contacts</p>
+                        {recentChats.map(chat => (
+                            <Button 
+                                key={chat.$id}
+                                variant="ghost" 
+                                className="w-full justify-start h-14 rounded-2xl gap-3 hover:bg-primary/5 px-3"
+                                onClick={() => {
+                                    handleSend(forwardMsg.text, forwardMsg.mediaUrl ? { url: forwardMsg.mediaUrl, type: forwardMsg.mediaType } : undefined, chat.$id, chat.targetUser.$id);
+                                    setForwardMsg(null);
+                                }}
+                            >
+                                <Avatar className="h-10 w-10"><AvatarImage src={chat.targetUser?.avatar}/><AvatarFallback>{chat.targetUser?.username?.charAt(0)}</AvatarFallback></Avatar>
+                                <span className="font-bold text-xs uppercase tracking-tighter">@{chat.targetUser?.username}</span>
+                            </Button>
+                        ))}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

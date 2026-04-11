@@ -5,13 +5,13 @@ import { v2 as cloudinary } from 'cloudinary';
 
 /**
  * @fileOverview Cloudinary Server Action for Secure Uploads.
- * Hardcoded with verified master credentials for cloud: dwhkwiceh.
+ * Securely uses environment variables for production deployment.
  */
 
 cloudinary.config({
-  cloud_name: 'dwhkwiceh',
-  api_key: '483123493357221',
-  api_secret: 'c4R2hTEJ08hRl9i_tMr52yhJV-M',
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dwhkwiceh',
+  api_key: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || '483123493357221',
+  api_secret: process.env.CLOUDINARY_API_SECRET || 'c4R2hTEJ08hRl9i_tMr52yhJV-M',
   secure: true,
 });
 
