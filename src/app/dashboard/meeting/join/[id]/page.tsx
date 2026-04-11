@@ -16,12 +16,17 @@ import { cn } from '@/lib/utils';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
+/**
+ * @fileOverview Meeting Join Lobby.
+ * Validates session status and handles identity setup.
+ */
+
 function MeetingJoinContent() {
     const params = useParams();
     const router = useRouter();
     const searchParams = useSearchParams();
     const { toast } = useToast();
-    const { user: authUser, profile: authProfile } = useUser();
+    const { user: authUser } = useUser();
     const meetingId = params.id as string;
     const isAdminLink = searchParams.get('role') === 'admin';
 
@@ -40,8 +45,10 @@ function MeetingJoinContent() {
 
     useEffect(() => {
         const checkMeeting = async () => {
+            if (!meetingId) return;
             try {
                 const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
+                
                 if (meeting.status === 'ended') {
                     setIsExpired(true);
                     return;
@@ -56,8 +63,11 @@ function MeetingJoinContent() {
                         setIsFull(true);
                     }
                 }
-            } catch (e) {
-                setIsExpired(true);
+            } catch (e: any) {
+                // Only mark as expired if document really doesn't exist
+                if (e.code === 404) {
+                    setIsExpired(true);
+                }
             }
         };
         checkMeeting();

@@ -11,7 +11,7 @@ import {
     getDoc, writeBatch, getDocs, arrayUnion, arrayRemove 
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID } from '@/lib/appwrite';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Mic, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, X, Play, Pause, Trash } from 'lucide-react';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Mic, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, X, Play, Pause, Trash, Phone } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,11 @@ const getChatId = (userId1?: string, userId2?: string) => {
     const sortedIds = [userId1, userId2].sort();
     return `${sortedIds[0]}_${sortedIds[1]}`;
 };
+
+/**
+ * @fileOverview Private Chat Thread.
+ * Header features: Back button and Call button on the left.
+ */
 
 export default function ChatThreadPage() {
     const params = useParams();
@@ -413,18 +418,27 @@ export default function ChatThreadPage() {
 
     return (
         <div className="flex flex-col h-screen bg-background font-body overflow-hidden">
-            <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-3 z-50 pt-12 shadow-sm">
-                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-10 w-10 rounded-full bg-muted/50">
-                    <ArrowLeft className="h-5 w-5" />
-                </Button>
+            <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-50 pt-12 shadow-sm">
+                <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-10 w-10 rounded-full bg-muted/50">
+                        <ArrowLeft className="h-5 w-5" />
+                    </Button>
+                    {otherUser && (
+                        <Button variant="ghost" size="icon" asChild className="h-10 w-10 rounded-full bg-muted/50 text-primary">
+                            <a href={`tel:${otherUser.phone || otherUser.phoneNumber || ''}`}>
+                                <Phone className="h-5 w-5" />
+                            </a>
+                        </Button>
+                    )}
+                </div>
                 {otherUser && (
-                    <div className="flex-1 flex items-center gap-3 overflow-hidden">
+                    <div className="flex-1 flex items-center gap-3 overflow-hidden ml-1">
                         <Avatar className="h-11 w-11 border-2 border-primary/10 shadow-sm">
                             <AvatarImage src={otherUser.avatar} className="object-cover" />
-                            <AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                            <AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0)}</AvatarFallback>
                         </Avatar>
                         <div className="truncate">
-                            <h2 className="font-bold text-xs leading-none truncate tracking-tighter">@{otherUser.username}</h2>
+                            <h2 className="font-bold text-xs leading-none truncate tracking-tighter">{otherUser.username}</h2>
                             <p className={cn("text-[8px] font-black uppercase mt-1.5", otherUser.isOnline ? "text-green-500 animate-pulse" : "text-muted-foreground")}>
                                 {otherUser.isOnline ? 'Online Now' : otherUser.lastSeen ? `Left ${formatDistanceToNow(new Date(otherUser.lastSeen.toMillis ? otherUser.lastSeen.toMillis() : otherUser.lastSeen), { addSuffix: true })}` : 'Offline'}
                             </p>

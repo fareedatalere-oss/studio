@@ -11,6 +11,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
 
+/**
+ * @fileOverview Meeting Entry Page.
+ * Robust parsing for Chairman and Guest links.
+ */
+
 export default function EnterMeetingPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -21,18 +26,25 @@ export default function EnterMeetingPage() {
     let cleanId = input.trim();
     let isAdmin = false;
 
-    // Robust Link Parsing Logic
+    // Robust Link & ID Parsing Logic
     try {
-        if (cleanId.startsWith('http')) {
-            const url = new URL(cleanId);
+        if (cleanId.includes('/join/')) {
+            const url = new URL(cleanId.startsWith('http') ? cleanId : `https://${cleanId}`);
             const pathParts = url.pathname.split('/');
             cleanId = pathParts[pathParts.length - 1];
             if (url.searchParams.get('role') === 'admin') {
                 isAdmin = true;
             }
+        } else if (cleanId.startsWith('http')) {
+             const url = new URL(cleanId);
+             const pathParts = url.pathname.split('/');
+             cleanId = pathParts[pathParts.length - 1];
+             if (url.searchParams.get('role') === 'admin') {
+                isAdmin = true;
+            }
         }
     } catch (e) {
-        // Not a URL, treat as direct ID
+        // Not a URL, treat as direct ID (already in cleanId)
     }
 
     if (!cleanId) {
@@ -70,7 +82,7 @@ export default function EnterMeetingPage() {
           <Input 
             value={input}
             onChange={e => setInput(e.target.value)}
-            placeholder="Paste Link here..." 
+            placeholder="Paste Link or ID here..." 
             className="h-14 rounded-2xl bg-muted border-none text-center font-bold text-sm focus-visible:ring-1 focus-visible:ring-primary" 
           />
         </CardContent>
