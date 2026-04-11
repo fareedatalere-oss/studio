@@ -3,14 +3,14 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useUser } from '@/hooks/use-appwrite';
+import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
 import { 
     collection, query, where, onSnapshot, doc, 
     serverTimestamp, setDoc, updateDoc, 
     increment, getDocs, writeBatch, deleteDoc, arrayUnion
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } from '@/lib/appwrite';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
 import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreHorizontal, Trash2, Forward, Mic, X, CheckCircle2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -34,8 +34,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Chat Thread.
- * FEATURES: Voice Note Flow (Record -> Stop -> Preview -> Send), Smart Deletion (Sender/Receiver), Forward.
- * LIMITS: Voice note recording locked to 1 hour.
+ * FIXED: handleStartCall creates a session first.
+ * FEATURES: Voice Note Hub (Record -> Stop -> Preview -> Send), Smart Deletion.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -62,10 +62,9 @@ export default function ChatThreadPage() {
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
     const [recordingDuration, setRecordingDuration] = useState(0);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const timerRef = useRef<any>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const messageMapRef = useRef<Map<string, any>>(new Map());
     const fileInputRef = useRef<HTMLInputElement>(null);
     
     const [isForwardOpen, setIsForwardOpen] = useState(false);
@@ -82,16 +81,13 @@ export default function ChatThreadPage() {
         const markAsSeen = async () => {
             const q = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', chatId));
             const snapshot = await getDocs(q);
-            if (snapshot.empty) return;
             const batch = writeBatch(db);
-            let changed = false;
             snapshot.docs.forEach(d => {
                 if (d.data().senderId === otherUserId && d.data().status !== 'seen') {
                     batch.update(d.ref, { status: 'seen' });
-                    changed = true;
                 }
             });
-            if (changed) await batch.commit();
+            await batch.commit();
         };
         markAsSeen();
 
@@ -101,18 +97,10 @@ export default function ChatThreadPage() {
 
         const q = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', chatId));
         const unsub = onSnapshot(q, (snapshot) => {
-            snapshot.docChanges().forEach(change => {
-                const data = change.doc.data();
-                messageMapRef.current.set(change.doc.id, { $id: change.doc.id, ...data });
-            });
-            const sorted = Array.from(messageMapRef.current.values())
-                .filter(m => !m.deleteFor?.includes(currentUser?.$id))
-                .sort((a, b) => {
-                    const tA = a.createdAt?.toMillis?.() || new Date(a.createdAt || 0).getTime() || 0;
-                    const tB = b.createdAt?.toMillis?.() || new Date(b.createdAt || 0).getTime() || 0;
-                    return tA - tB;
-                });
-            setMessages(sorted);
+            const docs = snapshot.docs.map(d => ({ $id: d.id, ...d.data() }));
+            const filtered = docs.filter((m: any) => !m.deleteFor?.includes(currentUser?.$id))
+                .sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
+            setMessages(filtered);
         });
 
         return () => { unsub(); unsubOther(); };
@@ -162,15 +150,7 @@ export default function ChatThreadPage() {
             recorder.start();
             setIsRecording(true);
             setRecordingDuration(0);
-            timerRef.current = setInterval(() => {
-                setRecordingDuration(p => {
-                    if (p >= 3600) { // 1 Hour Limit
-                        stopRecording();
-                        return 3600;
-                    }
-                    return p + 1;
-                });
-            }, 1000);
+            timerRef.current = setInterval(() => setRecordingDuration(p => p >= 3600 ? 3600 : p + 1), 1000);
         } catch (err) { toast({ variant: 'destructive', title: 'Mic Access Error' }); }
     };
 
@@ -185,7 +165,6 @@ export default function ChatThreadPage() {
     const handleSendVoice = async () => {
         if (!audioBlob) return;
         setIsUploading(true);
-        toast({ title: 'Uploading voice note...' });
         try {
             const reader = new FileReader();
             const b64: string = await new Promise((res) => {
@@ -196,8 +175,8 @@ export default function ChatThreadPage() {
             if (up.success) {
                 await handleSend('', { url: up.url, type: 'audio' });
                 cancelRecording();
-            } else throw new Error(up.message);
-        } catch (err: any) { toast({ variant: 'destructive', title: 'Failed', description: err.message }); }
+            }
+        } catch (err: any) { toast({ variant: 'destructive', title: 'Failed' }); }
         finally { setIsUploading(false); }
     };
 
@@ -210,7 +189,15 @@ export default function ChatThreadPage() {
 
     const handleStartCall = async () => {
         if (!currentUser || !otherUserId) return;
-        router.push(`/dashboard/chat/call/${otherUserId}`);
+        const meetingId = doc(collection(db, COLLECTION_ID_MEETINGS)).id;
+        await setDoc(doc(db, COLLECTION_ID_MEETINGS, meetingId), {
+            hostId: currentUser.$id,
+            invitedUsers: [otherUserId],
+            type: 'call',
+            status: 'pending',
+            createdAt: serverTimestamp()
+        });
+        router.push(`/dashboard/chat/call/${meetingId}`);
     };
 
     const DeliveryStatus = ({ status, receiverOnline }: { status: string, receiverOnline?: boolean }) => {
@@ -222,7 +209,7 @@ export default function ChatThreadPage() {
     };
 
     return (
-        <div className="flex flex-col h-screen bg-background font-body overflow-hidden">
+        <div className="flex flex-col h-screen bg-background overflow-hidden">
             <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-50 pt-12 shadow-sm">
                 <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-10 w-10 rounded-full bg-muted/50"><ArrowLeft className="h-5 w-5" /></Button>
                 {otherUser && (
@@ -255,7 +242,7 @@ export default function ChatThreadPage() {
                                         </div>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 -mt-2 opacity-30 hover:opacity-100"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 -mt-2 opacity-30 hover:opacity-100"><MoreVertical className="h-4 w-4" /></Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align={isMine ? 'end' : 'start'} className="font-black uppercase text-[9px]">
                                                 <DropdownMenuItem onClick={() => updateDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id), { deleteFor: arrayUnion(currentUser?.$id) })}>

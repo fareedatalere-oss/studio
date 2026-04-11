@@ -12,16 +12,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
+import { useUser } from '@/hooks/use-user';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
 import { format, parse } from 'date-fns';
 import { doc, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 /**
  * @fileOverview Meeting Booking Page.
- * FIXED: Typo </LPabel> corrected to </Label>.
- * STRICT SCHEDULING: Locked to Today. Ring instantly if time has passed.
+ * FIXED: SSR compatibility and typo logic.
  */
 
 export default function BookMeetingPage() {
@@ -46,7 +45,7 @@ export default function BookMeetingPage() {
 
   const handleCreateMeeting = async () => {
     if (!formData.name || !user) {
-      toast({ variant: 'destructive', title: 'Name Required', description: 'Please provide a name for your meeting.' });
+      toast({ variant: 'destructive', title: 'Name Required' });
       return;
     }
 
@@ -74,7 +73,6 @@ export default function BookMeetingPage() {
         };
 
         await databases.createDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, payload);
-        
         setMeetingLink(generatedLink);
         toast({ title: 'Meeting Link Generated!' });
     } catch (e: any) {
@@ -107,23 +105,15 @@ export default function BookMeetingPage() {
                 </CardHeader>
                 <CardContent className="space-y-6 mt-4 text-left">
                     <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10">
-                        <Label className="flex items-center gap-2 text-[9px] font-black uppercase text-primary mb-2">
-                            Meeting Link
-                        </Label>
+                        <Label className="flex items-center gap-2 text-[9px] font-black uppercase text-primary mb-2">Meeting Link</Label>
                         <div className="flex items-center gap-2">
                             <p className="text-[10px] font-mono truncate flex-1 text-primary">{meetingLink}</p>
                             <Button size="icon" variant="ghost" onClick={() => copyToClipboard(meetingLink)} className="shrink-0 h-8 w-8"><Copy className="h-3 w-3" /></Button>
                         </div>
                     </div>
-                    <div className="bg-muted/30 p-4 rounded-xl text-center">
-                        <p className="text-[10px] font-black uppercase tracking-widest opacity-50">Scheduled For</p>
-                        <p className="font-bold text-sm">{formData.date} at {formData.time}</p>
-                    </div>
                 </CardContent>
-                <CardFooter className="flex flex-col gap-3">
-                    <Button asChild variant="ghost" className="font-black uppercase text-[10px] tracking-widest">
-                        <Link href="/dashboard/meeting">Return to Hub</Link>
-                    </Button>
+                <CardFooter>
+                    <Button asChild variant="ghost" className="w-full font-black uppercase text-[10px] tracking-widest"><Link href="/dashboard/meeting">Return to Hub</Link></Button>
                 </CardFooter>
             </Card>
         </div>
@@ -132,19 +122,13 @@ export default function BookMeetingPage() {
 
   return (
     <div className="container py-8 max-w-2xl">
-      <Link href="/dashboard/meeting" className="flex items-center gap-2 mb-6 text-sm font-black uppercase text-muted-foreground hover:text-primary">
-        <ArrowLeft className="h-4 w-4" /> Hub
-      </Link>
-
+      <Link href="/dashboard/meeting" className="flex items-center gap-2 mb-6 text-sm font-black uppercase text-muted-foreground hover:text-primary"><ArrowLeft className="h-4 w-4" /> Hub</Link>
       <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
-        <CardHeader className="bg-primary/5 pb-8 text-center">
-          <CardTitle className="text-2xl font-black uppercase tracking-tighter">Setup Meeting</CardTitle>
-          <CardDescription className="font-bold text-xs text-center">Set time for today's session</CardDescription>
-        </CardHeader>
+        <CardHeader className="bg-primary/5 pb-8 text-center"><CardTitle className="text-2xl font-black uppercase tracking-tighter">Setup Meeting</CardTitle></CardHeader>
         <CardContent className="space-y-6 pt-8">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-                <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Date (Today Only)</Label>
+                <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Date</Label>
                 <Input type="date" value={formData.date} readOnly className="h-12 rounded-2xl bg-muted border-none px-4 font-bold opacity-50 cursor-not-allowed" />
             </div>
             <div className="space-y-2">
@@ -152,37 +136,15 @@ export default function BookMeetingPage() {
                 <Input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="h-12 rounded-2xl bg-muted border-none px-4 font-bold" />
             </div>
           </div>
-
           <div className="space-y-2">
             <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Meeting Name</Label>
-            <Input 
-              placeholder="e.g. Morning Briefing" 
-              className="h-12 rounded-2xl bg-muted border-none px-6 font-bold"
-              value={formData.name}
-              onChange={e => setFormData({ ...formData, name: e.target.value })}
-            />
+            <Input placeholder="e.g. Morning Briefing" className="h-12 rounded-2xl bg-muted border-none px-6 font-bold" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
           </div>
-
           <div className="space-y-4 pt-4 border-t">
             <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Meeting Scope</Label>
             <RadioGroup value={formData.type} onValueChange={v => setFormData({ ...formData, type: v })} className="grid grid-cols-2 gap-4">
-              <div className={cn(
-                "p-4 rounded-[2rem] border-2 cursor-pointer transition-all flex flex-col gap-2",
-                formData.type === 'personal' ? "border-primary bg-primary/5" : "border-muted bg-muted/20"
-              )} onClick={() => setFormData({ ...formData, type: 'personal' })}>
-                <p className="font-black text-xs uppercase tracking-tighter">Personal</p>
-                <p className="text-[8px] leading-tight text-muted-foreground font-bold">Max 5 • 1 Hour • Free</p>
-                <RadioGroupItem value="personal" className="sr-only" />
-              </div>
-
-              <div className={cn(
-                "p-4 rounded-[2rem] border-2 cursor-pointer transition-all flex flex-col gap-2",
-                formData.type === 'general' ? "border-primary bg-primary/5" : "border-muted bg-muted/20"
-              )} onClick={() => setFormData({ ...formData, type: 'general' })}>
-                <p className="font-black text-xs uppercase tracking-tighter">General</p>
-                <p className="text-[8px] leading-tight text-muted-foreground font-bold">Unlimited • 3 Hours</p>
-                <RadioGroupItem value="general" className="sr-only" />
-              </div>
+              <div className={cn("p-4 rounded-[2rem] border-2 cursor-pointer", formData.type === 'personal' ? "border-primary bg-primary/5" : "bg-muted/20")} onClick={() => setFormData({ ...formData, type: 'personal' })}><p className="font-black text-xs uppercase">Personal</p><RadioGroupItem value="personal" className="sr-only" /></div>
+              <div className={cn("p-4 rounded-[2rem] border-2 cursor-pointer", formData.type === 'general' ? "border-primary bg-primary/5" : "bg-muted/20")} onClick={() => setFormData({ ...formData, type: 'general' })}><p className="font-black text-xs uppercase">General</p><RadioGroupItem value="general" className="sr-only" /></div>
             </RadioGroup>
           </div>
         </CardContent>

@@ -2,7 +2,7 @@
 import type {Metadata, Viewport} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
-import { AppwriteProvider } from '@/hooks/use-appwrite';
+import { UserProvider } from '@/hooks/use-user';
 import Script from 'next/script';
 
 export const metadata: Metadata = {
@@ -15,9 +15,6 @@ export const metadata: Metadata = {
     title: 'I-pay online world',
   },
   applicationName: 'I-pay',
-  formatDetection: {
-    telephone: false,
-  },
 };
 
 export const viewport: Viewport = {
@@ -37,37 +34,15 @@ export default function RootLayout({
   return (
     <html lang="en" dir="ltr">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet" />
-        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
         <link rel="icon" href="/logo.png" />
         <link rel="apple-touch-icon" href="/logo.png" />
         <link rel="manifest" href="/manifest.json" />
-        
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="font-body antialiased min-h-screen bg-background pb-safe">
-        <AppwriteProvider>
+        <UserProvider>
           {children}
-        </AppwriteProvider>
+        </UserProvider>
         <Toaster />
-        
-        <Script id="register-sw" strategy="afterInteractive">
-          {`
-            if ('serviceWorker' in navigator) {
-              window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/sw.js').then(function(reg) {
-                  console.log('I-pay Service Worker Registered: ', reg.scope);
-                }).catch(function(err) {
-                  console.error('SW Registration failed: ', err);
-                });
-              });
-            }
-          `}
-        </Script>
       </body>
     </html>
   );
