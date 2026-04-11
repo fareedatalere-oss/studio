@@ -1,22 +1,23 @@
+
 'use client';
 import Link from 'next/link';
 import { Bell, Home, PlaySquare, Store, User, X, Bot, Download, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useUser } from '@/hooks/use-appwrite';
+import { useUser } from '@/hooks/use-user';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import client, { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, Query } from '@/lib/appwrite';
+import { databases, COLLECTION_ID_NOTIFICATIONS, Query } from '@/lib/data-service';
+import client from '@/lib/data-service';
 import { cn } from '@/lib/utils';
 import { MeetingAlarm } from '@/components/meeting-alarm';
 
 /**
- * @fileOverview Dashboard Layout.
- * Immersive mode active for Private Chat Threads and Meetings.
- * UPDATED: Added "Chat" button after Home button in the footer navigation.
+ * @fileOverview Unified Dashboard Layout.
+ * Uses unified useUser hook and Firebase Data Service.
  */
 
 export default function DashboardLayout({
@@ -75,12 +76,10 @@ export default function DashboardLayout({
   const fetchUnreadCounts = useCallback(async () => {
     if (!user?.$id) return;
     try {
-      const [totalRes] = await Promise.all([
-        databases.listDocuments(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, [
-          Query.equal('userId', user.$id),
-          Query.equal('isRead', false),
-          Query.limit(1)
-        ])
+      const totalRes = await databases.listDocuments('default', COLLECTION_ID_NOTIFICATIONS, [
+        Query.equal('userId', user.$id),
+        Query.equal('isRead', false),
+        Query.limit(1)
       ]);
       
       const newTotal = totalRes.total;
@@ -89,16 +88,6 @@ export default function DashboardLayout({
       if (newTotal > lastCountRef.current) {
         setIsPulsing(true);
         setTimeout(() => setIsPulsing(false), 3000);
-        
-        if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
-            navigator.serviceWorker.ready.then(registration => {
-                registration.showNotification("I-Pay Online World", {
-                    body: "You have a new update in your dashboard.",
-                    icon: "/logo.png",
-                    badge: "/logo.png"
-                });
-            }).catch(() => {});
-        }
       }
       lastCountRef.current = newTotal;
 
@@ -110,14 +99,13 @@ export default function DashboardLayout({
   useEffect(() => {
     if (user) {
       fetchUnreadCounts();
-      const topic = `databases.${DATABASE_ID}.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`;
-      const unsubscribe = client.subscribe([topic], (response) => {
-          const payload = response.payload as any;
+      const unsub = client.subscribe(`databases.default.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`, (response: any) => {
+          const payload = response.payload;
           if (payload.userId === user.$id) {
             fetchUnreadCounts();
           }
       });
-      return () => unsubscribe();
+      return () => unsub();
     }
   }, [user, fetchUnreadCounts]);
 

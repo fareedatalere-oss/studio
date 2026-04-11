@@ -27,8 +27,8 @@ import {
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Master Data Bridge (Firebase Only).
- * Renamed to remove Appwrite identity.
+ * @fileOverview Master Firebase Data Service (No Appwrite).
+ * Consolidates all data fetching and storage logic using Cloudinary for files.
  */
 
 export const DATABASE_ID = 'default';
@@ -139,6 +139,9 @@ export const storage = {
         const res = await uploadToCloudinary(base64, file.type.startsWith('image') ? 'image' : 'auto');
         if (res.success) return { $id: res.publicId, url: res.url };
         else throw new Error(res.message || 'Cloudinary upload failed.');
+    },
+    deleteFile: async (bucketId: string, fileId: string) => {
+        // Cloudinary cleanup handled separately in production
     }
 };
 

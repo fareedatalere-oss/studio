@@ -9,8 +9,8 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import { useRouter, usePathname } from 'next/navigation';
 
 /**
- * @fileOverview Master Auth & Data Hook.
- * Renamed to remove Appwrite identity.
+ * @fileOverview Unified Master Auth & Data Hook.
+ * Removed all Appwrite identities. Consolidates data fetching for profiles and config.
  */
 
 type UserContextType = {
@@ -53,6 +53,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             if (firebaseUser) {
                 setUser({ $id: firebaseUser.uid, uid: firebaseUser.uid, email: firebaseUser.email, name: firebaseUser.displayName });
                 const prof = await fetchProfile(firebaseUser.uid);
+                
                 if (typeof window !== 'undefined') {
                     const isMeetingPath = pathname.includes('/meeting/room/') || pathname.includes('/meeting/join/');
                     if (!prof && !pathname.includes('/auth') && !pathname.includes('/signup/profile') && !isMeetingPath) {
@@ -80,7 +81,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'proof').catch(() => null),
                     databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main').catch(() => null)
                 ]);
-                if (pDoc && pDoc.data) setProof(typeof pDoc.data === 'string' ? JSON.parse(pDoc.data) : pDoc.data);
+                if (pDoc && pDoc.data) {
+                    setProof(typeof pDoc.data === 'string' ? JSON.parse(pDoc.data) : pDoc.data);
+                }
                 if (cDoc) setConfig(cDoc);
             } catch (e) {}
         };
@@ -93,7 +96,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         const interval = setInterval(() => {
             updateDoc(doc(db, COLLECTION_ID_PROFILES, user.$id), { lastSeen: serverTimestamp(), isOnline: true }).catch(() => {});
         }, 30000);
-        const setOffline = () => { updateDoc(doc(db, COLLECTION_ID_PROFILES, user.$id), { isOnline: false }).catch(() => {}); };
+        const setOffline = () => { if(user?.$id) updateDoc(doc(db, COLLECTION_ID_PROFILES, user.$id), { isOnline: false }).catch(() => {}); };
         window.addEventListener('beforeunload', setOffline);
         return () => { clearInterval(interval); window.removeEventListener('beforeunload', setOffline); };
     }, [user]);
