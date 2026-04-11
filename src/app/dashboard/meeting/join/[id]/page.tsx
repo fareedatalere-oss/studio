@@ -16,6 +16,11 @@ import { cn } from '@/lib/utils';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
+/**
+ * @fileOverview Meeting Identity Setup & Lobby.
+ * FORCE JOIN LOGIC: Meeting only expires if status is explicitly 'ended'.
+ */
+
 function MeetingJoinContent() {
     const params = useParams();
     const router = useRouter();
@@ -46,12 +51,13 @@ function MeetingJoinContent() {
             try {
                 const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
                 
-                // ONLY EXPIRED IF EXPLICITLY ENDED BY ADMIN
+                // FORCE: Meeting is ONLY expired if status is 'ended'
                 if (meeting.status === 'ended') {
                     setIsExpired(true);
                     return;
                 }
 
+                // Check room capacity for Personal meetings (Limit 5)
                 if (meeting.type === 'personal' && !isAdminLink) {
                     const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
                         Query.equal('meetingId', meetingId),
@@ -62,8 +68,9 @@ function MeetingJoinContent() {
                     }
                 }
             } catch (e: any) {
-                // DON'T AUTO EXPIRE ON NETWORK ERRORS
                 console.error("Meeting Check Error:", e);
+                // If document not found, it might be an invalid link
+                if (e.code === 404) setIsExpired(true);
             } finally {
                 setLoadingMeeting(false);
             }
@@ -118,6 +125,7 @@ function MeetingJoinContent() {
             const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
             const isActuallyAdmin = isAdminLink || authUser?.$id === meeting.hostId;
 
+            // Enforce capacity again at point of join
             if (meeting.type === 'personal' && !isActuallyAdmin) {
                 const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
                     Query.equal('meetingId', meetingId),
@@ -143,6 +151,7 @@ function MeetingJoinContent() {
                 createdAt: new Date().toISOString()
             });
 
+            // Save setup to session for Room access
             sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ 
                 name, 
                 avatar, 
@@ -155,6 +164,7 @@ function MeetingJoinContent() {
                 router.replace(`/dashboard/meeting/room/${meetingId}`);
             } else {
                 setStep('waiting');
+                // Real-time approval listener
                 const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_ATTENDEES}.documents`], response => {
                     const payload = response.payload as any;
                     if (payload.$id === requestId) {
@@ -187,8 +197,8 @@ function MeetingJoinContent() {
                     <div className="bg-destructive/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
                         <XCircle className="h-10 w-10 text-destructive" />
                     </div>
-                    <h2 className="text-2xl font-black uppercase tracking-tighter">this meeting is expired</h2>
-                    <p className="text-muted-foreground font-bold text-sm mt-2">The session has already concluded.</p>
+                    <h2 className="text-2xl font-black uppercase tracking-tighter">Meeting Expired</h2>
+                    <p className="text-muted-foreground font-bold text-sm mt-2">The Chairman has ended this session.</p>
                     <Button asChild className="w-full h-12 rounded-full font-black uppercase tracking-widest mt-8">
                         <Link href="/dashboard/meeting">Return to Hub</Link>
                     </Button>

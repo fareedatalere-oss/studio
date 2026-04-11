@@ -7,7 +7,7 @@ import {
     PhoneOff, Loader2, Camera, 
     Video, Volume2, Mic, MicOff, X,
     MonitorPlay, Send, MessageSquare, Heart, Play, Pause, UploadCloud,
-    Layout
+    Layout, Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-appwrite';
@@ -21,6 +21,13 @@ import Image from 'next/image';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
+/**
+ * @fileOverview Universal Meeting Room UI.
+ * SCROLLABLE GRID: Participants arranged in uniform small icons.
+ * ADMIN CONTROLS: Board, Display, and Hang Up (Ends Meeting).
+ * USERNAME SYNC: Exactly as registered (small letters stay small).
+ */
+
 export default function MeetingRoomPage() {
     const params = useParams();
     const router = useRouter();
@@ -33,13 +40,10 @@ export default function MeetingRoomPage() {
     const [participants, setParticipants] = useState<any[]>([]);
     const [waitingList, setWaitingList] = useState<any[]>([]);
     
-    // UI Mode States
     const [mode, setMode] = useState<'idle' | 'board' | 'display'>('idle');
     const [isUploading, setIsUploading] = useState(false);
     
     const mediaInputRef = useRef<HTMLInputElement>(null);
-    const videoRef = useRef<HTMLVideoElement>(null);
-
     const isAdmin = useMemo(() => user?.$id === meeting?.hostId, [user?.$id, meeting?.hostId]);
 
     const fetchMeeting = useCallback(async () => {
@@ -58,12 +62,20 @@ export default function MeetingRoomPage() {
         try {
             const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
                 Query.equal('meetingId', meetingId),
+                Query.equal('status', 'approved'),
                 Query.limit(100)
             ]);
-            setParticipants(res.documents.filter(a => a.status === 'approved'));
-            setWaitingList(res.documents.filter(a => a.status === 'waiting'));
+            setParticipants(res.documents);
+            
+            if (isAdmin) {
+                const pendingRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
+                    Query.equal('meetingId', meetingId),
+                    Query.equal('status', 'waiting')
+                ]);
+                setWaitingList(pendingRes.documents);
+            }
         } catch (e) {}
-    }, [meetingId]);
+    }, [meetingId, isAdmin]);
 
     useEffect(() => {
         fetchMeeting();
@@ -85,10 +97,8 @@ export default function MeetingRoomPage() {
 
     const handleHangUp = async () => {
         if (isAdmin) {
-            // ADMIN ENDS MEETING FOR EVERYONE
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'ended' });
         } else {
-            // GUEST JUST LEAVES
             router.replace('/dashboard/meeting');
         }
     };
@@ -126,16 +136,14 @@ export default function MeetingRoomPage() {
 
     if (loading || !meeting) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
 
-    const myAttendee = participants.find(p => p.userId === user?.$id);
-
     return (
-        <div className="h-screen w-full bg-black text-white flex flex-col overflow-hidden relative font-body">
+        <div className="h-screen w-full bg-black text-white flex flex-col overflow-hidden relative">
             
             {/* BROWN BOARD OVERLAY */}
             {(mode === 'board' || (meeting.boardContent && !isAdmin)) && (
                 <div className="absolute inset-0 z-[100] bg-[#4e342e] flex flex-col p-6 animate-in fade-in duration-300">
                     <header className="flex justify-between items-center mb-4 border-b border-white/10 pb-4">
-                        <h2 className="font-black uppercase text-xs tracking-widest">Meeting Board</h2>
+                        <h2 className="font-black uppercase text-xs tracking-widest text-primary">Meeting Board</h2>
                         <Button variant="ghost" size="icon" onClick={() => setMode('idle')} className="rounded-full bg-white/10"><X className="h-5 w-5" /></Button>
                     </header>
                     <Textarea 
@@ -152,7 +160,7 @@ export default function MeetingRoomPage() {
             {(mode === 'display' || (meeting.displayVisible && !isAdmin)) && (
                 <div className="absolute inset-0 z-[110] bg-[#4e342e] flex flex-col p-6 animate-in fade-in duration-300">
                     <header className="flex justify-between items-center mb-4 border-b border-white/10 pb-4">
-                        <h2 className="font-black uppercase text-xs tracking-widest">Shared Display</h2>
+                        <h2 className="font-black uppercase text-xs tracking-widest text-primary">Media Hub</h2>
                         <Button variant="ghost" size="icon" onClick={async () => {
                             if (isAdmin) await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { displayVisible: false });
                             setMode('idle');
@@ -176,7 +184,7 @@ export default function MeetingRoomPage() {
                                 <p className="font-black uppercase text-[10px] tracking-widest opacity-40">No media shared</p>
                                 {isAdmin && (
                                     <Button onClick={() => mediaInputRef.current?.click()} variant="outline" className="rounded-full font-black uppercase text-[9px] h-10 border-white/20">
-                                        <UploadCloud className="mr-2 h-4 w-4" /> Upload Media
+                                        <UploadCloud className="mr-2 h-4 w-4" /> Upload Content
                                     </Button>
                                 )}
                             </div>
@@ -189,12 +197,17 @@ export default function MeetingRoomPage() {
             <header className="p-4 pt-12 flex justify-between items-center bg-black/50 border-b border-white/5 z-50">
                 <div className="flex-1">
                     <h1 className="font-black uppercase text-xs tracking-widest text-primary truncate">{meeting.name}</h1>
-                    <p className="text-[8px] font-bold opacity-50 uppercase tracking-tighter">I-Pay meeting Hub</p>
+                    <p className="text-[8px] font-bold opacity-50 uppercase tracking-tighter">I-Pay meeting HUB</p>
                 </div>
                 {isAdmin && (
                     <div className="flex gap-2">
-                        <Button onClick={() => setMode('board')} size="sm" variant="outline" className="h-8 rounded-full font-black uppercase text-[9px] border-white/10">board</Button>
-                        <Button onClick={() => setMode('display')} size="sm" variant="outline" className="h-8 rounded-full font-black uppercase text-[9px] border-white/10">display</Button>
+                        {meeting.type === 'general' && (
+                            <>
+                                <Button onClick={() => setMode('board')} size="sm" variant="outline" className="h-8 rounded-full font-black uppercase text-[9px] border-white/10">board</Button>
+                                <Button onClick={() => setMode('display')} size="sm" variant="outline" className="h-8 rounded-full font-black uppercase text-[9px] border-white/10">display</Button>
+                            </>
+                        )}
+                        <Button onClick={handleHangUp} size="sm" variant="destructive" className="h-8 rounded-full font-black uppercase text-[9px] shadow-lg">hang up</Button>
                     </div>
                 )}
             </header>
@@ -203,7 +216,7 @@ export default function MeetingRoomPage() {
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-6 max-w-6xl mx-auto py-10">
                     {participants.map(p => (
                         <div key={p.$id} className="flex flex-col items-center gap-2 group relative">
-                            <div className={cn("relative rounded-full border-2 p-0.5 h-14 w-14 transition-all", p.isHost ? "border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.3)]" : "border-primary/40 shadow-xl")}>
+                            <div className={cn("relative rounded-full border-2 p-0.5 h-14 w-14 transition-all", p.isHost ? "border-yellow-500" : "border-primary/40")}>
                                 {p.hasVideo ? (
                                     <div className="h-full w-full rounded-full overflow-hidden bg-muted">
                                         <video autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
@@ -218,7 +231,7 @@ export default function MeetingRoomPage() {
                                     <Button onClick={() => kickGuest(p.$id)} variant="destructive" size="icon" className="absolute -top-1 -right-1 h-5 w-5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"><X className="h-3 w-3"/></Button>
                                 )}
                             </div>
-                            <p className="font-bold text-[8px] opacity-80 uppercase text-center truncate w-full lowercase">{p.name}</p>
+                            <p className="font-bold text-[8px] opacity-80 uppercase text-center truncate w-full">{p.name}</p>
                         </div>
                     ))}
                 </div>
@@ -232,7 +245,7 @@ export default function MeetingRoomPage() {
                             <div key={req.$id} className="bg-white rounded-3xl p-3 flex items-center gap-4 shadow-2xl border-2 border-primary animate-in slide-in-from-bottom-5">
                                 <Avatar className="h-10 w-10 ring-2 ring-primary/10"><AvatarImage src={req.avatar} /><AvatarFallback>{req.name?.charAt(0)}</AvatarFallback></Avatar>
                                 <div className="min-w-[100px]">
-                                    <p className="text-[10px] font-black text-black lowercase">{req.name}</p>
+                                    <p className="text-[10px] font-black text-black">{req.name}</p>
                                     <div className="flex gap-2 mt-1">
                                         <Button size="sm" className="h-6 px-3 text-[8px] font-black uppercase rounded-full bg-primary" onClick={() => approveGuest(req.$id)}>Accept</Button>
                                         <Button size="sm" variant="ghost" className="h-6 px-3 text-[8px] font-black uppercase rounded-full text-destructive" onClick={() => declineGuest(req.$id)}>Deny</Button>
@@ -255,13 +268,15 @@ export default function MeetingRoomPage() {
                     </div>
                     <div className="text-left">
                         <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none">You (Live)</p>
-                        <p className="text-[8px] font-bold opacity-50 lowercase mt-1">{profile?.username}</p>
+                        <p className="text-[8px] font-bold opacity-50 mt-1">{profile?.username}</p>
                     </div>
                 </div>
 
-                <Button variant="destructive" className="rounded-full h-12 px-8 font-black uppercase text-[10px] tracking-widest shadow-2xl transition-all active:scale-95" onClick={handleHangUp}>
-                    <PhoneOff className="mr-2 h-4 w-4" /> {isAdmin ? 'hang up' : 'disconnect meeting'}
-                </Button>
+                {!isAdmin && (
+                    <Button variant="destructive" className="rounded-full h-12 px-8 font-black uppercase text-[10px] tracking-widest shadow-2xl transition-all active:scale-95" onClick={handleHangUp}>
+                        <PhoneOff className="mr-2 h-4 w-4" /> disconnect meeting
+                    </Button>
+                )}
             </footer>
         </div>
     );
