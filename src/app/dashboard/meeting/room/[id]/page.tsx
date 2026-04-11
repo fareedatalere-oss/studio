@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, COLLECTION_ID_MESSAGES, client, Query, ID, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, COLLECTION_ID_MESSAGES, COLLECTION_ID_PROFILES, client, Query, ID, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -23,7 +23,7 @@ const LOVE_EMOJIS = ["😍", "♥️", "😍", "🥰", "😋", "🤩", "😘", "
 export default function MeetingRoomPage() {
     const params = useParams();
     const router = useRouter();
-    const { user } = useUser();
+    const { user, profile } = useUser();
     const { toast } = useToast();
     const meetingId = params.id as string;
 
@@ -33,6 +33,7 @@ export default function MeetingRoomPage() {
     const [durationSeconds, setDurationSeconds] = useState(0);
     
     const [participants, setParticipants] = useState<any[]>([]);
+    const [partnerProfile, setPartnerProfile] = useState<any>(null);
     
     const [useCamera, setUseCamera] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -81,13 +82,37 @@ export default function MeetingRoomPage() {
     const handleEntry = useCallback(async (docData: any) => {
         if (isInRoom) return;
         
-        // For Calls, we skip the lobby if we are the host or invited
         const guestDataStr = sessionStorage.getItem(`meeting_guest_${meetingId}`);
         let guestData = guestDataStr ? JSON.parse(guestDataStr) : null;
 
-        if (!guestData && user) {
-            // Auto-fallback identity for existing app users
-            guestData = { name: user.name || 'User', avatar: '', useCamera: false };
+        // CRITICAL FIX: If we are a logged in user entering a call room, auto-initialize identity
+        if (!guestData && user && profile) {
+            guestData = { name: profile.username, avatar: profile.avatar, useCamera: false };
+            
+            // Auto-register as attendee to prevent redirection loops
+            try {
+                const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
+                    Query.equal('meetingId', meetingId),
+                    Query.equal('userId', user.$id)
+                ]);
+                
+                if (attendees.total === 0) {
+                    await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, ID.unique(), {
+                        meetingId,
+                        userId: user.$id,
+                        name: profile.username,
+                        avatar: profile.avatar,
+                        status: 'approved',
+                        isHost: user.$id === docData.hostId,
+                        hasVideo: false,
+                        hasAudio: true,
+                        createdAt: new Date().toISOString()
+                    });
+                }
+                sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify(guestData));
+            } catch (e) {
+                console.error("Auto-entry registration failed", e);
+            }
         }
 
         if (!guestData) {
@@ -97,11 +122,7 @@ export default function MeetingRoomPage() {
 
         setIsInRoom(true);
         setUseCamera(guestData.useCamera || false);
-
-        if (isAdmin && !docData.startedAt && docData.status === 'pending') {
-            // Keep status pending until guest picks up
-        }
-    }, [meetingId, isAdmin, isInRoom, router, user]);
+    }, [meetingId, isAdmin, isInRoom, router, user, profile]);
 
     const fetchMeeting = useCallback(async () => {
         try {
@@ -115,6 +136,14 @@ export default function MeetingRoomPage() {
 
             await handleEntry(docData);
 
+            if (docData.type === 'call' && user) {
+                const otherId = docData.invitedUsers?.find((id: string) => id !== user.$id) || (user.$id === docData.hostId ? null : docData.hostId);
+                if (otherId) {
+                    const otherProf = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherId).catch(() => null);
+                    setPartnerProfile(otherProf);
+                }
+            }
+
             if (docData.status === 'started' && docData.startedAt) {
                 const elapsed = Math.floor((Date.now() - new Date(docData.startedAt).getTime()) / 1000);
                 setDurationSeconds(elapsed);
@@ -124,7 +153,7 @@ export default function MeetingRoomPage() {
         } finally {
             setLoading(false);
         }
-    }, [meetingId, router, handleEntry]);
+    }, [meetingId, router, handleEntry, user]);
 
     const fetchAttendees = useCallback(async () => {
         try {
@@ -135,7 +164,6 @@ export default function MeetingRoomPage() {
             const approved = res.documents.filter(a => a.status === 'approved');
             setParticipants(approved);
 
-            // If we are host and guest just joined (status switched to approved), start the call duration
             if (isAdmin && approved.length >= 2 && meeting?.status === 'pending') {
                 await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, {
                     status: 'started',
@@ -178,7 +206,6 @@ export default function MeetingRoomPage() {
                 if (videoRef.current) videoRef.current.srcObject = stream;
             }).catch(() => setUseCamera(false));
         } else if (isInRoom) {
-            // Audio only
             navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
                 localStreamRef.current = stream;
             }).catch(() => {});
@@ -233,6 +260,10 @@ export default function MeetingRoomPage() {
 
     const partner = participants.find(p => p.userId !== user.$id);
     const isConnected = meeting.status === 'started';
+    
+    // Identity resolution: Use attendee record if joined, fallback to partner profile if ringing
+    const displayAvatar = partner?.avatar || partnerProfile?.avatar;
+    const displayName = partner?.name || partnerProfile?.username;
 
     return (
         <div className={cn("h-screen w-full flex flex-col overflow-hidden relative font-body transition-colors duration-500", isCall ? "bg-white text-black" : "bg-black text-white")}>
@@ -309,12 +340,12 @@ export default function MeetingRoomPage() {
                         <div className="relative">
                             <div className={cn("absolute inset-0 bg-primary/10 rounded-full animate-ping -m-4", !isConnected && "hidden")}></div>
                             <Avatar className="h-48 w-48 ring-4 ring-primary ring-offset-8 ring-offset-white shadow-2xl">
-                                <AvatarImage src={partner?.avatar} className="object-cover" />
-                                <AvatarFallback className="text-4xl bg-primary text-white">{partner?.name?.charAt(0) || '?'}</AvatarFallback>
+                                <AvatarImage src={displayAvatar} className="object-cover" />
+                                <AvatarFallback className="text-4xl bg-primary text-white">{displayName?.charAt(0) || '?'}</AvatarFallback>
                             </Avatar>
                         </div>
                         <div className="text-center">
-                            <h3 className="text-2xl font-black lowercase tracking-tighter">{partner?.name || 'Contacting...'}</h3>
+                            <h3 className="text-2xl font-black lowercase tracking-tighter">{displayName || 'Contacting...'}</h3>
                             <p className="text-xs font-bold text-primary animate-pulse uppercase mt-2 tracking-widest">
                                 {isConnected ? 'Connected' : 'Ringing Device...'}
                             </p>
