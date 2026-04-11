@@ -128,6 +128,8 @@ export const databases = {
     }
 };
 
+export const client = databases.client;
+
 export const storage = {
     createFile: async (bucketId: string, fileId: string, file: File) => {
         if (typeof window === 'undefined') return { $id: 'server-stub', url: '' };
