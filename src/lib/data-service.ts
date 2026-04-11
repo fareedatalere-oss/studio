@@ -111,19 +111,37 @@ export const databases = {
         await deleteDoc(doc(db, collId, docId));
     },
     client: {
-        subscribe: (chan: string, callback: Function) => {
+        subscribe: (channels: string | string[], callback: Function) => {
             if (typeof window === 'undefined') return () => {};
-            const parts = chan.split('.');
-            const collId = parts[2] || parts[1];
-            if (!collId || collId === 'documents') return () => {};
-            return onSnapshot(collection(db, collId), (snapshot) => {
-                snapshot.docChanges().forEach(change => {
-                    callback({
-                        events: [`collections.${collId}.documents.${change.type}`],
-                        payload: mapDoc(change.doc)
+            const chans = Array.isArray(channels) ? channels : [channels];
+            
+            const unsubs = chans.map(chan => {
+                if (typeof chan !== 'string') return null;
+                const parts = chan.split('.');
+                
+                // Extract collection ID (handles both databases.X.collections.Y.docs and collections.Y.docs)
+                let collId = '';
+                const collIndex = parts.indexOf('collections');
+                if (collIndex !== -1 && parts[collIndex + 1]) {
+                    collId = parts[collIndex + 1];
+                } else {
+                    // Fallback to simple parts check if 'collections' is missing
+                    collId = parts[2] || parts[1];
+                }
+
+                if (!collId || collId === 'documents') return null;
+
+                return onSnapshot(collection(db, collId), (snapshot) => {
+                    snapshot.docChanges().forEach(change => {
+                        callback({
+                            events: [`collections.${collId}.documents.${change.type}`],
+                            payload: mapDoc(change.doc)
+                        });
                     });
                 });
             });
+
+            return () => unsubs.forEach(unsub => typeof unsub === 'function' && unsub());
         }
     }
 };
