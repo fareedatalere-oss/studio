@@ -8,10 +8,10 @@ import { db } from '@/lib/firebase';
 import { 
     collection, query, where, onSnapshot, doc, 
     serverTimestamp, setDoc, updateDoc, 
-    writeBatch, getDocs, arrayUnion, arrayRemove, increment 
+    writeBatch, arrayUnion, increment 
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Mic, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, X, Play, Phone, Eye } from 'lucide-react';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, X, Play, PhoneCall } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,7 @@ const getChatId = (userId1?: string, userId2?: string) => {
 export default function ChatThreadPage() {
     const params = useParams();
     const router = useRouter();
-    const { user: currentUser, profile: myProfile, recheckUser } = useUser();
+    const { user: currentUser } = useUser();
     const { toast } = useToast();
 
     const otherUserId = params.id as string;
@@ -43,17 +43,10 @@ export default function ChatThreadPage() {
     const [isForwarding, setIsForwarding] = useState<string | null>(null);
     const [recentChats, setRecentChats] = useState<any[]>([]);
     const [selectedForForward, setSelectedForForward] = useState<string[]>([]);
-    
-    const [isRecording, setIsRecording] = useState(false);
-    const [recordingDuration, setRecordingDuration] = useState(0);
-    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-    const [audioUrl, setAudioUrl] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messageMapRef = useRef<Map<string, any>>(new Map());
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [activeMediaType, setActiveMediaType] = useState<'image' | 'video' | 'pdf' | null>(null);
     
@@ -146,48 +139,6 @@ export default function ChatThreadPage() {
         }
     };
 
-    const startRecording = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const recorder = new MediaRecorder(stream);
-            mediaRecorderRef.current = recorder;
-            const chunks: Blob[] = [];
-            recorder.ondataavailable = (e) => chunks.push(e.data);
-            recorder.onstop = () => {
-                const blob = new Blob(chunks, { type: 'audio/webm' });
-                setAudioBlob(blob);
-                setAudioUrl(URL.createObjectURL(blob));
-            };
-            recorder.start();
-            setIsRecording(true);
-            setRecordingDuration(0);
-            durationIntervalRef.current = setInterval(() => setRecordingDuration(prev => prev + 1), 1000);
-        } catch (e) { toast({ variant: 'destructive', title: "Mic Error" }); }
-    };
-
-    const stopRecording = () => {
-        if (mediaRecorderRef.current && isRecording) {
-            mediaRecorderRef.current.stop();
-            mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
-            setIsRecording(false);
-            if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
-        }
-    };
-
-    const sendVoiceNote = async () => {
-        if (!audioBlob) return;
-        setIsUploading(true);
-        try {
-            const reader = new FileReader();
-            const base64: string = await new Promise((resolve) => { reader.onloadend = () => resolve(reader.result as string); reader.readAsDataURL(audioBlob); });
-            const upload = await uploadToCloudinary(base64, 'video'); 
-            if (upload.success) {
-                handleSend('', { url: upload.url, type: 'audio', duration: recordingDuration });
-                setAudioBlob(null); setAudioUrl(null);
-            }
-        } catch (e) { toast({ variant: 'destructive', title: "Upload Failed" }); } finally { setIsUploading(false); }
-    };
-
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -206,7 +157,7 @@ export default function ChatThreadPage() {
             if (forAll) await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { text: "deleted a message", isDeleted: true, mediaUrl: null, mediaType: null });
             else {
                 await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { deletedFor: arrayUnion(currentUser.$id) });
-                messageMapRef.current.delete(msgId);
+                messageMapRef.current.delete(id);
                 setMessages(prev => prev.filter(m => m.$id !== msgId));
             }
         } catch (e) {}
@@ -250,7 +201,6 @@ export default function ChatThreadPage() {
                                         <div className={cn("p-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold leading-relaxed cursor-pointer active:scale-95 transition-transform", isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border", msg.isDeleted && "opacity-50 italic")}>
                                             {msg.mediaType === 'image' && <div onClick={() => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=image`)} className="cursor-pointer mb-2 rounded-xl overflow-hidden bg-muted border p-2"><ImageIcon className="h-10 w-10 text-primary opacity-50" /></div>}
                                             {msg.mediaType === 'video' && <div onClick={() => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=video`)} className="cursor-pointer mb-2 rounded-xl overflow-hidden bg-muted border p-2 relative"><Video className="h-10 w-10 text-primary opacity-50" /><Play className="absolute h-4 w-4 text-white fill-white" /></div>}
-                                            {msg.mediaType === 'audio' && <div className="flex items-center gap-3 p-2 bg-muted/20 rounded-xl mb-2"><Mic className="h-4 w-4 text-primary" /><audio src={msg.mediaUrl} controls className="h-8 w-40" /></div>}
                                             {msg.mediaType === 'pdf' && <div onClick={() => window.open(msg.mediaUrl)} className="cursor-pointer mb-2 p-3 bg-muted/30 rounded-xl flex items-center gap-3 border border-dashed"><FileText className="h-6 w-6 text-red-500" /><span className="text-[10px] font-black uppercase">Document.pdf</span></div>}
                                             <p className="whitespace-pre-wrap">{msg.text}</p>
                                             <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
@@ -274,13 +224,6 @@ export default function ChatThreadPage() {
             </main>
 
             <footer className="p-4 border-t bg-background safe-area-bottom pb-8">
-                {audioUrl && (
-                    <div className="max-w-xl mx-auto mb-4 p-4 bg-muted/50 rounded-[2rem] flex items-center gap-4 animate-in slide-in-from-bottom-2">
-                        <audio src={audioUrl} controls className="flex-1 h-10" />
-                        <Button size="icon" variant="ghost" className="rounded-full text-destructive" onClick={() => { setAudioBlob(null); setAudioUrl(null); }}><Trash2 className="h-5 w-5"/></Button>
-                        <Button size="icon" className="rounded-full h-12 w-12 shadow-lg" onClick={sendVoiceNote} disabled={isUploading}>{isUploading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}</Button>
-                    </div>
-                )}
                 <div className="max-w-xl mx-auto w-full flex items-center gap-2">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-muted-foreground hover:bg-muted"><Paperclip className="h-5 w-5" /></Button></DropdownMenuTrigger>
@@ -292,18 +235,11 @@ export default function ChatThreadPage() {
                     </DropdownMenu>
                     
                     <Button variant="ghost" size="icon" onClick={handleStartCall} className="h-11 w-11 rounded-full text-primary hover:bg-primary/10">
-                        <Phone className="h-5 w-5" />
+                        <PhoneCall className="h-5 w-5" />
                     </Button>
 
-                    <Input placeholder={isRecording ? "Recording voice..." : "Type text only..."} value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} disabled={isRecording} className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />
-                    <div className="flex items-center gap-1">
-                        {isRecording ? <Button size="icon" variant="destructive" className="h-11 w-11 rounded-full shadow-lg" onClick={stopRecording}><X className="h-5 w-5" /></Button> : 
-                        <>
-                            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-muted-foreground hover:bg-muted" onClick={startRecording}><Mic className="h-5 w-5" /></Button>
-                            <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() || isUploading} className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90">{isUploading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5 text-white" />}</Button>
-                        </>
-                        }
-                    </div>
+                    <Input placeholder="Type text only..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />
+                    <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() || isUploading} className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90">{isUploading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5 text-white" />}</Button>
                 </div>
                 <input type="file" ref={fileInputRef} className="hidden" accept={activeMediaType === 'image' ? 'image/*' : activeMediaType === 'video' ? 'video/*' : 'application/pdf'} onChange={handleFileSelect} />
             </footer>
