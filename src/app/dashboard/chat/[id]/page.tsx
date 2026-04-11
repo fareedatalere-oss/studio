@@ -11,7 +11,7 @@ import {
     writeBatch, arrayUnion, increment 
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, Phone } from 'lucide-react';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, Phone, Mic } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -119,7 +119,7 @@ export default function ChatThreadPage() {
                 invitedUsers: [otherUserId],
                 createdAt: new Date().toISOString()
             });
-            router.push(`/dashboard/chat/call/${callId}`);
+            router.push(`/dashboard/meeting/room/${callId}`);
         } catch (e) {
             toast({ variant: 'destructive', title: 'Call Failed' });
         }
@@ -201,6 +201,11 @@ export default function ChatThreadPage() {
                     </Button>
 
                     <Input placeholder="Type text only..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />
+                    
+                    <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-muted-foreground hover:bg-muted">
+                        <Mic className="h-5 w-5" />
+                    </Button>
+
                     <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() || isUploading} className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90">{isUploading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5 text-white" />}</Button>
                 </div>
                 <input type="file" ref={fileInputRef} className="hidden" accept={activeMediaType === 'image' ? 'image/*' : activeMediaType === 'video' ? 'video/*' : 'application/pdf'} onChange={handleFileSelect} />
