@@ -19,8 +19,8 @@ import { Input } from '@/components/ui/input';
 import Image from 'next/image';
 
 /**
- * @fileOverview Universal I-Pay Call System.
- * SENDER SCREEN (Sketch-Aligned): White Page, Center Partner Icon/Name, Ringing Status, Bottom End Call.
+ * @fileOverview Universal I-Pay White Call UI.
+ * SENDER SCREEN: White Page, Center Partner Icon/Name, Ringing Status, Bottom End Call.
  */
 
 const loveEmojis = ["😍", "♥️", "😍", "🥰", "😋", "🤩", "😘", "🧡", "💔", "❣️", "❤️‍🩹", "❤️", "💓", "💗", "🩷", "💖", "💞", "💘", "❣️", "💕", "💚", "💟", "💌", "🖤", "🩶", "🤍", "💋", "🫦", "👄", "🫂", "👥", "🧑‍🧑", "👨‍👧‍👧", "👩‍👧", "👨‍👦"];
@@ -38,7 +38,6 @@ export default function PrivateCallPage() {
     const [status, setStatus] = useState<'calling' | 'ringing' | 'connected'>('calling');
     const [activeMode, setActiveMode] = useState<'voice' | 'video' | 'chat' | 'display'>('voice');
     
-    // UI State
     const [chatInput, setChatInput] = useState('');
     const [messages, setMessages] = useState<any[]>([]);
     const [isUploading, setIsUploading] = useState(false);
@@ -61,7 +60,6 @@ export default function PrivateCallPage() {
                 setStatus('ringing');
             }
 
-            // Fetch Partner
             const partnerId = isHost ? data.invitedUsers?.[0] : data.hostId;
             if (partnerId) {
                 const p = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, partnerId);
@@ -85,7 +83,6 @@ export default function PrivateCallPage() {
         return () => unsub();
     }, [callId, fetchCall, router]);
 
-    // Duration Timer
     useEffect(() => {
         if (status !== 'connected') return;
         const timer = setInterval(() => setDuration(d => d + 1), 1000);
@@ -100,7 +97,6 @@ export default function PrivateCallPage() {
 
     const handleHangUp = async () => {
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { status: 'ended' });
-        // Log to messages
         const threadId = [user?.$id, partner?.$id].sort().join('_');
         await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
             chatId: threadId,
@@ -133,8 +129,6 @@ export default function PrivateCallPage() {
 
     return (
         <div className="h-screen w-full bg-white flex flex-col items-center justify-between py-20 font-body overflow-hidden">
-            
-            {/* HEADER: DURATION */}
             <header className="fixed top-12 left-0 right-0 flex justify-center z-50">
                 {status === 'connected' && (
                     <div className="bg-primary/10 px-6 py-2 rounded-full border border-primary/20 shadow-sm">
@@ -143,7 +137,6 @@ export default function PrivateCallPage() {
                 )}
             </header>
 
-            {/* CENTER: IDENTITY */}
             <main className="flex-1 flex flex-col items-center justify-center space-y-8 w-full px-6">
                 <div className="relative">
                     <div className={cn("absolute inset-0 bg-primary/5 rounded-full -m-6", status !== 'connected' && "animate-ping")}></div>
@@ -163,7 +156,6 @@ export default function PrivateCallPage() {
                 </div>
             </main>
 
-            {/* OVERLAYS: CHAT / VIDEO / DISPLAY */}
             {activeMode === 'chat' && (
                 <div className="absolute inset-0 z-[100] bg-white flex flex-col animate-in slide-in-from-bottom duration-300">
                     <header className="p-4 pt-12 border-b flex justify-between items-center bg-muted/10">
@@ -210,7 +202,6 @@ export default function PrivateCallPage() {
                 </div>
             )}
 
-            {/* FOOTER CONTROLS */}
             <footer className="w-full max-w-sm px-10 pb-10">
                 <div className="grid grid-cols-4 gap-4">
                     <div className="flex flex-col items-center gap-2">

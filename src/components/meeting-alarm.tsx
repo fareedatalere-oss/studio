@@ -10,8 +10,7 @@ import { useUser } from '@/hooks/use-appwrite';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 /**
- * @fileOverview Universal I-Pay Call Alarm & Notification Engine.
- * RECEIVER SCREEN (Sketch-Aligned): Top "Ringing", Center Icon/Name, Bottom Deny/Accept.
+ * @fileOverview Universal I-Pay White Alarm UI (Receiver Screen).
  */
 
 export function MeetingAlarm() {

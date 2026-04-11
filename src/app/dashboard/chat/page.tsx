@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Search, MoreVertical, Trash2, ArrowLeft, Loader2, Video, MessageSquare } from 'lucide-react';
+import { Search, MoreVertical, Trash2, ArrowLeft, Loader2 } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, doc, getDoc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
@@ -23,7 +23,6 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     const [otherUser, setOtherUser] = useState<any>(null);
     const { toast } = useToast();
     const otherUserId = chat.participants?.find((p: string) => p !== currentUser?.uid);
-    // Real-time unread count logic
     const unreadCount = chat.unreadCount?.[currentUser?.uid] || 0;
 
     useEffect(() => {
@@ -225,12 +224,6 @@ export default function ChatPage() {
             </header>
 
             <footer className="mt-auto p-6 border-t bg-muted/5 flex flex-col items-center gap-4 pb-24">
-                <Button asChild variant="outline" className="rounded-full h-12 px-8 font-black uppercase text-[10px] tracking-widest gap-2 shadow-sm border-primary/20 hover:bg-primary hover:text-white transition-all">
-                    <Link href="/dashboard/meeting">
-                        <Video className="h-4 w-4" />
-                        I-pay meeting
-                    </Link>
-                </Button>
                 <p className="text-[7px] font-black uppercase tracking-[0.4em] opacity-20">I-Pay Communication Hub</p>
             </footer>
         </div>

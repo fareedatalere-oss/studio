@@ -292,7 +292,7 @@ export default function ChatThreadPage() {
                     </DropdownMenu>
                     
                     <Button variant="ghost" size="icon" onClick={handleStartCall} className="h-11 w-11 rounded-full text-primary hover:bg-primary/10">
-                        <Video className="h-5 w-5" />
+                        <Phone className="h-5 w-5" />
                     </Button>
 
                     <Input placeholder={isRecording ? "Recording voice..." : "Type text only..."} value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} disabled={isRecording} className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />
