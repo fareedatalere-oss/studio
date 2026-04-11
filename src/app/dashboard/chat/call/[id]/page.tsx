@@ -18,8 +18,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import Image from 'next/image';
 
-const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
-
 /**
  * @fileOverview Universal I-Pay Call System.
  * SENDER SCREEN (Sketch-Aligned): White Page, Center Partner Icon/Name, Ringing Status, Bottom End Call.
@@ -79,7 +77,6 @@ export default function PrivateCallPage() {
         const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${callId}`], response => {
             const payload = response.payload as any;
             if (payload.status === 'ended') {
-                // Post duration to chat before leaving
                 router.replace('/dashboard/chat');
             }
             setCall(payload);
@@ -119,7 +116,6 @@ export default function PrivateCallPage() {
         const msg = { text, senderId: user.$id, timestamp: Date.now() };
         setMessages(prev => [...prev, msg]);
         setChatInput('');
-        // Real-time broadcast logic would go here
     };
 
     const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -129,7 +125,6 @@ export default function PrivateCallPage() {
         try {
             const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
             const url = getAppwriteStorageUrl(upload.$id);
-            // Broadcast media URL to partner
             toast({ title: 'Shared' });
         } catch (e) {} finally { setIsUploading(false); }
     };
