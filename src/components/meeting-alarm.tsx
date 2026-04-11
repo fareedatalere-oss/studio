@@ -9,9 +9,8 @@ import { useUser } from '@/hooks/use-appwrite';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 /**
- * @fileOverview Universal I-Pay Call Alarm.
- * Branding: "I-pay system"
- * Logic: Rings receiver with device-like tone and caller avatar.
+ * @fileOverview Universal I-Pay Call Alarm & Notification Engine.
+ * Pushes incoming calls to the user even if they are outside the app (via background layout).
  */
 
 export function MeetingAlarm() {
@@ -45,7 +44,8 @@ export function MeetingAlarm() {
       } catch (e) {}
     };
 
-    const interval = setInterval(checkIncoming, 3000); 
+    // Fast polling for real-time push-like experience
+    const interval = setInterval(checkIncoming, 2000); 
     return () => clearInterval(interval);
   }, [user, isRinging, isSnoozed]);
 
@@ -76,10 +76,11 @@ export function MeetingAlarm() {
     setTimeout(() => setIsSnoozed(false), 10000); 
   };
 
-  const handleAccept = () => {
+  const handleAccept = async () => {
     stopRinging();
     if (activeMeeting) {
-        router.push(`/dashboard/meeting/join/${activeMeeting.$id}`);
+        // PICKING UP: Redirect user back to the app and specifically to the call room
+        router.push(`/dashboard/meeting/room/${activeMeeting.$id}`);
     }
   };
 
@@ -93,7 +94,7 @@ export function MeetingAlarm() {
             <Avatar className="h-40 w-40 ring-8 ring-primary ring-offset-4 shadow-2xl">
                 <AvatarImage src={activeMeeting?.callerAvatar} className="object-cover" />
                 <AvatarFallback className="bg-primary text-white text-4xl font-black">
-                    {activeMeeting?.callerName?.charAt(0)}
+                    {activeMeeting?.callerName?.charAt(0) || '?'}
                 </AvatarFallback>
             </Avatar>
         </div>

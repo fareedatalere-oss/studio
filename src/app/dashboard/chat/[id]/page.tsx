@@ -9,7 +9,7 @@ import {
     serverTimestamp, setDoc, updateDoc, 
     writeBatch, getDocs, arrayUnion, arrayRemove, increment 
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID } from '@/lib/appwrite';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
 import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Mic, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, X, Play, Phone, Eye } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -62,7 +62,6 @@ export default function ChatThreadPage() {
     }, [currentUser?.$id, otherUserId]);
 
     const isBlocked = myProfile?.blockedUsers?.includes(otherUserId);
-    const hasBlockedMe = otherUser?.blockedUsers?.includes(currentUser?.$id);
 
     useEffect(() => {
         if (!chatId || !currentUser) return;
@@ -132,19 +131,28 @@ export default function ChatThreadPage() {
 
     const initiateCall = async () => {
         if (!otherUser?.isOnline) {
-            toast({ variant: 'destructive', title: "User Offline", description: "recipient is not currently active" });
+            toast({ variant: 'destructive', title: "User Offline", description: "Recipient is not currently active." });
             return;
         }
+        
         const callId = ID.unique();
-        await setDoc(doc(db, 'meetings', callId), {
-            hostId: currentUser.$id,
-            name: `Call with ${myProfile.username}`,
-            type: 'call',
-            status: 'pending',
-            invitedUsers: [otherUserId],
-            createdAt: serverTimestamp()
-        });
-        router.push(`/dashboard/meeting/room/${callId}`);
+        toast({ title: "Connecting..." });
+        
+        try {
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, {
+                hostId: currentUser.$id,
+                name: `Call with ${myProfile.username}`,
+                type: 'call',
+                status: 'pending',
+                invitedUsers: [otherUserId],
+                createdAt: new Date().toISOString()
+            });
+            
+            // PUSH THE CALL: Redirect the caller to the room immediately
+            router.push(`/dashboard/meeting/room/${callId}`);
+        } catch (e) {
+            toast({ variant: 'destructive', title: "Call Failed" });
+        }
     };
 
     const startRecording = async () => {
@@ -213,15 +221,6 @@ export default function ChatThreadPage() {
         } catch (e) {}
     };
 
-    const handleBlock = async () => {
-        try {
-            const myRef = doc(db, COLLECTION_ID_PROFILES, currentUser.$id);
-            if (isBlocked) await updateDoc(myRef, { blockedUsers: arrayRemove(otherUserId) });
-            else await updateDoc(myRef, { blockedUsers: arrayUnion(otherUserId) });
-            await recheckUser();
-        } catch (e) {}
-    };
-
     return (
         <div className="flex flex-col h-screen bg-background font-body overflow-hidden">
             <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-50 pt-12 shadow-sm">
@@ -242,7 +241,10 @@ export default function ChatThreadPage() {
                 )}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-10 w-10 rounded-full"><MoreVertical className="h-5 w-5" /></Button></DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48 font-black uppercase text-[10px]"><DropdownMenuItem onClick={handleBlock} className={isBlocked ? "text-green-600" : "text-destructive"}><UserX className="mr-2 h-4 w-4" /> {isBlocked ? 'Unblock' : 'Block'}</DropdownMenuItem></DropdownMenuContent>
+                    <DropdownMenuContent align="end" className="w-48 font-black uppercase text-[10px]">
+                        <DropdownMenuItem onClick={() => updateDoc(doc(db, COLLECTION_ID_PROFILES, currentUser.$id), { blockedUsers: arrayUnion(otherUserId) })} className="text-destructive"><UserX className="mr-2 h-4 w-4" /> Block User</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push('/dashboard/chat')}><Trash2 className="mr-2 h-4 w-4" /> Clear History</DropdownMenuItem>
+                    </DropdownMenuContent>
                 </DropdownMenu>
             </header>
             
@@ -252,7 +254,7 @@ export default function ChatThreadPage() {
                     {messages.map((msg) => {
                         const isMine = msg.senderId === currentUser?.$id;
                         return (
-                            <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%]", isMine ? "ml-auto items-end" : "mr-auto items-start")}>
+                            <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%]", isMine ? "ml-auto items-end" : "items-start")}>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <div className={cn("p-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold leading-relaxed cursor-pointer active:scale-95 transition-transform", isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border", msg.isDeleted && "opacity-50 italic")}>
@@ -268,6 +270,7 @@ export default function ChatThreadPage() {
                                         </div>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent className="w-40 font-black uppercase text-[9px]">
+                                        <DropdownMenuItem onClick={() => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=${msg.mediaType}`)} disabled={!msg.mediaUrl}>View</DropdownMenuItem>
                                         <DropdownMenuItem onClick={() => setIsForwarding(msg.$id)}><Forward className="mr-2 h-3.5 w-3.5" /> Forward</DropdownMenuItem>
                                         <DropdownMenuItem onClick={() => deleteMessage(msg.$id, false)}><Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for me</DropdownMenuItem>
                                         {isMine && !msg.isDeleted && <DropdownMenuItem onClick={() => deleteMessage(msg.$id, true)} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for both</DropdownMenuItem>}

@@ -30,11 +30,9 @@ export default function MeetingRoomPage() {
     const [meeting, setMeeting] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [isInRoom, setIsInRoom] = useState(false);
-    const [timeLeft, setTimeLeft] = useState<number | null>(null);
     const [durationSeconds, setDurationSeconds] = useState(0);
     
     const [participants, setParticipants] = useState<any[]>([]);
-    const [joinRequests, setJoinRequests] = useState<any[]>([]);
     
     const [useCamera, setUseCamera] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -66,7 +64,7 @@ export default function MeetingRoomPage() {
     };
 
     const endCall = async () => {
-        if (isCall) {
+        if (isCall && meeting.status === 'started') {
             const m = Math.floor(durationSeconds / 60);
             const s = durationSeconds % 60;
             const dur = `${m}:${s.toString().padStart(2, '0')}`;
@@ -82,8 +80,15 @@ export default function MeetingRoomPage() {
 
     const handleEntry = useCallback(async (docData: any) => {
         if (isInRoom) return;
+        
+        // For Calls, we skip the lobby if we are the host or invited
         const guestDataStr = sessionStorage.getItem(`meeting_guest_${meetingId}`);
-        const guestData = guestDataStr ? JSON.parse(guestDataStr) : null;
+        let guestData = guestDataStr ? JSON.parse(guestDataStr) : null;
+
+        if (!guestData && user) {
+            // Auto-fallback identity for existing app users
+            guestData = { name: user.name || 'User', avatar: '', useCamera: false };
+        }
 
         if (!guestData) {
             router.replace(`/dashboard/meeting/join/${meetingId}${isAdmin ? '?role=admin' : ''}`);
@@ -93,13 +98,10 @@ export default function MeetingRoomPage() {
         setIsInRoom(true);
         setUseCamera(guestData.useCamera || false);
 
-        if (isAdmin && !docData.startedAt) {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
-                status: 'started',
-                startedAt: new Date().toISOString()
-            });
+        if (isAdmin && !docData.startedAt && docData.status === 'pending') {
+            // Keep status pending until guest picks up
         }
-    }, [meetingId, isAdmin, isInRoom, router]);
+    }, [meetingId, isAdmin, isInRoom, router, user]);
 
     const fetchMeeting = useCallback(async () => {
         try {
@@ -113,7 +115,7 @@ export default function MeetingRoomPage() {
 
             await handleEntry(docData);
 
-            if (docData.startedAt) {
+            if (docData.status === 'started' && docData.startedAt) {
                 const elapsed = Math.floor((Date.now() - new Date(docData.startedAt).getTime()) / 1000);
                 setDurationSeconds(elapsed);
             }
@@ -130,10 +132,18 @@ export default function MeetingRoomPage() {
                 Query.equal('meetingId', meetingId),
                 Query.limit(100)
             ]);
-            setParticipants(res.documents.filter(a => a.status === 'approved'));
-            setJoinRequests(res.documents.filter(a => a.status === 'waiting'));
+            const approved = res.documents.filter(a => a.status === 'approved');
+            setParticipants(approved);
+
+            // If we are host and guest just joined (status switched to approved), start the call duration
+            if (isAdmin && approved.length >= 2 && meeting?.status === 'pending') {
+                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, {
+                    status: 'started',
+                    startedAt: new Date().toISOString()
+                });
+            }
         } catch (e) {}
-    }, [meetingId]);
+    }, [meetingId, isAdmin, meeting?.status]);
 
     useEffect(() => {
         if (!user) return;
@@ -167,23 +177,29 @@ export default function MeetingRoomPage() {
                 localStreamRef.current = stream;
                 if (videoRef.current) videoRef.current.srcObject = stream;
             }).catch(() => setUseCamera(false));
-        } else {
-            localStreamRef.current?.getTracks().forEach(t => t.stop());
+        } else if (isInRoom) {
+            // Audio only
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                localStreamRef.current = stream;
+            }).catch(() => {});
         }
+        
+        return () => localStreamRef.current?.getTracks().forEach(t => t.stop());
     }, [isInRoom, useCamera, activeMode]);
 
     useEffect(() => {
-        if (!isInRoom) return;
+        if (!isInRoom || meeting?.status !== 'started') return;
         const interval = setInterval(() => {
             setDurationSeconds(prev => prev + 1);
         }, 1000);
         return () => clearInterval(interval);
-    }, [isInRoom]);
+    }, [isInRoom, meeting?.status]);
 
     const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         setIsUploadingMedia(true);
+        toast({ title: 'Sharing media to board...' });
         try {
             const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
             const url = getAppwriteStorageUrl(upload.$id);
@@ -213,9 +229,10 @@ export default function MeetingRoomPage() {
         return `${m}:${sec.toString().padStart(2, '0')}`;
     };
 
-    if (loading) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
+    if (loading || !meeting) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
 
     const partner = participants.find(p => p.userId !== user.$id);
+    const isConnected = meeting.status === 'started';
 
     return (
         <div className={cn("h-screen w-full flex flex-col overflow-hidden relative font-body transition-colors duration-500", isCall ? "bg-white text-black" : "bg-black text-white")}>
@@ -262,7 +279,7 @@ export default function MeetingRoomPage() {
                 </div>
             )}
 
-            {/* BROWN DISPLAY BOARD */}
+            {/* BROWN DISPLAY BOARD (Blackboard) */}
             {meeting?.displayVisible && (
                 <div className="absolute inset-0 z-[100] bg-[#4e342e] flex flex-col items-center justify-center animate-in fade-in duration-300">
                     <div className="max-w-5xl w-full aspect-video bg-black rounded-[2rem] overflow-hidden border border-white/10 relative shadow-2xl">
@@ -279,41 +296,47 @@ export default function MeetingRoomPage() {
                 </div>
             )}
 
-            <header className={cn("p-4 pt-12 flex flex-col items-center border-b z-[80]", isCall ? "bg-white border-black/5" : "bg-black/50 border-white/10")}>
+            <header className={cn("p-4 pt-12 flex flex-col items-center border-b z-[80]", isCall ? "bg-white border-black/5" : "bg-black border-white/10")}>
                 <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-50">{isCall ? 'I-Pay End-to-End Call' : meeting?.name}</p>
-                <h2 className="text-xl font-black mt-1">{formatDuration(durationSeconds)}</h2>
+                <h2 className="text-xl font-black mt-1">
+                    {isConnected ? formatDuration(durationSeconds) : 'Ringing...'}
+                </h2>
             </header>
 
             <main className="flex-1 flex flex-col items-center justify-center p-6 z-10 overflow-y-auto">
                 {isCall && activeMode === 'voice' ? (
                     <div className="flex flex-col items-center gap-8 animate-in fade-in duration-500">
                         <div className="relative">
-                            <div className="absolute inset-0 bg-primary/10 rounded-full animate-ping"></div>
+                            <div className={cn("absolute inset-0 bg-primary/10 rounded-full animate-ping -m-4", !isConnected && "hidden")}></div>
                             <Avatar className="h-48 w-48 ring-4 ring-primary ring-offset-8 ring-offset-white shadow-2xl">
                                 <AvatarImage src={partner?.avatar} className="object-cover" />
-                                <AvatarFallback className="text-4xl bg-primary text-white">{partner?.name?.charAt(0)}</AvatarFallback>
+                                <AvatarFallback className="text-4xl bg-primary text-white">{partner?.name?.charAt(0) || '?'}</AvatarFallback>
                             </Avatar>
                         </div>
                         <div className="text-center">
-                            <h3 className="text-2xl font-black lowercase tracking-tighter">{partner?.name}</h3>
+                            <h3 className="text-2xl font-black lowercase tracking-tighter">{partner?.name || 'Contacting...'}</h3>
                             <p className="text-xs font-bold text-primary animate-pulse uppercase mt-2 tracking-widest">
-                                {meeting.status === 'started' ? 'Connected' : 'Ringing...'}
+                                {isConnected ? 'Connected' : 'Ringing Device...'}
                             </p>
                         </div>
                         
-                        <div className="grid grid-cols-3 gap-8 mt-12">
+                        <div className="grid grid-cols-4 gap-6 mt-12 w-full max-w-sm px-4">
                             <div className="flex flex-col items-center gap-2">
-                                <Button onClick={() => setActiveMode('chat')} size="icon" className="h-14 w-14 rounded-full bg-muted hover:bg-primary transition-all shadow-md"><MessageSquare className="h-6 w-6 text-black"/></Button>
-                                <span className="text-[9px] font-black uppercase">Chat</span>
+                                <Button onClick={() => setActiveMode('chat')} size="icon" className="h-12 w-12 rounded-full bg-muted hover:bg-primary transition-all shadow-md"><MessageSquare className="h-5 w-5 text-black"/></Button>
+                                <span className="text-[8px] font-black uppercase">Chat</span>
                             </div>
                             <div className="flex flex-col items-center gap-2">
-                                <Button onClick={() => setActiveMode('video')} size="icon" className="h-14 w-14 rounded-full bg-muted hover:bg-primary transition-all shadow-md"><Video className="h-6 w-6 text-black" /></Button>
-                                <span className="text-[9px] font-black uppercase">Video</span>
+                                <Button onClick={() => setActiveMode('video')} size="icon" className="h-12 w-12 rounded-full bg-muted hover:bg-primary transition-all shadow-md"><Video className="h-5 w-5 text-black" /></Button>
+                                <span className="text-[8px] font-black uppercase">Video</span>
                             </div>
                             <div className="flex flex-col items-center gap-2">
-                                <Button onClick={() => mediaInputRef.current?.click()} size="icon" className="h-14 w-14 rounded-full bg-muted hover:bg-primary transition-all shadow-md"><MonitorPlay className="h-6 w-6 text-black" /></Button>
-                                <span className="text-[9px] font-black uppercase">Display</span>
+                                <Button onClick={() => mediaInputRef.current?.click()} size="icon" className="h-12 w-12 rounded-full bg-muted hover:bg-primary transition-all shadow-md"><MonitorPlay className="h-5 w-5 text-black" /></Button>
+                                <span className="text-[8px] font-black uppercase">Display</span>
                                 <input type="file" ref={mediaInputRef} className="hidden" accept="image/*,video/*,audio/*" onChange={handleMediaUpload} />
+                            </div>
+                            <div className="flex flex-col items-center gap-2">
+                                <Button variant="destructive" onClick={endCall} size="icon" className="h-12 w-12 rounded-full shadow-lg"><PhoneOff className="h-5 w-5 text-white" /></Button>
+                                <span className="text-[8px] font-black uppercase">Hang Up</span>
                             </div>
                         </div>
                     </div>
@@ -334,11 +357,13 @@ export default function MeetingRoomPage() {
                 )}
             </main>
 
-            <footer className={cn("p-8 border-t flex justify-center safe-area-bottom z-[80]", isCall ? "bg-white border-black/5" : "bg-black border-white/10")}>
-                <Button variant="destructive" className="rounded-full h-14 px-10 font-black uppercase text-xs tracking-widest shadow-2xl transition-all active:scale-90" onClick={endCall}>
-                    <PhoneOff className="mr-2 h-5 w-5" /> Hang Up
-                </Button>
-            </footer>
+            {!isCall && (
+                <footer className={cn("p-8 border-t flex justify-center safe-area-bottom z-[80]", isCall ? "bg-white border-black/5" : "bg-black border-white/10")}>
+                    <Button variant="destructive" className="rounded-full h-14 px-10 font-black uppercase text-xs tracking-widest shadow-2xl transition-all active:scale-90" onClick={endCall}>
+                        <PhoneOff className="mr-2 h-5 w-5" /> Hang Up
+                    </Button>
+                </footer>
+            )}
         </div>
     );
 }
