@@ -31,7 +31,7 @@ export function MeetingAlarm() {
         const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
           Query.equal('status', 'pending'),
           Query.equal('type', 'call'),
-          Query.limit(5)
+          Query.limit(10)
         ]);
 
         const myCall = res.documents.find(m => m.invitedUsers?.includes(user.$id));
@@ -45,8 +45,20 @@ export function MeetingAlarm() {
     };
 
     const interval = setInterval(checkIncoming, 3000); 
-    return () => clearInterval(interval);
-  }, [user, isRinging]);
+    
+    const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
+        const payload = response.payload as any;
+        if (payload.status === 'ended' && payload.$id === activeMeeting?.$id) {
+            stopRinging();
+            setActiveMeeting(null);
+        }
+    });
+
+    return () => {
+        clearInterval(interval);
+        unsub();
+    };
+  }, [user, isRinging, activeMeeting?.$id]);
 
   const startRinging = () => {
     setIsRinging(true);

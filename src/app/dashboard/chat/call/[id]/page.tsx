@@ -5,7 +5,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { 
     PhoneOff, Loader2, MessageSquare, Video, Layout, X, Send, 
-    Image as ImageIcon, Music, Film, UploadCloud, MonitorPlay
+    Image as ImageIcon, Music, Film, UploadCloud, MonitorPlay,
+    Mic, MicOff, Camera
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-appwrite';
@@ -15,8 +16,9 @@ import { cn } from '@/lib/utils';
 import Image from 'next/image';
 
 /**
- * @fileOverview Pure White Call Page (The Pick-up Page).
- * Follows the user sketch: Connected status, duration, partner identity, and row of 3 icons + hang up.
+ * @fileOverview Pure White Call Page (Master Upgrade).
+ * Follows sketches: White background, central partner identity, sleek controls.
+ * LOGGING: Automatically logs missed calls or duration to chat thread.
  */
 
 export default function PrivateCallPage() {
@@ -28,8 +30,11 @@ export default function PrivateCallPage() {
     const [call, setCall] = useState<any>(null);
     const [partner, setPartner] = useState<any>(null);
     const [duration, setDuration] = useState(0);
+    const [isMuted, setIsMuted] = useState(false);
+    const [isVideoOn, setIsVideoOn] = useState(false);
     
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const isConnectingRef = useRef(false);
 
     const fetchCall = useCallback(async () => {
         try {
@@ -51,7 +56,7 @@ export default function PrivateCallPage() {
         const unsubCall = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${callId}`], response => {
             const payload = response.payload as any;
             if (payload.status === 'ended') {
-                router.replace('/dashboard/chat');
+                handleEndCleanup(payload);
             }
             setCall(payload);
         });
@@ -60,7 +65,7 @@ export default function PrivateCallPage() {
             unsubCall();
             if (timerRef.current) clearInterval(timerRef.current);
         };
-    }, [callId, fetchCall, router]);
+    }, [callId, fetchCall]);
 
     useEffect(() => {
         if (call?.status === 'connected') {
@@ -68,11 +73,6 @@ export default function PrivateCallPage() {
                 timerRef.current = setInterval(() => {
                     setDuration(prev => prev + 1);
                 }, 1000);
-            }
-        } else {
-            if (timerRef.current) {
-                clearInterval(timerRef.current);
-                timerRef.current = null;
             }
         }
     }, [call?.status]);
@@ -83,21 +83,31 @@ export default function PrivateCallPage() {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    const handleHangUp = async () => {
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { status: 'ended' });
-        
-        // Post Call Log to Chat
+    const handleEndCleanup = async (finalCall: any) => {
+        if (isConnectingRef.current) return;
+        isConnectingRef.current = true;
+
         const chatId = [user?.$id, partner?.$id].sort().join('_');
+        
+        // Post LOG to Chat
         if (user && partner) {
+            const logText = finalCall.status === 'pending' 
+                ? `📞 Missed call from @${user.name || user.username}`
+                : `📞 Call finished: ${formatDuration(duration)}`;
+
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
                 chatId,
                 senderId: 'ipay_system',
-                text: `📞 Call finished: ${formatDuration(duration)}`,
+                text: logText,
                 status: 'sent'
             }).catch(() => {});
         }
         
         router.replace('/dashboard/chat');
+    };
+
+    const handleHangUp = async () => {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { status: 'ended' });
     };
 
     if (!partner || !call) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-primary" /></div>;
@@ -126,6 +136,11 @@ export default function PrivateCallPage() {
                         <AvatarImage src={partner.avatar} className="object-cover" />
                         <AvatarFallback className="bg-primary text-white text-5xl font-black">{partner.username?.charAt(0)}</AvatarFallback>
                     </Avatar>
+                    {isConnected && isVideoOn && (
+                        <div className="absolute inset-0 rounded-full overflow-hidden border-4 border-white shadow-2xl">
+                            <video autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
+                        </div>
+                    )}
                 </div>
                 <div className="text-center space-y-2">
                     <h2 className="text-black text-2xl font-black tracking-tighter">@{partner.username}</h2>
@@ -137,19 +152,19 @@ export default function PrivateCallPage() {
                 {isConnected && (
                     <div className="flex items-center justify-center gap-10 w-full animate-in slide-in-from-bottom-10 duration-500">
                         <div className="flex flex-col items-center gap-2">
-                            <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full border border-transparent hover:border-primary bg-muted">
-                                <MessageSquare className="h-5 w-5" />
+                            <Button variant="ghost" size="icon" onClick={() => setIsMuted(!isMuted)} className={cn("h-12 w-12 rounded-full border border-transparent bg-muted", isMuted && "bg-red-50 text-red-500")}>
+                                {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
                             </Button>
-                            <span className="text-[8px] font-black uppercase opacity-40 tracking-widest">Chat</span>
+                            <span className="text-[8px] font-black uppercase opacity-40 tracking-widest">{isMuted ? 'Muted' : 'Chat'}</span>
                         </div>
                         <div className="flex flex-col items-center gap-2">
-                            <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full border border-transparent hover:border-primary bg-muted">
+                            <Button variant="ghost" size="icon" onClick={() => setIsVideoOn(!isVideoOn)} className={cn("h-12 w-12 rounded-full border border-transparent bg-muted", isVideoOn && "bg-primary/10 text-primary")}>
                                 <Video className="h-5 w-5" />
                             </Button>
                             <span className="text-[8px] font-black uppercase opacity-40 tracking-widest">Video</span>
                         </div>
                         <div className="flex flex-col items-center gap-2">
-                            <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full border border-transparent hover:border-primary bg-muted">
+                            <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full border border-transparent bg-muted">
                                 <Layout className="h-5 w-5" />
                             </Button>
                             <span className="text-[8px] font-black uppercase opacity-40 tracking-widest">Display</span>
