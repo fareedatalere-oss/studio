@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock, PhoneIncoming, BellRing, Check } from 'lucide-react';
+import { PhoneIncoming, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, COLLECTION_ID_ATTENDEES, Query } from '@/lib/appwrite';
 import { useUser } from '@/hooks/use-appwrite';
-import { format } from 'date-fns';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export function MeetingAlarm() {
   const { user } = useUser();
@@ -24,29 +24,25 @@ export function MeetingAlarm() {
       if (isRinging || isSnoozed) return;
 
       try {
-        const now = new Date();
-        const dateStr = format(now, 'yyyy-MM-dd');
-        const timeStr = format(now, 'HH:mm');
-
-        // Check for both scheduled meetings and instant calls
+        // Only fetch pending meetings that are calls and invite this user
         const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
           Query.equal('status', 'pending'),
+          Query.equal('type', 'call'),
           Query.limit(5)
         ]);
 
-        const myIncoming = res.documents.find(m => 
-            (m.hostId === user.$id && m.date === dateStr && m.time === timeStr) || 
-            (m.invitedUsers?.includes(user.$id) && m.type === 'call')
-        );
+        const myIncomingCall = res.documents.find(m => m.invitedUsers?.includes(user.$id));
 
-        if (myIncoming) {
-          setActiveMeeting(myIncoming);
+        if (myIncomingCall) {
+          // Fetch caller's profile for the avatar
+          const callerProfile = await databases.getDocument(DATABASE_ID, 'profiles', myIncomingCall.hostId).catch(() => null);
+          setActiveMeeting({ ...myIncomingCall, callerAvatar: callerProfile?.avatar });
           startRinging();
         }
       } catch (e) {}
     };
 
-    const interval = setInterval(checkMeetings, 5000); // Check every 5 seconds for instant calls
+    const interval = setInterval(checkMeetings, 4000); 
     return () => clearInterval(interval);
   }, [user, isRinging, isSnoozed]);
 
@@ -59,8 +55,8 @@ export function MeetingAlarm() {
     audioRef.current.play().catch(() => {});
     
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        new Notification(activeMeeting?.type === 'call' ? "Incoming Call!" : "Meeting Starting!", {
-            body: activeMeeting?.type === 'call' ? `You have an incoming call: ${activeMeeting?.name}` : `Your meeting "${activeMeeting?.name}" is starting.`,
+        new Notification("Incoming Call!", {
+            body: `I-Pay Call from @${activeMeeting?.hostId}`,
             icon: "/logo.png"
         });
     }
@@ -74,53 +70,48 @@ export function MeetingAlarm() {
     }
   };
 
-  const handleSnooze = () => {
+  const handleDecline = () => {
     stopRinging();
     setIsSnoozed(true);
-    setTimeout(() => {
-        setIsSnoozed(false);
-    }, 20000); 
+    setTimeout(() => setIsSnoozed(false), 30000); 
   };
 
   const handleEnter = () => {
     stopRinging();
     if (activeMeeting) {
-        router.push(`/dashboard/meeting/enter?id=${activeMeeting.$id}`);
+        router.push(`/dashboard/meeting/join/${activeMeeting.$id}`);
     }
   };
 
   if (!isRinging) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-6 backdrop-blur-2xl animate-in fade-in duration-500">
+    <div className="fixed inset-0 z-[200] bg-white flex items-center justify-center p-6 animate-in fade-in duration-500">
       <div className="w-full max-w-sm flex flex-col items-center text-center">
         <div className="relative mb-10">
-            <div className="h-32 w-32 rounded-full bg-primary/20 animate-ping absolute inset-0"></div>
-            <div className="h-32 w-32 rounded-full bg-primary/40 animate-pulse absolute inset-0"></div>
-            <div className="h-32 w-32 rounded-full bg-primary flex items-center justify-center relative shadow-2xl">
-                <PhoneIncoming className="h-14 w-14 text-white animate-bounce" />
-            </div>
+            <div className="h-40 w-48 rounded-full bg-primary/5 animate-ping absolute inset-0 -m-4"></div>
+            <Avatar className="h-40 w-40 ring-8 ring-primary ring-offset-4 shadow-2xl">
+                <AvatarImage src={activeMeeting?.callerAvatar} className="object-cover" />
+                <AvatarFallback className="bg-primary text-white text-4xl font-black">C</AvatarFallback>
+            </Avatar>
         </div>
 
-        <h2 className="text-white text-3xl font-black uppercase tracking-tighter mb-2">
-            {activeMeeting?.type === 'call' ? 'Incoming Call' : 'Meeting Alert'}
-        </h2>
-        <p className="text-primary font-black uppercase text-[10px] tracking-[0.3em] mb-8">Gaskiya Secure Link</p>
+        <h2 className="text-black text-3xl font-black uppercase tracking-tighter mb-2">Incoming Call</h2>
+        <p className="text-primary font-black uppercase text-[10px] tracking-[0.3em] mb-10">I-Pay Secure End-to-End</p>
 
-        <Card className="bg-white/10 border-white/20 text-white mb-10 w-full rounded-3xl backdrop-blur-md">
-            <CardContent className="p-6">
-                <p className="font-black text-xl uppercase tracking-tight">{activeMeeting?.name}</p>
-                <p className="text-xs opacity-70 mt-2 line-clamp-2">{activeMeeting?.description || 'Instant secure connection'}</p>
-            </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-1 gap-4 w-full">
-            <Button onClick={handleEnter} className="h-16 rounded-full font-black uppercase tracking-widest text-lg bg-green-500 hover:bg-green-600 shadow-2xl">
-                <Check className="mr-2 h-6 w-6" /> {activeMeeting?.type === 'call' ? 'Pick Up' : 'Enter'}
-            </Button>
-            <Button onClick={handleSnooze} variant="secondary" className="h-14 rounded-full font-black uppercase tracking-widest text-xs bg-white/20 text-white hover:bg-white/30 border-none">
-                Snooze (20s)
-            </Button>
+        <div className="grid grid-cols-2 gap-6 w-full max-w-[280px]">
+            <div className="flex flex-col items-center gap-2">
+                <Button onClick={handleEnter} size="icon" className="h-16 w-16 rounded-full bg-green-500 hover:bg-green-600 shadow-2xl">
+                    <Check className="h-8 w-8 text-white" />
+                </Button>
+                <span className="text-[10px] font-black uppercase text-green-600">Accept</span>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+                <Button onClick={handleDecline} size="icon" className="h-16 w-16 rounded-full bg-red-500 hover:bg-red-600 shadow-2xl">
+                    <X className="h-8 w-8 text-white" />
+                </Button>
+                <span className="text-[10px] font-black uppercase text-red-600">Decline</span>
+            </div>
         </div>
       </div>
     </div>
