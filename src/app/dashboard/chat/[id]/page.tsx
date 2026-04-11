@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import { 
     collection, query, where, onSnapshot, doc, 
     serverTimestamp, setDoc, updateDoc, 
-    arrayUnion, increment, getDocs, writeBatch
+    increment, getDocs, writeBatch
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
 import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, Mic, MicOff, Play, Pause, X, Check, CheckCheck } from 'lucide-react';
@@ -55,25 +55,28 @@ export default function ChatThreadPage() {
         return getChatId(currentUser.$id, otherUserId);
     }, [currentUser?.$id, otherUserId]);
 
-    // Seen Status Logic
+    // Fixed Query to avoid composite index error: Fetch by chatId and filter client-side
     useEffect(() => {
         if (!chatId || !currentUser) return;
 
         const markAsSeen = async () => {
             const q = query(
                 collection(db, COLLECTION_ID_MESSAGES),
-                where('chatId', '==', chatId),
-                where('senderId', '==', otherUserId),
-                where('status', '!=', 'seen')
+                where('chatId', '==', chatId)
             );
             const snapshot = await getDocs(q);
             if (snapshot.empty) return;
 
             const batch = writeBatch(db);
+            let hasChanges = false;
             snapshot.docs.forEach(d => {
-                batch.update(d.ref, { status: 'seen' });
+                const data = d.data();
+                if (data.senderId === otherUserId && data.status !== 'seen') {
+                    batch.update(d.ref, { status: 'seen' });
+                    hasChanges = true;
+                }
             });
-            await batch.commit();
+            if (hasChanges) await batch.commit();
         };
 
         markAsSeen();
@@ -138,18 +141,24 @@ export default function ChatThreadPage() {
     };
 
     const startRecording = async () => {
+        // Reset chunks and state before starting new recording
+        audioChunksRef.current = [];
+        setRecordedAudioUrl(null);
+        setRecordedBlob(null);
+        
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream);
+            // Use webm for wider compatibility
+            const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+            const mediaRecorder = new MediaRecorder(stream, { mimeType });
             mediaRecorderRef.current = mediaRecorder;
-            audioChunksRef.current = [];
 
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) audioChunksRef.current.push(event.data);
             };
 
             mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+                const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
                 setRecordedBlob(audioBlob);
                 setRecordedAudioUrl(URL.createObjectURL(audioBlob));
                 stream.getTracks().forEach(track => track.stop());
@@ -158,8 +167,6 @@ export default function ChatThreadPage() {
 
             mediaRecorder.start();
             setIsRecording(true);
-            setRecordedAudioUrl(null);
-            setRecordedBlob(null);
         } catch (e) {
             toast({ variant: 'destructive', title: 'Mic error', description: 'Please allow microphone access.' });
         }
@@ -197,10 +204,17 @@ export default function ChatThreadPage() {
     };
 
     const clearVoiceNote = () => {
+        // Stop any review playback
+        if (reviewAudioRef.current) {
+            reviewAudioRef.current.pause();
+            reviewAudioRef.current.currentTime = 0;
+        }
+        // Wipe all state to allow new recording
         setRecordedAudioUrl(null);
         setRecordedBlob(null);
         setIsRecording(false);
         setIsPlayingReview(false);
+        audioChunksRef.current = [];
     };
 
     const handleStartCall = async () => {

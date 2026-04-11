@@ -54,12 +54,14 @@ export default function MeetingRoomPage() {
 
     const fetchAttendees = useCallback(async () => {
         try {
+            // Simplified query to avoid composite index error
             const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
                 Query.equal('meetingId', meetingId),
-                Query.equal('status', 'approved'),
                 Query.limit(100)
             ]);
-            setParticipants(res.documents);
+            // Filter status client-side
+            const approvedAttendees = res.documents.filter(doc => doc.status === 'approved');
+            setParticipants(approvedAttendees);
         } catch (e) {}
     }, [meetingId]);
 
