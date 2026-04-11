@@ -10,7 +10,7 @@ import {
     serverTimestamp, setDoc, updateDoc, 
     increment, getDocs, writeBatch, deleteDoc, arrayUnion
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, ID } from '@/lib/appwrite';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } from '@/lib/appwrite';
 import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreHorizontal, Trash2, Forward, Mic, X, CheckCircle2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -35,6 +35,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 /**
  * @fileOverview Private Chat Thread.
  * FEATURES: Voice Note Flow (Record -> Stop -> Preview -> Send), Smart Deletion (Sender/Receiver), Forward.
+ * LIMITS: Voice note recording locked to 1 hour.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -104,11 +105,13 @@ export default function ChatThreadPage() {
                 const data = change.doc.data();
                 messageMapRef.current.set(change.doc.id, { $id: change.doc.id, ...data });
             });
-            const sorted = Array.from(messageMapRef.current.values()).sort((a, b) => {
-                const tA = a.createdAt?.toMillis?.() || new Date(a.createdAt || 0).getTime() || 0;
-                const tB = b.createdAt?.toMillis?.() || new Date(b.createdAt || 0).getTime() || 0;
-                return tA - tB;
-            });
+            const sorted = Array.from(messageMapRef.current.values())
+                .filter(m => !m.deleteFor?.includes(currentUser?.$id))
+                .sort((a, b) => {
+                    const tA = a.createdAt?.toMillis?.() || new Date(a.createdAt || 0).getTime() || 0;
+                    const tB = b.createdAt?.toMillis?.() || new Date(b.createdAt || 0).getTime() || 0;
+                    return tA - tB;
+                });
             setMessages(sorted);
         });
 
@@ -159,7 +162,15 @@ export default function ChatThreadPage() {
             recorder.start();
             setIsRecording(true);
             setRecordingDuration(0);
-            timerRef.current = setInterval(() => setRecordingDuration(p => p + 1), 1000);
+            timerRef.current = setInterval(() => {
+                setRecordingDuration(p => {
+                    if (p >= 3600) { // 1 Hour Limit
+                        stopRecording();
+                        return 3600;
+                    }
+                    return p + 1;
+                });
+            }, 1000);
         } catch (err) { toast({ variant: 'destructive', title: 'Mic Access Error' }); }
     };
 
@@ -199,17 +210,7 @@ export default function ChatThreadPage() {
 
     const handleStartCall = async () => {
         if (!currentUser || !otherUserId) return;
-        const callId = (doc(collection(db, 'meetings'))).id;
-        try {
-            await setDoc(doc(db, 'meetings', callId), {
-                hostId: currentUser.$id,
-                type: 'call',
-                status: 'pending',
-                invitedUsers: [otherUserId],
-                createdAt: serverTimestamp()
-            });
-            router.push(`/dashboard/chat/call/${callId}`);
-        } catch (e) { toast({ variant: 'destructive', title: 'Call Error' }); }
+        router.push(`/dashboard/chat/call/${otherUserId}`);
     };
 
     const DeliveryStatus = ({ status, receiverOnline }: { status: string, receiverOnline?: boolean }) => {
@@ -243,7 +244,7 @@ export default function ChatThreadPage() {
             <main className="flex-1 overflow-y-auto p-4 space-y-2 overscroll-contain bg-muted/5">
                 <div className="max-w-xl mx-auto w-full space-y-3">
                     <div className="text-center py-6 opacity-20 flex flex-col items-center gap-2"><ShieldCheck className="h-4 w-4" /><p className="text-[7px] font-black uppercase tracking-[0.4em]">End-to-End Encrypted</p></div>
-                    {messages.filter(m => !m.deleteFor?.includes(currentUser?.$id)).map((msg) => {
+                    {messages.map((msg) => {
                         const isMine = msg.senderId === currentUser?.$id;
                         return (
                             <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%] group", isMine ? "ml-auto items-end" : "items-start")}>

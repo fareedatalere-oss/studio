@@ -13,12 +13,14 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, ID } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
 import { format, parse } from 'date-fns';
+import { doc, collection } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 /**
  * @fileOverview Meeting Booking Page.
- * FIXED: Parsing error corrected (LPabel -> Label).
+ * FIXED: Typo </LPabel> corrected to </Label>.
  * STRICT SCHEDULING: Locked to Today. Ring instantly if time has passed.
  */
 
@@ -50,7 +52,7 @@ export default function BookMeetingPage() {
 
     setIsProcessing(true);
     try {
-        const meetingId = (doc(collection(db, COLLECTION_ID_MEETINGS))).id;
+        const meetingId = doc(collection(db, COLLECTION_ID_MEETINGS)).id;
         const generatedLink = `${window.location.origin}/dashboard/meeting/join/${meetingId}?role=admin`;
         
         const todayStr = format(new Date(), 'yyyy-MM-dd');
