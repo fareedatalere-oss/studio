@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Save, Send, Trash2, Upload, Camera, Image as ImageIcon, ArrowLeft, ArrowRight, Bold, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { databases, storage, DATABASE_ID, COLLECTION_ID_BOOKS, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
+import { databases, storage, DATABASE_ID, COLLECTION_ID_BOOKS, BUCKET_ID_UPLOADS, getAppwriteStorageUrl, ID } from '@/lib/appwrite';
 import { useUser } from '@/hooks/use-appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ID } from 'appwrite';
 
 function dataURLtoFile(dataurl: string, filename: string): File {
     const arr = dataurl.split(',');
@@ -97,13 +96,13 @@ export default function PagedBookEditorPage() {
     
     const saveDraft = () => {
         if (!draft) return false;
-        handleContentChange(); // Ensure current page content is captured before saving
+        handleContentChange();
         setIsSaving(true);
         toast({ title: 'Saving draft...' });
         try {
             const updatedDraft = { ...draft, content: pages };
             localStorage.setItem('bookDraft', JSON.stringify(updatedDraft));
-            setDraft(updatedDraft); // update state
+            setDraft(updatedDraft);
             toast({ title: 'Draft Saved!', description: 'Your changes have been saved to your browser.' });
             return true;
         } catch (error: any) {
@@ -122,12 +121,11 @@ export default function PagedBookEditorPage() {
     
     const handlePost = async () => {
         if (!draft || !user) return;
-        saveDraft(); // Save current state before posting
+        saveDraft();
         setIsSaving(true);
         toast({ title: 'Submitting draft...' });
 
         try {
-            // Process each page for images
             const processedPages = await Promise.all(pages.map(async (pageContent) => {
                 const tempDiv = document.createElement('div');
                 tempDiv.innerHTML = pageContent;
@@ -156,7 +154,6 @@ export default function PagedBookEditorPage() {
                 return tempDiv.innerHTML;
             }));
 
-            // Upload cover image
             const coverFile = dataURLtoFile(draft.coverUrl, 'cover.png');
             const coverUpload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), coverFile);
             

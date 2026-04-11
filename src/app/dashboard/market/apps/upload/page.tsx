@@ -103,17 +103,14 @@ function AppUploadForm() {
         toast({ title: "Uploading to Cloudinary..." });
 
         try {
-            // 1. Upload Icon
             const iconB64 = await toBase64(appIcon);
             const iconUp = await uploadToCloudinary(iconB64);
             if (!iconUp.success) throw new Error(iconUp.message);
 
-            // 2. Upload App File (as raw)
             const fileB64 = await toBase64(appFile);
             const fileUp = await uploadToCloudinary(fileB64, 'raw');
             if (!fileUp.success) throw new Error(fileUp.message);
 
-            // 3. Upload Screenshots
             const screenshotUrls = [];
             for (const shot of screenshots) {
                 const shotB64 = await toBase64(shot);
