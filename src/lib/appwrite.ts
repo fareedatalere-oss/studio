@@ -1,3 +1,4 @@
+
 import { auth, db } from './firebase';
 import { 
   signInWithEmailAndPassword, 
@@ -20,13 +21,14 @@ import {
   orderBy, 
   limit,
   serverTimestamp,
-  increment
+  increment,
+  arrayUnion
 } from 'firebase/firestore';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Master Firebase Bridge.
- * BUILD FIX: Hardened for SSR environments.
+ * @fileOverview Master Firebase Bridge (Replacing Appwrite).
+ * This file maintains the same interface to minimize refactoring.
  */
 
 export const DATABASE_ID = 'default';
@@ -93,7 +95,7 @@ export const databases = {
         };
     },
     createDocument: async (dbId: string, collId: string, docId: string, data: any) => {
-        const id = docId === 'unique()' ? doc(collection(db, collId)).id : docId;
+        const id = docId === 'unique()' || docId === 'unique' ? doc(collection(db, collId)).id : docId;
         const clean = sanitize(data);
         const d = { ...clean, createdAt: serverTimestamp() };
         await setDoc(doc(db, collId, id), d);
@@ -149,7 +151,7 @@ export const account = {
 };
 
 export const ID = {
-    unique: () => 'unique()'
+    unique: () => 'unique'
 };
 
 export const Query = {
@@ -181,9 +183,5 @@ export const client = {
     }
 };
 
-export function getAppwriteStorageUrl(fileId: string) {
-  return fileId; 
-}
-
-export { auth, db, increment };
+export { auth, db, increment, arrayUnion };
 export default client;

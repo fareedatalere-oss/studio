@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Users, Loader2, Copy, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Video, Loader2, Copy, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,14 +50,12 @@ export default function BookMeetingPage() {
 
     setIsProcessing(true);
     try {
-        const meetingId = ID.unique();
+        const meetingId = (doc(collection(db, COLLECTION_ID_MEETINGS))).id;
         const generatedLink = `${window.location.origin}/dashboard/meeting/join/${meetingId}?role=admin`;
         
-        // Strict DateTime Construction for Today
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const selectedDateTime = parse(`${todayStr} ${formData.time}`, 'yyyy-MM-dd HH:mm', new Date());
         
-        // Expiry durations: Personal (1h), General (3h)
         const durationHours = formData.type === 'personal' ? 1 : 3;
         const expiryTime = new Date(selectedDateTime.getTime() + durationHours * 60 * 60 * 1000).toISOString();
 

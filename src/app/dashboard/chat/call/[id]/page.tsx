@@ -259,7 +259,7 @@ export default function PrivateCallPage() {
                 <div className="absolute inset-0 z-[200] bg-white flex flex-col animate-in slide-in-from-bottom duration-300">
                     <header className="p-6 pt-16 flex items-center justify-between border-b bg-muted/10">
                         <h2 className="text-3xl font-black uppercase tracking-tighter text-primary">Chat</h2>
-                        <Button variant="ghost" size="icon" onClick={() => setIsChatOpen(false)} className="rounded-full bg-muted h-10 w-10"><X className="h-6 w-6" /></Button>
+                        <Button variant="ghost" size="icon" className="rounded-full bg-muted h-10 w-10" onClick={() => setIsChatOpen(false)}><X className="h-6 w-6" /></Button>
                     </header>
 
                     <ScrollArea className="flex-1 p-6 space-y-4">
