@@ -10,8 +10,8 @@ import {
     serverTimestamp, setDoc, updateDoc, 
     writeBatch, arrayUnion, increment 
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, X, Play, PhoneCall } from 'lucide-react';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID } from '@/lib/appwrite';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, X, Play, Phone } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -125,7 +125,7 @@ export default function ChatThreadPage() {
         if (!currentUser || !otherUserId) return;
         const callId = ID.unique();
         try {
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, {
+            await databases.createDocument(DATABASE_ID, 'meetings', callId, {
                 hostId: currentUser.$id,
                 type: 'call',
                 name: 'Private Call',
@@ -135,7 +135,7 @@ export default function ChatThreadPage() {
             });
             router.push(`/dashboard/chat/call/${callId}`);
         } catch (e) {
-            toast({ variant: 'destructive', title: 'Call Failed', description: 'Could not initiate call system.' });
+            toast({ variant: 'destructive', title: 'Call Failed' });
         }
     };
 
@@ -157,7 +157,7 @@ export default function ChatThreadPage() {
             if (forAll) await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { text: "deleted a message", isDeleted: true, mediaUrl: null, mediaType: null });
             else {
                 await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { deletedFor: arrayUnion(currentUser.$id) });
-                messageMapRef.current.delete(id);
+                messageMapRef.current.delete(msgId);
                 setMessages(prev => prev.filter(m => m.$id !== msgId));
             }
         } catch (e) {}
@@ -166,9 +166,7 @@ export default function ChatThreadPage() {
     return (
         <div className="flex flex-col h-screen bg-background font-body overflow-hidden">
             <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-50 pt-12 shadow-sm">
-                <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-10 w-10 rounded-full bg-muted/50"><ArrowLeft className="h-5 w-5" /></Button>
-                </div>
+                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-10 w-10 rounded-full bg-muted/50"><ArrowLeft className="h-5 w-5" /></Button>
                 {otherUser && (
                     <div className="flex-1 flex items-center gap-3 overflow-hidden ml-1">
                         <Avatar className="h-11 w-11 border-2 border-primary/10 shadow-sm"><AvatarImage src={otherUser.avatar} className="object-cover" /><AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0)}</AvatarFallback></Avatar>
@@ -235,7 +233,7 @@ export default function ChatThreadPage() {
                     </DropdownMenu>
                     
                     <Button variant="ghost" size="icon" onClick={handleStartCall} className="h-11 w-11 rounded-full text-primary hover:bg-primary/10">
-                        <PhoneCall className="h-5 w-5" />
+                        <Phone className="h-5 w-5" />
                     </Button>
 
                     <Input placeholder="Type text only..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />

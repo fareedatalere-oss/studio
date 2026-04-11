@@ -2,30 +2,28 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { PhoneIncoming, Check, X, PhoneOff, PhoneCall } from 'lucide-react';
+import { PhoneOff, PhoneCall } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query } from '@/lib/appwrite';
 import { useUser } from '@/hooks/use-appwrite';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 /**
- * @fileOverview Universal I-Pay White Alarm UI (Receiver Screen).
+ * @fileOverview Pure White Call Alarm (Receiver View).
+ * Simplified to match sketch: "Ringing" at top, Avatar in center, Deny/Accept at bottom.
  */
 
 export function MeetingAlarm() {
   const { user } = useUser();
-  const router = useRouter();
   const [activeMeeting, setActiveMeeting] = useState<any>(null);
   const [isRinging, setIsRinging] = useState(false);
-  const [isSnoozed, setIsSnoozed] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (!user) return;
 
     const checkIncoming = async () => {
-      if (isRinging || isSnoozed) return;
+      if (isRinging) return;
 
       try {
         const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
@@ -44,9 +42,9 @@ export function MeetingAlarm() {
       } catch (e) {}
     };
 
-    const interval = setInterval(checkIncoming, 2000); 
+    const interval = setInterval(checkIncoming, 3000); 
     return () => clearInterval(interval);
-  }, [user, isRinging, isSnoozed]);
+  }, [user, isRinging]);
 
   const startRinging = () => {
     setIsRinging(true);
@@ -70,15 +68,13 @@ export function MeetingAlarm() {
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeMeeting.$id, { status: 'ended' });
     }
     stopRinging();
-    setIsSnoozed(true);
-    setTimeout(() => setIsSnoozed(false), 10000); 
+    setActiveMeeting(null);
   };
 
   const handleAccept = async () => {
+    // Currently just stops the ringing as per command to focus only on request flow
     stopRinging();
-    if (activeMeeting) {
-        router.push(`/dashboard/chat/call/${activeMeeting.$id}`);
-    }
+    setActiveMeeting(null);
   };
 
   if (!isRinging) return null;
@@ -106,13 +102,13 @@ export function MeetingAlarm() {
 
       <div className="flex items-center justify-center gap-12 w-full max-w-sm px-10">
           <div className="flex flex-col items-center gap-3">
-              <Button onClick={handleDecline} size="icon" variant="destructive" className="h-20 w-20 rounded-full shadow-2xl transition-transform active:scale-90 bg-red-500 hover:bg-red-600">
+              <Button onClick={handleDecline} size="icon" variant="destructive" className="h-20 w-20 rounded-full shadow-2xl bg-red-500 hover:bg-red-600">
                   <PhoneOff className="h-8 w-8 text-white" />
               </Button>
               <span className="text-[10px] font-black uppercase text-red-600 tracking-widest">Deny</span>
           </div>
           <div className="flex flex-col items-center gap-3">
-              <Button onClick={handleAccept} size="icon" className="h-20 w-20 rounded-full bg-green-500 hover:bg-green-600 shadow-2xl transition-transform active:scale-90">
+              <Button onClick={handleAccept} size="icon" className="h-20 w-20 rounded-full bg-green-500 hover:bg-green-600 shadow-2xl">
                   <PhoneCall className="h-8 w-8 text-white" />
               </Button>
               <span className="text-[10px] font-black uppercase text-green-600 tracking-widest">Accept</span>
