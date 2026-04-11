@@ -8,10 +8,10 @@ import { db } from '@/lib/firebase';
 import { 
     collection, query, where, onSnapshot, doc, 
     serverTimestamp, setDoc, updateDoc, deleteDoc, 
-    getDoc, writeBatch, getDocs, arrayUnion, arrayRemove 
+    getDoc, writeBatch, getDocs, arrayUnion, arrayRemove, increment 
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID } from '@/lib/appwrite';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Mic, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, X, Play, Pause, Trash, Phone } from 'lucide-react';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Mic, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, X, Play, Pause, Trash, Phone, Eye } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -29,11 +29,6 @@ const getChatId = (userId1?: string, userId2?: string) => {
     const sortedIds = [userId1, userId2].sort();
     return `${sortedIds[0]}_${sortedIds[1]}`;
 };
-
-/**
- * @fileOverview Private Chat Thread.
- * Header features: Back button and Call button on the left.
- */
 
 export default function ChatThreadPage() {
     const params = useParams();
@@ -85,6 +80,12 @@ export default function ChatThreadPage() {
 
     useEffect(() => {
         if (!chatId || !currentUser) return;
+
+        // Reset unread count when opening chat
+        const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
+        updateDoc(chatRef, {
+            [`unreadCount.${currentUser.$id}`]: 0
+        }).catch(() => {});
 
         const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
             if (d.exists()) setOtherUser(d.data());
@@ -173,12 +174,33 @@ export default function ChatThreadPage() {
                 participants: [currentUser.$id, otherUserId],
                 lastMessage: text ? (text.length > 30 ? text.substring(0,30)+'...' : text) : `Sent a ${mediaData?.type || 'file'}`,
                 lastMessageAt: serverTimestamp(),
-                updatedAt: serverTimestamp()
+                updatedAt: serverTimestamp(),
+                [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
 
         } catch (e: any) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to send message.' });
         }
+    };
+
+    const initiateCall = async () => {
+        if (!otherUser?.isOnline) {
+            toast({ variant: 'destructive', title: "User Offline", description: "This user is not currently active to receive calls." });
+            return;
+        }
+        toast({ title: "Initiating Call...", description: `Calling @${otherUser.username}` });
+        // Generate a call room
+        const callId = ID.unique();
+        const callRef = doc(db, 'meetings', callId);
+        await setDoc(callRef, {
+            hostId: currentUser.$id,
+            name: `Call with ${myProfile.username}`,
+            type: 'call',
+            status: 'pending',
+            invitedUsers: [otherUserId],
+            createdAt: serverTimestamp()
+        });
+        router.push(`/dashboard/meeting/room/${callId}`);
     };
 
     const startRecording = async () => {
@@ -199,13 +221,7 @@ export default function ChatThreadPage() {
             setIsRecording(true);
             setRecordingDuration(0);
             durationIntervalRef.current = setInterval(() => {
-                setRecordingDuration(prev => {
-                    if (prev >= 3600) {
-                        stopRecording();
-                        return 3600;
-                    }
-                    return prev + 1;
-                });
+                setRecordingDuration(prev => prev + 1);
             }, 1000);
         } catch (e) {
             toast({ variant: 'destructive', title: "Mic Error", description: "Could not access microphone." });
@@ -303,7 +319,7 @@ export default function ChatThreadPage() {
                 });
             } else {
                 await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), {
-                    deletedFor: arrayUnion(currentUser?.$id)
+                    deletedFor: arrayUnion(currentUser.$id)
                 });
                 messageMapRef.current.delete(msgId);
                 setMessages(prev => prev.filter(m => m.$id !== msgId));
@@ -423,13 +439,9 @@ export default function ChatThreadPage() {
                     <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-10 w-10 rounded-full bg-muted/50">
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
-                    {otherUser && (
-                        <Button variant="ghost" size="icon" asChild className="h-10 w-10 rounded-full bg-muted/50 text-primary">
-                            <a href={`tel:${otherUser.phone || otherUser.phoneNumber || ''}`}>
-                                <Phone className="h-5 w-5" />
-                            </a>
-                        </Button>
-                    )}
+                    <Button variant="ghost" size="icon" onClick={initiateCall} className="h-10 w-10 rounded-full bg-muted/50 text-primary">
+                        <Phone className="h-5 w-5" />
+                    </Button>
                 </div>
                 {otherUser && (
                     <div className="flex-1 flex items-center gap-3 overflow-hidden ml-1">
@@ -488,6 +500,11 @@ export default function ChatThreadPage() {
                                         </div>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent className="w-40 font-black uppercase text-[9px]">
+                                        {(msg.mediaType === 'image' || msg.mediaType === 'video') && (
+                                            <DropdownMenuItem onClick={() => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=${msg.mediaType}`)}>
+                                                <Eye className="mr-2 h-3.5 w-3.5" /> View Full
+                                            </DropdownMenuItem>
+                                        )}
                                         <DropdownMenuItem onClick={() => setIsForwarding(msg.$id)}>
                                             <Forward className="mr-2 h-3.5 w-3.5" /> Forward
                                         </DropdownMenuItem>

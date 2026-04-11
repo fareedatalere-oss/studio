@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Search, MoreVertical, Trash2, ArrowLeft, Loader2, Video, UserX, MessageSquare } from 'lucide-react';
+import { Search, MoreVertical, Trash2, ArrowLeft, Loader2, Video, MessageSquare } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, doc, getDoc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
@@ -23,6 +23,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     const [otherUser, setOtherUser] = useState<any>(null);
     const { toast } = useToast();
     const otherUserId = chat.participants?.find((p: string) => p !== currentUser?.uid);
+    // Real-time unread count logic
     const unreadCount = chat.unreadCount?.[currentUser?.uid] || 0;
 
     useEffect(() => {
@@ -78,7 +79,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
                             {chat.lastMessage}
                         </p>
                         {unreadCount > 0 && (
-                            <Badge variant="destructive" className="h-4 min-w-4 p-0 px-1 text-[8px] font-black rounded-full border-2 border-white flex items-center justify-center">
+                            <Badge variant="destructive" className="h-5 min-w-5 p-0 px-1 text-[10px] font-black rounded-full border-2 border-white flex items-center justify-center animate-in zoom-in-50">
                                 {unreadCount}
                             </Badge>
                         )}
@@ -205,7 +206,7 @@ export default function ChatPage() {
                                         <div className="relative">
                                             <Avatar className="h-12 w-12 border-2 border-primary/10 shadow-sm">
                                                 <AvatarImage src={user.avatar} className="object-cover" />
-                                                <AvatarFallback className="font-black bg-muted text-foreground/50">{user.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                                                <AvatarFallback className="font-black bg-muted text-foreground/50">{user.username?.charAt(0)}</AvatarFallback>
                                             </Avatar>
                                             {user.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white"></div>}
                                         </div>

@@ -8,20 +8,23 @@ import {
     Eraser, Keyboard, Clock, ShieldCheck, Video, 
     Volume2, VolumeX, Mic, MicOff, CameraOff, X,
     MonitorPlay, FileText, UploadCloud, Play, Pause,
-    UserX
+    UserX, Send, Smile
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, Query, ID, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, COLLECTION_ID_MESSAGES, client, Query, ID, storage, BUCKET_ID_UPLOADS, getAppwriteStorageUrl } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import Image from 'next/image';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
+
+const LOVE_EMOJIS = ["😍", "♥️", "🥰", "😋", "🤩", "😘", "🧡", "💔", "❣️", "❤️‍🩹", "❤️", "💓", "💗", "🩷", "💖", "💞", "💘", "❣️", "💕", "💚", "💟", "💌", "🖤", "🩶", "🤍", "💋", "🫦", "👄", "🫂", "👥", "🧑‍🧑‍🧒‍🧒", "👨‍👧‍👧", "👩‍👧", "👩‍👩‍👧‍👦", "👨‍👦", "👨‍👩‍👧‍👧", "👨‍👨‍👧‍👧", "👩‍👩‍👦‍👦", "👨‍👨‍👦‍👦", "👩‍👩‍👦", "👩‍👩‍👧‍👦", "💏", "👩‍❤️‍💋‍👨", "👨‍❤️‍💋‍👨", "👩‍❤️‍💋‍👩", "👩‍❤️‍👩", "👨‍❤️‍👨", "👩‍❤️‍👨", "💑"];
 
 export default function MeetingRoomPage() {
     const params = useParams();
@@ -47,6 +50,11 @@ export default function MeetingRoomPage() {
     
     const [isUploadingMedia, setIsUploadingMedia] = useState(false);
     const mediaInputRef = useRef<HTMLInputElement>(null);
+
+    // Mode-specific states for "Call" UI
+    const [activeMode, setActiveMode] = useState<'voice' | 'video' | 'chat' | 'display'>('voice');
+    const [chatMessages, setChatMessages] = useState<any[]>([]);
+    const [chatInput, setChatInput] = useState('');
 
     const isAdmin = useMemo(() => user?.$id === meeting?.hostId, [user?.$id, meeting?.hostId]);
 
@@ -93,7 +101,11 @@ export default function MeetingRoomPage() {
 
             await handleEntry(docData);
 
-            const limit = docData.type === 'personal' ? 3600 : 10800;
+            if (docData.type === 'call') {
+                setActiveMode('voice');
+            }
+
+            const limit = docData.type === 'personal' ? 3600 : (docData.type === 'call' ? 7200 : 10800);
             if (docData.startedAt) {
                 const elapsed = Math.floor((Date.now() - new Date(docData.startedAt).getTime()) / 1000);
                 const remaining = limit - elapsed;
@@ -121,13 +133,12 @@ export default function MeetingRoomPage() {
             setParticipants(approved);
             setJoinRequests(res.documents.filter(a => a.status === 'waiting'));
 
-            // Check if kicked
             const guestDataStr = sessionStorage.getItem(`meeting_guest_${meetingId}`);
             if (guestDataStr) {
                 const guestData = JSON.parse(guestDataStr);
                 const me = res.documents.find(a => a.$id === guestData.requestId);
                 if (me && me.status === 'declined') {
-                    toast({ variant: 'destructive', title: 'Removed', description: 'You have been removed by the host.' });
+                    toast({ variant: 'destructive', title: 'Removed', description: 'you have been removed by the host' });
                     router.replace('/dashboard/meeting');
                 }
             }
@@ -150,11 +161,21 @@ export default function MeetingRoomPage() {
             if (payload.meetingId === meetingId) fetchAttendees();
         });
 
+        if (meeting?.type === 'call') {
+            const unsubChat = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`], response => {
+                const payload = response.payload as any;
+                if (payload.chatId === `call_chat_${meetingId}`) {
+                    setChatMessages(prev => [...prev, payload]);
+                }
+            });
+            return () => { unsubMeeting(); unsubAttendees(); unsubChat(); };
+        }
+
         return () => { unsubMeeting(); unsubAttendees(); };
-    }, [meetingId, fetchMeeting, fetchAttendees, user]);
+    }, [meetingId, fetchMeeting, fetchAttendees, user, meeting?.type]);
 
     useEffect(() => {
-        if (isInRoom && useCamera) {
+        if (isInRoom && (useCamera || activeMode === 'video')) {
             const startCamera = async () => {
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -170,7 +191,7 @@ export default function MeetingRoomPage() {
         } else {
             localStreamRef.current?.getTracks().forEach(t => t.stop());
         }
-    }, [isInRoom, useCamera]);
+    }, [isInRoom, useCamera, activeMode]);
 
     useEffect(() => {
         if (!isInRoom || timeLeft === null) return;
@@ -200,14 +221,6 @@ export default function MeetingRoomPage() {
         toast({ title: 'User removed' });
     };
 
-    const toggleBoard = async (visible: boolean) => {
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
-            boardVisible: visible,
-            boardContent: boardDraft 
-        });
-        setIsBoardOpen(false);
-    };
-
     const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !isAdmin) return;
@@ -231,12 +244,17 @@ export default function MeetingRoomPage() {
         }
     };
 
-    const closeDisplay = async () => {
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
-            displayVisible: false,
-            displayUrl: '',
-            displayType: ''
-        });
+    const sendChatMessage = async () => {
+        if (!chatInput.trim()) return;
+        try {
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
+                chatId: `call_chat_${meetingId}`,
+                senderId: user.$id,
+                text: chatInput.trim(),
+                status: 'sent'
+            });
+            setChatInput('');
+        } catch (e) {}
     };
 
     const formatTime = (seconds: number) => {
@@ -247,35 +265,59 @@ export default function MeetingRoomPage() {
 
     if (loading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-white h-12 w-12" /></div>;
 
-    const hostParticipant = participants.find(p => p.isHost);
-    const otherParticipants = participants.filter(p => !p.isHost);
-    const centeredParticipants = [...otherParticipants];
-    if (hostParticipant) {
-        const middleIndex = Math.floor(centeredParticipants.length / 2);
-        centeredParticipants.splice(middleIndex, 0, hostParticipant);
-    }
+    const isCall = meeting?.type === 'call';
+    const otherParticipant = participants.find(p => p.userId !== user.$id);
 
     return (
         <div className="h-screen w-full bg-black flex flex-col overflow-hidden relative font-body text-white">
-            {/* BOARD OVERLAY (BROWN) */}
-            {meeting?.boardVisible && (
-                <div className="absolute inset-0 z-[100] bg-[#4e342e] p-10 flex flex-col items-center justify-center text-center animate-in zoom-in-95 duration-300">
-                    <div className="max-w-3xl w-full p-10 bg-white/5 border border-white/10 rounded-[3rem] shadow-2xl relative">
-                        {isAdmin && (
-                            <Button onClick={() => toggleBoard(false)} variant="ghost" size="icon" className="absolute top-6 right-6 rounded-full bg-white/10 hover:bg-white/20 text-white"><X className="h-6 w-6" /></Button>
-                        )}
-                        <p className="text-primary font-black uppercase tracking-[0.5em] text-[10px] mb-6">Board Display</p>
-                        <p className="text-2xl md:text-4xl font-bold leading-relaxed whitespace-pre-wrap">{meeting.boardContent}</p>
+            {/* CALL UI SPECIFIC OVERLAYS */}
+            {isCall && activeMode === 'chat' && (
+                <div className="absolute inset-0 z-[150] bg-black/90 flex flex-col p-6 animate-in slide-in-from-bottom-5">
+                    <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-4">
+                        <h2 className="font-black uppercase text-xs">Real-time Chat</h2>
+                        <Button variant="ghost" size="icon" onClick={() => setActiveMode('voice')} className="rounded-full bg-white/10"><X /></Button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto space-y-4 mb-4 scrollbar-hide">
+                        {chatMessages.map((msg, i) => (
+                            <div key={i} className={cn("flex flex-col max-w-[80%]", msg.senderId === user.$id ? "ml-auto items-end" : "items-start")}>
+                                <div className={cn("p-3 rounded-2xl text-xs font-bold", msg.senderId === user.$id ? "bg-primary" : "bg-white/10")}>{msg.text}</div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="space-y-4">
+                        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                            {LOVE_EMOJIS.map(e => <button key={e} onClick={() => setChatInput(prev => prev + e)} className="text-xl hover:scale-125 transition-transform">{e}</button>)}
+                        </div>
+                        <div className="flex gap-2">
+                            <Input value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder="Type love message..." className="rounded-full bg-white/5 border-white/10 h-12" />
+                            <Button size="icon" onClick={sendChatMessage} className="rounded-full h-12 w-12 bg-primary"><Send /></Button>
+                        </div>
                     </div>
                 </div>
             )}
 
-            {/* DISPLAY OVERLAY (BROWN) */}
+            {isCall && activeMode === 'video' && (
+                <div className="absolute inset-0 z-[140] bg-black flex flex-col items-center justify-center animate-in zoom-in-95">
+                    <Button variant="ghost" size="icon" onClick={() => setActiveMode('voice')} className="absolute top-12 right-6 z-[150] rounded-full bg-black/50 text-white"><X /></Button>
+                    <div className="relative w-full h-full">
+                        {/* Simulate remote video */}
+                        <div className="absolute inset-0 bg-muted flex items-center justify-center">
+                            <Video className="h-20 w-20 opacity-20" />
+                            <p className="absolute bottom-20 font-black uppercase text-xs tracking-widest animate-pulse">Waiting for remote video feed...</p>
+                        </div>
+                        <div className="absolute bottom-10 right-6 w-32 h-48 rounded-2xl border-2 border-white/20 overflow-hidden shadow-2xl">
+                            <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* BROWN BOARD OVERLAY */}
             {meeting?.displayVisible && (
-                <div className="absolute inset-0 z-[90] bg-[#4e342e] flex flex-col items-center justify-center animate-in fade-in duration-300">
+                <div className="absolute inset-0 z-[100] bg-[#4e342e] flex flex-col items-center justify-center animate-in fade-in duration-300">
                     <div className="max-w-5xl w-full aspect-video bg-black rounded-[2.5rem] overflow-hidden border border-white/10 relative shadow-2xl">
                         {isAdmin && (
-                            <Button onClick={closeDisplay} variant="ghost" size="icon" className="absolute top-6 right-6 z-[100] rounded-full bg-black/50 hover:bg-black/80 text-white"><X className="h-6 w-6" /></Button>
+                            <Button onClick={async () => await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { displayVisible: false })} variant="ghost" size="icon" className="absolute top-6 right-6 z-[100] rounded-full bg-black/50 hover:bg-black/80 text-white"><X className="h-6 w-6" /></Button>
                         )}
                         {meeting.displayType === 'image' && <Image src={meeting.displayUrl} alt="Display" fill className="object-contain" unoptimized />}
                         {meeting.displayType === 'video' && <video src={meeting.displayUrl} controls autoPlay className="w-full h-full" />}
@@ -294,50 +336,66 @@ export default function MeetingRoomPage() {
                     <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_red]"></div>
                     <div>
                         <h2 className="font-black uppercase text-[10px] tracking-widest leading-none">{meeting?.name}</h2>
-                        {timeLeft !== null && <p className="text-[8px] font-mono text-white/50 uppercase mt-1">End: {formatTime(timeLeft)}</p>}
+                        {timeLeft !== null && <p className="text-[8px] font-mono text-white/50 uppercase mt-1">Duration: {formatTime(timeLeft)}</p>}
                     </div>
                 </div>
                 <div className="flex gap-2">
                     {isAdmin && (
-                        <>
-                            {meeting?.type !== 'personal' && (
-                                <>
-                                    <Dialog open={isBoardOpen} onOpenChange={setIsBoardOpen}>
-                                        <DialogTrigger asChild>
-                                            <Button variant="ghost" size="sm" className="h-8 rounded-full bg-white/10 font-black uppercase text-[9px] text-white">board</Button>
-                                        </DialogTrigger>
-                                        <DialogContent className="max-w-md rounded-[2.5rem] p-8 border-none bg-black text-white">
-                                            <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-xs">Chairman Board</DialogTitle></DialogHeader>
-                                            <Textarea className="h-40 bg-white/5 border-white/10 rounded-2xl mt-4 font-bold text-lg" placeholder="Chairman message..." value={boardDraft} onChange={e => setBoardContent(e.target.value)} />
-                                            <div className="grid grid-cols-2 gap-3 mt-6">
-                                                <Button variant="ghost" onClick={() => setBoardContent('')} className="rounded-full uppercase font-black text-[10px] text-white"><Eraser className="mr-2 h-4 w-4" /> Clear</Button>
-                                                <Button onClick={() => toggleBoard(true)} className="rounded-full uppercase font-black text-[10px] text-white">display</Button>
-                                            </div>
-                                        </DialogContent>
-                                    </Dialog>
-                                    <Button variant="ghost" size="sm" onClick={() => mediaInputRef.current?.click()} className="h-8 rounded-full bg-white/10 font-black uppercase text-[9px] text-white">
-                                        {isUploadingMedia ? <Loader2 className="animate-spin h-3 w-3" /> : 'display'}
-                                    </Button>
-                                    <input type="file" ref={mediaInputRef} className="hidden" accept="image/*,video/*,audio/*" onChange={handleMediaUpload} />
-                                </>
-                            )}
-                            <Button variant="ghost" size="sm" onClick={endMeeting} className="h-8 rounded-full bg-red-600/20 text-red-500 font-black uppercase text-[9px]">hang up</Button>
-                        </>
+                        <Button variant="ghost" size="sm" onClick={endMeeting} className="h-8 rounded-full bg-red-600/20 text-red-500 font-black uppercase text-[9px]">hang up</Button>
                     )}
                 </div>
             </header>
 
-            <main className="flex-1 overflow-y-auto p-10 scrollbar-hide z-10">
-                <div className="w-full h-full flex flex-wrap items-center justify-center gap-8 max-w-6xl mx-auto">
-                    {centeredParticipants.map(p => (
-                        <ParticipantIcon key={p.$id} p={p} isAdmin={isAdmin} kickUser={kickUser} />
-                    ))}
-                </div>
+            <main className="flex-1 flex flex-col items-center justify-center p-10 z-10">
+                {isCall && activeMode === 'voice' ? (
+                    <div className="flex flex-col items-center gap-8 animate-in fade-in duration-500">
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping"></div>
+                            <Avatar className="h-40 w-40 ring-4 ring-primary ring-offset-8 ring-offset-black">
+                                <AvatarImage src={otherParticipant?.avatar} />
+                                <AvatarFallback className="text-4xl bg-primary">{otherParticipant?.name?.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                        </div>
+                        <div className="text-center space-y-2">
+                            <h3 className="text-2xl font-black uppercase tracking-tighter">{otherParticipant?.name}</h3>
+                            <p className="text-xs font-bold text-primary animate-pulse uppercase tracking-[0.3em]">Voice active</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-6 mt-10">
+                            <div className="flex flex-col items-center gap-2">
+                                <Button size="icon" onClick={() => setActiveMode('video')} className="h-14 w-14 rounded-full bg-white/10 hover:bg-primary transition-all"><Video /></Button>
+                                <span className="text-[10px] font-black uppercase">Video</span>
+                            </div>
+                            <div className="flex flex-col items-center gap-2">
+                                <Button size="icon" onClick={() => setActiveMode('chat')} className="h-14 w-14 rounded-full bg-white/10 hover:bg-primary transition-all"><MessageSquare /></Button>
+                                <span className="text-[10px] font-black uppercase">Chat</span>
+                            </div>
+                            <div className="flex flex-col items-center gap-2">
+                                <Button size="icon" onClick={() => mediaInputRef.current?.click()} className="h-14 w-14 rounded-full bg-white/10 hover:bg-primary transition-all"><MonitorPlay /></Button>
+                                <span className="text-[10px] font-black uppercase">Display</span>
+                                <input type="file" ref={mediaInputRef} className="hidden" accept="image/*,video/*,audio/*" onChange={handleMediaUpload} />
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="w-full h-full flex flex-wrap items-center justify-center gap-8 max-w-6xl mx-auto">
+                        {participants.map(p => (
+                            <div key={p.$id} className="flex flex-col items-center gap-2">
+                                <div className={cn("relative rounded-full border-2 p-0.5 h-20 w-20", p.isHost ? "border-yellow-500" : "border-primary/40")}>
+                                    <Avatar className="h-full w-full"><AvatarImage src={p.avatar} /><AvatarFallback>{p.name?.charAt(0)}</AvatarFallback></Avatar>
+                                    {isAdmin && !p.isHost && (
+                                        <Button onClick={() => kickUser(p.$id)} variant="destructive" size="icon" className="absolute -top-1 -left-1 h-6 w-6 rounded-full"><X className="h-3.5 w-3.5" /></Button>
+                                    )}
+                                </div>
+                                <p className="font-bold text-[10px] text-white/80">{p.name}</p>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </main>
 
             {isAdmin && joinRequests.length > 0 && (
                 <footer className="p-4 bg-white/5 border-t border-white/10 backdrop-blur-lg flex items-center gap-4 overflow-x-auto z-[80]">
-                    <p className="text-[10px] font-black uppercase text-primary shrink-0 mr-2">Waiting:</p>
                     {joinRequests.map(req => (
                         <div key={req.$id} className="flex items-center gap-2 bg-white/5 p-2 rounded-2xl border border-white/10 shrink-0">
                             <Avatar className="h-8 w-8"><AvatarImage src={req.avatar} /></Avatar>
@@ -358,63 +416,6 @@ export default function MeetingRoomPage() {
                     </Button>
                 </footer>
             )}
-
-            <div className="absolute bottom-6 left-6 z-[80] flex items-end gap-4">
-                <div className={cn(
-                    "h-16 w-16 md:h-20 md:w-20 rounded-full bg-muted border-2 border-primary overflow-hidden shadow-2xl transition-all duration-300 ring-4 ring-black",
-                    !useCamera && "flex items-center justify-center bg-black/50"
-                )}>
-                    {useCamera ? (
-                        <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
-                    ) : (
-                        <CameraOff className="h-5 w-5 text-white/20" />
-                    )}
-                </div>
-                <div className="flex flex-col gap-2">
-                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-black/50 border border-white/20 backdrop-blur-md text-white" onClick={() => setUseCamera(!useCamera)}>
-                        {useCamera ? <Video className="h-3.5 w-3.5" /> : <Camera className="h-3.5 w-3.5 text-red-500" />}
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full bg-black/50 border border-white/20 backdrop-blur-md text-white" onClick={() => setIsMuted(!isMuted)}>
-                        {isMuted ? <MicOff className="h-3.5 w-3.5 text-red-500" /> : <Mic className="h-3.5 w-3.5" />}
-                    </Button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function ParticipantIcon({ p, isAdmin, kickUser }: { p: any, isAdmin: boolean, kickUser: (id: string) => void }) {
-    return (
-        <div className="flex flex-col items-center gap-2 animate-in fade-in zoom-in-95 group">
-            <div className={cn(
-                "relative rounded-full border-2 p-0.5 shadow-xl transition-all duration-500 h-20 w-20 md:h-24 md:w-24 bg-muted",
-                p.isHost ? "border-yellow-500" : "border-primary/40"
-            )}>
-                {p.hasVideo ? (
-                    <div className="h-full w-full rounded-full overflow-hidden">
-                        <video autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
-                    </div>
-                ) : (
-                    <Avatar className="h-full w-full">
-                        <AvatarImage src={p.avatar} className="object-cover" />
-                        <AvatarFallback className="font-bold text-xl bg-primary text-white">{p.name?.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                )}
-                {p.hasVideo && (
-                    <div className="absolute top-0 right-0 bg-red-500 text-[6px] font-black uppercase px-1.5 py-0.5 rounded-full border border-black shadow-sm">LIVE</div>
-                )}
-                {isAdmin && !p.isHost && (
-                    <Button 
-                        onClick={() => kickUser(p.$id)}
-                        variant="destructive" 
-                        size="icon" 
-                        className="absolute -top-1 -left-1 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                        <X className="h-3.5 w-3.5" />
-                    </Button>
-                )}
-            </div>
-            <p className="font-bold text-[10px] text-white/80 tracking-tight">{p.name}</p>
         </div>
     );
 }

@@ -16,11 +16,6 @@ import { cn } from '@/lib/utils';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
-/**
- * @fileOverview Meeting Join Lobby.
- * Validates session status and handles identity setup.
- */
-
 function MeetingJoinContent() {
     const params = useParams();
     const router = useRouter();
@@ -38,6 +33,7 @@ function MeetingJoinContent() {
     const [isExpired, setIsExpired] = useState(false);
     const [isFull, setIsFull] = useState(false);
     const [isUseCameraActive, setIsUseCameraActive] = useState(false);
+    const [loadingMeeting, setLoadingMeeting] = useState(true);
     
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -46,6 +42,7 @@ function MeetingJoinContent() {
     useEffect(() => {
         const checkMeeting = async () => {
             if (!meetingId) return;
+            setLoadingMeeting(true);
             try {
                 const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
                 
@@ -64,10 +61,11 @@ function MeetingJoinContent() {
                     }
                 }
             } catch (e: any) {
-                // Only mark as expired if document really doesn't exist
                 if (e.code === 404) {
                     setIsExpired(true);
                 }
+            } finally {
+                setLoadingMeeting(false);
             }
         };
         checkMeeting();
@@ -145,7 +143,6 @@ function MeetingJoinContent() {
                 createdAt: new Date().toISOString()
             });
 
-            // Save meeting identity session
             sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ 
                 name, 
                 avatar, 
@@ -178,6 +175,10 @@ function MeetingJoinContent() {
             setIsSubmitting(false);
         }
     };
+
+    if (loadingMeeting) {
+        return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
+    }
 
     if (isExpired) {
         return (
