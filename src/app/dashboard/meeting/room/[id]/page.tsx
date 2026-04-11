@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -9,12 +8,20 @@ import {
     MonitorPlay, Send, MessageSquare, Trash2, Check, XCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, Query, ID } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import Link from 'next/link';
+
+/**
+ * @fileOverview Meeting Room Page.
+ * FIXED: Missing Card import for error/end states.
+ * SCROLLABILITY: Removed scrollbar-hide to allow visible scrolling.
+ */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
@@ -43,9 +50,6 @@ export default function MeetingRoomPage() {
         try {
             const docData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
             setMeeting(docData);
-            if (docData.status === 'ended' || docData.status === 'cancelled') {
-                // Keep view for status message
-            }
         } catch (e) { router.replace('/dashboard/meeting'); } finally { setLoading(false); }
     }, [meetingId, router]);
 
@@ -107,7 +111,7 @@ export default function MeetingRoomPage() {
 
     if (meeting.status === 'ended' || meeting.status === 'cancelled') {
         return (
-            <div className="h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+            <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
                 <Card className="max-w-md w-full rounded-[2.5rem] shadow-xl border-none p-10">
                     <div className="bg-destructive/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
                         <XCircle className="h-10 w-10 text-destructive" />
@@ -136,7 +140,7 @@ export default function MeetingRoomPage() {
                 </Button>
             </header>
 
-            <main className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+            <main className="flex-1 overflow-y-auto p-6">
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-6 max-w-6xl mx-auto py-10">
                     {participants.map(p => (
                         <div key={p.$id} className="flex flex-col items-center gap-2 group relative">
