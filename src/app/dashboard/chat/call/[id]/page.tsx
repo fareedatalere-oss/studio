@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -17,6 +18,8 @@ import { Input } from '@/components/ui/input';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
+import { doc, updateDoc as firestoreUpdate } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 const CALL_EMOJIS = ["💐","🌹","🏵️","🌻","🎈","💋","🥀","🍫","🎉","💮","🎊","🎂","😍","🎁","💏","👩‍❤️_💋_👨","👨_❤️_💋_👨","👩_❤️_💋_👩","👩_❤️_👩","👨_❤️_👨","👩_❤️_👨","💑","🥰","😍","😇","🤩","😘","🫣","🥳","💓","💗","💖","💝","💘","💌","💞","💕","💟","❣️","💔","❤️‍🔥","❤️‍🩹","❤️","🤎","💜","🩵","💙","💚","💛","🧡","🩷","🖤","🩶","🤍","🫀","🫂","👥"];
 
@@ -32,7 +35,6 @@ export default function PrivateCallPage() {
     const [duration, setDuration] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
     
-    // Feature Overlays
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isVideoOpen, setIsVideoOpen] = useState(false);
     const [isDisplayOpen, setIsDisplayOpen] = useState(false);
@@ -138,7 +140,7 @@ export default function PrivateCallPage() {
 
             const uploadRes = await uploadToCloudinary(base64, uploadType === 'music' ? 'auto' : uploadType);
             if (uploadRes.success) {
-                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, {
+                await firestoreUpdate(doc(db, COLLECTION_ID_MEETINGS, callId), {
                     displayUrl: uploadRes.url,
                     displayType: uploadType,
                     displayVisible: true
@@ -150,6 +152,17 @@ export default function PrivateCallPage() {
         } finally {
             setIsUploadingMedia(false);
             setUploadType(null);
+        }
+    };
+
+    const handleHangUp = async () => {
+        try {
+            await firestoreUpdate(doc(db, COLLECTION_ID_MEETINGS, callId), { 
+                status: 'ended' 
+            });
+            router.replace('/dashboard/chat');
+        } catch (e) {
+            router.replace('/dashboard/chat');
         }
     };
 
@@ -174,7 +187,7 @@ export default function PrivateCallPage() {
                     </div>
                 ) : (
                     <p className="text-primary font-black uppercase tracking-[0.3em] text-xl animate-pulse">
-                        {call.hostId === user?.$id ? 'Calling...' : 'Ringing...'}
+                        {call.hostId === user?.$id ? 'Ringing...' : 'Incoming Call...'}
                     </p>
                 )}
             </header>
@@ -190,7 +203,7 @@ export default function PrivateCallPage() {
                 </div>
             </div>
 
-            <footer className="w-full max-w-sm px-10 flex flex-col items-center gap-8 z-50">
+            <footer className="w-full max-sm px-10 flex flex-col items-center gap-8 z-50">
                 {isConnected && (
                     <div className="flex items-center justify-center gap-10 w-full animate-in slide-in-from-bottom-10">
                         <div className="flex flex-col items-center gap-2">
@@ -214,7 +227,7 @@ export default function PrivateCallPage() {
                     </div>
                 )}
 
-                <Button onClick={async () => { await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { status: 'ended' }); }} size="icon" variant="destructive" className="h-20 w-20 rounded-full shadow-2xl bg-red-500 hover:bg-red-600 active:scale-90 transition-transform">
+                <Button onClick={handleHangUp} size="icon" variant="destructive" className="h-20 w-20 rounded-full shadow-2xl bg-red-500 hover:bg-red-600 active:scale-90 transition-transform">
                     <PhoneOff className="h-8 w-8 text-white" />
                 </Button>
                 <span className="text-[10px] font-black uppercase text-red-600 tracking-widest">Hang up</span>
@@ -308,7 +321,7 @@ export default function PrivateCallPage() {
                         </div>
                         <Button variant="ghost" size="icon" onClick={async () => {
                             if (user.$id === call.hostId) {
-                                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { displayVisible: false });
+                                await firestoreUpdate(doc(db, COLLECTION_ID_MEETINGS, callId), { displayVisible: false });
                             }
                             setIsDisplayOpen(false);
                         }} className="rounded-full bg-white/10 text-white h-12 w-12"><X className="h-8 w-8" /></Button>
@@ -364,7 +377,7 @@ export default function PrivateCallPage() {
                     <input type="file" ref={mediaInputRef} className="hidden" onChange={handleMediaUpload} />
                     
                     <footer className="p-8 flex justify-center">
-                        <Button onClick={async () => { await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { status: 'ended' }); }} variant="destructive" className="rounded-full h-14 px-10 font-black uppercase text-xs tracking-widest shadow-2xl">
+                        <Button onClick={handleHangUp} variant="destructive" className="rounded-full h-14 px-10 font-black uppercase text-xs tracking-widest shadow-2xl">
                             <PhoneOff className="mr-2 h-5 w-5" /> Hang Up Call
                         </Button>
                     </footer>
