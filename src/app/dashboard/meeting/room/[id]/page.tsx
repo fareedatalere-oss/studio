@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { 
     PhoneOff, Loader2, Camera, 
@@ -23,6 +24,7 @@ export default function MeetingRoomPage() {
     const { user, profile } = useUser();
     const { toast } = useToast();
     const meetingId = params.id as string;
+    const selfVideoRef = useRef<HTMLVideoElement>(null);
 
     const [meeting, setMeeting] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -71,8 +73,14 @@ export default function MeetingRoomPage() {
             if (payload.meetingId === meetingId) fetchAttendees();
         });
 
+        if (mySetup?.useCamera) {
+            navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+                if (selfVideoRef.current) selfVideoRef.current.srcObject = stream;
+            }).catch(() => {});
+        }
+
         return () => { unsubMeeting(); unsubAttendees(); };
-    }, [meetingId, fetchMeeting, fetchAttendees, router]);
+    }, [meetingId, fetchMeeting, fetchAttendees, router, mySetup?.useCamera]);
 
     const handleAction = async (requestId: string, status: 'approved' | 'declined') => {
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, requestId, { status });
@@ -100,7 +108,7 @@ export default function MeetingRoomPage() {
             <header className="p-4 pt-12 flex justify-between items-center bg-black/50 border-b border-white/5 z-50">
                 <div className="flex-1">
                     <h1 className="font-black uppercase text-xs tracking-widest text-primary truncate">{meeting.name}</h1>
-                    <p className="text-[8px] font-bold opacity-50 uppercase">{isAdmin ? 'Admin View' : 'Guest View'}</p>
+                    <p className="text-[8px] font-bold opacity-50 uppercase">{isAdmin ? 'Chairman View' : 'Guest View'}</p>
                 </div>
                 <Button onClick={handleEndMeeting} size="sm" variant="destructive" className="h-8 rounded-full font-black uppercase text-[9px] shadow-lg">
                     {isAdmin ? 'Hang up' : 'Disconnect'}
@@ -123,7 +131,7 @@ export default function MeetingRoomPage() {
                                     </Avatar>
                                 )}
                                 {isAdmin && !p.isHost && (
-                                    <button onClick={() => handleRemoveUser(p.$id)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleRemoveUser(p.$id)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 shadow-lg z-20">
                                         <X className="h-3 w-3" />
                                     </button>
                                 )}
@@ -156,11 +164,15 @@ export default function MeetingRoomPage() {
 
             <footer className="p-6 border-t bg-black/80 backdrop-blur-md border-white/5 flex items-center justify-between z-[90]">
                 <div className="flex items-center gap-3 bg-white/5 p-2 pr-6 rounded-full border border-white/10 shadow-xl">
-                    <div className="h-10 w-10 rounded-full border-2 border-primary p-0.5">
-                        <Avatar className="h-full w-full">
-                            <AvatarImage src={mySetup?.avatar || profile?.avatar} />
-                            <AvatarFallback>{mySetup?.name?.charAt(0) || '?'}</AvatarFallback>
-                        </Avatar>
+                    <div className="h-10 w-10 rounded-full border-2 border-primary p-0.5 overflow-hidden">
+                        {mySetup?.useCamera ? (
+                            <video ref={selfVideoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
+                        ) : (
+                            <Avatar className="h-full w-full">
+                                <AvatarImage src={mySetup?.avatar || profile?.avatar} />
+                                <AvatarFallback>{mySetup?.name?.charAt(0) || '?'}</AvatarFallback>
+                            </Avatar>
+                        )}
                     </div>
                     <div className="text-left">
                         <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none">You (Live)</p>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -99,7 +100,7 @@ export default function BookMeetingPage() {
                     <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 text-left">
                         <Label className="flex items-center gap-2 text-[9px] font-black uppercase text-primary mb-2">
                             Meeting Link
-                        </LPabel>
+                        </Label>
                         <div className="flex items-center gap-2">
                             <p className="text-[10px] font-mono truncate flex-1 text-primary">{meetingLink}</p>
                             <Button size="icon" variant="ghost" onClick={() => copyToClipboard(meetingLink)} className="shrink-0 h-8 w-8"><Copy className="h-3 w-3" /></Button>
