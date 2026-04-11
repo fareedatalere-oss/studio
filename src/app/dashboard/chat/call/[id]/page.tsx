@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { 
     PhoneOff, Loader2, Video, X, Send, 
-    Image as ImageIcon, Music, Film, Mic, MicOff, MessageSquare, Layout, Smile
+    Mic, MicOff, MessageSquare, Layout, Smile
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-appwrite';
@@ -15,13 +15,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 
-/**
- * @fileOverview Pure White Call Page with Live Chat Overlay.
- * CHAT: Follows drawing - "Chat" title, "X" close, "Aslm/Wslm" bubbles, Emoji Keyboard at bottom.
- * EMOJIS: Full list of 100+ flowers and love emojis provided by user.
- */
-
-const CALL_EMOJIS = ["💐","🌹","🏵️","🌻","🎈","💋","🥀","🍫","🎉","💮","🎊","🎂","😍","🎁","💏","👩‍❤️_💋_👨","👨_❤️_💋_👨","👩_❤️_💋_👩","👩_❤️_👩","👨_❤️_👨","👩_❤️_👨","💑","👩_👩_👧_👦","👩_👩_👦","👨_👨_👦_👦","👩_👩_👦_👦","🥰","😍","😇","🤩","😘","🫣","🥳","🤡","💓","💗","💖","💝","💘","💌","💞","💕","💟","❣️","💔","❤️‍🔥","❤️‍🩹","❤️","🤎","💜","🩵","💙","💚","💛","🧡","🩷","🖤","🩶","🤍","🫀","🫂","👥"];
+const CALL_EMOJIS = ["💐","🌹","🏵️","🌻","🎈","💋","🥀","🍫","🎉","💮","🎊","🎂","😍","🎁","💏","👩‍❤️_💋_👨","👨_❤️_💋_👨","👩_❤️_💋_👩","👩_❤️_👩","👨_❤️_👨","👩_❤️_👨","💑","🥰","😍","😇","🤩","😘","🫣","🥳","💓","💗","💖","💝","💘","💌","💞","💕","💟","❣️","💔","❤️‍🔥","❤️‍🩹","❤️","🤎","💜","🩵","💙","💚","💛","🧡","🩷","🖤","🩶","🤍","🫀","🫂","👥"];
 
 export default function PrivateCallPage() {
     const params = useParams();
@@ -33,12 +27,17 @@ export default function PrivateCallPage() {
     const [partner, setPartner] = useState<any>(null);
     const [duration, setDuration] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
+    
+    // Feature Overlays
     const [isChatOpen, setIsChatOpen] = useState(false);
+    const [isVideoOpen, setIsVideoOpen] = useState(false);
+    
     const [chatInput, setChatInput] = useState('');
     const [messages, setMessages] = useState<any[]>([]);
     
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const selfVideoRef = useRef<HTMLVideoElement>(null);
 
     const chatId = useMemo(() => {
         if (!user?.$id || !partner?.$id) return null;
@@ -95,6 +94,14 @@ export default function PrivateCallPage() {
             return () => unsubMsg();
         }
     }, [isChatOpen, chatId, fetchMessages]);
+
+    useEffect(() => {
+        if (isVideoOpen) {
+            navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+                if (selfVideoRef.current) selfVideoRef.current.srcObject = stream;
+            }).catch(() => toast({ title: 'Camera Error' }));
+        }
+    }, [isVideoOpen]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -154,7 +161,7 @@ export default function PrivateCallPage() {
                             <span className="text-[8px] font-black uppercase opacity-40">Chat</span>
                         </div>
                         <div className="flex flex-col items-center gap-2">
-                            <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
+                            <Button onClick={() => setIsVideoOpen(true)} variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
                                 <Video className="h-5 w-5" />
                             </Button>
                             <span className="text-[8px] font-black uppercase opacity-40">Video</span>
@@ -174,7 +181,31 @@ export default function PrivateCallPage() {
                 <span className="text-[10px] font-black uppercase text-red-600 tracking-widest">Hang up</span>
             </footer>
 
-            {/* LIVE CHAT OVERLAY (DRAWING ACCURATE) */}
+            {/* SKETCH-ACCURATE VIDEO OVERLAY */}
+            {isVideoOpen && (
+                <div className="absolute inset-0 z-[250] bg-black flex flex-col animate-in fade-in duration-300">
+                    <header className="absolute top-12 left-0 right-0 flex items-center justify-between p-6 z-10">
+                        <h2 className="text-white text-3xl font-black uppercase tracking-tighter">Video Call</h2>
+                        <Button variant="ghost" size="icon" onClick={() => setIsVideoOpen(false)} className="rounded-full bg-white/10 text-white h-12 w-12"><X className="h-8 w-8" /></Button>
+                    </header>
+
+                    {/* MAIN VIEW: RECEIVER */}
+                    <div className="flex-1 relative flex flex-col items-center justify-center">
+                        <div className="absolute inset-0 flex items-center justify-center opacity-30 grayscale">
+                             <Avatar className="h-64 w-64"><AvatarImage src={partner.avatar}/></Avatar>
+                        </div>
+                        <p className="absolute top-[45%] text-white/40 font-black uppercase text-xl tracking-[0.2em]">Receiver</p>
+                        
+                        {/* INSET VIEW: YOU (SKETCH POSITION) */}
+                        <div className="absolute bottom-10 right-10 w-32 aspect-[9/16] bg-muted rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl">
+                            <video ref={selfVideoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
+                            <p className="absolute bottom-2 left-0 right-0 text-center text-[8px] font-black uppercase text-white/60">You</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* LIVE CHAT OVERLAY */}
             {isChatOpen && (
                 <div className="absolute inset-0 z-[200] bg-white flex flex-col animate-in slide-in-from-bottom duration-300">
                     <header className="p-6 pt-16 flex items-center justify-between border-b bg-muted/10">

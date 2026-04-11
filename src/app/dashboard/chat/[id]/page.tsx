@@ -8,16 +8,13 @@ import { db } from '@/lib/firebase';
 import { 
     collection, query, where, onSnapshot, doc, 
     serverTimestamp, setDoc, updateDoc, 
-    arrayUnion, increment 
+    arrayUnion, increment, getDocs, writeBatch
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, MoreVertical, UserX, Trash2, Image as ImageIcon, Video, FileText, Phone, Mic, MicOff, Play, Pause, X, Check } from 'lucide-react';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, Mic, MicOff, Play, Pause, X, Check, CheckCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { 
-    DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger 
-} from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -59,6 +56,30 @@ export default function ChatThreadPage() {
         return getChatId(currentUser.$id, otherUserId);
     }, [currentUser?.$id, otherUserId]);
 
+    // Seen Status Logic
+    useEffect(() => {
+        if (!chatId || !currentUser) return;
+
+        const markAsSeen = async () => {
+            const q = query(
+                collection(db, COLLECTION_ID_MESSAGES),
+                where('chatId', '==', chatId),
+                where('senderId', '==', otherUserId),
+                where('status', '!=', 'seen')
+            );
+            const snapshot = await getDocs(q);
+            if (snapshot.empty) return;
+
+            const batch = writeBatch(db);
+            snapshot.docs.forEach(d => {
+                batch.update(d.ref, { status: 'seen' });
+            });
+            await batch.commit();
+        };
+
+        markAsSeen();
+    }, [chatId, currentUser, otherUserId, messages.length]);
+
     useEffect(() => {
         if (!chatId || !currentUser) return;
 
@@ -96,11 +117,19 @@ export default function ChatThreadPage() {
         if (!textOverride && !mediaData) setNewMessage('');
 
         const msgId = doc(collection(db, COLLECTION_ID_MESSAGES)).id;
+        
+        // Delivery Report Calculation
+        // ☑️ if offline, ☑️☑️ if online
+        const initialStatus = otherUser?.isOnline ? 'delivered' : 'sent';
+
         try {
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { 
-                chatId, senderId: currentUser.$id, text: text || '', 
-                status: otherUser?.isOnline ? 'delivered' : 'sent',
-                deletedFor: [], createdAt: serverTimestamp(),
+                chatId, 
+                senderId: currentUser.$id, 
+                text: text || '', 
+                status: initialStatus,
+                deletedFor: [], 
+                createdAt: serverTimestamp(),
                 ...(mediaData && { mediaUrl: mediaData.url, mediaType: mediaData.type, duration: mediaData.duration })
             });
             await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
@@ -155,7 +184,7 @@ export default function ChatThreadPage() {
                 reader.onloadend = () => resolve(reader.result as string);
                 reader.readAsDataURL(recordedBlob);
             });
-            const upload = await uploadToCloudinary(base64, 'raw');
+            const upload = await uploadToCloudinary(base64, 'auto');
             if (upload.success) {
                 handleSend('', { url: upload.url, type: 'audio' });
                 setRecordedAudioUrl(null);
@@ -186,17 +215,13 @@ export default function ChatThreadPage() {
         }
     };
 
-    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setIsUploading(true);
-        try {
-            const reader = new FileReader();
-            const base64: string = await new Promise((resolve) => { reader.onloadend = () => resolve(reader.result as string); reader.readAsDataURL(file); });
-            const type = file.type.startsWith('image/') ? 'image' : (file.type.startsWith('video/') ? 'video' : 'raw');
-            const upload = await uploadToCloudinary(base64, type === 'raw' ? 'raw' : (type === 'image' ? 'image' : 'video'));
-            if (upload.success) handleSend('', { url: upload.url, type: type === 'raw' ? 'pdf' : type });
-        } catch (e) { toast({ variant: 'destructive', title: "Media send failed" }); } finally { setIsUploading(false); }
+    const DeliveryStatus = ({ status }: { status: string }) => {
+        switch (status) {
+            case 'sent': return <Check className="h-3 w-3 opacity-40" />;
+            case 'delivered': return <CheckCheck className="h-3 w-3 opacity-40" />;
+            case 'seen': return <CheckCheck className="h-3 w-3 text-green-500" />;
+            default: return null;
+        }
     };
 
     return (
@@ -214,9 +239,6 @@ export default function ChatThreadPage() {
                         </div>
                     </div>
                 )}
-                <Button variant="ghost" size="icon" onClick={handleStartCall} className="h-10 w-10 rounded-full text-primary hover:bg-primary/10">
-                    <Phone className="h-5 w-5" />
-                </Button>
             </header>
             
             <main className="flex-1 overflow-y-auto p-4 space-y-2 overscroll-contain bg-muted/5">
@@ -227,12 +249,11 @@ export default function ChatThreadPage() {
                         return (
                             <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%]", isMine ? "ml-auto items-end" : "items-start")}>
                                 <div className={cn("p-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold leading-relaxed", isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
-                                    {msg.mediaType === 'image' && <div onClick={() => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=image`)} className="cursor-pointer mb-2 rounded-xl overflow-hidden bg-muted border p-2"><ImageIcon className="h-10 w-10 text-primary opacity-50" /></div>}
-                                    {msg.mediaType === 'video' && <div onClick={() => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=video`)} className="cursor-pointer mb-2 rounded-xl overflow-hidden bg-muted border p-2 relative"><Video className="h-10 w-10 text-primary opacity-50" /></div>}
                                     {msg.mediaType === 'audio' && <audio src={msg.mediaUrl} controls className="h-8 max-w-full" />}
                                     <p className="whitespace-pre-wrap">{msg.text}</p>
-                                    <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
-                                        <span className="text-[6px] font-black uppercase">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : '...'}</span>
+                                    <div className="flex items-center justify-end gap-1 mt-1">
+                                        <span className="text-[6px] font-black uppercase opacity-60">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : '...'}</span>
+                                        {isMine && <DeliveryStatus status={msg.status} />}
                                     </div>
                                 </div>
                             </div>
@@ -270,9 +291,12 @@ export default function ChatThreadPage() {
             <footer className="p-4 border-t bg-background safe-area-bottom pb-8">
                 <div className="max-w-xl mx-auto w-full flex items-center gap-2">
                     <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-full text-muted-foreground hover:bg-muted"><Paperclip className="h-5 w-5" /></Button>
+                    <Button variant="ghost" size="icon" onClick={handleStartCall} className="h-11 w-11 rounded-full text-primary hover:bg-primary/10">
+                        <Phone className="h-5 w-5" />
+                    </Button>
                     
                     <Input 
-                        placeholder={isRecording ? "Recording..." : "Type text only..."} 
+                        placeholder={isRecording ? "Recording..." : "Type message..."} 
                         value={newMessage} 
                         onChange={e => setNewMessage(e.target.value)} 
                         onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} 
@@ -298,7 +322,7 @@ export default function ChatThreadPage() {
 
                     <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() || isUploading || !!recordedAudioUrl} className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90">{isUploading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5 text-white" />}</Button>
                 </div>
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,application/pdf" onChange={handleFileSelect} />
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,application/pdf" />
             </footer>
         </div>
     );
