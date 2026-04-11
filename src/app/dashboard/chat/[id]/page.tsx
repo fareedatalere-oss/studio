@@ -142,7 +142,7 @@ export default function ChatThreadPage() {
                 invitedUsers: [otherUserId],
                 createdAt: new Date().toISOString()
             });
-            router.push(`/dashboard/chat/call/${callId}`);
+            router.push(`/dashboard/meeting/room/${callId}`);
         } catch (e) {
             toast({ variant: 'destructive', title: 'Call Failed' });
         }

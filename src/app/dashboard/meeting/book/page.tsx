@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Users, Globe, Loader2, Video, Copy, CheckCircle2, Calendar, Clock } from 'lucide-react';
+import { ArrowLeft, Users, Globe, Loader2, Video, Copy, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,18 +15,20 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, ID } from '@/lib/appwrite';
-import { format, isBefore, startOfToday, parse } from 'date-fns';
+import { format, parse } from 'date-fns';
 
 export default function BookMeetingPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useUser();
 
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     type: 'personal',
-    date: format(new Date(), 'yyyy-MM-dd'),
+    date: todayStr, // Locked to today
     time: format(new Date(), 'HH:mm'),
   });
   const [isProcessing, setIsProcessing] = useState(false);
@@ -34,23 +36,17 @@ export default function BookMeetingPage() {
 
   const handleCreateMeeting = async () => {
     if (!formData.name || !user) {
-      toast({ variant: 'destructive', title: 'Missing Info', description: 'Please provide a name for your meeting.' });
+      toast({ variant: 'destructive', title: 'Name Required', description: 'Please provide a name for your meeting.' });
       return;
-    }
-
-    // Strict Date/Time Logic
-    const selectedDate = parse(formData.date, 'yyyy-MM-dd', new Date());
-    const selectedDateTime = parse(`${formData.date} ${formData.time}`, 'yyyy-MM-dd HH:mm', new Date());
-    
-    if (isBefore(selectedDate, startOfToday())) {
-        toast({ variant: 'destructive', title: 'Invalid Date', description: 'You cannot choose a past date.' });
-        return;
     }
 
     setIsProcessing(true);
     try {
         const meetingId = ID.unique();
         const generatedLink = `${window.location.origin}/dashboard/meeting/join/${meetingId}`;
+        
+        // Strict DateTime Construction
+        const selectedDateTime = parse(`${formData.date} ${formData.time}`, 'yyyy-MM-dd HH:mm', new Date());
         
         // Calculate Expiry (Personal: 1hr, General: 3hrs)
         const durationHours = formData.type === 'personal' ? 1 : 3;
@@ -94,7 +90,7 @@ export default function BookMeetingPage() {
                 </div>
                 <CardHeader>
                     <CardTitle className="text-3xl font-black uppercase tracking-tighter">Meeting Ready</CardTitle>
-                    <CardDescription className="font-bold">Share this link with your participants.</CardDescription>
+                    <CardDescription className="font-bold text-xs">Share this link. Alarm will ring at the set time.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 mt-4">
                     <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 text-left">
@@ -108,12 +104,12 @@ export default function BookMeetingPage() {
                     </div>
                     <div className="bg-muted/30 p-4 rounded-xl text-center">
                         <p className="text-[10px] font-black uppercase tracking-widest opacity-50">Scheduled For</p>
-                        <p className="font-bold">{formData.date} at {formData.time}</p>
+                        <p className="font-bold text-sm">{formData.date} at {formData.time}</p>
                     </div>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-3">
-                    <Button asChild variant="ghost" className="font-black uppercase text-[10px]">
-                        <Link href="/dashboard/meeting">Back to Hub</Link>
+                    <Button asChild variant="ghost" className="font-black uppercase text-[10px] tracking-widest">
+                        <Link href="/dashboard/meeting">Return to Hub</Link>
                     </Button>
                 </CardFooter>
             </Card>
@@ -130,16 +126,16 @@ export default function BookMeetingPage() {
       <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
         <CardHeader className="bg-primary/5 pb-8">
           <CardTitle className="text-2xl font-black uppercase tracking-tighter text-center">Setup Meeting</CardTitle>
-          <CardDescription className="text-center font-bold">Set date, time and scope</CardDescription>
+          <CardDescription className="text-center font-bold text-xs">Set time for today's session</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-8">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-                <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Date</Label>
-                <Input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="h-12 rounded-2xl bg-muted border-none px-4 font-bold" />
+                <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Date (Today Only)</Label>
+                <Input type="date" value={formData.date} readOnly className="h-12 rounded-2xl bg-muted border-none px-4 font-bold opacity-50 cursor-not-allowed" />
             </div>
             <div className="space-y-2">
-                <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Time</Label>
+                <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Alarm Time</Label>
                 <Input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="h-12 rounded-2xl bg-muted border-none px-4 font-bold" />
             </div>
           </div>
@@ -147,56 +143,39 @@ export default function BookMeetingPage() {
           <div className="space-y-2">
             <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Meeting Name</Label>
             <Input 
-              placeholder="e.g., Team Sync" 
+              placeholder="e.g. Morning Briefing" 
               className="h-12 rounded-2xl bg-muted border-none px-6 font-bold"
               value={formData.name}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
             />
           </div>
 
-          <div className="space-y-2">
-            <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Description</Label>
-            <Textarea 
-              placeholder="What is this meeting about?" 
-              className="rounded-2xl bg-muted border-none p-4"
-              rows={2}
-              value={formData.description}
-              onChange={e => setFormData({ ...formData, description: e.target.value })}
-            />
-          </div>
-
           <div className="space-y-4 pt-4 border-t">
-            <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Meeting Type</Label>
+            <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Meeting Scope</Label>
             <RadioGroup value={formData.type} onValueChange={v => setFormData({ ...formData, type: v })} className="grid grid-cols-2 gap-4">
               <div className={cn(
                 "p-4 rounded-[2rem] border-2 cursor-pointer transition-all flex flex-col gap-2",
                 formData.type === 'personal' ? "border-primary bg-primary/5" : "border-muted bg-muted/20"
               )} onClick={() => setFormData({ ...formData, type: 'personal' })}>
-                <div className="flex items-center justify-between">
-                  <Users className={cn("h-5 w-5", formData.type === 'personal' ? "text-primary" : "text-muted-foreground")} />
-                  <RadioGroupItem value="personal" id="personal" className="sr-only" />
-                </div>
                 <p className="font-black text-xs uppercase tracking-tighter">Personal</p>
-                <p className="text-[9px] leading-tight text-muted-foreground font-bold">Max 5 People • 1 Hour • Free</p>
+                <p className="text-[8px] leading-tight text-muted-foreground font-bold">Max 5 • 1 Hour • Free</p>
+                <RadioGroupItem value="personal" className="sr-only" />
               </div>
 
               <div className={cn(
                 "p-4 rounded-[2rem] border-2 cursor-pointer transition-all flex flex-col gap-2",
                 formData.type === 'general' ? "border-primary bg-primary/5" : "border-muted bg-muted/20"
               )} onClick={() => setFormData({ ...formData, type: 'general' })}>
-                <div className="flex items-center justify-between">
-                  <Globe className={cn("h-5 w-5", formData.type === 'general' ? "text-primary" : "text-muted-foreground")} />
-                  <RadioGroupItem value="general" id="general" className="sr-only" />
-                </div>
                 <p className="font-black text-xs uppercase tracking-tighter">General</p>
-                <p className="text-[9px] leading-tight text-muted-foreground font-bold">Unlimited • 3 Hours</p>
+                <p className="text-[8px] leading-tight text-muted-foreground font-bold">Unlimited • 3 Hours</p>
+                <RadioGroupItem value="general" className="sr-only" />
               </div>
             </RadioGroup>
           </div>
         </CardContent>
         <CardFooter className="p-8 bg-muted/30">
           <Button onClick={handleCreateMeeting} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-xl" disabled={isProcessing}>
-            {isProcessing ? <Loader2 className="animate-spin" /> : <><Video className="mr-2 h-5 w-5" /> Generate Meeting Link</>}
+            {isProcessing ? <Loader2 className="animate-spin" /> : "Generate Meeting Link"}
           </Button>
         </CardFooter>
       </Card>
