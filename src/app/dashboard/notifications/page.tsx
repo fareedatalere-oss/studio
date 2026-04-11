@@ -1,12 +1,11 @@
 'use client';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Heart, MessageCircle, UserPlus, Store, CreditCard, Loader2, ShieldCheck } from "lucide-react";
+import { Bell, Heart, MessageCircle, UserPlus, Store, CreditCard, ShieldCheck } from "lucide-react";
 import { useUser } from '@/hooks/use-appwrite';
 import { useEffect, useState, useCallback } from "react";
 import { formatDistanceToNow } from 'date-fns';
-import { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_PROFILES } from "@/lib/appwrite";
-import { Query } from "appwrite";
+import { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_PROFILES, Query } from "@/lib/appwrite";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
@@ -45,7 +44,7 @@ export default function NotificationsPage() {
 
             setNotifications(notificationsWithProfiles);
 
-            // Mark all fetched notifications as read
+            // Mark unread as read
             const unread = response.documents.filter(n => !n.isRead);
             if (unread.length > 0) {
                 await Promise.all(unread.map(n => 
@@ -54,20 +53,11 @@ export default function NotificationsPage() {
             }
         } catch (error: any) {
             console.error("Failed to fetch notifications:", error);
-            try {
-                 const fallbackResponse = await databases.listDocuments(
-                    DATABASE_ID,
-                    COLLECTION_ID_NOTIFICATIONS,
-                    [Query.equal('userId', user.$id), Query.limit(50)]
-                );
-                setNotifications(fallbackResponse.documents);
-            } catch (e) {
-                toast({
-                    variant: 'destructive',
-                    title: 'Sync Error',
-                    description: 'Could not load alerts.',
-                });
-            }
+            toast({
+                variant: 'destructive',
+                title: 'Sync Error',
+                description: 'Could not load alerts.',
+            });
         } finally {
             setLoading(false);
         }
@@ -92,18 +82,18 @@ export default function NotificationsPage() {
     
     return (
         <div className="container py-8">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+            <Card className="rounded-[2rem] shadow-xl overflow-hidden border-none">
+                <CardHeader className="bg-primary/5 pb-6">
+                    <CardTitle className="flex items-center gap-2 font-black uppercase text-xl tracking-tighter">
                         <Bell className="h-6 w-6 text-primary" />
-                        Notifications
+                        Alert Center
                     </CardTitle>
-                    <CardDescription>Stay updated with activity on your account.</CardDescription>
+                    <CardDescription className="font-bold">Real-time platform activity.</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-6">
                     {loading ? (
                         <div className="space-y-4">
-                            {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
+                            {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}
                         </div>
                     ) : notifications.length > 0 ? (
                         <div className="space-y-4">
@@ -113,32 +103,32 @@ export default function NotificationsPage() {
                                     href={notif.link || '#'} 
                                     className="block group"
                                 >
-                                    <div className={`flex items-start gap-4 p-3 rounded-lg transition-colors group-hover:bg-muted/80 ${!notif.isRead ? 'bg-primary/5 border-l-4 border-l-primary' : 'bg-muted/30'}`}>
+                                    <div className={`flex items-start gap-4 p-4 rounded-2xl transition-all group-active:scale-95 ${!notif.isRead ? 'bg-primary/5 border-l-4 border-l-primary' : 'bg-muted/30'}`}>
                                         <div className="mt-1">
                                             <NotificationIcon type={notif.type} />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm">
-                                                <span className="font-semibold text-foreground">@{notif.sender?.username || 'System'}</span>
+                                            <p className="text-sm font-bold">
+                                                <span className="text-primary">@{notif.sender?.username || 'System'}</span>
                                                 {' '}
-                                                <span className="text-muted-foreground">{notif.description}</span>
+                                                <span className="text-foreground">{notif.description}</span>
                                             </p>
-                                            <p className="text-[10px] text-muted-foreground mt-1 uppercase">
+                                            <p className="text-[9px] font-black uppercase opacity-50 mt-1">
                                                 {formatDistanceToNow(new Date(notif.$createdAt), { addSuffix: true })}
                                             </p>
                                         </div>
-                                        <Avatar className="h-10 w-10 border">
+                                        <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
                                             <AvatarImage src={notif.sender?.avatar} />
-                                            <AvatarFallback>{notif.type === 'system' ? 'A' : (notif.sender?.username?.charAt(0).toUpperCase())}</AvatarFallback>
+                                            <AvatarFallback className="font-black bg-muted text-foreground/30">{notif.type === 'system' ? 'A' : (notif.sender?.username?.charAt(0).toUpperCase())}</AvatarFallback>
                                         </Avatar>
                                     </div>
                                 </Link>
                             ))}
                         </div>
                     ) : (
-                       <div className="text-center py-12">
-                           <Bell className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-                           <p className="text-muted-foreground">You have no new notifications.</p>
+                       <div className="text-center py-20 opacity-20 grayscale">
+                           <Bell className="h-16 w-16 mx-auto mb-4" />
+                           <p className="font-black uppercase text-xs tracking-widest">No Alerts Found</p>
                        </div>
                     )}
                 </CardContent>

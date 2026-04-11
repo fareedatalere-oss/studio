@@ -1,12 +1,10 @@
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, MoreVertical, Trash2 } from 'lucide-react';
-import { databases, storage, DATABASE_ID, COLLECTION_ID_POSTS, COLLECTION_ID_POST_COMMENTS, BUCKET_ID_UPLOADS } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases, storage, DATABASE_ID, COLLECTION_ID_POSTS, COLLECTION_ID_POST_COMMENTS, BUCKET_ID_UPLOADS, Query } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
@@ -171,7 +169,7 @@ export default function ManagerMediaPage() {
   return (
     <div className="container py-8">
       <Card>
-        <CardHeader>
+        <CardHeader className="text-center">
           <CardTitle>Media Management</CardTitle>
           <CardDescription>Oversee and delete all media posts on the platform.</CardDescription>
         </CardHeader>

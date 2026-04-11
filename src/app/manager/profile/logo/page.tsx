@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -9,8 +8,7 @@ import { ArrowLeft, Loader2, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_APP_CONFIG, getAppwriteStorageUrl } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_APP_CONFIG, getAppwriteStorageUrl, ID } from '@/lib/appwrite';
 
 const DOCUMENT_ID_MAIN_CONFIG = 'main';
 
@@ -37,8 +35,7 @@ export default function EditLogoPage() {
                 setCurrentLogo(config.logoUrl);
             }
         } catch (error) {
-            // This is expected if the collection or document doesn't exist yet.
-            console.log("No current logo set or app_config collection not found.");
+            console.log("No current logo set.");
         }
     };
     fetchCurrentLogo();
@@ -63,17 +60,14 @@ export default function EditLogoPage() {
 
     try {
       const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), logoFile);
-      const newLogoUrl = getAppwriteStorageUrl(upload.$id);
+      const newLogoUrl = upload.url;
 
-      // Try to update, if it fails with 404 (document not found), create it.
       try {
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG, {
           logoUrl: newLogoUrl
         });
       } catch (error: any) {
-        if (error.code === 404) { // Document not found, so create it
-            // Let the document inherit permissions from the collection.
-            // The user should have already set collection permissions for Role:Users to Create/Read/Update.
+        if (error.code === 404) {
             await databases.createDocument(
                 DATABASE_ID,
                 COLLECTION_ID_APP_CONFIG,
@@ -81,11 +75,11 @@ export default function EditLogoPage() {
                 { logoUrl: newLogoUrl }
             );
         } else {
-            throw error; // Re-throw other errors
+            throw error;
         }
       }
       
-      toast({ title: 'Success!', description: 'App logo updated. Changes may take a moment to appear everywhere.' });
+      toast({ title: 'Logo updated!' });
       setCurrentLogo(newLogoUrl);
       setPreview(null);
       setLogoFile(null);
@@ -97,34 +91,34 @@ export default function EditLogoPage() {
   };
 
   return (
-    <div className="container py-8">
-      <Link href="/manager/profile" className="flex items-center gap-2 mb-4 text-sm">
-        <ArrowLeft className="h-4 w-4" />
-        Back to Profile
+    <div className="container py-8 max-w-2xl">
+      <Link href="/manager/profile" className="flex items-center gap-2 mb-6 text-sm font-black uppercase text-muted-foreground hover:text-primary">
+        <ArrowLeft className="h-4 w-4" /> Profile
       </Link>
-      <Card className="w-full max-w-lg mx-auto">
-        <CardHeader>
-          <CardTitle>Edit App Logo</CardTitle>
-          <CardDescription>Upload a new logo for the application.</CardDescription>
+      <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
+        <CardHeader className="bg-primary/5 pb-8 text-center">
+          <CardTitle className="text-2xl font-black uppercase tracking-tighter">Branding Control</CardTitle>
+          <CardDescription className="font-bold text-xs">Update the application master logo</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <p className="text-sm font-medium mb-2">Current Logo</p>
-            <div className="w-24 h-24 bg-muted rounded-md flex items-center justify-center">
-                {currentLogo ? <Image src={currentLogo} alt="Current Logo" width={80} height={80} /> : <p className="text-xs text-muted-foreground">None</p>}
+        <CardContent className="pt-8 space-y-8">
+          <div className="text-center">
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4">Current Active Logo</p>
+            <div className="w-32 h-32 bg-muted rounded-[2rem] flex items-center justify-center mx-auto border-4 border-white shadow-xl">
+                {currentLogo ? <Image src={currentLogo} alt="Logo" width={100} height={100} className="object-contain" unoptimized /> : <p className="text-xs font-bold opacity-30">NONE</p>}
             </div>
           </div>
+
           <div
-            className="h-48 bg-muted rounded-md flex items-center justify-center border-2 border-dashed cursor-pointer"
+            className="h-48 bg-muted/30 rounded-[2.5rem] flex items-center justify-center border-4 border-dashed border-muted cursor-pointer transition-all hover:bg-muted/50"
             onClick={() => fileInputRef.current?.click()}
           >
             {preview ? (
-              <Image src={preview} alt="New logo preview" width={150} height={150} className="object-contain" />
+              <Image src={preview} alt="New logo" width={150} height={150} className="object-contain" />
             ) : (
-              <div className="text-center text-muted-foreground">
-                <UploadCloud className="mx-auto h-10 w-10" />
-                <p>Click or drag file to upload</p>
-                <p className="text-xs">PNG, JPG, SVG accepted</p>
+              <div className="text-center text-muted-foreground space-y-2">
+                <UploadCloud className="mx-auto h-10 w-10 opacity-30" />
+                <p className="font-black uppercase text-[10px] tracking-widest">Select New Media</p>
+                <p className="text-[8px] font-bold">PNG, JPG, SVG accepted</p>
               </div>
             )}
           </div>
@@ -135,12 +129,11 @@ export default function EditLogoPage() {
             className="hidden"
             accept="image/png, image/jpeg, image/svg+xml"
           />
-          <Button onClick={handleUpload} className="w-full" disabled={!logoFile || isLoading}>
-            {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Uploading...</> : 'Upload and Save'}
+          <Button onClick={handleUpload} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-xl" disabled={!logoFile || isLoading}>
+            {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : 'Publish New Logo'}
           </Button>
         </CardContent>
       </Card>
     </div>
   );
 }
-

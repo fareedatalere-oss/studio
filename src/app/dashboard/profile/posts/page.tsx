@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -35,11 +34,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_POSTS, COLLECTION_ID_POST_COMMENTS } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases, storage, DATABASE_ID, BUCKET_ID_UPLOADS, COLLECTION_ID_POSTS, COLLECTION_ID_POST_COMMENTS, Query } from '@/lib/appwrite';
 import { formatDistanceToNow } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
-
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const PostCard = ({ post, onDelete }: { post: any, onDelete: (postId: string) => void }) => {
     const { toast } = useToast();
@@ -58,7 +56,6 @@ const PostCard = ({ post, onDelete }: { post: any, onDelete: (postId: string) =>
     const handleDelete = async () => {
         toast({ title: 'Deleting post...'});
         try {
-            // 1. Delete associated media from storage, if it exists
             if (post.mediaUrl) {
                 const fileId = getFileIdFromUrl(post.mediaUrl);
                 if (fileId) {
@@ -66,7 +63,6 @@ const PostCard = ({ post, onDelete }: { post: any, onDelete: (postId: string) =>
                 }
             }
 
-            // 2. Delete all comments associated with the post
             const comments = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POST_COMMENTS, [
                 Query.equal('postId', post.$id),
             ]);
@@ -74,10 +70,7 @@ const PostCard = ({ post, onDelete }: { post: any, onDelete: (postId: string) =>
                 databases.deleteDocument(DATABASE_ID, COLLECTION_ID_POST_COMMENTS, comment.$id)
             ));
 
-            // 3. Delete the post document itself
             await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_POSTS, post.$id);
-
-            // 4. Trigger parent component's onDelete to update UI
             onDelete(post.$id);
             toast({ title: 'Post deleted successfully!'});
 
@@ -88,120 +81,67 @@ const PostCard = ({ post, onDelete }: { post: any, onDelete: (postId: string) =>
     
     const handleDownload = async (url: string, filename: string, postType: string) => {
         if (!url) return;
-        toast({ title: "Preparing download..." });
-    
-        try {
-            if (postType === 'image') {
-                const image = new window.Image();
-                image.crossOrigin = 'anonymous';
-                image.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = image.width;
-                    canvas.height = image.height;
-                    const ctx = canvas.getContext('2d');
-                    if (!ctx) {
-                        toast({ title: "Error", description: "Could not create canvas for watermarking.", variant: "destructive" });
-                        return;
-                    }
-                    
-                    ctx.drawImage(image, 0, 0);
-    
-                    const watermarkText = "From I-pay online business and transaction";
-                    ctx.font = `bold ${Math.max(20, image.width / 30)}px Arial`;
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(watermarkText, canvas.width / 2, canvas.height - 30);
-                    
-                    const link = document.createElement('a');
-                    link.href = canvas.toDataURL('image/png');
-                    link.download = `watermarked-${filename || 'ipay-media'}.png`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    toast({ title: "Download started" });
-                };
-                image.onerror = () => {
-                     toast({ title: "Error", description: "Could not load image for watermarking. Downloading original instead.", variant: "destructive" });
-                     const link = document.createElement('a');
-                     link.href = url;
-                     link.target = "_blank";
-                     link.download = filename || 'ipay-media-download';
-                     document.body.appendChild(link);
-                     link.click();
-                     document.body.removeChild(link);
-                }
-                const response = await fetch(url);
-                const blob = await response.blob();
-                image.src = URL.createObjectURL(blob);
-            } else {
-                const link = document.createElement('a');
-                link.href = url;
-                link.target = "_blank";
-                link.download = filename || 'ipay-media-download';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                toast({ title: "Download started" });
-            }
-        } catch (error) {
-            console.error("Download error:", error);
-            toast({ title: "Download Failed", description: "An error occurred while preparing the file.", variant: "destructive" });
-        }
+        window.open(url);
     };
 
     return (
-        <Card>
-            <CardHeader className="flex-row justify-between items-start">
-                <div className='flex-1'>
-                    {post.description && <CardTitle className="text-base">{post.description}</CardTitle>}
-                    <CardDescription>{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</CardDescription>
+        <Card className="rounded-2xl shadow-sm border-muted/50 overflow-hidden">
+            <CardHeader className="flex-row justify-between items-center bg-muted/10">
+                <div className='flex items-center gap-3'>
+                    <Avatar className="h-10 w-10 border-2 border-white">
+                        <AvatarImage src={post.userAvatar} />
+                        <AvatarFallback>{post.username?.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                        <CardTitle className="text-sm font-bold">@{post.username}</CardTitle>
+                        <CardDescription className="text-[9px] font-black uppercase opacity-50">{formatDistanceToNow(new Date(post.$createdAt), { addSuffix: true })}</CardDescription>
+                    </div>
                 </div>
                  <AlertDialog>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="end" className="font-black uppercase text-[10px]">
                            {post.allowDownload && post.mediaUrl && (
                                 <DropdownMenuItem onClick={() => handleDownload(post.mediaUrl, post.description, post.type)}>
-                                    <Download className="mr-2 h-4 w-4" /> Download
+                                    <Download className="mr-2 h-3.5 w-3.5" /> Download
                                 </DropdownMenuItem>
                            )}
                            <AlertDialogTrigger asChild>
                                 <DropdownMenuItem className="text-destructive">
-                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                    <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete Post
                                 </DropdownMenuItem>
                            </AlertDialogTrigger>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <AlertDialogContent>
+                    <AlertDialogContent className="rounded-[2.5rem]">
                         <AlertDialogHeader>
-                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete your post and all its comments.
+                            <AlertDialogTitle className="font-black uppercase text-center">Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-center font-bold text-xs">
+                                This will permanently delete your post and all its comments from the cloud history.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                        <AlertDialogFooter className="flex-row gap-2">
+                            <AlertDialogCancel className="flex-1 rounded-xl">Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDelete} className="flex-1 bg-destructive hover:bg-destructive/90 rounded-xl">Delete</AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
             </CardHeader>
-            <CardContent>
-                {post.type === 'image' && <Image src={post.mediaUrl} alt={post.description || ''} width={400} height={400} className="rounded-md w-full object-cover" />}
-                {post.type === 'text' && <div className={`p-4 rounded-md ${post.backgroundColor} text-white`}>{post.text}</div>}
-                {(post.type === 'reels' || post.type === 'film' || post.type === 'music') && post.mediaUrl && <video src={post.mediaUrl} controls className="w-full rounded-md" />}
+            <CardContent className="pt-4">
+                {post.type === 'image' && post.mediaUrl && <Image src={post.mediaUrl} alt="post" width={400} height={400} className="rounded-xl w-full object-cover shadow-sm" unoptimized />}
+                {post.type === 'text' && <div className={cn("p-6 rounded-2xl text-center shadow-inner", post.backgroundColor || 'bg-primary')}><p className="font-bold text-white whitespace-pre-wrap">{post.text}</p></div>}
+                {(post.type === 'reels' || post.type === 'film') && post.mediaUrl && <video src={post.mediaUrl} controls className="w-full rounded-xl shadow-sm bg-black" />}
                 
-                <div className="flex gap-4 text-sm text-muted-foreground mt-4">
-                    <span className="flex items-center gap-1"><Heart className="h-4 w-4"/> {post.likes?.length || 0} Likes</span>
-                    <span className="flex items-center gap-1"><MessageCircle className="h-4 w-4"/> {post.commentCount || 0} Comments</span>
+                <div className="flex gap-6 mt-4 px-2">
+                    <span className="flex items-center gap-1 font-black uppercase text-[10px] opacity-60"><Heart className="h-4 w-4 text-red-500 fill-red-500"/> {post.likes?.length || 0}</span>
+                    <span className="flex items-center gap-1 font-black uppercase text-[10px] opacity-60"><MessageCircle className="h-4 w-4 text-primary"/> {post.commentCount || 0}</span>
                 </div>
             </CardContent>
         </Card>
     )
 }
-
 
 const PostList = ({ type, userId }: { type: string, userId: string }) => {
     const [posts, setPosts] = useState<any[]>([]);
@@ -216,19 +156,15 @@ const PostList = ({ type, userId }: { type: string, userId: string }) => {
             Query.orderDesc('$createdAt')
         ]).then(response => {
             setPosts(response.documents);
-        }).catch(err => {
-            console.error("Failed to fetch user posts:", err);
-        }).finally(() => {
-            setLoading(false);
-        });
+        }).catch(() => {}).finally(() => setLoading(false));
     }, [type, userId]);
     
     const handlePostDeleted = (postId: string) => {
         setPosts(prev => prev.filter(p => p.$id !== postId));
     };
 
-    if (loading) return <div className='space-y-4'><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div>
-    if (posts.length === 0) return <p className='text-center text-muted-foreground p-8'>You have no {type} posts yet.</p>
+    if (loading) return <div className='space-y-4'><Skeleton className="h-32 w-full rounded-2xl" /><Skeleton className="h-32 w-full rounded-2xl" /></div>
+    if (posts.length === 0) return <div className="py-20 text-center text-muted-foreground opacity-20"><Trash2 className="mx-auto h-12 w-12 mb-4"/><p className="font-black uppercase text-[10px] tracking-widest">No {type} shared yet</p></div>
 
     return (
         <div className="space-y-4">
@@ -237,34 +173,28 @@ const PostList = ({ type, userId }: { type: string, userId: string }) => {
     )
 };
 
-
 export default function MyPostsPage() {
     const { user, loading: userLoading } = useUser();
     const postTypes = ["text", "image", "reels", "film", "music"];
 
-    if (userLoading) {
-        return <div className="flex justify-center items-center h-screen"><Loader2 className="h-8 w-8 animate-spin"/></div>
-    }
+    if (userLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
 
-    if (!user) {
-        return <div className="text-center p-8">Please sign in to see your posts.</div>
-    }
+    if (!user) return <div className="text-center p-20 font-black uppercase text-xs opacity-30">Login to see your posts</div>
 
   return (
-    <div className="container py-8">
-      <Link href="/dashboard/profile" className="flex items-center gap-2 mb-4 text-sm">
-        <ArrowLeft className="h-4 w-4" />
-        Back to Profile
+    <div className="container py-8 max-w-2xl">
+      <Link href="/dashboard/profile" className="flex items-center gap-2 mb-6 text-sm font-black uppercase text-muted-foreground hover:text-primary">
+        <ArrowLeft className="h-4 w-4" /> Profile
       </Link>
       
       <Tabs defaultValue="text" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-5 bg-muted h-12 rounded-2xl p-1 mb-6">
             {postTypes.map(type => (
-                <TabsTrigger key={type} value={type} className="capitalize">{type}</TabsTrigger>
+                <TabsTrigger key={type} value={type} className="rounded-xl font-black uppercase text-[9px] tracking-tighter">{type === 'reels' ? 'Reel' : type}</TabsTrigger>
             ))}
         </TabsList>
         {postTypes.map(type => (
-            <TabsContent key={type} value={type} className="mt-4">
+            <TabsContent key={type} value={type} className="m-0">
                 <PostList type={type} userId={user.$id} />
             </TabsContent>
         ))}

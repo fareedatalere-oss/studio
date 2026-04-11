@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -20,7 +19,7 @@ import { db } from '@/lib/firebase';
 
 /**
  * @fileOverview Meeting Booking Page.
- * FIXED: SSR compatibility and Label typo logic.
+ * FIXED: SSR compatibility and Label tag typo.
  */
 
 export default function BookMeetingPage() {

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -9,8 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/hooks/use-appwrite';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_POSTS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/appwrite';
-import { Query, ID } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_POSTS, COLLECTION_ID_NOTIFICATIONS, Query, ID } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
 import { PostCard } from '@/components/media-post-card';
 import { cn } from '@/lib/utils';
@@ -45,22 +43,7 @@ export default function UserPublicProfilePage() {
             ]);
 
             setTargetProfile(profileDoc);
-            
-            const parsedPosts = postsRes.documents.map(post => {
-                if (post.type === 'music' || post.type === 'film') {
-                    const desc = post.description || '';
-                    const catMatch = desc.match(/CAT:([^|]+)\|/);
-                    const iconMatch = desc.match(/ICON:([^|]+)\|/);
-                    return {
-                        ...post,
-                        category: catMatch ? catMatch[1] : 'General',
-                        thumbnailUrl: iconMatch ? iconMatch[1] : ''
-                    };
-                }
-                return post;
-            });
-
-            setPosts(parsedPosts);
+            setPosts(postsRes.documents);
 
             // Send "View Profile" Notification
             if (currentUser && currentUser.$id !== targetUserId && !hasNotifiedView.current) {
@@ -125,14 +108,14 @@ export default function UserPublicProfilePage() {
         <div className="h-screen bg-background flex flex-col overflow-hidden">
             <header className="p-4 pt-12 flex items-center justify-between border-b bg-muted/30 backdrop-blur-md sticky top-0 z-50">
                 <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full bg-background/50 border shadow-sm"><ArrowLeft className="h-5 w-5" /></Button>
-                <h1 className="font-black uppercase text-sm tracking-widest text-primary">Profile View</h1>
+                <h1 className="font-black uppercase text-sm tracking-widest text-primary">Identity View</h1>
                 <Button asChild variant="ghost" size="icon" className="rounded-full bg-background/50 border shadow-sm"><Link href={`/dashboard/chat/${targetUserId}`}><MessageSquare className="h-5 w-5" /></Link></Button>
             </header>
 
             <div className="flex-1 overflow-y-auto">
                 <div className="p-8 flex flex-col items-center text-center gap-4 bg-gradient-to-b from-muted/50 to-transparent">
                     <Avatar className="h-24 w-24 ring-4 ring-primary ring-offset-4 shadow-2xl">
-                        <AvatarImage src={targetProfile.avatar} />
+                        <AvatarImage src={targetProfile.avatar} className="object-cover" />
                         <AvatarFallback className="font-black text-2xl uppercase bg-primary text-white">{targetProfile.username?.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div>
@@ -145,7 +128,7 @@ export default function UserPublicProfilePage() {
                         </div>
                     </div>
                     {currentUser?.$id !== targetUserId && (
-                        <Button variant={isFollowing ? 'secondary' : 'default'} className={cn("w-full max-w-[200px] rounded-full font-black uppercase tracking-widest h-12 shadow-lg", isFollowing ? "bg-green-500 text-white" : "bg-primary")} onClick={handleFollowToggle} disabled={isLoadingFollow}>
+                        <Button variant={isFollowing ? 'secondary' : 'default'} className={cn("w-full max-w-[200px] rounded-full font-black uppercase tracking-widest h-12 shadow-lg", isFollowing ? "bg-green-500 text-white hover:bg-green-600" : "bg-primary")} onClick={handleFollowToggle} disabled={isLoadingFollow}>
                             {isLoadingFollow ? <Loader2 className="animate-spin h-5 w-5" /> : isFollowing ? <><UserCheck className="mr-2 h-4 w-4" /> Unfollow</> : <><UserPlus className="mr-2 h-4 w-4" /> Follow</>}
                         </Button>
                     )}

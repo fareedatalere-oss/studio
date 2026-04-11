@@ -26,15 +26,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { MoreVertical, ShieldAlert, Trash2, EyeOff, Eye, Loader2, UserMinus, UserCheck, ShieldCheck, ShieldX } from 'lucide-react';
+import { MoreVertical, ShieldAlert, Trash2, EyeOff, Eye, Loader2, UserMinus, ShieldCheck, ShieldX } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { databases, DATABASE_ID, COLLECTION_ID_APPS, COLLECTION_ID_PRODUCTS, COLLECTION_ID_BOOKS, COLLECTION_ID_UPWORK_PROFILES, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_APPS, COLLECTION_ID_PRODUCTS, COLLECTION_ID_BOOKS, COLLECTION_ID_PROFILES, Query } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -177,9 +175,9 @@ const SubscribersManager = () => {
             for (const collectionId of marketCollections) {
                 let hasMore = true;
                 while (hasMore) {
-                    const response = await databases.listDocuments(collectionId, [Query.equal('sellerId', user.$id), Query.limit(25)]);
+                    const response = await databases.listDocuments(DATABASE_ID, collectionId, [Query.equal('sellerId', user.$id), Query.limit(25)]);
                     if (response.documents.length > 0) {
-                        await Promise.all(response.documents.map(doc => databases.deleteDocument(collectionId, doc.$id)));
+                        await Promise.all(response.documents.map(doc => databases.deleteDocument(DATABASE_ID, collectionId, doc.$id)));
                     }
                     hasMore = response.documents.length === 25;
                 }

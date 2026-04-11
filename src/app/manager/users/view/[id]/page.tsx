@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Edit, Save, Loader2, KeyRound, Wallet, MousePointer2, Gift, ShieldAlert, UserX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS, Query, Models } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS, Query } from '@/lib/appwrite';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -32,10 +32,7 @@ export default function ViewUserPage() {
         if (!userId) return;
         setLoading(true);
         try {
-            // Fetch User Profile
             const profileData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
-            
-            // Fetch User Transactions
             const transactionsData = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, [
                 Query.equal('userId', userId),
                 Query.orderDesc('$createdAt'),
@@ -46,7 +43,7 @@ export default function ViewUserPage() {
             setTransactions(transactionsData.documents);
         } catch (error: any) {
             console.error("Fetch Error:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not load user data. They may not have a profile yet.' });
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load user data.' });
             router.push('/manager/users');
         } finally {
             setLoading(false);
@@ -61,10 +58,8 @@ export default function ViewUserPage() {
         if (!profile) return;
         setIsSaving(true);
         try {
-            // Clean up data for update: remove internal Appwrite fields and the email which shouldn't be updated here
             const { $id, $collectionId, $databaseId, $createdAt, $updatedAt, $permissions, email, ...updateData } = profile;
             
-            // Explicitly force balances to be numbers
             const finalData = {
                 ...updateData,
                 nairaBalance: Number(profile.nairaBalance || 0),
@@ -73,11 +68,10 @@ export default function ViewUserPage() {
             };
 
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, $id, finalData);
-            toast({ title: 'Account Updated!', description: 'All balances and details have been saved.' });
+            toast({ title: 'Account Updated!' });
             setEditMode(false);
-            fetchData(); // Refresh to show clean state
+            fetchData();
         } catch (error: any) {
-            console.error("Save Error:", error);
             toast({ variant: 'destructive', title: 'Update Failed', description: error.message });
         } finally {
             setIsSaving(false);
@@ -104,15 +98,7 @@ export default function ViewUserPage() {
         }
     };
 
-    if (loading) {
-        return (
-            <div className="container py-8 space-y-6">
-                <Skeleton className="h-10 w-32" />
-                <Skeleton className="w-full h-64 rounded-xl" />
-                <Skeleton className="w-full h-96 rounded-xl" />
-            </div>
-        );
-    }
+    if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin h-12 w-12 text-primary" /></div>;
 
     const getStatusVariant = (status: string) => {
         switch (status?.toLowerCase()) {
@@ -124,122 +110,72 @@ export default function ViewUserPage() {
     };
 
     return (
-        <div className="container py-8 space-y-6">
-            <div className="flex items-center justify-between">
-                <Button asChild variant="ghost">
-                    <Link href="/manager/users"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
+        <div className="container py-8 max-w-5xl space-y-6">
+            <div className="flex items-center justify-between bg-muted/30 p-4 rounded-3xl">
+                <Button asChild variant="ghost" className="font-black uppercase text-[10px]">
+                    <Link href="/manager/users"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Hub</Link>
                 </Button>
                 <div className="flex gap-2">
-                    <Button variant={profile.isBanned ? "outline" : "destructive"} onClick={handleSuspendToggle} disabled={isSaving}>
+                    <Button variant={profile.isBanned ? "outline" : "destructive"} onClick={handleSuspendToggle} disabled={isSaving} className="h-10 rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-md">
                         {profile.isBanned ? <UserX className="mr-2 h-4 w-4" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
-                        {profile.isBanned ? 'Unsuspend' : 'Suspend'}
+                        {profile.isBanned ? 'Unsuspend' : 'Suspend Account'}
                     </Button>
                     {editMode ? (
-                        <Button onClick={handleSave} disabled={isSaving}>
-                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                            Update Record
+                        <Button onClick={handleSave} disabled={isSaving} className="h-10 rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-md">
+                            {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-4 w-4" />}
+                            Update Master Record
                         </Button>
                     ) : (
-                        <Button onClick={() => setEditMode(true)}>
-                            <Edit className="mr-2 h-4 w-4" /> Edit Account
+                        <Button onClick={() => setEditMode(true)} className="h-10 rounded-xl font-black uppercase text-[10px] tracking-widest px-6 shadow-md">
+                            <Edit className="mr-2 h-4 w-4" /> Edit Values
                         </Button>
                     )}
                 </div>
             </div>
 
-            <Card className={profile.isBanned ? "border-destructive bg-destructive/5" : ""}>
-                <CardHeader>
-                    <div className="flex items-center gap-4">
-                        <Avatar className="h-20 w-20">
-                            <AvatarImage src={profile.avatar} />
-                            <AvatarFallback>{profile.username?.charAt(0).toUpperCase()}</AvatarFallback>
+            <Card className={cn("rounded-[2.5rem] shadow-2xl border-none overflow-hidden", profile.isBanned && "ring-4 ring-destructive/20 bg-destructive/5")}>
+                <CardHeader className="bg-primary/5 pb-8">
+                    <div className="flex items-center gap-6">
+                        <Avatar className="h-24 w-24 border-4 border-white shadow-xl">
+                            <AvatarImage src={profile.avatar} className="object-cover" />
+                            <AvatarFallback className="font-black text-2xl uppercase bg-primary text-white">{profile.username?.charAt(0)}</AvatarFallback>
                         </Avatar>
                         <div>
-                            <CardTitle>User: @{profile.username || 'N/A'}</CardTitle>
-                            <CardDescription>{profile.email || 'No Email'}</CardDescription>
-                            {profile.isBanned && <Badge variant="destructive" className="mt-2">Account Banned</Badge>}
+                            <CardTitle className="text-2xl font-black uppercase tracking-tighter">@{profile.username || 'N/A'}</CardTitle>
+                            <CardDescription className="font-bold opacity-70">{profile.email || 'No Linked Email'}</CardDescription>
+                            {profile.isBanned && <Badge variant="destructive" className="mt-3 font-black uppercase text-[9px] px-3">Restricted User</Badge>}
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div className="space-y-1">
-                        <Label>Username</Label>
-                        <Input id="username" value={profile.username || ''} onChange={handleInputChange} readOnly={!editMode} />
-                    </div>
-                    <div className="space-y-1">
-                        <Label>First Name</Label>
-                        <Input id="firstName" value={profile.firstName || ''} onChange={handleInputChange} readOnly={!editMode} />
-                    </div>
-                    <div className="space-y-1">
-                        <Label>Last Name</Label>
-                        <Input id="lastName" value={profile.lastName || ''} onChange={handleInputChange} readOnly={!editMode} />
-                    </div>
+                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8">
+                    <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-50">Username</Label><Input id="username" value={profile.username || ''} onChange={handleInputChange} readOnly={!editMode} className="rounded-xl border-none bg-muted/50 font-bold" /></div>
+                    <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-50">First Name</Label><Input id="firstName" value={profile.firstName || ''} onChange={handleInputChange} readOnly={!editMode} className="rounded-xl border-none bg-muted/50" /></div>
+                    <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-50">Last Name</Label><Input id="lastName" value={profile.lastName || ''} onChange={handleInputChange} readOnly={!editMode} className="rounded-xl border-none bg-muted/50" /></div>
                     
-                    <div className="space-y-1">
-                        <Label className="flex items-center gap-2 text-primary font-bold"><Wallet className="h-4 w-4" /> Main Balance (₦)</Label>
-                        <Input id="nairaBalance" type="number" value={profile.nairaBalance || 0} onChange={handleInputChange} readOnly={!editMode} className={editMode ? "border-primary ring-1 ring-primary" : ""} />
-                    </div>
-                    <div className="space-y-1">
-                        <Label className="flex items-center gap-2 text-orange-500 font-bold"><Gift className="h-4 w-4" /> Reward Balance</Label>
-                        <Input id="rewardBalance" type="number" value={profile.rewardBalance || 0} onChange={handleInputChange} readOnly={!editMode} className={editMode ? "border-orange-500 ring-1 ring-orange-500" : ""} />
-                    </div>
-                    <div className="space-y-1">
-                        <Label className="flex items-center gap-2 text-blue-500 font-bold"><MousePointer2 className="h-4 w-4" /> Click Count</Label>
-                        <Input id="clickCount" type="number" value={profile.clickCount || 0} onChange={handleInputChange} readOnly={!editMode} className={editMode ? "border-blue-500 ring-1 ring-blue-500" : ""} />
-                    </div>
+                    <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-50 flex items-center gap-1 text-primary"><Wallet className="h-3 w-3" /> Balance (₦)</Label><Input id="nairaBalance" type="number" value={profile.nairaBalance || 0} onChange={handleInputChange} readOnly={!editMode} className="rounded-xl border-none bg-primary/5 font-black text-primary text-lg" /></div>
+                    <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-50 flex items-center gap-1 text-orange-500"><Gift className="h-3 w-3" /> Rewards</Label><Input id="rewardBalance" type="number" value={profile.rewardBalance || 0} onChange={handleInputChange} readOnly={!editMode} className="rounded-xl border-none bg-orange-50 font-black text-orange-600" /></div>
+                    <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-50 flex items-center gap-1 text-blue-500"><MousePointer2 className="h-3 w-3" /> Clicks</Label><Input id="clickCount" type="number" value={profile.clickCount || 0} onChange={handleInputChange} readOnly={!editMode} className="rounded-xl border-none bg-blue-50 font-black text-blue-600" /></div>
 
-                    <div className="space-y-1">
-                        <Label>Phone Number</Label>
-                        <Input id="phone" value={profile.phone || ''} onChange={handleInputChange} readOnly={!editMode} />
-                    </div>
-                    <div className="space-y-1">
-                        <Label>Virtual Account Number</Label>
-                        <Input value={profile.accountNumber || 'Not Generated'} readOnly className="bg-muted font-mono font-bold" />
-                    </div>
-                    <div className="space-y-1">
-                        <Label>Bank Name</Label>
-                        <Input value={profile.bankName || 'N/A'} readOnly className="bg-muted" />
-                    </div>
-                    
-                    <div className="space-y-1">
-                        <Label>BVN / NIN</Label>
-                        <Input value={profile.bvn || 'Not Provided'} readOnly className="bg-muted" />
-                    </div>
-                    <div className="space-y-1">
-                        <Label>Country</Label>
-                        <Input id="country" value={profile.country || ''} onChange={handleInputChange} readOnly={!editMode} />
-                    </div>
-                    <div className="space-y-1">
-                        <Label>Transaction PIN</Label>
-                        <div className="flex items-center gap-2 font-mono text-lg p-2 bg-muted rounded-md h-10 border">
-                            <KeyRound className="h-5 w-5 text-muted-foreground" />
-                            <span className="font-bold text-primary">{profile.pin || 'None'}</span>
-                        </div>
-                    </div>
+                    <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-50">Virtual Account</Label><Input value={profile.accountNumber || 'Not Active'} readOnly className="rounded-xl border-none bg-muted font-mono font-bold" /></div>
+                    <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-50">BVN / NIN</Label><Input value={profile.bvn || 'Not Linked'} readOnly className="rounded-xl border-none bg-muted font-mono" /></div>
+                    <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-50">Master PIN</Label><div className="flex items-center gap-3 p-3 bg-primary/10 rounded-xl text-primary font-black font-mono"><KeyRound className="h-4 w-4" /> {profile.pin || 'NONE'}</div></div>
                 </CardContent>
             </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Recent Transactions</CardTitle>
-                </CardHeader>
+            <Card className="rounded-[2.5rem] shadow-xl border-none">
+                <CardHeader><CardTitle className="font-black uppercase text-sm tracking-widest opacity-40">Recent Activity Log</CardTitle></CardHeader>
                 <CardContent>
                     <Table>
-                        <TableHeader><TableRow><TableHead>Details</TableHead><TableHead>Date</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow className="border-none hover:bg-transparent"><TableHead className="font-black uppercase text-[10px]">Event</TableHead><TableHead className="font-black uppercase text-[10px]">Time</TableHead><TableHead className="font-black uppercase text-[10px]">Status</TableHead><TableHead className="text-right font-black uppercase text-[10px]">Value</TableHead></TableRow></TableHeader>
                         <TableBody>
                             {transactions.length > 0 ? transactions.map(tx => (
-                                <TableRow key={tx.$id}>
-                                    <TableCell>
-                                        <div className="font-medium capitalize">{tx.type.replace('_', ' ')}</div>
-                                        <div className="text-xs text-muted-foreground truncate max-w-[150px]">{tx.recipientName || tx.narration}</div>
-                                    </TableCell>
-                                    <TableCell className="text-xs">{format(new Date(tx.$createdAt), 'PPp')}</TableCell>
-                                    <TableCell><Badge variant={getStatusVariant(tx.status)} className="text-[10px]">{tx.status}</Badge></TableCell>
-                                    <TableCell className={`text-right font-semibold ${tx.type === 'deposit' ? 'text-green-600' : 'text-red-600'}`}>
-                                        {tx.type === 'deposit' ? '+' : '-'} ₦{tx.amount.toLocaleString()}
-                                    </TableCell>
+                                <TableRow key={tx.$id} className="border-muted/20">
+                                    <TableCell><div className="font-bold capitalize text-xs">{tx.type.replace('_', ' ')}</div><div className="text-[9px] opacity-50 truncate max-w-[120px]">{tx.recipientName || tx.narration}</div></TableCell>
+                                    <TableCell className="text-[9px] font-bold opacity-50">{format(new Date(tx.$createdAt), 'PPp')}</TableCell>
+                                    <TableCell><Badge variant={getStatusVariant(tx.status)} className="text-[8px] font-black uppercase tracking-tighter h-4">{tx.status}</Badge></TableCell>
+                                    <TableCell className={cn("text-right font-black text-xs", tx.type === 'deposit' ? 'text-green-600' : 'text-red-600')}>{tx.type === 'deposit' ? '+' : '-'} ₦{tx.amount.toLocaleString()}</TableCell>
                                 </TableRow>
-                            )) : <TableRow><TableCell colSpan={4} className="text-center h-24">No transactions found.</TableCell></TableRow>}
+                            )) : <TableRow><TableCell colSpan={4} className="text-center h-24 text-xs font-bold opacity-30 uppercase tracking-widest">No activity found</TableCell></TableRow>}
                         </TableBody>
                     </Table>
                 </CardContent>

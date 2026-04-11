@@ -10,8 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
-import { databases, DATABASE_ID, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_APP_CONFIG, ID } from '@/lib/appwrite';
 
 const DOCUMENT_ID_MAIN_CONFIG = 'main';
 
@@ -22,8 +21,6 @@ export default function AdminSettingsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   
-  // State for forms
-  const [credentials, setCredentials] = useState({ oldEmail: '', oldPassword: '', newEmail: '', newPassword: '' });
   const [supportInfo, setSupportInfo] = useState({
     abujaAddress: '', abujaContactPerson: '', abujaPhone: '',
     kadunaAddress: '', kadunaPhone: '',
@@ -49,7 +46,7 @@ export default function AdminSettingsPage() {
           email1: doc.email1 || '', email2: doc.email2 || ''
         });
       } catch (error) {
-        console.log("No existing support info found. User can create it.");
+        console.log("No config found.");
       } finally {
         setIsFetching(false);
       }
@@ -58,31 +55,21 @@ export default function AdminSettingsPage() {
 
   }, [router]);
 
-  const handleUpdateCredentials = () => {
-    // This is a placeholder, as client-side cannot securely change admin credentials.
-    toast({
-      title: 'Action Not Implemented',
-      description: 'Changing master admin credentials should be done in a secure server environment, not from the client app.',
-      variant: 'destructive',
-    });
-  };
-
   const handleUpdateSupportInfo = async () => {
     setIsLoading(true);
     try {
-        // Use updateDocument, but if it fails with "not found", use createDocument.
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG, supportInfo);
-        toast({ title: 'Success', description: 'Support information has been updated.' });
+        toast({ title: 'Success', description: 'Updated successfully.' });
     } catch (error: any) {
-        if (error.code === 404) { // Document not found
+        if (error.code === 404) {
             try {
                 await databases.createDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG, supportInfo);
-                toast({ title: 'Success', description: 'Support information has been created.' });
+                toast({ title: 'Created successfully.' });
             } catch (createError: any) {
-                toast({ title: 'Error', description: `Failed to create support info: ${createError.message}`, variant: 'destructive' });
+                toast({ title: 'Error', description: createError.message, variant: 'destructive' });
             }
         } else {
-             toast({ title: 'Error', description: `Failed to update support info: ${error.message}`, variant: 'destructive' });
+             toast({ title: 'Error', description: error.message, variant: 'destructive' });
         }
     } finally {
         setIsLoading(false);
@@ -90,56 +77,45 @@ export default function AdminSettingsPage() {
   };
 
   return (
-    <div className="container py-8">
-      <Link href="/manager/profile" className="flex items-center gap-2 mb-4 text-sm">
-        <ArrowLeft className="h-4 w-4" />
-        Back to Profile
+    <div className="container py-8 max-w-2xl">
+      <Link href="/manager/profile" className="flex items-center gap-2 mb-6 text-sm font-black uppercase text-muted-foreground hover:text-primary">
+        <ArrowLeft className="h-4 w-4" /> Profile
       </Link>
-      <Card className="w-full max-w-2xl mx-auto">
-        <CardHeader>
-          <CardTitle>Admin Settings</CardTitle>
-          <CardDescription>Manage core application settings.</CardDescription>
+      <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
+        <CardHeader className="bg-primary/5 pb-8 text-center">
+          <CardTitle className="text-2xl font-black uppercase tracking-tighter">Admin Control</CardTitle>
+          <CardDescription className="font-bold text-xs">Manage system metadata and support routes</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-8">
           <Accordion type="single" collapsible className="w-full">
-            <AccordionItem value="credentials">
-              <AccordionTrigger>Change Admin Credentials</AccordionTrigger>
-              <AccordionContent className="space-y-4 pt-4">
-                <p className="text-sm text-destructive">This is a placeholder UI. This functionality is not implemented.</p>
-                <div className="space-y-2">
-                  <Label>Old Email</Label><Input type="email" />
-                </div>
-                 <div className="space-y-2">
-                  <Label>New Email</Label><Input type="email" />
-                </div>
-                 <div className="space-y-2">
-                  <Label>Old Password</Label><Input type="password" />
-                </div>
-                 <div className="space-y-2">
-                  <Label>New Password</Label><Input type="password" />
-                </div>
-                <Button onClick={handleUpdateCredentials} disabled>Update Credentials</Button>
-              </AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="support">
-              <AccordionTrigger>Update Support Information</AccordionTrigger>
-              <AccordionContent className="space-y-4 pt-4">
-                {isFetching ? <Loader2 className="animate-spin" /> : (
-                  <>
-                    <h4 className="font-semibold">Abuja Office</h4>
-                    <div className="space-y-2"><Label>Address</Label><Input value={supportInfo.abujaAddress} onChange={e => setSupportInfo({...supportInfo, abujaAddress: e.target.value})} /></div>
-                    <div className="space-y-2"><Label>Contact Person</Label><Input value={supportInfo.abujaContactPerson} onChange={e => setSupportInfo({...supportInfo, abujaContactPerson: e.target.value})} /></div>
-                    <div className="space-y-2"><Label>Phone</Label><Input value={supportInfo.abujaPhone} onChange={e => setSupportInfo({...supportInfo, abujaPhone: e.target.value})} /></div>
-                    <h4 className="font-semibold pt-4">Kaduna Office</h4>
-                    <div className="space-y-2"><Label>Address</Label><Input value={supportInfo.kadunaAddress} onChange={e => setSupportInfo({...supportInfo, kadunaAddress: e.target.value})} /></div>
-                    <div className="space-y-2"><Label>Phone</Label><Input value={supportInfo.kadunaPhone} onChange={e => setSupportInfo({...supportInfo, kadunaPhone: e.target.value})} /></div>
-                     <h4 className="font-semibold pt-4">Alternative Support</h4>
-                    <div className="space-y-2"><Label>WhatsApp 1 (no +)</Label><Input value={supportInfo.whatsapp1} onChange={e => setSupportInfo({...supportInfo, whatsapp1: e.target.value})} /></div>
-                     <div className="space-y-2"><Label>WhatsApp 2 (no +)</Label><Input value={supportInfo.whatsapp2} onChange={e => setSupportInfo({...supportInfo, whatsapp2: e.target.value})} /></div>
-                    <div className="space-y-2"><Label>Email 1</Label><Input type="email" value={supportInfo.email1} onChange={e => setSupportInfo({...supportInfo, email1: e.target.value})} /></div>
-                    <div className="space-y-2"><Label>Email 2</Label><Input type="email" value={supportInfo.email2} onChange={e => setSupportInfo({...supportInfo, email2: e.target.value})} /></div>
-                    <Button onClick={handleUpdateSupportInfo} disabled={isLoading}>{isLoading ? 'Saving...' : 'Save Support Info'}</Button>
-                  </>
+            <AccordionItem value="support" className="border-none">
+              <AccordionTrigger className="font-black uppercase text-[10px] tracking-widest hover:no-underline py-6">Edit Support Directory</AccordionTrigger>
+              <AccordionContent className="space-y-6 pt-2 pb-10">
+                {isFetching ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-primary" /></div> : (
+                  <div className="space-y-6">
+                    <div className="p-4 bg-muted/30 rounded-2xl space-y-4">
+                        <h4 className="font-black uppercase text-[9px] text-primary">Abuja Hub</h4>
+                        <div className="space-y-1"><Label className="text-[8px] font-bold uppercase opacity-50">Address</Label><Input value={supportInfo.abujaAddress} onChange={e => setSupportInfo({...supportInfo, abujaAddress: e.target.value})} className="h-10 rounded-xl" /></div>
+                        <div className="space-y-1"><Label className="text-[8px] font-bold uppercase opacity-50">Contact Person</Label><Input value={supportInfo.abujaContactPerson} onChange={e => setSupportInfo({...supportInfo, abujaContactPerson: e.target.value})} className="h-10 rounded-xl" /></div>
+                        <div className="space-y-1"><Label className="text-[8px] font-bold uppercase opacity-50">Phone</Label><Input value={supportInfo.abujaPhone} onChange={e => setSupportInfo({...supportInfo, abujaPhone: e.target.value})} className="h-10 rounded-xl" /></div>
+                    </div>
+                    
+                    <div className="p-4 bg-muted/30 rounded-2xl space-y-4">
+                        <h4 className="font-black uppercase text-[9px] text-primary">Kaduna Hub</h4>
+                        <div className="space-y-1"><Label className="text-[8px] font-bold uppercase opacity-50">Address</Label><Input value={supportInfo.kadunaAddress} onChange={e => setSupportInfo({...supportInfo, kadunaAddress: e.target.value})} className="h-10 rounded-xl" /></div>
+                        <div className="space-y-1"><Label className="text-[8px] font-bold uppercase opacity-50">Phone</Label><Input value={supportInfo.kadunaPhone} onChange={e => setSupportInfo({...supportInfo, kadunaPhone: e.target.value})} className="h-10 rounded-xl" /></div>
+                    </div>
+
+                    <div className="p-4 bg-primary/5 rounded-2xl space-y-4">
+                        <h4 className="font-black uppercase text-[9px] text-primary">Digital Channels</h4>
+                        <div className="space-y-1"><Label className="text-[8px] font-bold uppercase opacity-50">WhatsApp 1 (234...)</Label><Input value={supportInfo.whatsapp1} onChange={e => setSupportInfo({...supportInfo, whatsapp1: e.target.value})} className="h-10 rounded-xl" /></div>
+                        <div className="space-y-1"><Label className="text-[8px] font-bold uppercase opacity-50">Email Primary</Label><Input type="email" value={supportInfo.email1} onChange={e => setSupportInfo({...supportInfo, email1: e.target.value})} className="h-10 rounded-xl" /></div>
+                    </div>
+                    
+                    <Button onClick={handleUpdateSupportInfo} disabled={isLoading} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-lg">
+                        {isLoading ? <Loader2 className="animate-spin" /> : 'Save System Records'}
+                    </Button>
+                  </div>
                 )}
               </AccordionContent>
             </AccordionItem>
