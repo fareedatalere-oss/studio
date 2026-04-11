@@ -50,40 +50,27 @@ export default function MeetingRoomPage() {
 
     const isAdmin = useMemo(() => user?.$id === meeting?.hostId, [user?.$id, meeting?.hostId]);
 
-    const handleAdminBypass = useCallback(async (docData: any) => {
+    const handleEntry = useCallback(async (docData: any) => {
         if (isInRoom) return;
-        
+
+        const guestDataStr = sessionStorage.getItem(`meeting_guest_${meetingId}`);
+        const guestData = guestDataStr ? JSON.parse(guestDataStr) : null;
+
+        if (!guestData) {
+            router.replace(`/dashboard/meeting/join/${meetingId}${isAdmin ? '?role=admin' : ''}`);
+            return;
+        }
+
         setIsInRoom(true);
-        if (!docData.startedAt) {
+        setUseCamera(guestData.useCamera || false);
+
+        if (isAdmin && !docData.startedAt) {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { 
                 status: 'started',
                 startedAt: new Date().toISOString()
             });
         }
-        
-        const check = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
-            Query.equal('meetingId', meetingId),
-            Query.equal('userId', user?.$id)
-        ]);
-        
-        if (check.total === 0 && user?.$id) {
-            const guestData = sessionStorage.getItem(`meeting_guest_${meetingId}`);
-            const parsed = guestData ? JSON.parse(guestData) : null;
-
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, ID.unique(), {
-                meetingId,
-                userId: user.$id,
-                name: parsed?.name || profile?.username || 'Admin',
-                avatar: parsed?.avatar || profile?.avatar || '',
-                status: 'approved',
-                isHost: true,
-                hasVideo: true,
-                hasAudio: true,
-                createdAt: new Date().toISOString()
-            });
-        }
-        setUseCamera(true);
-    }, [meetingId, user?.$id, profile, isInRoom]);
+    }, [meetingId, isAdmin, isInRoom, router]);
 
     const endMeeting = async () => {
         try {
@@ -104,9 +91,7 @@ export default function MeetingRoomPage() {
                 return;
             }
 
-            if (user?.$id && user.$id === docData.hostId) {
-                await handleAdminBypass(docData);
-            }
+            await handleEntry(docData);
 
             const limit = docData.type === 'personal' ? 3600 : 10800;
             if (docData.startedAt) {
@@ -123,7 +108,7 @@ export default function MeetingRoomPage() {
         } finally {
             setLoading(false);
         }
-    }, [meetingId, router, toast, user, handleAdminBypass]);
+    }, [meetingId, router, toast, handleEntry]);
 
     const fetchAttendees = useCallback(async () => {
         try {
@@ -137,14 +122,17 @@ export default function MeetingRoomPage() {
             setJoinRequests(res.documents.filter(a => a.status === 'waiting'));
 
             // Check if kicked
-            const guestData = sessionStorage.getItem(`meeting_guest_${meetingId}`);
-            const me = res.documents.find(a => a.userId === user?.$id || (guestData && a.$id === JSON.parse(guestData).requestId));
-            if (me && me.status === 'declined') {
-                toast({ variant: 'destructive', title: 'Removed', description: 'You have been removed by the host.' });
-                router.replace('/dashboard/meeting');
+            const guestDataStr = sessionStorage.getItem(`meeting_guest_${meetingId}`);
+            if (guestDataStr) {
+                const guestData = JSON.parse(guestDataStr);
+                const me = res.documents.find(a => a.$id === guestData.requestId);
+                if (me && me.status === 'declined') {
+                    toast({ variant: 'destructive', title: 'Removed', description: 'You have been removed by the host.' });
+                    router.replace('/dashboard/meeting');
+                }
             }
         } catch (e) {}
-    }, [meetingId, user?.$id, router, toast]);
+    }, [meetingId, router, toast]);
 
     useEffect(() => {
         if (!user) return;
@@ -163,7 +151,7 @@ export default function MeetingRoomPage() {
         });
 
         return () => { unsubMeeting(); unsubAttendees(); };
-    }, [meetingId, fetchMeeting, fetchAttendees, router, user]);
+    }, [meetingId, fetchMeeting, fetchAttendees, user]);
 
     useEffect(() => {
         if (isInRoom && useCamera) {
@@ -198,27 +186,6 @@ export default function MeetingRoomPage() {
         }, 1000);
         return () => clearInterval(interval);
     }, [isInRoom, timeLeft]);
-
-    const handleEntry = async () => {
-        if (user?.$id === meeting?.hostId) {
-            await handleAdminBypass(meeting);
-            return;
-        }
-
-        const guestData = sessionStorage.getItem(`meeting_guest_${meetingId}`);
-        if (guestData) {
-            const parsed = JSON.parse(guestData);
-            const attendee = await databases.getDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, parsed.requestId);
-            if (attendee.status === 'approved') {
-                setIsInRoom(true);
-                setUseCamera(true);
-            } else {
-                router.replace(`/dashboard/meeting/join/${meetingId}`);
-            }
-        } else {
-            router.replace(`/dashboard/meeting/join/${meetingId}`);
-        }
-    };
 
     const approveUser = async (req: any) => {
         if (meeting.type === 'personal' && participants.length >= 5) {
@@ -280,28 +247,8 @@ export default function MeetingRoomPage() {
 
     if (loading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-white h-12 w-12" /></div>;
 
-    if (!isInRoom) {
-        return (
-            <div className="h-screen bg-background flex flex-col items-center justify-center p-6">
-                <Card className="max-w-md w-full rounded-[3rem] overflow-hidden shadow-2xl border-none text-center">
-                    <CardHeader className="bg-primary/5 pt-10">
-                        <Video className="mx-auto h-12 w-12 text-primary" />
-                        <CardTitle className="text-3xl font-black uppercase tracking-tighter mt-4">{meeting?.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="py-8 space-y-6">
-                        <Button onClick={handleEntry} className="w-full h-16 rounded-full font-black uppercase tracking-widest text-lg shadow-xl">
-                            Enter meeting room
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
-
     const hostParticipant = participants.find(p => p.isHost);
     const otherParticipants = participants.filter(p => !p.isHost);
-    
-    // Centering Logic: Insert the Host in the middle of the array for a balanced display
     const centeredParticipants = [...otherParticipants];
     if (hostParticipant) {
         const middleIndex = Math.floor(centeredParticipants.length / 2);
@@ -347,7 +294,7 @@ export default function MeetingRoomPage() {
                     <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_red]"></div>
                     <div>
                         <h2 className="font-black uppercase text-[10px] tracking-widest leading-none">{meeting?.name}</h2>
-                        {timeLeft !== null && <p className="text-[8px] font-mono text-white/50 uppercase mt-1">End in: {formatTime(timeLeft)}</p>}
+                        {timeLeft !== null && <p className="text-[8px] font-mono text-white/50 uppercase mt-1">End: {formatTime(timeLeft)}</p>}
                     </div>
                 </div>
                 <div className="flex gap-2">
@@ -360,8 +307,8 @@ export default function MeetingRoomPage() {
                                             <Button variant="ghost" size="sm" className="h-8 rounded-full bg-white/10 font-black uppercase text-[9px] text-white">board</Button>
                                         </DialogTrigger>
                                         <DialogContent className="max-w-md rounded-[2.5rem] p-8 border-none bg-black text-white">
-                                            <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-xs">Community Board</DialogTitle></DialogHeader>
-                                            <Textarea className="h-40 bg-white/5 border-white/10 rounded-2xl mt-4 font-bold text-lg" placeholder="Write message..." value={boardDraft} onChange={e => setBoardContent(e.target.value)} />
+                                            <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-xs">Chairman Board</DialogTitle></DialogHeader>
+                                            <Textarea className="h-40 bg-white/5 border-white/10 rounded-2xl mt-4 font-bold text-lg" placeholder="Chairman message..." value={boardDraft} onChange={e => setBoardContent(e.target.value)} />
                                             <div className="grid grid-cols-2 gap-3 mt-6">
                                                 <Button variant="ghost" onClick={() => setBoardContent('')} className="rounded-full uppercase font-black text-[10px] text-white"><Eraser className="mr-2 h-4 w-4" /> Clear</Button>
                                                 <Button onClick={() => toggleBoard(true)} className="rounded-full uppercase font-black text-[10px] text-white">display</Button>
@@ -381,7 +328,6 @@ export default function MeetingRoomPage() {
             </header>
 
             <main className="flex-1 overflow-y-auto p-10 scrollbar-hide z-10">
-                {/* UNIFORM GRID LAYOUT FOR EVERYONE */}
                 <div className="w-full h-full flex flex-wrap items-center justify-center gap-8 max-w-6xl mx-auto">
                     {centeredParticipants.map(p => (
                         <ParticipantIcon key={p.$id} p={p} isAdmin={isAdmin} kickUser={kickUser} />
@@ -408,13 +354,11 @@ export default function MeetingRoomPage() {
             {!isAdmin && (
                 <footer className="p-6 bg-black border-t border-white/10 flex justify-center safe-area-bottom z-[80]">
                     <Button variant="destructive" className="rounded-full h-12 px-8 font-black uppercase text-xs tracking-widest gap-2 shadow-xl" onClick={() => router.replace('/dashboard/meeting')}>
-                        <PhoneOff className="h-4 w-4" />
                         Disconnect Meeting
                     </Button>
                 </footer>
             )}
 
-            {/* OWN FEED (BOTTOM LEFT - SMALL & CIRCULAR) */}
             <div className="absolute bottom-6 left-6 z-[80] flex items-end gap-4">
                 <div className={cn(
                     "h-16 w-16 md:h-20 md:w-20 rounded-full bg-muted border-2 border-primary overflow-hidden shadow-2xl transition-all duration-300 ring-4 ring-black",
@@ -446,10 +390,16 @@ function ParticipantIcon({ p, isAdmin, kickUser }: { p: any, isAdmin: boolean, k
                 "relative rounded-full border-2 p-0.5 shadow-xl transition-all duration-500 h-20 w-20 md:h-24 md:w-24 bg-muted",
                 p.isHost ? "border-yellow-500" : "border-primary/40"
             )}>
-                <Avatar className="h-full w-full">
-                    <AvatarImage src={p.avatar} className="object-cover" />
-                    <AvatarFallback className="font-bold text-xl bg-primary text-white">{p.name?.charAt(0)}</AvatarFallback>
-                </Avatar>
+                {p.hasVideo ? (
+                    <div className="h-full w-full rounded-full overflow-hidden">
+                        <video autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
+                    </div>
+                ) : (
+                    <Avatar className="h-full w-full">
+                        <AvatarImage src={p.avatar} className="object-cover" />
+                        <AvatarFallback className="font-bold text-xl bg-primary text-white">{p.name?.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                )}
                 {p.hasVideo && (
                     <div className="absolute top-0 right-0 bg-red-500 text-[6px] font-black uppercase px-1.5 py-0.5 rounded-full border border-black shadow-sm">LIVE</div>
                 )}
@@ -464,7 +414,7 @@ function ParticipantIcon({ p, isAdmin, kickUser }: { p: any, isAdmin: boolean, k
                     </Button>
                 )}
             </div>
-            <p className="font-bold text-[10px] text-white/80 tracking-tight">@{p.name}</p>
+            <p className="font-bold text-[10px] text-white/80 tracking-tight">{p.name}</p>
         </div>
     );
 }

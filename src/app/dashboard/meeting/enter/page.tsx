@@ -14,23 +14,29 @@ import { useToast } from '@/hooks/use-toast';
 export default function EnterMeetingPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [meetingId, setMeetingId] = useState('');
+  const [input, setInput] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
 
   const handleJoin = async () => {
-    let cleanId = meetingId.trim();
-    
-    // Improved Parsing for full links and nested IDs
-    if (cleanId.includes('/meeting/room/')) {
-        cleanId = cleanId.split('/meeting/room/')[1].split('?')[0];
-    } else if (cleanId.includes('/meeting/join/')) {
-        cleanId = cleanId.split('/meeting/join/')[1].split('?')[0];
-    } else if (cleanId.includes('?id=')) {
-        cleanId = cleanId.split('?id=')[1].split('&')[0];
+    let cleanId = input.trim();
+    let isAdmin = false;
+
+    // Robust Link Parsing Logic
+    try {
+        if (cleanId.startsWith('http')) {
+            const url = new URL(cleanId);
+            const pathParts = url.pathname.split('/');
+            cleanId = pathParts[pathParts.length - 1];
+            if (url.searchParams.get('role') === 'admin') {
+                isAdmin = true;
+            }
+        }
+    } catch (e) {
+        // Not a URL, treat as direct ID
     }
 
     if (!cleanId) {
-        toast({ variant: 'destructive', title: 'Invalid ID', description: 'Please enter a valid Meeting ID or Link.' });
+        toast({ variant: 'destructive', title: 'Empty ID', description: 'Please paste a link or enter a meeting ID.' });
         return;
     }
 
@@ -41,10 +47,10 @@ export default function EnterMeetingPage() {
         if (meeting.status === 'ended') {
             toast({ variant: 'destructive', title: 'Meeting Expired', description: 'This session has already concluded.' });
         } else {
-            router.push(`/dashboard/meeting/join/${cleanId}`);
+            router.push(`/dashboard/meeting/join/${cleanId}${isAdmin ? '?role=admin' : ''}`);
         }
     } catch (error) {
-        toast({ variant: 'destructive', title: 'Not Found', description: 'No meeting found with this ID.' });
+        toast({ variant: 'destructive', title: 'Invalid ID', description: 'No active meeting found with this ID.' });
     } finally {
         setIsVerifying(false);
     }
@@ -62,14 +68,14 @@ export default function EnterMeetingPage() {
         </CardHeader>
         <CardContent className="space-y-4 pt-8">
           <Input 
-            value={meetingId}
-            onChange={e => setMeetingId(e.target.value)}
+            value={input}
+            onChange={e => setInput(e.target.value)}
             placeholder="Paste Link here..." 
-            className="h-14 rounded-2xl bg-muted border-none text-center font-bold text-lg focus-visible:ring-1 focus-visible:ring-primary" 
+            className="h-14 rounded-2xl bg-muted border-none text-center font-bold text-sm focus-visible:ring-1 focus-visible:ring-primary" 
           />
         </CardContent>
         <CardFooter className="p-8 bg-muted/30">
-          <Button onClick={handleJoin} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-lg" disabled={isVerifying || !meetingId}>
+          <Button onClick={handleJoin} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-lg" disabled={isVerifying || !input}>
             {isVerifying ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2 h-5 w-5" /> Verify & Continue</>}
           </Button>
         </CardFooter>
