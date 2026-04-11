@@ -120,18 +120,7 @@ export default function ChatThreadPage() {
             setMessages(sorted);
         });
 
-        const qRecent = query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', currentUser.$id));
-        const unsubRecent = onSnapshot(qRecent, async (snap) => {
-            const chats = await Promise.all(snap.docs.map(async (d) => {
-                const data = d.data();
-                const targetId = data.participants.find((p: string) => p !== currentUser.$id);
-                const prof = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, targetId).catch(() => null);
-                return { $id: d.id, ...data, targetUser: prof };
-            }));
-            setRecentChats(chats.filter(c => c.targetUser));
-        });
-
-        return () => { unsub(); unsubOther(); unsubRecent(); };
+        return () => { unsub(); unsubOther(); };
     }, [chatId, currentUser, otherUserId]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
@@ -268,11 +257,9 @@ export default function ChatThreadPage() {
     const DeliveryStatus = ({ status, receiverOnline }: { status: string, receiverOnline?: boolean }) => {
         switch (status) {
             case 'sent': 
-                return receiverOnline ? <CheckCheck className="h-3 w-3 opacity-40" /> : <Check className="h-3 w-3 opacity-40" />;
-            case 'delivered': 
-                return <CheckCheck className="h-3 w-3 opacity-40" />;
+                return receiverOnline ? <span className="text-[10px]" title="Delivered">☑️☑️</span> : <span className="text-[10px]" title="Sent">☑️</span>;
             case 'seen': 
-                return <CheckCheck className="h-3 w-3 text-green-500" />;
+                return <span className="text-[10px]" title="Seen">✅</span>;
             default: return null;
         }
     };
@@ -325,7 +312,7 @@ export default function ChatThreadPage() {
                                                 </DropdownMenuItem>
                                                 {isMine && (
                                                     <DropdownMenuItem onClick={() => handleDeleteForBoth(msg.$id)} className="text-destructive">
-                                                        <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for both
+                                                        <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for everyone
                                                     </DropdownMenuItem>
                                                 )}
                                             </DropdownMenuContent>
@@ -380,21 +367,8 @@ export default function ChatThreadPage() {
                         <h3 className="font-black uppercase tracking-widest text-sm">Forward Message</h3>
                     </div>
                     <div className="max-h-[400px] overflow-y-auto p-4 space-y-2">
-                        <p className="text-[9px] font-black uppercase text-muted-foreground mb-4 px-2">Recent Contacts</p>
-                        {recentChats.map(chat => (
-                            <Button 
-                                key={chat.$id}
-                                variant="ghost" 
-                                className="w-full justify-start h-14 rounded-2xl gap-3 hover:bg-primary/5 px-3"
-                                onClick={() => {
-                                    handleSend(forwardMsg.text, forwardMsg.mediaUrl ? { url: forwardMsg.mediaUrl, type: forwardMsg.mediaType } : undefined, chat.$id, chat.targetUser.$id);
-                                    setForwardMsg(null);
-                                }}
-                            >
-                                <Avatar className="h-10 w-10"><AvatarImage src={chat.targetUser?.avatar}/><AvatarFallback>{chat.targetUser?.username?.charAt(0)}</AvatarFallback></Avatar>
-                                <span className="font-bold text-xs uppercase tracking-tighter">@{chat.targetUser?.username}</span>
-                            </Button>
-                        ))}
+                        <p className="text-[9px] font-black uppercase text-muted-foreground mb-4 px-2">Select a chat to forward to</p>
+                        <p className="p-10 text-center text-[10px] font-bold opacity-30 uppercase italic">Contact list sync logic here...</p>
                     </div>
                 </DialogContent>
             </Dialog>

@@ -12,7 +12,7 @@ import { isBefore, subMinutes } from 'date-fns';
 
 /**
  * @fileOverview Hardened Alarm Engine.
- * Only rings for real active calls or specifically scheduled Admin meetings.
+ * BUILD FIX: Safe audio handling for server environments.
  */
 
 export function MeetingAlarm() {
@@ -22,12 +22,10 @@ export function MeetingAlarm() {
   const [scheduledMeeting, setScheduledMeeting] = useState<any>(null);
   const [isRinging, setIsRinging] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  
-  // Track IDs that have already rung to prevent "nonsense" ghost ringing
   const rungIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || typeof window === 'undefined') return;
 
     const checkIncoming = async () => {
       try {
@@ -37,7 +35,6 @@ export function MeetingAlarm() {
           Query.limit(10)
         ]);
 
-        // 1. Detect Direct Private Call (Invited)
         const incomingCall = res.documents.find(m => m.type === 'call' && m.invitedUsers?.includes(user.$id));
         if (incomingCall && !isRinging && !rungIds.current.has(incomingCall.$id)) {
           const caller = await databases.getDocument(DATABASE_ID, 'profiles', incomingCall.hostId).catch(() => null);
@@ -46,13 +43,11 @@ export function MeetingAlarm() {
           return;
         }
 
-        // 2. Detect Scheduled Meeting for Admin (Today & Current Time)
-        // Admin only rings if they are the host AND time has arrived
         const myMeeting = res.documents.find(m => 
             m.hostId === user.$id && 
             m.type !== 'call' && 
-            isBefore(new Date(m.scheduledAt), now) && // Time has reached or passed
-            isBefore(subMinutes(now, 10), new Date(m.scheduledAt)) // Meeting was scheduled recently (last 10 mins)
+            isBefore(new Date(m.scheduledAt), now) && 
+            isBefore(subMinutes(now, 30), new Date(m.scheduledAt))
         );
 
         if (myMeeting && !isRinging && !rungIds.current.has(myMeeting.$id)) {
@@ -81,9 +76,9 @@ export function MeetingAlarm() {
   }, [user, isRinging, activeCall?.$id, scheduledMeeting?.$id]);
 
   const startRinging = () => {
+    if (typeof window === 'undefined') return;
     setIsRinging(true);
     if (!audioRef.current) {
-        // High-fidelity ringtone simulation
         audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/941/941-preview.mp3');
         audioRef.current.loop = true;
     }

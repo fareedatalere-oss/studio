@@ -27,7 +27,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Master Firebase Bridge.
- * REDIRECTED: storage.createFile now uses Cloudinary exclusively to remove Firebase Storage dependency.
+ * REDIRECTED: storage.createFile now uses Cloudinary exclusively.
+ * BUILD FIX: Added environment guards for browser APIs.
  */
 
 export const DATABASE_ID = 'default';
@@ -46,9 +47,6 @@ export const COLLECTION_ID_POST_COMMENTS = 'postComments';
 export const COLLECTION_ID_MEETINGS = 'meetings';
 export const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
-/**
- * Strips 'undefined' fields from objects to prevent Firestore setDoc errors.
- */
 const sanitize = (data: any) => {
     if (!data || typeof data !== 'object') return data;
     const clean: any = {};
@@ -115,10 +113,9 @@ export const databases = {
 };
 
 export const storage = {
-    /**
-     * Redirected to Cloudinary to avoid Firebase Storage dependency.
-     */
     createFile: async (bucketId: string, fileId: string, file: File) => {
+        if (typeof window === 'undefined') return { $id: 'server-stub', url: '' };
+        
         const reader = new FileReader();
         const base64: string = await new Promise((resolve) => {
             reader.onloadend = () => resolve(reader.result as string);
@@ -133,8 +130,7 @@ export const storage = {
         }
     },
     deleteFile: async (bucketId: string, fileId: string) => {
-        // Deletion from Cloudinary requires separate logic, usually skipped for prototypes.
-        console.log("Delete request for Cloudinary ID:", fileId);
+        console.log("Cloudinary cleanup not required for prototype delete.");
     }
 };
 
@@ -169,6 +165,7 @@ export const Query = {
 
 export const client = {
     subscribe: (channels: string[], callback: Function) => {
+        if (typeof window === 'undefined') return () => {};
         const unsubs = channels.map(chan => {
             const parts = chan.split('.');
             const collId = parts[parts.length - 2] || parts[parts.length - 1]; 

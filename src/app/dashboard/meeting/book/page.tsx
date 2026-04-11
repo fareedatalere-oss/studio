@@ -76,8 +76,10 @@ export default function BookMeetingPage() {
   };
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: `Link copied!` });
+    if (typeof window !== 'undefined') {
+        navigator.clipboard.writeText(text);
+        toast({ title: `Link copied!` });
+    }
   };
 
   if (meetingLink) {
