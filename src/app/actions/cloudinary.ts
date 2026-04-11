@@ -5,17 +5,21 @@ import { v2 as cloudinary } from 'cloudinary';
 
 /**
  * @fileOverview Cloudinary Server Action for Secure Uploads.
- * Securely uses environment variables for production deployment.
+ * Configured to strictly use environment variables for production.
  */
 
 cloudinary.config({
-  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dwhkwiceh',
-  api_key: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || '483123493357221',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'c4R2hTEJ08hRl9i_tMr52yhJV-M',
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true,
 });
 
 export async function uploadToCloudinary(base64Data: string, resourceType: 'image' | 'video' | 'raw' | 'auto' = 'auto') {
+  if (!process.env.CLOUDINARY_API_SECRET) {
+      return { success: false, message: 'Cloudinary credentials missing in environment variables.' };
+  }
+
   try {
     const uploadResponse = await cloudinary.uploader.upload(base64Data, {
       resource_type: resourceType,

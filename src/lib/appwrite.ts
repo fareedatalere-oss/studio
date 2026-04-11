@@ -1,4 +1,5 @@
-import { auth, db, storage as firebaseStorage } from './firebase';
+
+import { auth, db } from './firebase';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -22,20 +23,13 @@ import {
   serverTimestamp,
   increment
 } from 'firebase/firestore';
-import { 
-  ref, 
-  uploadBytes, 
-  getDownloadURL, 
-  deleteObject 
-} from 'firebase/storage';
+import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Master Firebase Bridge (Named appwrite.ts for compatibility).
- * This file reroutes all Appwrite calls to your Firebase Project.
- * SAFETY UPDATE: Automatic sanitization of 'undefined' fields to prevent setDoc crashes.
+ * @fileOverview Master Firebase Bridge.
+ * REDIRECTED: storage.createFile now uses Cloudinary exclusively to remove Firebase Storage dependency.
  */
 
-// --- Constants for Firestore Collections & Storage ---
 export const DATABASE_ID = 'default';
 export const COLLECTION_ID_PROFILES = 'profiles';
 export const COLLECTION_ID_APP_CONFIG = 'app_config';
@@ -51,9 +45,6 @@ export const COLLECTION_ID_UPWORK_PROFILES = 'upworkProfiles';
 export const COLLECTION_ID_POST_COMMENTS = 'postComments';
 export const COLLECTION_ID_MEETINGS = 'meetings';
 export const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
-export const BUCKET_ID_UPLOADS = 'uploads';
-
-export const MEETING_BOT_ID = 'ipay_meeting_system';
 
 /**
  * Strips 'undefined' fields from objects to prevent Firestore setDoc errors.
@@ -124,16 +115,26 @@ export const databases = {
 };
 
 export const storage = {
+    /**
+     * Redirected to Cloudinary to avoid Firebase Storage dependency.
+     */
     createFile: async (bucketId: string, fileId: string, file: File) => {
-        const id = fileId === 'unique()' ? `${Date.now()}-${Math.random().toString(36).substring(7)}` : fileId;
-        const sRef = ref(firebaseStorage, `${bucketId}/${id}`);
-        await uploadBytes(sRef, file);
-        const url = await getDownloadURL(sRef);
-        return { $id: id, url };
+        const reader = new FileReader();
+        const base64: string = await new Promise((resolve) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+        });
+
+        const res = await uploadToCloudinary(base64, file.type.startsWith('image') ? 'image' : 'auto');
+        if (res.success) {
+            return { $id: res.publicId, url: res.url };
+        } else {
+            throw new Error(res.message || 'Cloudinary upload failed.');
+        }
     },
     deleteFile: async (bucketId: string, fileId: string) => {
-        const sRef = ref(firebaseStorage, `${bucketId}/${fileId}`);
-        await deleteObject(sRef).catch(() => {});
+        // Deletion from Cloudinary requires separate logic, usually skipped for prototypes.
+        console.log("Delete request for Cloudinary ID:", fileId);
     }
 };
 

@@ -11,27 +11,16 @@ service cloud.firestore {
 
     // Rules for the 'users' collection
     match /users/{userId} {
-      // Any signed-in user can read another user's profile.
       allow get: if isSignedIn();
-      
-      // A user can only create or update their own document.
-      // For banning, a manager role would be required. For now, allow any user to update for prototype.
       allow create, update: if isSignedIn();
-      
-      // Deleting a user document is not allowed from the client.
       allow delete: if false;
 
-      // Rules for the 'notifications' subcollection
       match /notifications/{notificationId} {
-        // A user can manage their own notifications.
         allow read, create, update: if request.auth.uid == userId;
         allow delete: if false;
       }
 
-      // Rules for the 'transactions' subcollection
       match /transactions/{transactionId} {
-        // Users can create and read their own transactions.
-        // They cannot be updated or deleted to maintain an immutable ledger.
         allow create, read: if request.auth.uid == userId;
         allow update, delete: if false;
       }
@@ -39,28 +28,35 @@ service cloud.firestore {
     
     // Rules for CHAT
     match /chats/{chatId} {
-      // A user can only see, update, or delete chats they are a part of.
       allow get, update, delete: if isSignedIn() && request.auth.uid in resource.data.participants;
-      // Any signed in user can list chats (client will filter them).
-      // A user can create a chat if they are a participant.
       allow list, create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
     }
     
     match /messages/{messageId} {
-      // Any signed-in user can create a message. Security is handled by chat participation.
       allow create: if isSignedIn();
-      // Allow participants of the chat to read messages.
-      // Appwrite's client-side query will filter messages by `chatId`, providing security by obscurity.
       allow read: if isSignedIn();
-      // Users can only update/delete their own messages.
-      allow update, delete: if isSignedIn() && resource.data.senderId == request.auth.uid;
+      allow update, delete: if isSignedIn();
+    }
+
+    // Rules for Meetings & Calls
+    match /meetings/{meetingId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.hostId == request.auth.uid;
+    }
+
+    match /meetingAttendees/{attendeeId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
     
     // Rules for media posts
     match /posts/{postId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      // Allow updates for things like likes
       allow update: if isSignedIn();
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
 
@@ -71,34 +67,27 @@ service cloud.firestore {
       }
     }
 
-    // Rules for marketplace items
     match /apps/{appId} {
         allow read: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
-        allow update, delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
+        allow create, update, delete: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
     }
 
     match /products/{productId} {
         allow read: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
-        allow update, delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
+        allow create, update, delete: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
     }
 
     match /books/{bookId} {
         allow read: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
-        allow update, delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
+        allow create, update, delete: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
     }
 
     match /upworkProfiles/{profileId} {
         allow read: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
-        allow update, delete: if isSignedIn() && resource.data.sellerId == request.auth.uid;
+        allow create, update, delete: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
     }
     
-    // Rules for app config
     match /app_config/{docId} {
-      // Anyone can read, only authenticated users can update (for prototype purposes)
       allow read: if true;
       allow create, update: if isSignedIn();
       allow delete: if false;

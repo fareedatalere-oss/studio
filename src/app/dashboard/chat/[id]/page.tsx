@@ -201,7 +201,6 @@ export default function ChatThreadPage() {
         }
     };
 
-    // Voice Recorder Implementation
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
