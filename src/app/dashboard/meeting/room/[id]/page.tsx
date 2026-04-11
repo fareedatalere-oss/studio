@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -8,7 +7,7 @@ import {
     Eraser, Keyboard, Clock, ShieldCheck, Video, 
     Volume2, VolumeX, Mic, MicOff, CameraOff, X,
     MonitorPlay, FileText, UploadCloud, Play, Pause,
-    UserX, Send, Smile
+    UserX, Send, Smile, MessageSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
