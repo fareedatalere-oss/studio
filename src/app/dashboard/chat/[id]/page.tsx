@@ -10,8 +10,8 @@ import {
     serverTimestamp, setDoc, updateDoc, 
     writeBatch, arrayUnion, increment 
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID } from '@/lib/appwrite';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, X, Play, Phone } from 'lucide-react';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, MoreVertical, UserX, Trash2, Forward, Check, Image as ImageIcon, Video, FileText, Phone } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -79,23 +79,9 @@ export default function ChatThreadPage() {
                 return timeA - timeB;
             });
             setMessages(sorted);
-            const unread = snapshot.docs.filter(d => d.data().senderId !== currentUser.$id && d.data().status !== 'read');
-            if (unread.length > 0) {
-                const batch = writeBatch(db);
-                unread.forEach(d => batch.update(d.ref, { status: 'read' }));
-                batch.commit();
-            }
         });
         return () => { unsub(); unsubOther(); };
     }, [chatId, currentUser, otherUserId]);
-
-    useEffect(() => {
-        if (currentUser?.$id) {
-            const q = query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', currentUser.$id));
-            const unsub = onSnapshot(q, (snap) => setRecentChats(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-            return () => unsub();
-        }
-    }, [currentUser]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -125,7 +111,7 @@ export default function ChatThreadPage() {
         if (!currentUser || !otherUserId) return;
         const callId = ID.unique();
         try {
-            await databases.createDocument(DATABASE_ID, 'meetings', callId, {
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, {
                 hostId: currentUser.$id,
                 type: 'call',
                 name: 'Private Call',
@@ -152,17 +138,6 @@ export default function ChatThreadPage() {
         } catch (e) { toast({ variant: 'destructive', title: "Media send failed" }); } finally { setIsUploading(false); setActiveMediaType(null); }
     };
 
-    const deleteMessage = async (msgId: string, forAll: boolean) => {
-        try {
-            if (forAll) await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { text: "deleted a message", isDeleted: true, mediaUrl: null, mediaType: null });
-            else {
-                await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { deletedFor: arrayUnion(currentUser.$id) });
-                messageMapRef.current.delete(msgId);
-                setMessages(prev => prev.filter(m => m.$id !== msgId));
-            }
-        } catch (e) {}
-    };
-
     return (
         <div className="flex flex-col h-screen bg-background font-body overflow-hidden">
             <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-50 pt-12 shadow-sm">
@@ -173,7 +148,7 @@ export default function ChatThreadPage() {
                         <div className="truncate">
                             <h2 className="font-bold text-xs leading-none truncate tracking-tighter">{otherUser.username}</h2>
                             <p className={cn("text-[8px] font-black uppercase mt-1.5", otherUser.isOnline ? "text-green-500 animate-pulse" : "text-muted-foreground")}>
-                                {otherUser.isOnline ? 'Online Now' : otherUser.lastSeen ? `Left ${formatDistanceToNow(new Date(otherUser.lastSeen.toMillis ? otherUser.lastSeen.toMillis() : otherUser.lastSeen), { addSuffix: true })}` : 'Offline'}
+                                {otherUser.isOnline ? 'Online Now' : 'Offline'}
                             </p>
                         </div>
                     </div>
@@ -194,26 +169,15 @@ export default function ChatThreadPage() {
                         const isMine = msg.senderId === currentUser?.$id;
                         return (
                             <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%]", isMine ? "ml-auto items-end" : "items-start")}>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <div className={cn("p-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold leading-relaxed cursor-pointer active:scale-95 transition-transform", isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border", msg.isDeleted && "opacity-50 italic")}>
-                                            {msg.mediaType === 'image' && <div onClick={() => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=image`)} className="cursor-pointer mb-2 rounded-xl overflow-hidden bg-muted border p-2"><ImageIcon className="h-10 w-10 text-primary opacity-50" /></div>}
-                                            {msg.mediaType === 'video' && <div onClick={() => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=video`)} className="cursor-pointer mb-2 rounded-xl overflow-hidden bg-muted border p-2 relative"><Video className="h-10 w-10 text-primary opacity-50" /><Play className="absolute h-4 w-4 text-white fill-white" /></div>}
-                                            {msg.mediaType === 'pdf' && <div onClick={() => window.open(msg.mediaUrl)} className="cursor-pointer mb-2 p-3 bg-muted/30 rounded-xl flex items-center gap-3 border border-dashed"><FileText className="h-6 w-6 text-red-500" /><span className="text-[10px] font-black uppercase">Document.pdf</span></div>}
-                                            <p className="whitespace-pre-wrap">{msg.text}</p>
-                                            <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
-                                                <span className="text-[6px] font-black uppercase">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : '...'}</span>
-                                                {isMine && (msg.status === 'read' ? <div className="flex"><Check className="h-2 w-2 text-green-400" /><Check className="h-2 w-2 text-green-400 -ml-1" /></div> : <Check className={cn("h-2 w-2", msg.status === 'delivered' ? 'text-blue-400' : 'text-muted-foreground')} />)}
-                                            </div>
-                                        </div>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="w-40 font-black uppercase text-[9px]">
-                                        <DropdownMenuItem onClick={() => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=${msg.mediaType}`)} disabled={!msg.mediaUrl}>View</DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => setIsForwarding(msg.$id)}><Forward className="mr-2 h-3.5 w-3.5" /> Forward</DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => deleteMessage(msg.$id, false)}><Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for me</DropdownMenuItem>
-                                        {isMine && !msg.isDeleted && <DropdownMenuItem onClick={() => deleteMessage(msg.$id, true)} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for both</DropdownMenuItem>}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                <div className={cn("p-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold leading-relaxed", isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
+                                    {msg.mediaType === 'image' && <div onClick={() => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=image`)} className="cursor-pointer mb-2 rounded-xl overflow-hidden bg-muted border p-2"><ImageIcon className="h-10 w-10 text-primary opacity-50" /></div>}
+                                    {msg.mediaType === 'video' && <div onClick={() => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(msg.mediaUrl)}&type=video`)} className="cursor-pointer mb-2 rounded-xl overflow-hidden bg-muted border p-2 relative"><Video className="h-10 w-10 text-primary opacity-50" /></div>}
+                                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                                    <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
+                                        <span className="text-[6px] font-black uppercase">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : '...'}</span>
+                                        {isMine && <Check className={cn("h-2 w-2", msg.status === 'read' ? 'text-green-400' : 'text-muted-foreground')} />}
+                                    </div>
+                                </div>
                             </div>
                         );
                     })}
@@ -241,36 +205,6 @@ export default function ChatThreadPage() {
                 </div>
                 <input type="file" ref={fileInputRef} className="hidden" accept={activeMediaType === 'image' ? 'image/*' : activeMediaType === 'video' ? 'video/*' : 'application/pdf'} onChange={handleFileSelect} />
             </footer>
-
-            <Dialog open={!!isForwarding} onOpenChange={(o) => !o && setIsForwarding(null)}>
-                <DialogContent className="max-w-md rounded-[2.5rem] p-8 border-none bg-background">
-                    <DialogHeader><DialogTitle className="text-center font-black uppercase tracking-tighter">Forward Message</DialogTitle></DialogHeader>
-                    <div className="space-y-4 mt-4">
-                        <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
-                            {recentChats.map(chat => {
-                                const id = chat.participants.find((p: string) => p !== currentUser?.$id);
-                                return (
-                                    <div key={chat.id} onClick={() => { if (selectedForForward.includes(id)) setSelectedForForward(prev => prev.filter(i => i !== id)); else if (selectedForForward.length < 10) setSelectedForForward(prev => [...prev, id]); }} className={cn("flex items-center justify-between p-3 rounded-2xl cursor-pointer border-2 transition-all", selectedForForward.includes(id) ? "border-primary bg-primary/5" : "border-transparent bg-muted/30")}>
-                                        <p className="font-bold text-xs truncate">Chat ID: {id}</p>
-                                        {selectedForForward.includes(id) && <Check className="h-4 w-4 text-primary" />}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <Button className="w-full h-12 rounded-full font-black uppercase text-[10px]" onClick={async () => {
-                            if (!isForwarding || selectedForForward.length === 0) return;
-                            const msg = messages.find(m => m.$id === isForwarding);
-                            if (msg) {
-                                for (const targetId of selectedForForward) {
-                                    const fwdChatId = getChatId(currentUser?.$id, targetId);
-                                    await setDoc(doc(db, COLLECTION_ID_MESSAGES, ID.unique()), { chatId: fwdChatId, senderId: currentUser?.$id, text: msg.text, status: 'sent', deletedFor: [], createdAt: serverTimestamp(), ...(msg.mediaUrl && { mediaUrl: msg.mediaUrl, mediaType: msg.mediaType }) });
-                                }
-                                setIsForwarding(null); setSelectedForForward([]); toast({ title: 'Forwarded' });
-                            }
-                        }} disabled={selectedForForward.length === 0}>Send Forward ({selectedForForward.length})</Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }

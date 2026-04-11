@@ -4,17 +4,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { PhoneOff, PhoneCall } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query, client } from '@/lib/appwrite';
 import { useUser } from '@/hooks/use-appwrite';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useRouter } from 'next/navigation';
 
 /**
  * @fileOverview Pure White Call Alarm (Receiver View).
- * Simplified to match sketch: "Ringing" at top, Avatar in center, Deny/Accept at bottom.
+ * Displays "Ringing" at top, Avatar in center, and Deny/Accept at bottom.
  */
 
 export function MeetingAlarm() {
   const { user } = useUser();
+  const router = useRouter();
   const [activeMeeting, setActiveMeeting] = useState<any>(null);
   const [isRinging, setIsRinging] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -72,7 +74,10 @@ export function MeetingAlarm() {
   };
 
   const handleAccept = async () => {
-    // Currently just stops the ringing as per command to focus only on request flow
+    if (activeMeeting) {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeMeeting.$id, { status: 'connected' });
+        router.push(`/dashboard/chat/call/${activeMeeting.$id}`);
+    }
     stopRinging();
     setActiveMeeting(null);
   };
