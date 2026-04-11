@@ -62,8 +62,6 @@ export default function ChatThreadPage() {
         return getChatId(currentUser.$id, otherUserId);
     }, [currentUser?.$id, otherUserId]);
 
-    const isBlocked = myProfile?.blockedUsers?.includes(otherUserId);
-
     useEffect(() => {
         if (!chatId || !currentUser) return;
 
@@ -130,6 +128,24 @@ export default function ChatThreadPage() {
         } catch (e) { toast({ variant: 'destructive', title: 'Error sending message' }); }
     };
 
+    const handleStartCall = async () => {
+        if (!currentUser || !otherUserId) return;
+        const callId = ID.unique();
+        try {
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, {
+                hostId: currentUser.$id,
+                type: 'call',
+                name: 'Private Call',
+                status: 'pending',
+                invitedUsers: [otherUserId],
+                createdAt: new Date().toISOString()
+            });
+            router.push(`/dashboard/chat/call/${callId}`);
+        } catch (e) {
+            toast({ variant: 'destructive', title: 'Call Failed', description: 'Could not initiate call system.' });
+        }
+    };
+
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -190,7 +206,7 @@ export default function ChatThreadPage() {
             if (forAll) await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { text: "deleted a message", isDeleted: true, mediaUrl: null, mediaType: null });
             else {
                 await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { deletedFor: arrayUnion(currentUser.$id) });
-                messageMapRef.current.delete(id);
+                messageMapRef.current.delete(msgId);
                 setMessages(prev => prev.filter(m => m.$id !== msgId));
             }
         } catch (e) {}
@@ -206,7 +222,7 @@ export default function ChatThreadPage() {
                     <div className="flex-1 flex items-center gap-3 overflow-hidden ml-1">
                         <Avatar className="h-11 w-11 border-2 border-primary/10 shadow-sm"><AvatarImage src={otherUser.avatar} className="object-cover" /><AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0)}</AvatarFallback></Avatar>
                         <div className="truncate">
-                            <h2 className="font-bold text-xs leading-none truncate tracking-tighter lowercase">{otherUser.username}</h2>
+                            <h2 className="font-bold text-xs leading-none truncate tracking-tighter">{otherUser.username}</h2>
                             <p className={cn("text-[8px] font-black uppercase mt-1.5", otherUser.isOnline ? "text-green-500 animate-pulse" : "text-muted-foreground")}>
                                 {otherUser.isOnline ? 'Online Now' : otherUser.lastSeen ? `Left ${formatDistanceToNow(new Date(otherUser.lastSeen.toMillis ? otherUser.lastSeen.toMillis() : otherUser.lastSeen), { addSuffix: true })}` : 'Offline'}
                             </p>
@@ -274,6 +290,9 @@ export default function ChatThreadPage() {
                             <DropdownMenuItem onClick={() => { setActiveMediaType('pdf'); fileInputRef.current?.click(); }}><FileText className="mr-2 h-4 w-4" /> PDF</DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    <Button variant="ghost" size="icon" onClick={handleStartCall} className="h-11 w-11 rounded-full text-primary hover:bg-primary/10">
+                        <Video className="h-5 w-5" />
+                    </Button>
                     <Input placeholder={isRecording ? "Recording voice..." : "Type text only..."} value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} disabled={isRecording} className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />
                     <div className="flex items-center gap-1">
                         {isRecording ? <Button size="icon" variant="destructive" className="h-11 w-11 rounded-full shadow-lg" onClick={stopRecording}><X className="h-5 w-5" /></Button> : 
