@@ -28,22 +28,25 @@ export function MeetingAlarm() {
         const dateStr = format(now, 'yyyy-MM-dd');
         const timeStr = format(now, 'HH:mm');
 
+        // Check for both scheduled meetings and instant calls
         const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
-          Query.equal('hostId', user.$id),
-          Query.equal('date', dateStr),
-          Query.equal('time', timeStr),
-          Query.equal('status', 'pending')
+          Query.equal('status', 'pending'),
+          Query.limit(5)
         ]);
 
-        if (res.documents.length > 0) {
-          const meeting = res.documents[0];
-          setActiveMeeting(meeting);
+        const myIncoming = res.documents.find(m => 
+            (m.hostId === user.$id && m.date === dateStr && m.time === timeStr) || 
+            (m.invitedUsers?.includes(user.$id) && m.type === 'call')
+        );
+
+        if (myIncoming) {
+          setActiveMeeting(myIncoming);
           startRinging();
         }
       } catch (e) {}
     };
 
-    const interval = setInterval(checkMeetings, 10000); // Check every minute
+    const interval = setInterval(checkMeetings, 5000); // Check every 5 seconds for instant calls
     return () => clearInterval(interval);
   }, [user, isRinging, isSnoozed]);
 
@@ -55,10 +58,9 @@ export function MeetingAlarm() {
     }
     audioRef.current.play().catch(() => {});
     
-    // Trigger Browser Notification if permission granted
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        new Notification("I-Pay Meeting Starting!", {
-            body: `Your meeting "${activeMeeting?.name}" is starting now.`,
+        new Notification(activeMeeting?.type === 'call' ? "Incoming Call!" : "Meeting Starting!", {
+            body: activeMeeting?.type === 'call' ? `You have an incoming call: ${activeMeeting?.name}` : `Your meeting "${activeMeeting?.name}" is starting.`,
             icon: "/logo.png"
         });
     }
@@ -77,16 +79,12 @@ export function MeetingAlarm() {
     setIsSnoozed(true);
     setTimeout(() => {
         setIsSnoozed(false);
-        if (!activeMeeting?.status.includes('started')) {
-            startRinging();
-        }
-    }, 20000); // 20 Seconds Snooze as requested
+    }, 20000); 
   };
 
   const handleEnter = () => {
     stopRinging();
     if (activeMeeting) {
-        databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeMeeting.$id, { status: 'started' });
         router.push(`/dashboard/meeting/enter?id=${activeMeeting.$id}`);
     }
   };
@@ -104,33 +102,24 @@ export function MeetingAlarm() {
             </div>
         </div>
 
-        <h2 className="text-white text-3xl font-black uppercase tracking-tighter mb-2">Meeting Starting!</h2>
-        <p className="text-primary font-black uppercase text-[10px] tracking-[0.3em] mb-8">Gaskiya Reminder</p>
+        <h2 className="text-white text-3xl font-black uppercase tracking-tighter mb-2">
+            {activeMeeting?.type === 'call' ? 'Incoming Call' : 'Meeting Alert'}
+        </h2>
+        <p className="text-primary font-black uppercase text-[10px] tracking-[0.3em] mb-8">Gaskiya Secure Link</p>
 
         <Card className="bg-white/10 border-white/20 text-white mb-10 w-full rounded-3xl backdrop-blur-md">
             <CardContent className="p-6">
                 <p className="font-black text-xl uppercase tracking-tight">{activeMeeting?.name}</p>
-                <p className="text-xs opacity-70 mt-2 line-clamp-2">{activeMeeting?.description}</p>
-                <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-white/10">
-                    <div className="flex flex-col items-center">
-                        <Clock className="h-4 w-4 opacity-50 mb-1" />
-                        <span className="text-[10px] font-bold">{activeMeeting?.time}</span>
-                    </div>
-                    <div className="h-4 w-px bg-white/10"></div>
-                    <div className="flex flex-col items-center">
-                        <BellRing className="h-4 w-4 opacity-50 mb-1" />
-                        <span className="text-[10px] font-bold">Ringing</span>
-                    </div>
-                </div>
+                <p className="text-xs opacity-70 mt-2 line-clamp-2">{activeMeeting?.description || 'Instant secure connection'}</p>
             </CardContent>
         </Card>
 
         <div className="grid grid-cols-1 gap-4 w-full">
             <Button onClick={handleEnter} className="h-16 rounded-full font-black uppercase tracking-widest text-lg bg-green-500 hover:bg-green-600 shadow-2xl">
-                <Check className="mr-2 h-6 w-6" /> Enter Meeting
+                <Check className="mr-2 h-6 w-6" /> {activeMeeting?.type === 'call' ? 'Pick Up' : 'Enter'}
             </Button>
             <Button onClick={handleSnooze} variant="secondary" className="h-14 rounded-full font-black uppercase tracking-widest text-xs bg-white/20 text-white hover:bg-white/30 border-none">
-                Remember Me (20s)
+                Snooze (20s)
             </Button>
         </div>
       </div>
