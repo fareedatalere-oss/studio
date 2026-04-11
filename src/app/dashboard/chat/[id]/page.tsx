@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -9,8 +10,8 @@ import {
     serverTimestamp, setDoc, updateDoc, 
     increment, getDocs, writeBatch, deleteDoc, arrayUnion
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, databases, DATABASE_ID, ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, Check, CheckCheck, MoreHorizontal, Trash2, Forward, Mic, Square, Play, X, CheckCircle2 } from 'lucide-react';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreHorizontal, Trash2, Forward, Mic, X, CheckCircle2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,11 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
+
+/**
+ * @fileOverview Private Chat Thread.
+ * FEATURES: Voice Note Flow (Record -> Stop -> Preview -> Send), Forward, Deletion rules.
+ */
 
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
@@ -61,6 +67,11 @@ export default function ChatThreadPage() {
     const messageMapRef = useRef<Map<string, any>>(new Map());
     const fileInputRef = useRef<HTMLInputElement>(null);
     
+    const [isForwardOpen, setIsForwardOpen] = useState(false);
+    const [forwardTargetId, setForwardTargetId] = useState('');
+    const [forwardMessage, setForwardMessage] = useState<any>(null);
+    const [recentContacts, setRecentContacts] = useState<any[]>([]);
+
     const chatId = useMemo(() => {
         if (!currentUser?.$id || !otherUserId) return null;
         return getChatId(currentUser.$id, otherUserId);
@@ -70,33 +81,20 @@ export default function ChatThreadPage() {
         if (!chatId || !currentUser) return;
 
         const markAsSeen = async () => {
-            const q = query(
-                collection(db, COLLECTION_ID_MESSAGES),
-                where('chatId', '==', chatId)
-            );
+            const q = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', chatId));
             const snapshot = await getDocs(q);
             if (snapshot.empty) return;
-
             const batch = writeBatch(db);
-            let hasChanges = false;
+            let changed = false;
             snapshot.docs.forEach(d => {
-                const data = d.data();
-                if (data.senderId === otherUserId && data.status !== 'seen') {
+                if (d.data().senderId === otherUserId && d.data().status !== 'seen') {
                     batch.update(d.ref, { status: 'seen' });
-                    hasChanges = true;
+                    changed = true;
                 }
             });
-            if (hasChanges) await batch.commit();
+            if (changed) await batch.commit();
         };
-
         markAsSeen();
-    }, [chatId, currentUser, otherUserId, messages.length]);
-
-    useEffect(() => {
-        if (!chatId || !currentUser) return;
-
-        const chatRef = doc(db, COLLECTION_ID_CHATS, chatId);
-        updateDoc(chatRef, { [`unreadCount.${currentUser.$id}`]: 0 }).catch(() => {});
 
         const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
             if (d.exists()) setOtherUser(d.data());
@@ -106,13 +104,12 @@ export default function ChatThreadPage() {
         const unsub = onSnapshot(q, (snapshot) => {
             snapshot.docChanges().forEach(change => {
                 const data = change.doc.data();
-                const id = change.doc.id;
-                messageMapRef.current.set(id, { $id: id, ...data });
+                messageMapRef.current.set(change.doc.id, { $id: change.doc.id, ...data });
             });
             const sorted = Array.from(messageMapRef.current.values()).sort((a, b) => {
-                const timeA = a.createdAt?.toMillis?.() || new Date(a.createdAt || 0).getTime() || 0;
-                const timeB = b.createdAt?.toMillis?.() || new Date(b.createdAt || 0).getTime() || 0;
-                return timeA - timeB;
+                const tA = a.createdAt?.toMillis?.() || new Date(a.createdAt || 0).getTime() || 0;
+                const tB = b.createdAt?.toMillis?.() || new Date(b.createdAt || 0).getTime() || 0;
+                return tA - tB;
             });
             setMessages(sorted);
         });
@@ -125,7 +122,6 @@ export default function ChatThreadPage() {
     const handleSend = async (textOverride?: string, mediaData?: any) => {
         if (!chatId || !currentUser) return;
         const text = textOverride !== undefined ? textOverride : newMessage.trim();
-        
         if (!text && !mediaData) return;
         if (textOverride === undefined && !mediaData) setNewMessage('');
 
@@ -142,46 +138,11 @@ export default function ChatThreadPage() {
             });
             await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
                 participants: [currentUser.$id, otherUserId],
-                lastMessage: text ? (text.length > 30 ? text.substring(0,30)+'...' : text) : `Sent a voice note`,
+                lastMessage: text ? (text.length > 30 ? text.substring(0,30)+'...' : text) : `Shared a file`,
                 lastMessageAt: serverTimestamp(),
                 [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
-        } catch (e) { toast({ variant: 'destructive', title: 'Error sending message' }); }
-    };
-
-    const handleDeleteForMe = async (msgId: string) => {
-        try {
-            await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), {
-                deleteFor: arrayUnion(currentUser?.$id)
-            });
-            toast({ title: "Deleted for me" });
-        } catch (e) { toast({ variant: 'destructive', title: "Failed to delete" }); }
-    };
-
-    const handleDeleteForBoth = async (msgId: string) => {
-        try {
-            await deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msgId));
-            messageMapRef.current.delete(msgId);
-            setMessages(prev => prev.filter(m => m.$id !== msgId));
-            toast({ title: "Deleted for everyone" });
-        } catch (e) { toast({ variant: 'destructive', title: "Delete Failed" }); }
-    };
-
-    const handleStartCall = async () => {
-        if (!currentUser || !otherUserId) return;
-        const callId = ID.unique();
-        try {
-            await setDoc(doc(db, COLLECTION_ID_MEETINGS, callId), {
-                hostId: currentUser.$id,
-                type: 'call',
-                status: 'pending',
-                invitedUsers: [otherUserId],
-                createdAt: serverTimestamp()
-            });
-            router.push(`/dashboard/chat/call/${callId}`);
-        } catch (e) {
-            toast({ variant: 'destructive', title: 'Call Failed' });
-        }
+        } catch (e) { toast({ variant: 'destructive', title: 'Send Error' }); }
     };
 
     const startRecording = async () => {
@@ -191,21 +152,17 @@ export default function ChatThreadPage() {
             const recorder = new MediaRecorder(stream);
             mediaRecorderRef.current = recorder;
             const chunks: BlobPart[] = [];
-
             recorder.ondataavailable = (e) => chunks.push(e.data);
             recorder.onstop = () => {
                 const blob = new Blob(chunks, { type: 'audio/webm' });
                 setAudioBlob(blob);
                 setAudioUrl(URL.createObjectURL(blob));
             };
-
             recorder.start();
             setIsRecording(true);
             setRecordingDuration(0);
-            timerRef.current = setInterval(() => setRecordingDuration(prev => prev + 1), 1000);
-        } catch (err) {
-            toast({ variant: 'destructive', title: 'Mic access denied' });
-        }
+            timerRef.current = setInterval(() => setRecordingDuration(p => p + 1), 1000);
+        } catch (err) { toast({ variant: 'destructive', title: 'Mic Access Error' }); }
     };
 
     const stopRecording = () => {
@@ -219,27 +176,20 @@ export default function ChatThreadPage() {
     const handleSendVoice = async () => {
         if (!audioBlob) return;
         setIsUploading(true);
-        toast({ title: 'Sending voice note...' });
-
+        toast({ title: 'Uploading voice note...' });
         try {
             const reader = new FileReader();
-            const b64: string = await new Promise((resolve) => {
-                reader.onloadend = () => resolve(reader.result as string);
+            const b64: string = await new Promise((res) => {
+                reader.onloadend = () => res(reader.result as string);
                 reader.readAsDataURL(audioBlob);
             });
-
-            const uploadRes = await uploadToCloudinary(b64, 'auto');
-            if (uploadRes.success) {
-                await handleSend('', { url: uploadRes.url, type: 'audio' });
+            const up = await uploadToCloudinary(b64, 'auto');
+            if (up.success) {
+                await handleSend('', { url: up.url, type: 'audio' });
                 cancelRecording();
-            } else {
-                throw new Error(uploadRes.message);
-            }
-        } catch (err: any) {
-            toast({ variant: 'destructive', title: 'Voice note failed', description: err.message });
-        } finally {
-            setIsUploading(false);
-        }
+            } else throw new Error(up.message);
+        } catch (err: any) { toast({ variant: 'destructive', title: 'Failed', description: err.message }); }
+        finally { setIsUploading(false); }
     };
 
     const cancelRecording = () => {
@@ -249,12 +199,25 @@ export default function ChatThreadPage() {
         if (timerRef.current) clearInterval(timerRef.current);
     };
 
+    const handleStartCall = async () => {
+        if (!currentUser || !otherUserId) return;
+        const callId = ID.unique().substring(0, 20);
+        try {
+            await setDoc(doc(db, COLLECTION_ID_MEETINGS, callId), {
+                hostId: currentUser.$id,
+                type: 'call',
+                status: 'pending',
+                invitedUsers: [otherUserId],
+                createdAt: serverTimestamp()
+            });
+            router.push(`/dashboard/chat/call/${callId}`);
+        } catch (e) { toast({ variant: 'destructive', title: 'Call Error' }); }
+    };
+
     const DeliveryStatus = ({ status, receiverOnline }: { status: string, receiverOnline?: boolean }) => {
         switch (status) {
-            case 'sent': 
-                return receiverOnline ? <span className="text-[10px]" title="Delivered">☑️☑️</span> : <span className="text-[10px]" title="Sent">☑️</span>;
-            case 'seen': 
-                return <span className="text-[10px]" title="Seen">✅</span>;
+            case 'sent': return receiverOnline ? <span className="text-[10px]">☑️☑️</span> : <span className="text-[10px]">☑️</span>;
+            case 'seen': return <span className="text-[10px]">✅</span>;
             default: return null;
         }
     };
@@ -265,7 +228,10 @@ export default function ChatThreadPage() {
                 <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-10 w-10 rounded-full bg-muted/50"><ArrowLeft className="h-5 w-5" /></Button>
                 {otherUser && (
                     <div className="flex-1 flex items-center gap-3 overflow-hidden ml-1">
-                        <Avatar className="h-11 w-11 border-2 border-primary/10 shadow-sm"><AvatarImage src={otherUser.avatar} className="object-cover" /><AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0)}</AvatarFallback></Avatar>
+                        <Avatar className="h-11 w-11 border-2 border-primary/10 shadow-sm">
+                            <AvatarImage src={otherUser.avatar} className="object-cover" />
+                            <AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0)}</AvatarFallback>
+                        </Avatar>
                         <div className="truncate">
                             <h2 className="font-bold text-xs leading-none truncate tracking-tighter">{otherUser.username}</h2>
                             <p className={cn("text-[8px] font-black uppercase mt-1.5", otherUser.isOnline ? "text-green-500 animate-pulse" : "text-muted-foreground")}>
@@ -286,27 +252,22 @@ export default function ChatThreadPage() {
                                 <div className={cn("p-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold leading-relaxed", isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="flex-1">
-                                            {msg.mediaType === 'audio' ? (
-                                                <audio src={msg.mediaUrl} controls className="h-8 max-w-[200px]" />
-                                            ) : (
-                                                <p className="whitespace-pre-wrap">{msg.text}</p>
-                                            )}
+                                            {msg.mediaType === 'audio' ? <audio src={msg.mediaUrl} controls className="h-8 max-w-[200px]" /> : <p className="whitespace-pre-wrap">{msg.text}</p>}
                                         </div>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 -mt-2 opacity-30 hover:opacity-100 transition-opacity">
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                </Button>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 -mt-2 opacity-30 hover:opacity-100"><MoreHorizontal className="h-4 w-4" /></Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align={isMine ? 'end' : 'start'} className="font-black uppercase text-[9px]">
-                                                <DropdownMenuItem onClick={() => handleDeleteForMe(msg.$id)}>
+                                                <DropdownMenuItem onClick={() => updateDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id), { deleteFor: arrayUnion(currentUser?.$id) })}>
                                                     <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for me
                                                 </DropdownMenuItem>
                                                 {isMine && (
-                                                    <DropdownMenuItem onClick={() => handleDeleteForBoth(msg.$id)} className="text-destructive">
-                                                        <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for everyone
+                                                    <DropdownMenuItem onClick={() => deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id))} className="text-destructive">
+                                                        <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for both
                                                     </DropdownMenuItem>
                                                 )}
+                                                <DropdownMenuItem onClick={() => { setForwardMessage(msg); setIsForwardOpen(true); }}><Forward className="mr-2 h-3.5 w-3.5" /> Forward</DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </div>
@@ -337,21 +298,25 @@ export default function ChatThreadPage() {
                     </div>
                 ) : (
                     <div className="max-w-xl mx-auto w-full flex items-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-full text-muted-foreground hover:bg-muted"><Paperclip className="h-5 w-5" /></Button>
-                        <Button variant="ghost" size="icon" onClick={handleStartCall} className="h-11 w-11 rounded-full text-primary hover:bg-primary/10"><Phone className="h-5 w-5" /></Button>
-                        <Input 
-                            placeholder="Type message..." 
-                            value={newMessage} 
-                            onChange={e => setNewMessage(e.target.value)} 
-                            onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} 
-                            className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" 
-                        />
+                        <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-full"><Paperclip className="h-5 w-5" /></Button>
+                        <Button variant="ghost" size="icon" onClick={handleStartCall} className="h-11 w-11 rounded-full text-primary"><Phone className="h-5 w-5" /></Button>
+                        <Input placeholder="Type message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />
                         <Button onClick={startRecording} variant="ghost" size="icon" className="h-11 w-11 rounded-full text-primary hover:bg-primary/10"><Mic className="h-5 w-5" /></Button>
                         <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() || isUploading} className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90">{isUploading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5 text-white" />}</Button>
                     </div>
                 )}
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,application/pdf" />
             </footer>
+
+            <Dialog open={isForwardOpen} onOpenChange={setIsForwardOpen}>
+                <DialogContent className="rounded-[2.5rem]">
+                    <DialogHeader><DialogTitle className="text-center font-black uppercase text-sm">Forward Message</DialogTitle></DialogHeader>
+                    <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-4">Select contact to send</p>
+                        <Button variant="outline" className="w-full h-14 rounded-2xl font-black uppercase text-[10px]" onClick={() => { handleSend(forwardMessage.text, forwardMessage.mediaUrl ? {url: forwardMessage.mediaUrl, type: forwardMessage.mediaType} : null); setIsForwardOpen(false); toast({title: 'Forwarded'}); }}>Resend Here</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

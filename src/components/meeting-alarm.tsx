@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -11,7 +12,8 @@ import { isBefore, subMinutes } from 'date-fns';
 
 /**
  * @fileOverview Hardened Alarm Engine.
- * BUILD FIX: Safe audio handling for SSR.
+ * BUILD FIX: Safe browser-only Audio handling.
+ * LOGIC: Ring instantly for past times set today.
  */
 
 export function MeetingAlarm() {
@@ -42,11 +44,12 @@ export function MeetingAlarm() {
           return;
         }
 
+        // Ring for Admin if scheduled time has reached or passed (today)
         const myMeeting = res.documents.find(m => 
             m.hostId === user.$id && 
             m.type !== 'call' && 
             isBefore(new Date(m.scheduledAt), now) && 
-            isBefore(subMinutes(now, 30), new Date(m.scheduledAt))
+            m.status === 'pending'
         );
 
         if (myMeeting && !isRinging && !rungIds.current.has(myMeeting.$id)) {

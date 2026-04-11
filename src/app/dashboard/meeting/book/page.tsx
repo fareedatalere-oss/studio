@@ -17,6 +17,11 @@ import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, ID } from '@/lib/appwrite';
 import { format, parse } from 'date-fns';
 
+/**
+ * @fileOverview Meeting Booking Page.
+ * STRICT SCHEDULING: Locked to today's date. Ring immediately if time has passed.
+ */
+
 export default function BookMeetingPage() {
   const router = useRouter();
   const { toast } = useToast();
