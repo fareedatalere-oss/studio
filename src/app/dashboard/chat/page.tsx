@@ -158,7 +158,7 @@ export default function ChatPage() {
                     </Button>
                     <h1 className="font-black uppercase text-xs tracking-[0.3em] text-primary">Chat Center</h1>
                     <Button asChild variant="ghost" size="icon" className="h-10 w-10 bg-primary/10 text-primary rounded-full shadow-inner">
-                        <Link href="/dashboard/meeting" title="I-Pay Meeting Hub"><Video className="h-5 w-5" /></Link>
+                        <Link href="/dashboard/meeting" title="Meeting Hub"><Video className="h-5 w-5" /></Link>
                     </Button>
                 </div>
                 

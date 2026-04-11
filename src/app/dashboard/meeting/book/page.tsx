@@ -26,7 +26,7 @@ export default function BookMeetingPage() {
     type: 'personal',
   });
   const [isProcessing, setIsProcessing] = useState(false);
-  const [links, setLinks] = useState<{ admin: string; guest: string } | null>(null);
+  const [meetingLink, setMeetingLink] = useState<string | null>(null);
 
   const handleCreateMeeting = async () => {
     if (!formData.name || !user) {
@@ -37,8 +37,7 @@ export default function BookMeetingPage() {
     setIsProcessing(true);
     try {
         const meetingId = ID.unique();
-        const guestLink = `${window.location.origin}/dashboard/meeting/join/${meetingId}`;
-        const adminLink = `${window.location.origin}/dashboard/meeting/join/${meetingId}?role=admin`;
+        const generatedLink = `${window.location.origin}/dashboard/meeting/join/${meetingId}`;
         
         const payload = {
             hostId: user.$id,
@@ -46,16 +45,15 @@ export default function BookMeetingPage() {
             description: formData.description,
             type: formData.type,
             status: 'pending',
-            meetingLink: guestLink,
-            adminLink: adminLink,
+            meetingLink: generatedLink,
             boardContent: '',
             createdAt: new Date().toISOString()
         };
 
         await databases.createDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, payload);
         
-        setLinks({ admin: adminLink, guest: guestLink });
-        toast({ title: 'Links Generated!' });
+        setMeetingLink(generatedLink);
+        toast({ title: 'Meeting Link Generated!' });
     } catch (e: any) {
         toast({ variant: 'destructive', title: 'Error', description: e.message });
     } finally {
@@ -63,12 +61,12 @@ export default function BookMeetingPage() {
     }
   };
 
-  const copyToClipboard = (text: string, label: string) => {
+  const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast({ title: `${label} copied!` });
+    toast({ title: `Link copied!` });
   };
 
-  if (links) {
+  if (meetingLink) {
       return (
         <div className="container py-8 max-w-lg">
             <Card className="rounded-[3rem] shadow-2xl border-none p-10 text-center relative overflow-hidden">
@@ -78,37 +76,25 @@ export default function BookMeetingPage() {
                 </div>
                 <CardHeader>
                     <CardTitle className="text-3xl font-black uppercase tracking-tighter">Meeting Ready</CardTitle>
-                    <CardDescription className="font-bold">Two links have been generated for you.</CardDescription>
+                    <CardDescription className="font-bold">Share this link with your participants.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 mt-4">
-                    <div className="space-y-4">
-                        <div className="p-4 rounded-2xl bg-yellow-50 border border-yellow-200 text-left">
-                            <Label className="flex items-center gap-2 text-[9px] font-black uppercase text-yellow-700 mb-2">
-                                <ShieldCheck className="h-3 w-3" /> Chairman (Admin) Link
-                            </Label>
-                            <div className="flex items-center gap-2">
-                                <p className="text-[10px] font-mono truncate flex-1 text-yellow-800">{links.admin}</p>
-                                <Button size="icon" variant="ghost" onClick={() => copyToClipboard(links.admin, 'Chairman Link')} className="shrink-0 h-8 w-8"><Copy className="h-3 w-3" /></Button>
-                            </div>
-                        </div>
-
-                        <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 text-left">
-                            <Label className="flex items-center gap-2 text-[9px] font-black uppercase text-primary mb-2">
-                                <User className="h-3 w-3" /> Guest Link
-                            </Label>
-                            <div className="flex items-center gap-2">
-                                <p className="text-[10px] font-mono truncate flex-1 text-primary">{links.guest}</p>
-                                <Button size="icon" variant="ghost" onClick={() => copyToClipboard(links.guest, 'Guest Link')} className="shrink-0 h-8 w-8"><Copy className="h-3 w-3" /></Button>
-                            </div>
+                    <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 text-left">
+                        <Label className="flex items-center gap-2 text-[9px] font-black uppercase text-primary mb-2">
+                            Meeting Link
+                        </Label>
+                        <div className="flex items-center gap-2">
+                            <p className="text-[10px] font-mono truncate flex-1 text-primary">{meetingLink}</p>
+                            <Button size="icon" variant="ghost" onClick={() => copyToClipboard(meetingLink)} className="shrink-0 h-8 w-8"><Copy className="h-3 w-3" /></Button>
                         </div>
                     </div>
                     <p className="text-[10px] font-bold text-muted-foreground leading-relaxed italic">
-                        "Use the Chairman link to enter your setup page. You must approve guests before they can enter."
+                        "Anyone with this link can join the meeting directly without signing in."
                     </p>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-3">
                     <Button asChild className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-xl">
-                        <Link href={links.admin}>Enter as Chairman</Link>
+                        <Link href={meetingLink}>Enter Room</Link>
                     </Button>
                     <Button asChild variant="ghost" className="font-black uppercase text-[10px]">
                         <Link href="/dashboard/meeting">Back to Hub</Link>
@@ -128,13 +114,13 @@ export default function BookMeetingPage() {
       <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
         <CardHeader className="bg-primary/5 pb-8">
           <CardTitle className="text-2xl font-black uppercase tracking-tighter text-center">New Meeting</CardTitle>
-          <CardDescription className="text-center font-bold">Generate your secure room links</CardDescription>
+          <CardDescription className="text-center font-bold">Generate a secure room link</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-8">
           <div className="space-y-2">
             <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Meeting Name</Label>
             <Input 
-              placeholder="e.g., Business Sync" 
+              placeholder="e.g., Team Sync" 
               className="h-12 rounded-2xl bg-muted border-none px-6 font-bold"
               value={formData.name}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
@@ -164,7 +150,7 @@ export default function BookMeetingPage() {
                   <RadioGroupItem value="personal" id="personal" className="sr-only" />
                 </div>
                 <p className="font-black text-xs uppercase tracking-tighter">Personal</p>
-                <p className="text-[9px] leading-tight text-muted-foreground font-bold">Max 5 People • 1 Hour</p>
+                <p className="text-[9px] leading-tight text-muted-foreground font-bold">Max 5 People • 1 Hour • Free</p>
               </div>
 
               <div className={cn(
@@ -183,7 +169,7 @@ export default function BookMeetingPage() {
         </CardContent>
         <CardFooter className="p-8 bg-muted/30">
           <Button onClick={handleCreateMeeting} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-xl" disabled={isProcessing}>
-            {isProcessing ? <Loader2 className="animate-spin" /> : <><Video className="mr-2 h-5 w-5" /> Generate Links</>}
+            {isProcessing ? <Loader2 className="animate-spin" /> : <><Video className="mr-2 h-5 w-5" /> Generate Meeting Link</>}
           </Button>
         </CardFooter>
       </Card>

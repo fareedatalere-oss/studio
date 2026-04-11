@@ -153,7 +153,7 @@ export default function ChatThreadPage() {
                 setRecordedBlob(audioBlob);
                 setRecordedAudioUrl(URL.createObjectURL(audioBlob));
                 stream.getTracks().forEach(track => track.stop());
-                setIsRecording(false); // Reset recording state here
+                setIsRecording(false);
             };
 
             mediaRecorder.start();
@@ -176,15 +176,16 @@ export default function ChatThreadPage() {
         setIsUploading(true);
         try {
             const reader = new FileReader();
-            const base64: string = await new Promise((resolve) => {
+            const base64: string = await new Promise((resolve, reject) => {
                 reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
                 reader.readAsDataURL(recordedBlob);
             });
+            
             const upload = await uploadToCloudinary(base64, 'auto');
             if (upload.success) {
                 await handleSend('', { url: upload.url, type: 'audio' });
-                setRecordedAudioUrl(null);
-                setRecordedBlob(null);
+                clearVoiceNote();
             } else {
                 throw new Error(upload.message);
             }
@@ -199,6 +200,7 @@ export default function ChatThreadPage() {
         setRecordedAudioUrl(null);
         setRecordedBlob(null);
         setIsRecording(false);
+        setIsPlayingReview(false);
     };
 
     const handleStartCall = async () => {
@@ -274,7 +276,7 @@ export default function ChatThreadPage() {
                         <Button variant="ghost" size="icon" onClick={() => { if(reviewAudioRef.current?.paused) reviewAudioRef.current?.play(); else reviewAudioRef.current?.pause(); }} className="h-10 w-10 rounded-full bg-background shadow-sm">
                             {isPlayingReview ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                         </Button>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Voice Note Review</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Review Recording</p>
                         <audio 
                             ref={reviewAudioRef} 
                             src={recordedAudioUrl} 
