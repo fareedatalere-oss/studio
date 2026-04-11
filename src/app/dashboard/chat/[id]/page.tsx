@@ -29,7 +29,6 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from "@/components/ui/dialog";
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -102,8 +101,7 @@ export default function ChatThreadPage() {
             snapshot.docChanges().forEach(change => {
                 const data = change.doc.data();
                 const id = change.doc.id;
-                if (data.deletedFor?.includes(currentUser.$id)) messageMapRef.current.delete(id);
-                else messageMapRef.current.set(id, { $id: id, ...data });
+                messageMapRef.current.set(id, { $id: id, ...data });
             });
             const sorted = Array.from(messageMapRef.current.values()).sort((a, b) => {
                 const timeA = a.createdAt?.toMillis?.() || new Date(a.createdAt || 0).getTime() || 0;
@@ -145,9 +143,8 @@ export default function ChatThreadPage() {
                 senderId: currentUser.$id, 
                 text: text || '', 
                 status: 'sent',
-                deletedFor: [], 
                 createdAt: serverTimestamp(),
-                ...(mediaData && { mediaUrl: mediaData.url, mediaType: mediaData.type, duration: mediaData.duration })
+                ...(mediaData && { mediaUrl: mediaData.url, mediaType: mediaData.type })
             });
             await setDoc(doc(db, COLLECTION_ID_CHATS, activeChatId!), {
                 participants: [currentUser.$id, activeParticipantId],
@@ -163,6 +160,8 @@ export default function ChatThreadPage() {
     const handleDeleteMessage = async (msgId: string) => {
         try {
             await deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msgId));
+            messageMapRef.current.delete(msgId);
+            setMessages(prev => prev.filter(m => m.$id !== msgId));
             toast({ title: "Message Deleted" });
         } catch (e) {
             toast({ variant: 'destructive', title: "Delete Failed" });
@@ -173,10 +172,10 @@ export default function ChatThreadPage() {
         if (!currentUser || !otherUserId) return;
         const callId = ID.unique();
         try {
+            // Initiate a Private Call
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, {
                 hostId: currentUser.$id,
                 type: 'call',
-                name: 'Private Call',
                 status: 'pending',
                 invitedUsers: [otherUserId],
                 createdAt: new Date().toISOString()
@@ -225,7 +224,7 @@ export default function ChatThreadPage() {
                                         <p className="whitespace-pre-wrap flex-1">{msg.text}</p>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 -mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 -mt-2 opacity-30 hover:opacity-100 transition-opacity">
                                                     <MoreHorizontal className="h-4 w-4" />
                                                 </Button>
                                             </DropdownMenuTrigger>
@@ -274,9 +273,9 @@ export default function ChatThreadPage() {
             {/* Forwarding Dialog */}
             <Dialog open={!!forwardMsg} onOpenChange={(o) => !o && setForwardMsg(null)}>
                 <DialogContent className="rounded-[2.5rem] p-0 overflow-hidden border-none max-w-sm">
-                    <DialogHeader className="p-6 bg-primary text-white">
-                        <DialogTitle className="font-black uppercase tracking-widest text-center text-sm">Forward Message</DialogTitle>
-                    </DialogHeader>
+                    <div className="p-6 bg-primary text-white text-center">
+                        <h3 className="font-black uppercase tracking-widest text-sm">Forward Message</h3>
+                    </div>
                     <div className="max-h-[400px] overflow-y-auto p-4 space-y-2">
                         <p className="text-[9px] font-black uppercase text-muted-foreground mb-4 px-2">Recent Contacts</p>
                         {recentChats.map(chat => (
