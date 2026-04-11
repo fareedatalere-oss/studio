@@ -266,11 +266,14 @@ export default function ChatThreadPage() {
         if (timerRef.current) clearInterval(timerRef.current);
     };
 
-    const DeliveryStatus = ({ status }: { status: string }) => {
+    const DeliveryStatus = ({ status, receiverOnline }: { status: string, receiverOnline?: boolean }) => {
         switch (status) {
-            case 'sent': return <Check className="h-3 w-3 opacity-40" />;
-            case 'delivered': return <CheckCheck className="h-3 w-3 opacity-40" />;
-            case 'seen': return <CheckCheck className="h-3 w-3 text-green-500" />;
+            case 'sent': 
+                return receiverOnline ? <CheckCheck className="h-3 w-3 opacity-40" /> : <Check className="h-3 w-3 opacity-40" />;
+            case 'delivered': 
+                return <CheckCheck className="h-3 w-3 opacity-40" />;
+            case 'seen': 
+                return <CheckCheck className="h-3 w-3 text-green-500" />;
             default: return null;
         }
     };
@@ -331,7 +334,7 @@ export default function ChatThreadPage() {
                                     </div>
                                     <div className="flex items-center justify-end gap-1 mt-1">
                                         <span className="text-[6px] font-black uppercase opacity-60">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : '...'}</span>
-                                        {isMine && <DeliveryStatus status={msg.status} />}
+                                        {isMine && <DeliveryStatus status={msg.status} receiverOnline={otherUser?.isOnline} />}
                                     </div>
                                 </div>
                             </div>
