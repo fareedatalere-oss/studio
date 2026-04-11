@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, Suspense } from 'react';
@@ -68,15 +69,13 @@ function MeetingJoinContent() {
                     return;
                 }
 
-                // Check room capacity for Personal meetings (Limit 5)
+                // Room capacity check
                 if (doc.type === 'personal') {
                     const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
                         Query.equal('meetingId', meetingId),
                         Query.equal('status', 'approved')
                     ]);
-                    if (attendees.total >= 5) {
-                        setIsFull(true);
-                    }
+                    if (attendees.total >= 5) setIsFull(true);
                 }
             } catch (e: any) {
                 if (e.code === 404) setStep('expired');
@@ -92,9 +91,7 @@ function MeetingJoinContent() {
                     videoRef.current.srcObject = stream;
                     setHasCamera(true);
                 }
-            }).catch(() => {
-                setHasCamera(false);
-            });
+            }).catch(() => setHasCamera(false));
         }
     }, [meetingId]);
 
@@ -130,19 +127,6 @@ function MeetingJoinContent() {
         setIsSubmitting(true);
         try {
             const isActuallyAdmin = isAdminLink || authUser?.$id === meeting.hostId;
-
-            // Enforce capacity
-            if (meeting.type === 'personal' && !isActuallyAdmin) {
-                const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
-                    Query.equal('meetingId', meetingId),
-                    Query.equal('status', 'approved')
-                ]);
-                if (attendees.total >= 5) {
-                    setIsFull(true);
-                    setIsSubmitting(false);
-                    return;
-                }
-            }
 
             const requestId = ID.unique();
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, requestId, {

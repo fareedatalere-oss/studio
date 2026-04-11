@@ -8,12 +8,12 @@ import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query, client } from '@
 import { useUser } from '@/hooks/use-appwrite';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter } from 'next/navigation';
-import { isBefore, subMinutes } from 'date-fns';
+import { isBefore } from 'date-fns';
 
 /**
  * @fileOverview Hardened Alarm Engine.
- * BUILD FIX: Safe browser-only Audio handling.
- * LOGIC: Ring instantly for past times set today.
+ * SSR FIX: Audio handled strictly client-side.
+ * LOGIC: Ring instantly for past times set today. Host only.
  */
 
 export function MeetingAlarm() {
@@ -36,6 +36,7 @@ export function MeetingAlarm() {
           Query.limit(10)
         ]);
 
+        // 1. Direct Calls
         const incomingCall = res.documents.find(m => m.type === 'call' && m.invitedUsers?.includes(user.$id));
         if (incomingCall && !isRinging && !rungIds.current.has(incomingCall.$id)) {
           const caller = await databases.getDocument(DATABASE_ID, 'profiles', incomingCall.hostId).catch(() => null);
@@ -44,7 +45,7 @@ export function MeetingAlarm() {
           return;
         }
 
-        // Ring for Admin if scheduled time has reached or passed (today)
+        // 2. Scheduled Meetings (Host Only)
         const myMeeting = res.documents.find(m => 
             m.hostId === user.$id && 
             m.type !== 'call' && 
@@ -146,7 +147,7 @@ export function MeetingAlarm() {
                 {activeCall ? `@${activeCall.callerName}` : scheduledMeeting?.name}
             </h2>
             <p className="text-muted-foreground font-bold text-[10px] mt-1 uppercase opacity-60">
-                {scheduledMeeting ? 'Your Scheduled Meeting is Starting' : 'Private Direct Call'}
+                {scheduledMeeting ? 'Meeting Scheduled Start' : 'Private Direct Call'}
             </p>
         </div>
       </div>

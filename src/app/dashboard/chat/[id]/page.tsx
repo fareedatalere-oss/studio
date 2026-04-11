@@ -10,7 +10,7 @@ import {
     serverTimestamp, setDoc, updateDoc, 
     increment, getDocs, writeBatch, deleteDoc, arrayUnion
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, ID } from '@/lib/appwrite';
 import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreHorizontal, Trash2, Forward, Mic, X, CheckCircle2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -34,7 +34,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Chat Thread.
- * FEATURES: Voice Note Flow (Record -> Stop -> Preview -> Send), Forward, Deletion rules.
+ * FEATURES: Voice Note Flow (Record -> Stop -> Preview -> Send), Smart Deletion (Sender/Receiver), Forward.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -68,9 +68,7 @@ export default function ChatThreadPage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     
     const [isForwardOpen, setIsForwardOpen] = useState(false);
-    const [forwardTargetId, setForwardTargetId] = useState('');
     const [forwardMessage, setForwardMessage] = useState<any>(null);
-    const [recentContacts, setRecentContacts] = useState<any[]>([]);
 
     const chatId = useMemo(() => {
         if (!currentUser?.$id || !otherUserId) return null;
@@ -203,7 +201,7 @@ export default function ChatThreadPage() {
         if (!currentUser || !otherUserId) return;
         const callId = ID.unique().substring(0, 20);
         try {
-            await setDoc(doc(db, COLLECTION_ID_MEETINGS, callId), {
+            await setDoc(doc(db, 'meetings', callId), {
                 hostId: currentUser.$id,
                 type: 'call',
                 status: 'pending',
@@ -312,7 +310,7 @@ export default function ChatThreadPage() {
                 <DialogContent className="rounded-[2.5rem]">
                     <DialogHeader><DialogTitle className="text-center font-black uppercase text-sm">Forward Message</DialogTitle></DialogHeader>
                     <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-4">Select contact to send</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-4">Click to resend here</p>
                         <Button variant="outline" className="w-full h-14 rounded-2xl font-black uppercase text-[10px]" onClick={() => { handleSend(forwardMessage.text, forwardMessage.mediaUrl ? {url: forwardMessage.mediaUrl, type: forwardMessage.mediaType} : null); setIsForwardOpen(false); toast({title: 'Forwarded'}); }}>Resend Here</Button>
                     </div>
                 </DialogContent>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -42,7 +43,9 @@ export default function MeetingRoomPage() {
         try {
             const docData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
             setMeeting(docData);
-            if (docData.status === 'ended' || docData.status === 'cancelled') router.replace('/dashboard/meeting');
+            if (docData.status === 'ended' || docData.status === 'cancelled') {
+                // Keep view for status message
+            }
         } catch (e) { router.replace('/dashboard/meeting'); } finally { setLoading(false); }
     }, [meetingId, router]);
 
@@ -65,7 +68,6 @@ export default function MeetingRoomPage() {
         
         const unsubMeeting = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${meetingId}`], response => {
             const payload = response.payload as any;
-            if (payload.status === 'ended' || payload.status === 'cancelled') router.replace('/dashboard/meeting');
             setMeeting(payload);
         });
 
@@ -102,6 +104,24 @@ export default function MeetingRoomPage() {
     };
 
     if (loading || !meeting) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
+
+    if (meeting.status === 'ended' || meeting.status === 'cancelled') {
+        return (
+            <div className="h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+                <Card className="max-w-md w-full rounded-[2.5rem] shadow-xl border-none p-10">
+                    <div className="bg-destructive/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <XCircle className="h-10 w-10 text-destructive" />
+                    </div>
+                    <h2 className="text-2xl font-black uppercase tracking-tighter">
+                        {meeting.status === 'cancelled' ? 'This meeting has been cancelled' : 'This meeting expire'}
+                    </h2>
+                    <Button asChild className="w-full h-12 rounded-full font-black uppercase tracking-widest mt-8">
+                        <Link href="/dashboard/meeting">Hub</Link>
+                    </Button>
+                </Card>
+            </div>
+        );
+    }
 
     return (
         <div className="h-screen w-full bg-black text-white flex flex-col overflow-hidden relative font-body">

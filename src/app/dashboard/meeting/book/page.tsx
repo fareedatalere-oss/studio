@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Users, Globe, Loader2, Video, Copy, CheckCircle2 } from 'lucide-react';
@@ -15,11 +15,12 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, ID } from '@/lib/appwrite';
-import { format, parse } from 'date-fns';
+import { format, parse, isBefore } from 'date-fns';
 
 /**
  * @fileOverview Meeting Booking Page.
- * STRICT SCHEDULING: Locked to today's date. Ring immediately if time has passed.
+ * FIXED: Parsing error corrected.
+ * STRICT SCHEDULING: Locked to Today. Ring instantly if time has passed.
  */
 
 export default function BookMeetingPage() {
@@ -27,17 +28,20 @@ export default function BookMeetingPage() {
   const { toast } = useToast();
   const { user } = useUser();
 
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
-
+  const [isMounted, setIsMounted] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     type: 'personal',
-    date: todayStr, // Locked to today
+    date: format(new Date(), 'yyyy-MM-dd'),
     time: format(new Date(), 'HH:mm'),
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [meetingLink, setMeetingLink] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleCreateMeeting = async () => {
     if (!formData.name || !user) {
@@ -50,10 +54,11 @@ export default function BookMeetingPage() {
         const meetingId = ID.unique();
         const generatedLink = `${window.location.origin}/dashboard/meeting/join/${meetingId}`;
         
-        // Strict DateTime Construction
-        const selectedDateTime = parse(`${formData.date} ${formData.time}`, 'yyyy-MM-dd HH:mm', new Date());
+        // Strict DateTime Construction for Today
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const selectedDateTime = parse(`${todayStr} ${formData.time}`, 'yyyy-MM-dd HH:mm', new Date());
         
-        // Calculate Expiry (Personal: 1hr, General: 3hrs)
+        // Expiry durations: Personal (1h), General (3h)
         const durationHours = formData.type === 'personal' ? 1 : 3;
         const expiryTime = new Date(selectedDateTime.getTime() + durationHours * 60 * 60 * 1000).toISOString();
 
@@ -87,6 +92,8 @@ export default function BookMeetingPage() {
     }
   };
 
+  if (!isMounted) return null;
+
   if (meetingLink) {
       return (
         <div className="container py-8 max-w-lg">
@@ -99,8 +106,8 @@ export default function BookMeetingPage() {
                     <CardTitle className="text-3xl font-black uppercase tracking-tighter">Meeting Ready</CardTitle>
                     <CardDescription className="font-bold text-xs">Share this link. Alarm will ring at the set time.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 mt-4">
-                    <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 text-left">
+                <CardContent className="space-y-6 mt-4 text-left">
+                    <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10">
                         <Label className="flex items-center gap-2 text-[9px] font-black uppercase text-primary mb-2">
                             Meeting Link
                         </Label>
@@ -131,9 +138,9 @@ export default function BookMeetingPage() {
       </Link>
 
       <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
-        <CardHeader className="bg-primary/5 pb-8">
-          <CardTitle className="text-2xl font-black uppercase tracking-tighter text-center">Setup Meeting</CardTitle>
-          <CardDescription className="text-center font-bold text-xs">Set time for today's session</CardDescription>
+        <CardHeader className="bg-primary/5 pb-8 text-center">
+          <CardTitle className="text-2xl font-black uppercase tracking-tighter">Setup Meeting</CardTitle>
+          <CardDescription className="font-bold text-xs text-center">Set time for today's session</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-8">
           <div className="grid grid-cols-2 gap-4">
