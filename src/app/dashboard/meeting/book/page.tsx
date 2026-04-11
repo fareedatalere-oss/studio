@@ -20,7 +20,7 @@ import { db } from '@/lib/firebase';
 
 /**
  * @fileOverview Meeting Booking Page.
- * FIXED: SSR compatibility and typo logic.
+ * FIXED: SSR compatibility and Label typo logic.
  */
 
 export default function BookMeetingPage() {
