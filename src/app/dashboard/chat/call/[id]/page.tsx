@@ -21,7 +21,7 @@ import Image from 'next/image';
 import { doc, updateDoc as firestoreUpdate } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-const CALL_EMOJIS = ["💐","🌹","🏵️","🌻","🎈","💋","🥀","🍫","🎉","💮","🎊","🎂","😍","🎁","💏","👩‍❤️_💋_👨","👨_❤️_💋_👨","👩_❤️_💋_👩","👩_❤️_👩","👨_❤️_👨","👩_❤️_👨","💑","🥰","😍","😇","🤩","😘","🫣","🥳","💓","💗","💖","💝","💘","💌","💞","💕","💟","❣️","💔","❤️‍🔥","❤️‍🩹","❤️","🤎","💜","🩵","💙","💚","💛","🧡","🩷","🖤","🩶","🤍","🫀","🫂","👥"];
+const CALL_EMOJIS = ["💐","🌹","🏵️","🌻","🎈","💋","🥀","🍫","🎉","💮","🎊","🎂","😍","🎁","💏","🥰","🥳","💓","💗","💖","💝","💘","💌","💞","💕","💟","❣️","💔","❤️‍🔥","❤️‍🩹","❤️","🤎","💜","🩵","💙","💚","💛","🧡","🩷","🖤","🩶","🤍","🫀","🫂","👥"];
 
 export default function PrivateCallPage() {
     const params = useParams();
@@ -33,7 +33,6 @@ export default function PrivateCallPage() {
     const [call, setCall] = useState<any>(null);
     const [partner, setPartner] = useState<any>(null);
     const [duration, setDuration] = useState(0);
-    const [isMuted, setIsMuted] = useState(false);
     
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isVideoOpen, setIsVideoOpen] = useState(false);
@@ -41,7 +40,6 @@ export default function PrivateCallPage() {
     
     const [chatInput, setChatInput] = useState('');
     const [messages, setMessages] = useState<any[]>([]);
-    const [isUploadingMedia, setIsUploadingMedia] = useState(false);
     
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -79,11 +77,14 @@ export default function PrivateCallPage() {
     }, [chatId]);
 
     useEffect(() => {
+        if (typeof window === 'undefined') return;
         fetchCall();
         const unsubCall = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${callId}`], response => {
             const payload = response.payload as any;
-            if (payload.status === 'ended') router.replace('/dashboard/chat');
-            setCall(payload);
+            if (payload.$id === callId) {
+                if (payload.status === 'ended') router.replace('/dashboard/chat');
+                setCall(payload);
+            }
         });
         return () => { unsubCall(); if (timerRef.current) clearInterval(timerRef.current); };
     }, [callId, fetchCall, router]);
@@ -106,7 +107,7 @@ export default function PrivateCallPage() {
     }, [isChatOpen, chatId, fetchMessages]);
 
     useEffect(() => {
-        if (isVideoOpen) {
+        if (isVideoOpen && typeof window !== 'undefined') {
             navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
                 if (selfVideoRef.current) selfVideoRef.current.srcObject = stream;
             }).catch(() => toast({ title: 'Camera Error' }));
@@ -128,7 +129,6 @@ export default function PrivateCallPage() {
         const file = e.target.files?.[0];
         if (!file || !uploadType) return;
 
-        setIsUploadingMedia(true);
         toast({ title: `Sharing ${uploadType}...` });
 
         try {
@@ -150,7 +150,6 @@ export default function PrivateCallPage() {
         } catch (error) {
             toast({ variant: 'destructive', title: 'Upload failed' });
         } finally {
-            setIsUploadingMedia(false);
             setUploadType(null);
         }
     };
@@ -266,10 +265,10 @@ export default function PrivateCallPage() {
                     <ScrollArea className="flex-1 p-6 space-y-4">
                         <div className="max-w-md mx-auto w-full space-y-4 pb-10">
                             {messages.map(m => (
-                                <div key={m.$id} className={cn("flex flex-col", m.senderId === user.$id ? "items-end" : "items-start")}>
+                                <div key={m.$id} className={cn("flex flex-col", m.senderId === user?.$id ? "items-end" : "items-start")}>
                                     <div className={cn(
                                         "p-4 rounded-[1.5rem] shadow-sm text-sm font-bold max-w-[80%]",
-                                        m.senderId === user.$id ? "bg-primary text-white rounded-tr-none" : "bg-muted text-black rounded-tl-none border"
+                                        m.senderId === user?.$id ? "bg-primary text-white rounded-tr-none" : "bg-muted text-black rounded-tl-none border"
                                     )}>
                                         {m.text}
                                     </div>
@@ -282,7 +281,7 @@ export default function PrivateCallPage() {
                     <footer className="p-4 bg-muted/20 border-t pb-10">
                         <div className="max-w-md mx-auto w-full space-y-4">
                             <div className="flex gap-2 items-center">
-                                <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-white shadow-sm" title="Emoji Keyboard (👈)"><Smile className="h-6 w-6 text-primary" /></Button>
+                                <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-white shadow-sm" title="Emoji Keyboard"><Smile className="h-6 w-6 text-primary" /></Button>
                                 <Input 
                                     value={chatInput} 
                                     onChange={e => setChatInput(e.target.value)} 
@@ -290,7 +289,7 @@ export default function PrivateCallPage() {
                                     placeholder="Keyboard..." 
                                     className="h-12 flex-1 rounded-2xl bg-white border-none px-6 font-bold shadow-inner"
                                 />
-                                <Button onClick={handleSendChat} size="icon" className="h-12 w-12 rounded-full bg-primary shadow-lg" title="Send (👉)"><Send className="h-5 w-5 text-white" /></Button>
+                                <Button onClick={handleSendChat} size="icon" className="h-12 w-12 rounded-full bg-primary shadow-lg"><Send className="h-5 w-5 text-white" /></Button>
                             </div>
                             
                             <ScrollArea className="w-full whitespace-nowrap pb-2">
@@ -311,7 +310,7 @@ export default function PrivateCallPage() {
                 </div>
             )}
 
-            {/* BLACK DISPLAY HUB OVERLAY */}
+            {/* DISPLAY HUB OVERLAY */}
             {(isDisplayOpen || (call.displayVisible && isConnected)) && (
                 <div className="absolute inset-0 z-[300] bg-black flex flex-col animate-in fade-in duration-300">
                     <header className="absolute top-12 left-0 right-0 flex items-center justify-between p-6 z-10">
@@ -320,7 +319,7 @@ export default function PrivateCallPage() {
                             <h2 className="text-white text-xl font-black uppercase tracking-widest">Display Hub</h2>
                         </div>
                         <Button variant="ghost" size="icon" onClick={async () => {
-                            if (user.$id === call.hostId) {
+                            if (user?.$id === call.hostId) {
                                 await firestoreUpdate(doc(db, COLLECTION_ID_MEETINGS, callId), { displayVisible: false });
                             }
                             setIsDisplayOpen(false);

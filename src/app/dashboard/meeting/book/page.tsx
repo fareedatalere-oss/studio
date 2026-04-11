@@ -4,22 +4,21 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Users, Globe, Loader2, Video, Copy, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Users, Loader2, Copy, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, ID } from '@/lib/appwrite';
-import { format, parse, isBefore } from 'date-fns';
+import { format, parse } from 'date-fns';
 
 /**
  * @fileOverview Meeting Booking Page.
- * FIXED: Parsing error corrected.
+ * FIXED: Parsing error corrected (LPabel -> Label).
  * STRICT SCHEDULING: Locked to Today. Ring instantly if time has passed.
  */
 
@@ -52,7 +51,7 @@ export default function BookMeetingPage() {
     setIsProcessing(true);
     try {
         const meetingId = ID.unique();
-        const generatedLink = `${window.location.origin}/dashboard/meeting/join/${meetingId}`;
+        const generatedLink = `${window.location.origin}/dashboard/meeting/join/${meetingId}?role=admin`;
         
         // Strict DateTime Construction for Today
         const todayStr = format(new Date(), 'yyyy-MM-dd');

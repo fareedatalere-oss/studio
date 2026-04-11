@@ -36,7 +36,7 @@ export function MeetingAlarm() {
           Query.limit(10)
         ]);
 
-        // 1. Direct Calls
+        // 1. Direct Calls (Receiver View)
         const incomingCall = res.documents.find(m => m.type === 'call' && m.invitedUsers?.includes(user.$id));
         if (incomingCall && !isRinging && !rungIds.current.has(incomingCall.$id)) {
           const caller = await databases.getDocument(DATABASE_ID, 'profiles', incomingCall.hostId).catch(() => null);
@@ -45,7 +45,7 @@ export function MeetingAlarm() {
           return;
         }
 
-        // 2. Scheduled Meetings (Host Only)
+        // 2. Scheduled Meetings (Host View)
         const myMeeting = res.documents.find(m => 
             m.hostId === user.$id && 
             m.type !== 'call' && 
@@ -64,11 +64,12 @@ export function MeetingAlarm() {
     
     const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
         const payload = response.payload as any;
-        if ((payload.status === 'ended' || payload.status === 'cancelled' || payload.status === 'connected') && 
-            (payload.$id === activeCall?.$id || payload.$id === scheduledMeeting?.$id)) {
-            stopRinging();
-            setActiveCall(null);
-            setScheduledMeeting(null);
+        if (payload.status === 'ended' || payload.status === 'cancelled' || payload.status === 'connected') {
+            if (payload.$id === activeCall?.$id || payload.$id === scheduledMeeting?.$id) {
+                stopRinging();
+                setActiveCall(null);
+                setScheduledMeeting(null);
+            }
         }
     });
 
