@@ -11,11 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
 
-/**
- * @fileOverview Meeting Entry Page.
- * Robust parsing for Chairman and Guest links.
- */
-
 export default function EnterMeetingPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -26,7 +21,7 @@ export default function EnterMeetingPage() {
     let cleanId = input.trim();
     let isAdmin = false;
 
-    // Robust Link & ID Parsing Logic
+    // INTELLIGENT LINK PARSING
     try {
         if (cleanId.includes('/join/')) {
             const url = new URL(cleanId.startsWith('http') ? cleanId : `https://${cleanId}`);
@@ -44,7 +39,7 @@ export default function EnterMeetingPage() {
             }
         }
     } catch (e) {
-        // Not a URL, treat as direct ID (already in cleanId)
+        // Fallback to direct ID
     }
 
     if (!cleanId) {

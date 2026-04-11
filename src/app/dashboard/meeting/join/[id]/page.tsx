@@ -46,6 +46,7 @@ function MeetingJoinContent() {
             try {
                 const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
                 
+                // ONLY EXPIRED IF EXPLICITLY ENDED BY ADMIN
                 if (meeting.status === 'ended') {
                     setIsExpired(true);
                     return;
@@ -61,9 +62,8 @@ function MeetingJoinContent() {
                     }
                 }
             } catch (e: any) {
-                if (e.code === 404) {
-                    setIsExpired(true);
-                }
+                // DON'T AUTO EXPIRE ON NETWORK ERRORS
+                console.error("Meeting Check Error:", e);
             } finally {
                 setLoadingMeeting(false);
             }

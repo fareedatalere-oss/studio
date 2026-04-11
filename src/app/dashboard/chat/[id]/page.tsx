@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -129,32 +130,6 @@ export default function ChatThreadPage() {
         } catch (e) { toast({ variant: 'destructive', title: 'Error sending message' }); }
     };
 
-    const initiateCall = async () => {
-        if (!otherUser?.isOnline) {
-            toast({ variant: 'destructive', title: "User Offline", description: "Recipient is not currently active." });
-            return;
-        }
-        
-        const callId = ID.unique();
-        toast({ title: "Connecting..." });
-        
-        try {
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, {
-                hostId: currentUser.$id,
-                name: `Call with ${myProfile.username}`,
-                type: 'call',
-                status: 'pending',
-                invitedUsers: [otherUserId],
-                createdAt: new Date().toISOString()
-            });
-            
-            // PUSH THE CALL: Redirect the caller to the room immediately
-            router.push(`/dashboard/meeting/room/${callId}`);
-        } catch (e) {
-            toast({ variant: 'destructive', title: "Call Failed" });
-        }
-    };
-
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -215,7 +190,7 @@ export default function ChatThreadPage() {
             if (forAll) await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { text: "deleted a message", isDeleted: true, mediaUrl: null, mediaType: null });
             else {
                 await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { deletedFor: arrayUnion(currentUser.$id) });
-                messageMapRef.current.delete(msgId);
+                messageMapRef.current.delete(id);
                 setMessages(prev => prev.filter(m => m.$id !== msgId));
             }
         } catch (e) {}
@@ -226,7 +201,6 @@ export default function ChatThreadPage() {
             <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-50 pt-12 shadow-sm">
                 <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-10 w-10 rounded-full bg-muted/50"><ArrowLeft className="h-5 w-5" /></Button>
-                    <Button variant="ghost" size="icon" onClick={initiateCall} className="h-10 w-10 rounded-full bg-muted/50 text-primary"><Phone className="h-5 w-5" /></Button>
                 </div>
                 {otherUser && (
                     <div className="flex-1 flex items-center gap-3 overflow-hidden ml-1">

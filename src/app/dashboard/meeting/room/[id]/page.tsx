@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -5,7 +6,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { 
     PhoneOff, Loader2, Camera, 
     Video, Volume2, Mic, MicOff, X,
-    MonitorPlay, Send, MessageSquare, Heart, Play, Pause, UploadCloud
+    MonitorPlay, Send, MessageSquare, Heart, Play, Pause, UploadCloud,
+    Layout
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-appwrite';
@@ -14,11 +16,10 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
-
-const LOVE_EMOJIS = ["😍", "♥️", "😍", "🥰", "😋", "🤩", "😘", "🧡", "💔", "❣️", "❤️‍🩹", "❤️", "💓", "💗", "🩷", "💖", "💞", "💘", "💕", "💚", "💟", "💌", "🖤", "🩶", "🤍", "💋", "🫦", "👄", "🫂", "👥", "🧑‍🧑‍🧒‍🧒", "👨‍👧‍👧", "👩‍👧", "👩‍👩‍👧‍👦", "👨‍👦", "👨‍👩‍👧‍👧", "👨‍👨‍👧‍👧", "👩‍👩‍👦‍👦", "👨‍👨‍👦‍👦", "👩‍👩‍👦", "👩‍👩‍👧‍👦", "💏", "👩‍❤️‍💋‍👨", "👨‍❤️‍💋‍👨", "👩‍❤️‍💋‍👩", "👩‍❤️‍👩", "👨‍❤️‍👨", "👩‍❤️‍👨", "💑"];
 
 export default function MeetingRoomPage() {
     const params = useParams();
@@ -29,109 +30,29 @@ export default function MeetingRoomPage() {
 
     const [meeting, setMeeting] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [durationSeconds, setDurationSeconds] = useState(0);
-    
     const [participants, setParticipants] = useState<any[]>([]);
-    const [partnerProfile, setPartnerProfile] = useState<any>(null);
+    const [waitingList, setWaitingList] = useState<any[]>([]);
     
-    const [useCamera, setUseCamera] = useState(false);
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const localStreamRef = useRef<MediaStream | null>(null);
+    // UI Mode States
+    const [mode, setMode] = useState<'idle' | 'board' | 'display'>('idle');
+    const [isUploading, setIsUploading] = useState(false);
     
-    const [isUploadingMedia, setIsUploadingMedia] = useState(false);
     const mediaInputRef = useRef<HTMLInputElement>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
 
-    // Call Mode States
-    const [activeMode, setActiveMode] = useState<'voice' | 'video' | 'chat' | 'display'>('voice');
-    const [chatMessages, setChatMessages] = useState<any[]>([]);
-    const [chatInput, setChatInput] = useState('');
-
-    const isCall = useMemo(() => meeting?.type === 'call', [meeting?.type]);
     const isAdmin = useMemo(() => user?.$id === meeting?.hostId, [user?.$id, meeting?.hostId]);
-
-    const postCallLog = async (durationStr: string) => {
-        if (!user || !meeting) return;
-        const otherId = meeting.invitedUsers?.find((id: string) => id !== meeting.hostId) || meeting.hostId;
-        const threadId = [meeting.hostId, otherId].sort().join('_');
-        
-        await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
-            chatId: threadId,
-            senderId: 'ipay_system',
-            text: `📞 Call Finished: ${durationStr}`,
-            status: 'sent',
-            createdAt: new Date().toISOString()
-        }).catch(() => {});
-    };
-
-    const endCall = async () => {
-        if (isCall && meeting.status === 'started') {
-            const m = Math.floor(durationSeconds / 60);
-            const s = durationSeconds % 60;
-            const dur = `${m}:${s.toString().padStart(2, '0')}`;
-            await postCallLog(dur);
-        }
-        try {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'ended' });
-            router.replace('/dashboard/chat');
-        } catch (e) {
-            router.replace('/dashboard/chat');
-        }
-    };
-
-    const registerIdentity = useCallback(async () => {
-        if (!user || !profile || !meetingId) return;
-        try {
-            // Auto-register attendee record immediately to prevent redirection logic
-            const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
-                Query.equal('meetingId', meetingId),
-                Query.equal('userId', user.$id)
-            ]);
-            
-            if (attendees.total === 0) {
-                await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, ID.unique(), {
-                    meetingId,
-                    userId: user.$id,
-                    name: profile.username,
-                    avatar: profile.avatar,
-                    status: 'approved',
-                    isHost: user.$id === meeting?.hostId,
-                    hasVideo: false,
-                    hasAudio: true,
-                    createdAt: new Date().toISOString()
-                });
-            }
-        } catch (e) {
-            console.error("Identity registration failed", e);
-        }
-    }, [user, profile, meetingId, meeting?.hostId]);
 
     const fetchMeeting = useCallback(async () => {
         try {
             const docData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
             setMeeting(docData);
-            
-            if (docData.status === 'ended') {
-                router.replace('/dashboard/chat');
-                return;
-            }
-
-            // Sync partner profile instantly
-            const otherId = docData.invitedUsers?.find((id: string) => id !== user?.$id) || (user?.$id === docData.hostId ? null : docData.hostId);
-            if (otherId) {
-                const otherProf = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherId).catch(() => null);
-                setPartnerProfile(otherProf);
-            }
-
-            if (docData.status === 'started' && docData.startedAt) {
-                const elapsed = Math.floor((Date.now() - new Date(docData.startedAt).getTime()) / 1000);
-                setDurationSeconds(elapsed);
-            }
+            if (docData.status === 'ended') router.replace('/dashboard/meeting');
         } catch (e) {
-            console.error("Fetch meeting error", e);
+            router.replace('/dashboard/meeting');
         } finally {
             setLoading(false);
         }
-    }, [meetingId, router, user?.$id]);
+    }, [meetingId, router]);
 
     const fetchAttendees = useCallback(async () => {
         try {
@@ -139,27 +60,18 @@ export default function MeetingRoomPage() {
                 Query.equal('meetingId', meetingId),
                 Query.limit(100)
             ]);
-            const approved = res.documents.filter(a => a.status === 'approved');
-            setParticipants(approved);
-
-            // If we are host and partner joined, start the meeting
-            if (user?.$id === meeting?.hostId && approved.length >= 2 && meeting?.status === 'pending') {
-                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, {
-                    status: 'started',
-                    startedAt: new Date().toISOString()
-                });
-            }
+            setParticipants(res.documents.filter(a => a.status === 'approved'));
+            setWaitingList(res.documents.filter(a => a.status === 'waiting'));
         } catch (e) {}
-    }, [meetingId, user?.$id, meeting?.hostId, meeting?.status]);
+    }, [meetingId]);
 
     useEffect(() => {
-        if (!user) return;
         fetchMeeting();
-        registerIdentity();
+        fetchAttendees();
         
         const unsubMeeting = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${meetingId}`], response => {
             const payload = response.payload as any;
-            if (payload.status === 'ended') router.replace('/dashboard/chat');
+            if (payload.status === 'ended') router.replace('/dashboard/meeting');
             setMeeting(payload);
         });
 
@@ -168,205 +80,189 @@ export default function MeetingRoomPage() {
             if (payload.meetingId === meetingId) fetchAttendees();
         });
 
-        const unsubChat = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`], response => {
-            const payload = response.payload as any;
-            if (payload.chatId === `call_chat_${meetingId}`) {
-                setChatMessages(prev => [...prev, payload]);
-            }
-        });
+        return () => { unsubMeeting(); unsubAttendees(); };
+    }, [meetingId, fetchMeeting, fetchAttendees, router]);
 
-        return () => { unsubMeeting(); unsubAttendees(); unsubChat(); };
-    }, [meetingId, fetchMeeting, fetchAttendees, registerIdentity, user, router]);
-
-    useEffect(() => {
-        if (activeMode === 'video' || useCamera) {
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-                localStreamRef.current = stream;
-                if (videoRef.current) videoRef.current.srcObject = stream;
-            }).catch(() => {});
+    const handleHangUp = async () => {
+        if (isAdmin) {
+            // ADMIN ENDS MEETING FOR EVERYONE
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'ended' });
         } else {
-            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-                localStreamRef.current = stream;
-            }).catch(() => {});
+            // GUEST JUST LEAVES
+            router.replace('/dashboard/meeting');
         }
-        
-        return () => localStreamRef.current?.getTracks().forEach(t => t.stop());
-    }, [useCamera, activeMode]);
+    };
 
-    useEffect(() => {
-        if (meeting?.status !== 'started') return;
-        const interval = setInterval(() => {
-            setDurationSeconds(prev => prev + 1);
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [meeting?.status]);
+    const approveGuest = async (attendeeId: string) => {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, attendeeId, { status: 'approved' });
+    };
+
+    const declineGuest = async (attendeeId: string) => {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, attendeeId, { status: 'declined' });
+    };
+
+    const kickGuest = async (attendeeId: string) => {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, attendeeId, { status: 'declined' });
+    };
+
+    const updateBoard = async (val: string) => {
+        if (!isAdmin) return;
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { boardContent: val });
+    };
 
     const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (!file) return;
-        setIsUploadingMedia(true);
-        toast({ title: 'Sharing media...' });
+        if (!file || !isAdmin) return;
+        setIsUploading(true);
         try {
             const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
             const url = getAppwriteStorageUrl(upload.$id);
-            const type = file.type.startsWith('video') ? 'video' : file.type.startsWith('audio') ? 'audio' : 'image';
+            const type = file.type.startsWith('video') ? 'video' : file.type.startsWith('audio') ? 'music' : 'image';
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, {
                 displayVisible: true, displayUrl: url, displayType: type
             });
-        } catch (e) {} finally { setIsUploadingMedia(false); }
+        } catch (e) {} finally { setIsUploading(false); }
     };
 
-    const sendCallChat = async () => {
-        if (!chatInput.trim()) return;
-        try {
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
-                chatId: `call_chat_${meetingId}`,
-                senderId: user.$id,
-                text: chatInput.trim(),
-                status: 'sent'
-            });
-            setChatInput('');
-        } catch (e) {}
-    };
+    if (loading || !meeting) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
 
-    const formatDuration = (s: number) => {
-        const m = Math.floor(s / 60);
-        const sec = s % 60;
-        return `${m}:${sec.toString().padStart(2, '0')}`;
-    };
-
-    if (loading || !meeting) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
-
-    const partner = participants.find(p => p.userId !== user?.$id);
-    const isConnected = meeting.status === 'started';
-    
-    const displayAvatar = partner?.avatar || partnerProfile?.avatar;
-    const displayName = partner?.name || partnerProfile?.username;
+    const myAttendee = participants.find(p => p.userId === user?.$id);
 
     return (
-        <div className={cn("h-screen w-full flex flex-col overflow-hidden relative font-body transition-colors duration-500", isCall ? "bg-white text-black" : "bg-black text-white")}>
+        <div className="h-screen w-full bg-black text-white flex flex-col overflow-hidden relative font-body">
             
-            {/* CALL CHAT OVERLAY */}
-            {isCall && activeMode === 'chat' && (
-                <div className="absolute inset-0 z-[150] bg-white flex flex-col p-6 animate-in slide-in-from-bottom-5">
-                    <header className="flex items-center justify-between border-b pb-4 mb-4">
-                        <h2 className="font-black uppercase text-xs tracking-widest text-black">Call Chat</h2>
-                        <Button variant="ghost" size="icon" onClick={() => setActiveMode('voice')} className="rounded-full bg-muted"><X className="h-5 w-5 text-black" /></Button>
+            {/* BROWN BOARD OVERLAY */}
+            {(mode === 'board' || (meeting.boardContent && !isAdmin)) && (
+                <div className="absolute inset-0 z-[100] bg-[#4e342e] flex flex-col p-6 animate-in fade-in duration-300">
+                    <header className="flex justify-between items-center mb-4 border-b border-white/10 pb-4">
+                        <h2 className="font-black uppercase text-xs tracking-widest">Meeting Board</h2>
+                        <Button variant="ghost" size="icon" onClick={() => setMode('idle')} className="rounded-full bg-white/10"><X className="h-5 w-5" /></Button>
                     </header>
-                    <div className="flex-1 overflow-y-auto space-y-4 mb-4 scrollbar-hide">
-                        {chatMessages.map((msg, i) => (
-                            <div key={i} className={cn("flex flex-col max-w-[80%]", msg.senderId === user?.$id ? "ml-auto items-end" : "items-start")}>
-                                <div className={cn("p-3 rounded-2xl text-xs font-bold shadow-sm", msg.senderId === user?.$id ? "bg-primary text-white" : "bg-muted text-black")}>{msg.text}</div>
-                            </div>
-                        ))}
-                    </div>
-                    <div className="space-y-4">
-                        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar border-t pt-2">
-                            {LOVE_EMOJIS.map((e, i) => <button key={i} onClick={() => setChatInput(prev => prev + e)} className="text-xl hover:scale-125 transition-transform">{e}</button>)}
-                        </div>
-                        <div className="flex gap-2">
-                            <Input value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder="Type love message..." className="rounded-full bg-muted border-none h-12 text-black font-bold" />
-                            <Button size="icon" onClick={sendCallChat} className="rounded-full h-12 w-12 bg-primary shadow-lg"><Send className="h-5 w-5 text-white"/></Button>
-                        </div>
-                    </div>
+                    <Textarea 
+                        value={meeting.boardContent || ''} 
+                        onChange={e => updateBoard(e.target.value)}
+                        placeholder="Start writing..." 
+                        readOnly={!isAdmin}
+                        className="flex-1 bg-transparent border-none text-xl font-bold resize-none focus-visible:ring-0 placeholder:text-white/20"
+                    />
                 </div>
             )}
 
-            {/* CALL VIDEO OVERLAY */}
-            {isCall && activeMode === 'video' && (
-                <div className="absolute inset-0 z-[140] bg-black flex flex-col items-center justify-center animate-in zoom-in-95">
-                    <Button variant="ghost" size="icon" onClick={() => setActiveMode('voice')} className="absolute top-12 right-6 z-[150] rounded-full bg-black/50 text-white"><X /></Button>
-                    <div className="relative w-full h-full">
-                        <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
-                    </div>
-                </div>
-            )}
-
-            {/* BROWN DISPLAY BOARD */}
-            {meeting?.displayVisible && (
-                <div className="absolute inset-0 z-[100] bg-[#4e342e] flex flex-col items-center justify-center animate-in fade-in duration-300">
-                    <div className="max-w-5xl w-full aspect-video bg-black rounded-[2rem] overflow-hidden border border-white/10 relative shadow-2xl">
-                        <Button onClick={async () => await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { displayVisible: false })} variant="ghost" size="icon" className="absolute top-6 right-6 z-[100] rounded-full bg-black/50 text-white"><X /></Button>
-                        {meeting.displayType === 'image' && <Image src={meeting.displayUrl} alt="Display" fill className="object-contain" unoptimized />}
-                        {meeting.displayType === 'video' && <video src={meeting.displayUrl} controls autoPlay className="w-full h-full" />}
-                        {meeting.displayType === 'audio' && (
-                            <div className="h-full w-full flex flex-col items-center justify-center gap-6 bg-white/5">
-                                <Volume2 className="h-20 w-20 text-primary animate-pulse" />
-                                <audio src={meeting.displayUrl} controls autoPlay className="w-full max-w-md" />
+            {/* BROWN DISPLAY OVERLAY */}
+            {(mode === 'display' || (meeting.displayVisible && !isAdmin)) && (
+                <div className="absolute inset-0 z-[110] bg-[#4e342e] flex flex-col p-6 animate-in fade-in duration-300">
+                    <header className="flex justify-between items-center mb-4 border-b border-white/10 pb-4">
+                        <h2 className="font-black uppercase text-xs tracking-widest">Shared Display</h2>
+                        <Button variant="ghost" size="icon" onClick={async () => {
+                            if (isAdmin) await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { displayVisible: false });
+                            setMode('idle');
+                        }} className="rounded-full bg-white/10"><X className="h-5 w-5" /></Button>
+                    </header>
+                    <div className="flex-1 flex flex-col items-center justify-center bg-black/40 rounded-[2rem] overflow-hidden border border-white/5 relative">
+                        {meeting.displayVisible ? (
+                            <>
+                                {meeting.displayType === 'image' && <Image src={meeting.displayUrl} alt="Shared" fill className="object-contain" unoptimized />}
+                                {meeting.displayType === 'video' && <video src={meeting.displayUrl} controls autoPlay className="w-full h-full" />}
+                                {meeting.displayType === 'music' && (
+                                    <div className="flex flex-col items-center gap-6">
+                                        <Volume2 className="h-20 w-20 text-primary animate-pulse" />
+                                        <audio src={meeting.displayUrl} controls autoPlay className="w-full max-w-md" />
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div className="text-center space-y-4">
+                                <MonitorPlay className="h-16 w-16 mx-auto opacity-20" />
+                                <p className="font-black uppercase text-[10px] tracking-widest opacity-40">No media shared</p>
+                                {isAdmin && (
+                                    <Button onClick={() => mediaInputRef.current?.click()} variant="outline" className="rounded-full font-black uppercase text-[9px] h-10 border-white/20">
+                                        <UploadCloud className="mr-2 h-4 w-4" /> Upload Media
+                                    </Button>
+                                )}
                             </div>
                         )}
                     </div>
+                    <input type="file" ref={mediaInputRef} className="hidden" accept="image/*,video/*,audio/*" onChange={handleMediaUpload} />
                 </div>
             )}
 
-            <header className={cn("p-4 pt-12 flex flex-col items-center border-b z-[80]", isCall ? "bg-white border-black/5" : "bg-black border-white/10")}>
-                <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-50">{isCall ? 'I-Pay End-to-End Call' : meeting?.name}</p>
-                <h2 className="text-xl font-black mt-1">
-                    {isConnected ? formatDuration(durationSeconds) : 'Ringing...'}
-                </h2>
+            <header className="p-4 pt-12 flex justify-between items-center bg-black/50 border-b border-white/5 z-50">
+                <div className="flex-1">
+                    <h1 className="font-black uppercase text-xs tracking-widest text-primary truncate">{meeting.name}</h1>
+                    <p className="text-[8px] font-bold opacity-50 uppercase tracking-tighter">I-Pay meeting Hub</p>
+                </div>
+                {isAdmin && (
+                    <div className="flex gap-2">
+                        <Button onClick={() => setMode('board')} size="sm" variant="outline" className="h-8 rounded-full font-black uppercase text-[9px] border-white/10">board</Button>
+                        <Button onClick={() => setMode('display')} size="sm" variant="outline" className="h-8 rounded-full font-black uppercase text-[9px] border-white/10">display</Button>
+                    </div>
+                )}
             </header>
 
-            <main className="flex-1 flex flex-col items-center justify-center p-6 z-10 overflow-y-auto">
-                {isCall && activeMode === 'voice' ? (
-                    <div className="flex flex-col items-center gap-8 animate-in fade-in duration-500">
-                        <div className="relative">
-                            <div className={cn("absolute inset-0 bg-primary/10 rounded-full animate-ping -m-4", !isConnected && "hidden")}></div>
-                            <Avatar className="h-48 w-48 ring-4 ring-primary ring-offset-8 ring-offset-white shadow-2xl">
-                                <AvatarImage src={displayAvatar} className="object-cover" />
-                                <AvatarFallback className="text-4xl bg-primary text-white">{displayName?.charAt(0) || '?'}</AvatarFallback>
-                            </Avatar>
-                        </div>
-                        <div className="text-center">
-                            <h3 className="text-2xl font-black lowercase tracking-tighter">{displayName || 'Contacting...'}</h3>
-                            <p className="text-xs font-bold text-primary animate-pulse uppercase mt-2 tracking-widest">
-                                {isConnected ? 'Connected' : 'Ringing Device...'}
-                            </p>
-                        </div>
-                        
-                        <div className="grid grid-cols-4 gap-6 mt-12 w-full max-w-sm px-4">
-                            <div className="flex flex-col items-center gap-2">
-                                <Button onClick={() => setActiveMode('chat')} size="icon" className="h-12 w-12 rounded-full bg-muted hover:bg-primary transition-all shadow-md"><MessageSquare className="h-5 w-5 text-black"/></Button>
-                                <span className="text-[8px] font-black uppercase">Chat</span>
-                            </div>
-                            <div className="flex flex-col items-center gap-2">
-                                <Button onClick={() => setActiveMode('video')} size="icon" className="h-12 w-12 rounded-full bg-muted hover:bg-primary transition-all shadow-md"><Video className="h-5 w-5 text-black" /></Button>
-                                <span className="text-[8px] font-black uppercase">Video</span>
-                            </div>
-                            <div className="flex flex-col items-center gap-2">
-                                <Button onClick={() => mediaInputRef.current?.click()} size="icon" className="h-12 w-12 rounded-full bg-muted hover:bg-primary transition-all shadow-md"><MonitorPlay className="h-5 w-5 text-black" /></Button>
-                                <span className="text-[8px] font-black uppercase">Display</span>
-                                <input type="file" ref={mediaInputRef} className="hidden" accept="image/*,video/*,audio/*" onChange={handleMediaUpload} />
-                            </div>
-                            <div className="flex flex-col items-center gap-2">
-                                <Button variant="destructive" onClick={endCall} size="icon" className="h-12 w-12 rounded-full shadow-lg"><PhoneOff className="h-5 w-5 text-white" /></Button>
-                                <span className="text-[8px] font-black uppercase">Hang Up</span>
-                            </div>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="w-full grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-6 max-w-6xl mx-auto py-10">
-                        {participants.map(p => (
-                            <div key={p.$id} className="flex flex-col items-center gap-2">
-                                <div className={cn("relative rounded-full border-2 p-0.5 h-14 w-14", p.isHost ? "border-yellow-500" : "border-primary/40 shadow-lg")}>
+            <main className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-6 max-w-6xl mx-auto py-10">
+                    {participants.map(p => (
+                        <div key={p.$id} className="flex flex-col items-center gap-2 group relative">
+                            <div className={cn("relative rounded-full border-2 p-0.5 h-14 w-14 transition-all", p.isHost ? "border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.3)]" : "border-primary/40 shadow-xl")}>
+                                {p.hasVideo ? (
+                                    <div className="h-full w-full rounded-full overflow-hidden bg-muted">
+                                        <video autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
+                                    </div>
+                                ) : (
                                     <Avatar className="h-full w-full">
                                         <AvatarImage src={p.avatar} className="object-cover" />
-                                        <AvatarFallback className="font-black bg-muted">{p.name?.charAt(0)}</AvatarFallback>
+                                        <AvatarFallback className="font-black bg-muted text-[10px]">{p.name?.charAt(0)}</AvatarFallback>
                                     </Avatar>
+                                )}
+                                {isAdmin && !p.isHost && (
+                                    <Button onClick={() => kickGuest(p.$id)} variant="destructive" size="icon" className="absolute -top-1 -right-1 h-5 w-5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"><X className="h-3 w-3"/></Button>
+                                )}
+                            </div>
+                            <p className="font-bold text-[8px] opacity-80 uppercase text-center truncate w-full lowercase">{p.name}</p>
+                        </div>
+                    ))}
+                </div>
+            </main>
+
+            {/* JOIN REQUESTS OVERLAY (ADMIN ONLY) */}
+            {isAdmin && waitingList.length > 0 && (
+                <div className="absolute bottom-24 left-0 right-0 p-4 flex flex-col items-center gap-2 z-[80]">
+                    <div className="flex gap-4 overflow-x-auto max-w-full no-scrollbar pb-2">
+                        {waitingList.map(req => (
+                            <div key={req.$id} className="bg-white rounded-3xl p-3 flex items-center gap-4 shadow-2xl border-2 border-primary animate-in slide-in-from-bottom-5">
+                                <Avatar className="h-10 w-10 ring-2 ring-primary/10"><AvatarImage src={req.avatar} /><AvatarFallback>{req.name?.charAt(0)}</AvatarFallback></Avatar>
+                                <div className="min-w-[100px]">
+                                    <p className="text-[10px] font-black text-black lowercase">{req.name}</p>
+                                    <div className="flex gap-2 mt-1">
+                                        <Button size="sm" className="h-6 px-3 text-[8px] font-black uppercase rounded-full bg-primary" onClick={() => approveGuest(req.$id)}>Accept</Button>
+                                        <Button size="sm" variant="ghost" className="h-6 px-3 text-[8px] font-black uppercase rounded-full text-destructive" onClick={() => declineGuest(req.$id)}>Deny</Button>
+                                    </div>
                                 </div>
-                                <p className="font-bold text-[8px] opacity-80 uppercase text-center truncate w-full">{p.name}</p>
                             </div>
                         ))}
                     </div>
-                )}
-            </main>
-
-            {!isCall && (
-                <footer className={cn("p-8 border-t flex justify-center safe-area-bottom z-[80] bg-black border-white/10")}>
-                    <Button variant="destructive" className="rounded-full h-14 px-10 font-black uppercase text-xs tracking-widest shadow-2xl transition-all active:scale-90" onClick={endCall}>
-                        <PhoneOff className="mr-2 h-5 w-5" /> Hang Up
-                    </Button>
-                </footer>
+                </div>
             )}
+
+            <footer className="p-6 border-t bg-black/80 backdrop-blur-md border-white/5 flex flex-col items-center gap-4 z-[90]">
+                {/* SELF ICON BOTTOM PIN */}
+                <div className="flex items-center gap-3 bg-white/5 p-2 pr-6 rounded-full border border-white/10 shadow-xl">
+                    <div className="h-10 w-10 rounded-full border-2 border-primary p-0.5">
+                        <Avatar className="h-full w-full">
+                            <AvatarImage src={profile?.avatar} />
+                            <AvatarFallback>{profile?.username?.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                    </div>
+                    <div className="text-left">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none">You (Live)</p>
+                        <p className="text-[8px] font-bold opacity-50 lowercase mt-1">{profile?.username}</p>
+                    </div>
+                </div>
+
+                <Button variant="destructive" className="rounded-full h-12 px-8 font-black uppercase text-[10px] tracking-widest shadow-2xl transition-all active:scale-95" onClick={handleHangUp}>
+                    <PhoneOff className="mr-2 h-4 w-4" /> {isAdmin ? 'hang up' : 'disconnect meeting'}
+                </Button>
+            </footer>
         </div>
     );
 }
