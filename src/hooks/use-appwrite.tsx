@@ -34,7 +34,7 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
             setProfile(prof);
             
             // Set user online
-            if (prof) {
+            if (prof && typeof window !== 'undefined') {
                 await updateDoc(doc(db, COLLECTION_ID_PROFILES, uid), {
                     isOnline: true,
                     lastSeen: serverTimestamp()
@@ -54,20 +54,23 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
                 const prof = await fetchProfile(firebaseUser.uid);
                 
                 // Redirection Logic
-                const isMeetingPath = pathname.includes('/meeting/room/') || pathname.includes('/meeting/join/');
-                if (!prof && !pathname.includes('/auth') && !pathname.includes('/signup/profile') && !isMeetingPath) {
-                    router.replace('/auth/signup/profile');
-                } else if (prof && pathname === '/auth/signin') {
-                    router.replace('/dashboard');
+                if (typeof window !== 'undefined') {
+                    const isMeetingPath = pathname.includes('/meeting/room/') || pathname.includes('/meeting/join/');
+                    if (!prof && !pathname.includes('/auth') && !pathname.includes('/signup/profile') && !isMeetingPath) {
+                        router.replace('/auth/signup/profile');
+                    } else if (prof && pathname === '/auth/signin') {
+                        router.replace('/dashboard');
+                    }
                 }
             } else {
                 setUser(null);
                 setProfile(null);
                 
-                // Exempt Meeting Join paths from Sign-In redirection
-                const isMeetingJoin = pathname.includes('/meeting/join/') || pathname.includes('/meeting/room/');
-                if (pathname.startsWith('/dashboard') && !pathname.includes('/auth') && !isMeetingJoin) {
-                    router.replace('/auth/signin');
+                if (typeof window !== 'undefined') {
+                    const isMeetingJoin = pathname.includes('/meeting/join/') || pathname.includes('/meeting/room/');
+                    if (pathname.startsWith('/dashboard') && !pathname.includes('/auth') && !isMeetingJoin) {
+                        router.replace('/auth/signin');
+                    }
                 }
             }
             setIsLoading(false);
@@ -93,7 +96,7 @@ export function AppwriteProvider({ children }: { children: ReactNode }) {
 
     // Online status heartbeat
     useEffect(() => {
-        if (!user?.$id) return;
+        if (!user?.$id || typeof window === 'undefined') return;
         
         const interval = setInterval(() => {
             updateDoc(doc(db, COLLECTION_ID_PROFILES, user.$id), {

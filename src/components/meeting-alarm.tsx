@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -12,7 +11,7 @@ import { isBefore, subMinutes } from 'date-fns';
 
 /**
  * @fileOverview Hardened Alarm Engine.
- * BUILD FIX: Safe audio handling for server environments.
+ * BUILD FIX: Safe audio handling for SSR.
  */
 
 export function MeetingAlarm() {

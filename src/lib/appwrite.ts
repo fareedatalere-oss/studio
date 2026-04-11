@@ -1,4 +1,3 @@
-
 import { auth, db } from './firebase';
 import { 
   signInWithEmailAndPassword, 
@@ -27,8 +26,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Master Firebase Bridge.
- * REDIRECTED: storage.createFile now uses Cloudinary exclusively.
- * BUILD FIX: Added environment guards for browser APIs.
+ * BUILD FIX: Hardened for SSR environments.
  */
 
 export const DATABASE_ID = 'default';

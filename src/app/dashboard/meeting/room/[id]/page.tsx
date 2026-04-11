@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -59,6 +58,8 @@ export default function MeetingRoomPage() {
     }, [meetingId]);
 
     useEffect(() => {
+        if (typeof window === 'undefined') return;
+        
         fetchMeeting();
         fetchAttendees();
         
@@ -73,7 +74,7 @@ export default function MeetingRoomPage() {
             if (payload.meetingId === meetingId) fetchAttendees();
         });
 
-        if (mySetup?.useCamera) {
+        if (mySetup?.useCamera && navigator?.mediaDevices) {
             navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
                 if (selfVideoRef.current) selfVideoRef.current.srcObject = stream;
             }).catch(() => {});

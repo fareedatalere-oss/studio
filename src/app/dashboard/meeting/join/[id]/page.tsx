@@ -40,6 +40,8 @@ function MeetingJoinContent() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
+        if (typeof window === 'undefined') return;
+
         const checkMeeting = async () => {
             if (!meetingId) return;
             setLoadingMeeting(true);
@@ -84,18 +86,16 @@ function MeetingJoinContent() {
         };
         checkMeeting();
 
-        const setupCamera = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (navigator?.mediaDevices) {
+            navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
                     setHasCamera(true);
                 }
-            } catch (e) {
+            }).catch(() => {
                 setHasCamera(false);
-            }
-        };
-        setupCamera();
+            });
+        }
     }, [meetingId]);
 
     const handleCapture = () => {
@@ -157,9 +157,11 @@ function MeetingJoinContent() {
                 createdAt: new Date().toISOString()
             });
 
-            sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ 
-                name, avatar, requestId, isHost: isActuallyAdmin, useCamera: isUseCameraActive 
-            }));
+            if (typeof window !== 'undefined') {
+                sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ 
+                    name, avatar, requestId, isHost: isActuallyAdmin, useCamera: isUseCameraActive 
+                }));
+            }
 
             if (isActuallyAdmin) {
                 router.replace(`/dashboard/meeting/room/${meetingId}`);

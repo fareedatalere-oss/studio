@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -49,8 +48,6 @@ export default function ChatThreadPage() {
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [isUploading, setIsUploading] = useState(false);
-    const [recentChats, setRecentChats] = useState<any[]>([]);
-    const [forwardMsg, setForwardMsg] = useState<any>(null);
     
     // Voice Recording State
     const [isRecording, setIsRecording] = useState(false);
@@ -125,9 +122,8 @@ export default function ChatThreadPage() {
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-    const handleSend = async (textOverride?: string, mediaData?: any, targetChatId?: string, targetParticipantId?: string) => {
-        const activeChatId = targetChatId || chatId;
-        const activeParticipantId = targetParticipantId || otherUserId;
+    const handleSend = async (textOverride?: string, mediaData?: any) => {
+        if (!chatId || !currentUser) return;
         const text = textOverride !== undefined ? textOverride : newMessage.trim();
         
         if (!text && !mediaData) return;
@@ -136,7 +132,7 @@ export default function ChatThreadPage() {
         const msgId = doc(collection(db, COLLECTION_ID_MESSAGES)).id;
         try {
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { 
-                chatId: activeChatId, 
+                chatId: chatId, 
                 senderId: currentUser.$id, 
                 text: text || '', 
                 status: 'sent',
@@ -144,21 +140,19 @@ export default function ChatThreadPage() {
                 deleteFor: [],
                 ...(mediaData && { mediaUrl: mediaData.url, mediaType: mediaData.type })
             });
-            await setDoc(doc(db, COLLECTION_ID_CHATS, activeChatId!), {
-                participants: [currentUser.$id, activeParticipantId],
-                lastMessage: text ? (text.length > 30 ? text.substring(0,30)+'...' : text) : `Sent a media file`,
+            await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
+                participants: [currentUser.$id, otherUserId],
+                lastMessage: text ? (text.length > 30 ? text.substring(0,30)+'...' : text) : `Sent a voice note`,
                 lastMessageAt: serverTimestamp(),
-                [`unreadCount.${activeParticipantId}`]: increment(1)
+                [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
-            
-            if (targetChatId) toast({ title: "Message Forwarded" });
         } catch (e) { toast({ variant: 'destructive', title: 'Error sending message' }); }
     };
 
     const handleDeleteForMe = async (msgId: string) => {
         try {
             await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), {
-                deleteFor: arrayUnion(currentUser.$id)
+                deleteFor: arrayUnion(currentUser?.$id)
             });
             toast({ title: "Deleted for me" });
         } catch (e) { toast({ variant: 'destructive', title: "Failed to delete" }); }
@@ -191,6 +185,7 @@ export default function ChatThreadPage() {
     };
 
     const startRecording = async () => {
+        if (typeof window === 'undefined') return;
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const recorder = new MediaRecorder(stream);
@@ -284,7 +279,7 @@ export default function ChatThreadPage() {
             <main className="flex-1 overflow-y-auto p-4 space-y-2 overscroll-contain bg-muted/5">
                 <div className="max-w-xl mx-auto w-full space-y-3">
                     <div className="text-center py-6 opacity-20 flex flex-col items-center gap-2"><ShieldCheck className="h-4 w-4" /><p className="text-[7px] font-black uppercase tracking-[0.4em]">End-to-End Encrypted</p></div>
-                    {messages.filter(m => !m.deleteFor?.includes(currentUser.$id)).map((msg) => {
+                    {messages.filter(m => !m.deleteFor?.includes(currentUser?.$id)).map((msg) => {
                         const isMine = msg.senderId === currentUser?.$id;
                         return (
                             <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%] group", isMine ? "ml-auto items-end" : "items-start")}>
@@ -304,9 +299,6 @@ export default function ChatThreadPage() {
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align={isMine ? 'end' : 'start'} className="font-black uppercase text-[9px]">
-                                                <DropdownMenuItem onClick={() => setForwardMsg(msg)}>
-                                                    <Forward className="mr-2 h-3.5 w-3.5" /> Forward
-                                                </DropdownMenuItem>
                                                 <DropdownMenuItem onClick={() => handleDeleteForMe(msg.$id)}>
                                                     <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for me
                                                 </DropdownMenuItem>
@@ -360,18 +352,6 @@ export default function ChatThreadPage() {
                 )}
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,application/pdf" />
             </footer>
-
-            <Dialog open={!!forwardMsg} onOpenChange={(o) => !o && setForwardMsg(null)}>
-                <DialogContent className="rounded-[2.5rem] p-0 overflow-hidden border-none max-w-sm">
-                    <div className="p-6 bg-primary text-white text-center">
-                        <h3 className="font-black uppercase tracking-widest text-sm">Forward Message</h3>
-                    </div>
-                    <div className="max-h-[400px] overflow-y-auto p-4 space-y-2">
-                        <p className="text-[9px] font-black uppercase text-muted-foreground mb-4 px-2">Select a chat to forward to</p>
-                        <p className="p-10 text-center text-[10px] font-bold opacity-30 uppercase italic">Contact list sync logic here...</p>
-                    </div>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }
