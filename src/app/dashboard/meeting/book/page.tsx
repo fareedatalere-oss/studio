@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Users, Globe, Loader2, Video, Copy, CheckCircle2, ShieldCheck, User } from 'lucide-react';
+import { ArrowLeft, Users, Globe, Loader2, Video, Copy, CheckCircle2, Calendar, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/use-appwrite';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, ID } from '@/lib/appwrite';
+import { format, isBefore, startOfToday, parse } from 'date-fns';
 
 export default function BookMeetingPage() {
   const router = useRouter();
@@ -24,6 +25,8 @@ export default function BookMeetingPage() {
     name: '',
     description: '',
     type: 'personal',
+    date: format(new Date(), 'yyyy-MM-dd'),
+    time: format(new Date(), 'HH:mm'),
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [meetingLink, setMeetingLink] = useState<string | null>(null);
@@ -33,12 +36,25 @@ export default function BookMeetingPage() {
       toast({ variant: 'destructive', title: 'Missing Info', description: 'Please provide a name for your meeting.' });
       return;
     }
+
+    // Strict Date/Time Logic
+    const selectedDate = parse(formData.date, 'yyyy-MM-dd', new Date());
+    const selectedDateTime = parse(`${formData.date} ${formData.time}`, 'yyyy-MM-dd HH:mm', new Date());
     
+    if (isBefore(selectedDate, startOfToday())) {
+        toast({ variant: 'destructive', title: 'Invalid Date', description: 'You cannot choose a past date.' });
+        return;
+    }
+
     setIsProcessing(true);
     try {
         const meetingId = ID.unique();
         const generatedLink = `${window.location.origin}/dashboard/meeting/join/${meetingId}`;
         
+        // Calculate Expiry (Personal: 1hr, General: 3hrs)
+        const durationHours = formData.type === 'personal' ? 1 : 3;
+        const expiryTime = new Date(selectedDateTime.getTime() + durationHours * 60 * 60 * 1000).toISOString();
+
         const payload = {
             hostId: user.$id,
             name: formData.name,
@@ -46,7 +62,8 @@ export default function BookMeetingPage() {
             type: formData.type,
             status: 'pending',
             meetingLink: generatedLink,
-            boardContent: '',
+            scheduledAt: selectedDateTime.toISOString(),
+            expiresAt: expiryTime,
             createdAt: new Date().toISOString()
         };
 
@@ -82,20 +99,18 @@ export default function BookMeetingPage() {
                     <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 text-left">
                         <Label className="flex items-center gap-2 text-[9px] font-black uppercase text-primary mb-2">
                             Meeting Link
-                        </Label>
+                        </LPabel>
                         <div className="flex items-center gap-2">
                             <p className="text-[10px] font-mono truncate flex-1 text-primary">{meetingLink}</p>
                             <Button size="icon" variant="ghost" onClick={() => copyToClipboard(meetingLink)} className="shrink-0 h-8 w-8"><Copy className="h-3 w-3" /></Button>
                         </div>
                     </div>
-                    <p className="text-[10px] font-bold text-muted-foreground leading-relaxed italic">
-                        "Anyone with this link can join the meeting directly without signing in."
-                    </p>
+                    <div className="bg-muted/30 p-4 rounded-xl text-center">
+                        <p className="text-[10px] font-black uppercase tracking-widest opacity-50">Scheduled For</p>
+                        <p className="font-bold">{formData.date} at {formData.time}</p>
+                    </div>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-3">
-                    <Button asChild className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-xl">
-                        <Link href={meetingLink}>Enter Room</Link>
-                    </Button>
                     <Button asChild variant="ghost" className="font-black uppercase text-[10px]">
                         <Link href="/dashboard/meeting">Back to Hub</Link>
                     </Button>
@@ -113,10 +128,21 @@ export default function BookMeetingPage() {
 
       <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
         <CardHeader className="bg-primary/5 pb-8">
-          <CardTitle className="text-2xl font-black uppercase tracking-tighter text-center">New Meeting</CardTitle>
-          <CardDescription className="text-center font-bold">Generate a secure room link</CardDescription>
+          <CardTitle className="text-2xl font-black uppercase tracking-tighter text-center">Setup Meeting</CardTitle>
+          <CardDescription className="text-center font-bold">Set date, time and scope</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-8">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+                <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Date</Label>
+                <Input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="h-12 rounded-2xl bg-muted border-none px-4 font-bold" />
+            </div>
+            <div className="space-y-2">
+                <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Time</Label>
+                <Input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="h-12 rounded-2xl bg-muted border-none px-4 font-bold" />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label className="font-black uppercase text-[10px] tracking-widest opacity-70">Meeting Name</Label>
             <Input 
@@ -132,7 +158,7 @@ export default function BookMeetingPage() {
             <Textarea 
               placeholder="What is this meeting about?" 
               className="rounded-2xl bg-muted border-none p-4"
-              rows={3}
+              rows={2}
               value={formData.description}
               onChange={e => setFormData({ ...formData, description: e.target.value })}
             />

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Camera, ImageIcon, Loader2, Video, CheckCircle2, UploadCloud, ArrowLeft, ShieldCheck, XCircle } from 'lucide-react';
+import { Camera, ImageIcon, Loader2, Video, CheckCircle2, UploadCloud, ArrowLeft, ShieldCheck, XCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,13 +12,9 @@ import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, ID, Query } fro
 import { useUser } from '@/hooks/use-appwrite';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { format, isBefore } from 'date-fns';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
-
-/**
- * @fileOverview Meeting Identity Setup & Lobby.
- * FORCE JOIN LOGIC: Meeting only expires if status is explicitly 'ended'.
- */
 
 function MeetingJoinContent() {
     const params = useParams();
@@ -29,12 +25,12 @@ function MeetingJoinContent() {
     const meetingId = params.id as string;
     const isAdminLink = searchParams.get('role') === 'admin';
 
+    const [meeting, setMeeting] = useState<any>(null);
     const [name, setName] = useState('');
     const [avatar, setAvatar] = useState<string | null>(null);
-    const [step, setStep] = useState<'info' | 'waiting'>('info');
+    const [step, setStep] = useState<'info' | 'waiting' | 'not_yet' | 'expired'>('info');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [hasCamera, setHasCamera] = useState(false);
-    const [isExpired, setIsExpired] = useState(false);
     const [isFull, setIsFull] = useState(false);
     const [isUseCameraActive, setIsUseCameraActive] = useState(false);
     const [loadingMeeting, setLoadingMeeting] = useState(true);
@@ -48,16 +44,30 @@ function MeetingJoinContent() {
             if (!meetingId) return;
             setLoadingMeeting(true);
             try {
-                const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
+                const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
+                setMeeting(doc);
                 
-                // FORCE: Meeting is ONLY expired if status is 'ended'
-                if (meeting.status === 'ended') {
-                    setIsExpired(true);
+                const now = new Date();
+                const scheduledTime = new Date(doc.scheduledAt);
+                const expiryTime = new Date(doc.expiresAt);
+
+                if (doc.status === 'cancelled') {
+                    setStep('expired');
+                    return;
+                }
+
+                if (isBefore(now, scheduledTime)) {
+                    setStep('not_yet');
+                    return;
+                }
+
+                if (!isBefore(now, expiryTime) || doc.status === 'ended') {
+                    setStep('expired');
                     return;
                 }
 
                 // Check room capacity for Personal meetings (Limit 5)
-                if (meeting.type === 'personal' && !isAdminLink) {
+                if (doc.type === 'personal') {
                     const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
                         Query.equal('meetingId', meetingId),
                         Query.equal('status', 'approved')
@@ -67,9 +77,7 @@ function MeetingJoinContent() {
                     }
                 }
             } catch (e: any) {
-                console.error("Meeting Check Error:", e);
-                // If document not found, it might be an invalid link
-                if (e.code === 404) setIsExpired(true);
+                if (e.code === 404) setStep('expired');
             } finally {
                 setLoadingMeeting(false);
             }
@@ -88,7 +96,7 @@ function MeetingJoinContent() {
             }
         };
         setupCamera();
-    }, [meetingId, isAdminLink]);
+    }, [meetingId]);
 
     const handleCapture = () => {
         if (videoRef.current && canvasRef.current) {
@@ -121,10 +129,9 @@ function MeetingJoinContent() {
 
         setIsSubmitting(true);
         try {
-            const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
             const isActuallyAdmin = isAdminLink || authUser?.$id === meeting.hostId;
 
-            // Enforce capacity again at point of join
+            // Enforce capacity
             if (meeting.type === 'personal' && !isActuallyAdmin) {
                 const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
                     Query.equal('meetingId', meetingId),
@@ -150,27 +157,20 @@ function MeetingJoinContent() {
                 createdAt: new Date().toISOString()
             });
 
-            // Save setup to session for Room access
             sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ 
-                name, 
-                avatar, 
-                requestId,
-                isHost: isActuallyAdmin,
-                useCamera: isUseCameraActive 
+                name, avatar, requestId, isHost: isActuallyAdmin, useCamera: isUseCameraActive 
             }));
 
             if (isActuallyAdmin) {
                 router.replace(`/dashboard/meeting/room/${meetingId}`);
             } else {
                 setStep('waiting');
-                // Real-time approval listener
                 const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_ATTENDEES}.documents`], response => {
                     const payload = response.payload as any;
                     if (payload.$id === requestId) {
-                        if (payload.status === 'approved') {
-                            router.replace(`/dashboard/meeting/room/${meetingId}`);
-                        } else if (payload.status === 'declined') {
-                            toast({ variant: 'destructive', title: 'Access Denied', description: 'you have been denied by the host' });
+                        if (payload.status === 'approved') router.replace(`/dashboard/meeting/room/${meetingId}`);
+                        else if (payload.status === 'declined') {
+                            toast({ variant: 'destructive', title: 'Denied', description: 'Access denied by Admin.' });
                             setStep('info');
                             setIsSubmitting(false);
                         }
@@ -178,28 +178,45 @@ function MeetingJoinContent() {
                 });
                 return () => unsub();
             }
-
         } catch (e: any) {
             toast({ variant: 'destructive', title: 'Error', description: e.message });
             setIsSubmitting(false);
         }
     };
 
-    if (loadingMeeting) {
-        return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
+    if (loadingMeeting) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
+
+    if (step === 'not_yet') {
+        return (
+            <div className="h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+                <Card className="max-w-md w-full rounded-[2.5rem] shadow-xl border-none p-10">
+                    <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Clock className="h-10 w-10 text-primary" />
+                    </div>
+                    <h2 className="text-2xl font-black uppercase tracking-tighter">This meeting is not now</h2>
+                    <p className="text-muted-foreground font-bold text-sm mt-4">
+                        Starts: {format(new Date(meeting.scheduledAt), 'PPp')}
+                    </p>
+                    <Button asChild variant="outline" className="w-full h-12 rounded-full font-black uppercase tracking-widest mt-8">
+                        <Link href="/dashboard/meeting">Hub</Link>
+                    </Button>
+                </Card>
+            </div>
+        );
     }
 
-    if (isExpired) {
+    if (step === 'expired') {
         return (
             <div className="h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
                 <Card className="max-w-md w-full rounded-[2.5rem] shadow-xl border-none p-10">
                     <div className="bg-destructive/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
                         <XCircle className="h-10 w-10 text-destructive" />
                     </div>
-                    <h2 className="text-2xl font-black uppercase tracking-tighter">Meeting Expired</h2>
-                    <p className="text-muted-foreground font-bold text-sm mt-2">The Chairman has ended this session.</p>
+                    <h2 className="text-2xl font-black uppercase tracking-tighter">
+                        {meeting?.status === 'cancelled' ? 'This meeting has been cancelled' : 'This meeting expire'}
+                    </h2>
                     <Button asChild className="w-full h-12 rounded-full font-black uppercase tracking-widest mt-8">
-                        <Link href="/dashboard/meeting">Return to Hub</Link>
+                        <Link href="/dashboard/meeting">Hub</Link>
                     </Button>
                 </Card>
             </div>
@@ -215,10 +232,10 @@ function MeetingJoinContent() {
                     </div>
                     <h2 className="text-xl font-black uppercase tracking-tighter">Room is Full</h2>
                     <p className="text-muted-foreground font-bold text-xs mt-2 italic">
-                        the meeting with this id is personal and already 5 have joined
+                        This meeting is personal and 5 have already joined.
                     </p>
                     <Button asChild className="w-full h-12 rounded-full font-black uppercase tracking-widest mt-8">
-                        <Link href="/dashboard/meeting">Return to Hub</Link>
+                        <Link href="/dashboard/meeting">Hub</Link>
                     </Button>
                 </Card>
             </div>
@@ -236,57 +253,37 @@ function MeetingJoinContent() {
                         </div>
                     </div>
                 </div>
-                <h2 className="text-white text-2xl font-black tracking-tighter">Lobby: {name}</h2>
-                <p className="text-primary font-bold text-xs uppercase mt-2 animate-pulse">Waiting for admin approval...</p>
+                <h2 className="text-white text-2xl font-black tracking-tighter">Processing...</h2>
+                <p className="text-primary font-bold text-xs uppercase mt-2 animate-pulse">Waiting for Admin Approval</p>
             </div>
         );
     }
 
     return (
-        <div className="h-screen bg-background flex flex-col p-6 overflow-y-auto pb-20">
+        <div className="h-screen bg-background flex flex-col p-6 overflow-y-auto">
             <header className="pt-10 mb-6 flex justify-between items-center">
                 <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/meeting')} className="font-black uppercase text-[10px] gap-2">
                     <ArrowLeft className="h-4 w-4" /> Hub
                 </Button>
-                {isAdminLink && (
-                    <div className="px-3 py-1 rounded-full text-[9px] font-black uppercase bg-yellow-100 text-yellow-700 border border-yellow-200 flex items-center shadow-sm">
-                        <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Chairman Link
-                    </div>
-                )}
             </header>
             <Card className="max-w-md w-full mx-auto rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
                 <CardHeader className="bg-primary text-white p-8 text-center">
-                    <CardTitle className="text-xl font-black uppercase tracking-widest leading-none">Welcome to I-pay meeting</CardTitle>
-                    <CardDescription className="text-white/70 font-bold mt-2">Setup your identity before entry</CardDescription>
+                    <CardTitle className="text-xl font-black uppercase tracking-widest leading-none">I-pay meeting</CardTitle>
+                    <CardDescription className="text-white/70 font-bold mt-2">Setup identity to join</CardDescription>
                 </CardHeader>
                 <CardContent className="p-8 space-y-6">
                     <div className="space-y-2">
                         <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest">Display Name</Label>
-                        <Input 
-                            placeholder="Type your name..." 
-                            className="h-12 rounded-2xl bg-muted border-none px-6 font-bold"
-                            value={name}
-                            onChange={e => setName(e.target.value)}
-                        />
+                        <Input placeholder="Your name..." className="h-12 rounded-2xl bg-muted border-none px-6 font-bold" value={name} onChange={e => setName(e.target.value)} />
                     </div>
-
                     <div className="space-y-4">
                         <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest">Identity Preview</Label>
                         <div className="relative aspect-video bg-black rounded-3xl overflow-hidden border-4 border-white shadow-xl">
-                            {avatar ? (
-                                <img src={avatar} className="h-full w-full object-cover" alt="Preview" />
-                            ) : (
-                                <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
-                            )}
+                            {avatar ? <img src={avatar} className="h-full w-full object-cover" alt="Preview" /> : <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />}
                             <canvas ref={canvasRef} className="hidden" />
-                            
                             <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3">
-                                {avatar ? (
-                                    <Button onClick={() => { setAvatar(null); setIsUseCameraActive(false); }} size="sm" variant="destructive" className="rounded-full font-black uppercase text-[9px] h-8 shadow-lg">Reset</Button>
-                                ) : (
-                                    <Button onClick={handleCapture} size="sm" className="rounded-full font-black uppercase text-[9px] h-8 shadow-lg" disabled={!hasCamera}><Camera className="mr-1 h-3 w-3" /> Use Camera</Button>
-                                )}
-                                <Button onClick={() => fileInputRef.current?.click()} size="sm" variant="secondary" className="rounded-full font-black uppercase text-[9px] h-8 shadow-lg"><UploadCloud className="mr-1 h-3 w-3" /> Upload Icon</Button>
+                                {avatar ? <Button onClick={() => { setAvatar(null); setIsUseCameraActive(false); }} size="sm" variant="destructive" className="rounded-full font-black uppercase text-[9px] h-8 shadow-lg">Reset</Button> : <Button onClick={handleCapture} size="sm" className="rounded-full font-black uppercase text-[9px] h-8 shadow-lg" disabled={!hasCamera}><Camera className="mr-1 h-3 w-3" /> Camera</Button>}
+                                <Button onClick={() => fileInputRef.current?.click()} size="sm" variant="secondary" className="rounded-full font-black uppercase text-[9px] h-8 shadow-lg"><UploadCloud className="mr-1 h-3 w-3" /> Upload</Button>
                             </div>
                         </div>
                         <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
@@ -294,7 +291,7 @@ function MeetingJoinContent() {
                 </CardContent>
                 <CardFooter className="p-8 pt-0">
                     <Button onClick={handleRequestJoin} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-xl" disabled={isSubmitting || !name || !avatar}>
-                        {isSubmitting ? <Loader2 className="animate-spin" /> : isAdminLink ? 'Enter as Chairman' : 'Join Meeting'}
+                        {isSubmitting ? <Loader2 className="animate-spin" /> : 'Join Meeting'}
                     </Button>
                 </CardFooter>
             </Card>
@@ -303,9 +300,5 @@ function MeetingJoinContent() {
 }
 
 export default function MeetingJoinPage() {
-    return (
-        <Suspense fallback={<div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>}>
-            <MeetingJoinContent />
-        </Suspense>
-    );
+    return <Suspense fallback={<div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>}><MeetingJoinContent /></Suspense>;
 }
