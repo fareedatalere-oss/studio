@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -9,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Search, MoreVertical, Trash2, ArrowLeft, Loader2 } from 'lucide-react';
+import { Search, MoreVertical, Trash2, ArrowLeft, Loader2, Video } from 'lucide-react';
 import { useUser } from '@/hooks/use-appwrite';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, doc, getDoc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
@@ -158,7 +157,9 @@ export default function ChatPage() {
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                     <h1 className="font-black uppercase text-xs tracking-[0.3em] text-primary">Chat Center</h1>
-                    <div className="w-10" />
+                    <Button asChild variant="ghost" size="icon" className="h-10 w-10 bg-primary/10 text-primary rounded-full shadow-inner">
+                        <Link href="/dashboard/meeting" title="I-Pay Meeting Hub"><Video className="h-5 w-5" /></Link>
+                    </Button>
                 </div>
                 
                 <Tabs defaultValue="recent" className="w-full">
