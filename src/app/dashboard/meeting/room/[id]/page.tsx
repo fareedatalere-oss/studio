@@ -29,7 +29,6 @@ export default function MeetingRoomPage() {
 
     const [meeting, setMeeting] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [isInRoom, setIsInRoom] = useState(false);
     const [durationSeconds, setDurationSeconds] = useState(0);
     
     const [participants, setParticipants] = useState<any[]>([]);
@@ -47,8 +46,8 @@ export default function MeetingRoomPage() {
     const [chatMessages, setChatMessages] = useState<any[]>([]);
     const [chatInput, setChatInput] = useState('');
 
-    const isAdmin = useMemo(() => user?.$id === meeting?.hostId, [user?.$id, meeting?.hostId]);
     const isCall = useMemo(() => meeting?.type === 'call', [meeting?.type]);
+    const isAdmin = useMemo(() => user?.$id === meeting?.hostId, [user?.$id, meeting?.hostId]);
 
     const postCallLog = async (durationStr: string) => {
         if (!user || !meeting) return;
@@ -79,50 +78,32 @@ export default function MeetingRoomPage() {
         }
     };
 
-    const handleEntry = useCallback(async (docData: any) => {
-        if (isInRoom) return;
-        
-        const guestDataStr = sessionStorage.getItem(`meeting_guest_${meetingId}`);
-        let guestData = guestDataStr ? JSON.parse(guestDataStr) : null;
-
-        // CRITICAL FIX: If we are a logged in user entering a call room, auto-initialize identity
-        if (!guestData && user && profile) {
-            guestData = { name: profile.username, avatar: profile.avatar, useCamera: false };
+    const registerIdentity = useCallback(async () => {
+        if (!user || !profile || !meetingId) return;
+        try {
+            // Auto-register attendee record immediately to prevent redirection logic
+            const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
+                Query.equal('meetingId', meetingId),
+                Query.equal('userId', user.$id)
+            ]);
             
-            // Auto-register as attendee to prevent redirection loops
-            try {
-                const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
-                    Query.equal('meetingId', meetingId),
-                    Query.equal('userId', user.$id)
-                ]);
-                
-                if (attendees.total === 0) {
-                    await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, ID.unique(), {
-                        meetingId,
-                        userId: user.$id,
-                        name: profile.username,
-                        avatar: profile.avatar,
-                        status: 'approved',
-                        isHost: user.$id === docData.hostId,
-                        hasVideo: false,
-                        hasAudio: true,
-                        createdAt: new Date().toISOString()
-                    });
-                }
-                sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify(guestData));
-            } catch (e) {
-                console.error("Auto-entry registration failed", e);
+            if (attendees.total === 0) {
+                await databases.createDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, ID.unique(), {
+                    meetingId,
+                    userId: user.$id,
+                    name: profile.username,
+                    avatar: profile.avatar,
+                    status: 'approved',
+                    isHost: user.$id === meeting?.hostId,
+                    hasVideo: false,
+                    hasAudio: true,
+                    createdAt: new Date().toISOString()
+                });
             }
+        } catch (e) {
+            console.error("Identity registration failed", e);
         }
-
-        if (!guestData) {
-            router.replace(`/dashboard/meeting/join/${meetingId}${isAdmin ? '?role=admin' : ''}`);
-            return;
-        }
-
-        setIsInRoom(true);
-        setUseCamera(guestData.useCamera || false);
-    }, [meetingId, isAdmin, isInRoom, router, user, profile]);
+    }, [user, profile, meetingId, meeting?.hostId]);
 
     const fetchMeeting = useCallback(async () => {
         try {
@@ -134,14 +115,11 @@ export default function MeetingRoomPage() {
                 return;
             }
 
-            await handleEntry(docData);
-
-            if (docData.type === 'call' && user) {
-                const otherId = docData.invitedUsers?.find((id: string) => id !== user.$id) || (user.$id === docData.hostId ? null : docData.hostId);
-                if (otherId) {
-                    const otherProf = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherId).catch(() => null);
-                    setPartnerProfile(otherProf);
-                }
+            // Sync partner profile instantly
+            const otherId = docData.invitedUsers?.find((id: string) => id !== user?.$id) || (user?.$id === docData.hostId ? null : docData.hostId);
+            if (otherId) {
+                const otherProf = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, otherId).catch(() => null);
+                setPartnerProfile(otherProf);
             }
 
             if (docData.status === 'started' && docData.startedAt) {
@@ -149,11 +127,11 @@ export default function MeetingRoomPage() {
                 setDurationSeconds(elapsed);
             }
         } catch (e) {
-            router.replace('/dashboard/chat');
+            console.error("Fetch meeting error", e);
         } finally {
             setLoading(false);
         }
-    }, [meetingId, router, handleEntry, user]);
+    }, [meetingId, router, user?.$id]);
 
     const fetchAttendees = useCallback(async () => {
         try {
@@ -164,20 +142,21 @@ export default function MeetingRoomPage() {
             const approved = res.documents.filter(a => a.status === 'approved');
             setParticipants(approved);
 
-            if (isAdmin && approved.length >= 2 && meeting?.status === 'pending') {
+            // If we are host and partner joined, start the meeting
+            if (user?.$id === meeting?.hostId && approved.length >= 2 && meeting?.status === 'pending') {
                 await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, {
                     status: 'started',
                     startedAt: new Date().toISOString()
                 });
             }
         } catch (e) {}
-    }, [meetingId, isAdmin, meeting?.status]);
+    }, [meetingId, user?.$id, meeting?.hostId, meeting?.status]);
 
     useEffect(() => {
         if (!user) return;
         fetchMeeting();
-        fetchAttendees();
-
+        registerIdentity();
+        
         const unsubMeeting = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${meetingId}`], response => {
             const payload = response.payload as any;
             if (payload.status === 'ended') router.replace('/dashboard/chat');
@@ -197,36 +176,36 @@ export default function MeetingRoomPage() {
         });
 
         return () => { unsubMeeting(); unsubAttendees(); unsubChat(); };
-    }, [meetingId, fetchMeeting, fetchAttendees, user]);
+    }, [meetingId, fetchMeeting, fetchAttendees, registerIdentity, user, router]);
 
     useEffect(() => {
-        if (isInRoom && (useCamera || activeMode === 'video')) {
+        if (activeMode === 'video' || useCamera) {
             navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
                 localStreamRef.current = stream;
                 if (videoRef.current) videoRef.current.srcObject = stream;
-            }).catch(() => setUseCamera(false));
-        } else if (isInRoom) {
+            }).catch(() => {});
+        } else {
             navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
                 localStreamRef.current = stream;
             }).catch(() => {});
         }
         
         return () => localStreamRef.current?.getTracks().forEach(t => t.stop());
-    }, [isInRoom, useCamera, activeMode]);
+    }, [useCamera, activeMode]);
 
     useEffect(() => {
-        if (!isInRoom || meeting?.status !== 'started') return;
+        if (meeting?.status !== 'started') return;
         const interval = setInterval(() => {
             setDurationSeconds(prev => prev + 1);
         }, 1000);
         return () => clearInterval(interval);
-    }, [isInRoom, meeting?.status]);
+    }, [meeting?.status]);
 
     const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         setIsUploadingMedia(true);
-        toast({ title: 'Sharing media to board...' });
+        toast({ title: 'Sharing media...' });
         try {
             const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), file);
             const url = getAppwriteStorageUrl(upload.$id);
@@ -258,10 +237,9 @@ export default function MeetingRoomPage() {
 
     if (loading || !meeting) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
 
-    const partner = participants.find(p => p.userId !== user.$id);
+    const partner = participants.find(p => p.userId !== user?.$id);
     const isConnected = meeting.status === 'started';
     
-    // Identity resolution: Use attendee record if joined, fallback to partner profile if ringing
     const displayAvatar = partner?.avatar || partnerProfile?.avatar;
     const displayName = partner?.name || partnerProfile?.username;
 
@@ -272,13 +250,13 @@ export default function MeetingRoomPage() {
             {isCall && activeMode === 'chat' && (
                 <div className="absolute inset-0 z-[150] bg-white flex flex-col p-6 animate-in slide-in-from-bottom-5">
                     <header className="flex items-center justify-between border-b pb-4 mb-4">
-                        <h2 className="font-black uppercase text-xs tracking-widest">Call Chat</h2>
-                        <Button variant="ghost" size="icon" onClick={() => setActiveMode('voice')} className="rounded-full bg-muted"><X className="h-5 w-5" /></Button>
+                        <h2 className="font-black uppercase text-xs tracking-widest text-black">Call Chat</h2>
+                        <Button variant="ghost" size="icon" onClick={() => setActiveMode('voice')} className="rounded-full bg-muted"><X className="h-5 w-5 text-black" /></Button>
                     </header>
                     <div className="flex-1 overflow-y-auto space-y-4 mb-4 scrollbar-hide">
                         {chatMessages.map((msg, i) => (
-                            <div key={i} className={cn("flex flex-col max-w-[80%]", msg.senderId === user.$id ? "ml-auto items-end" : "items-start")}>
-                                <div className={cn("p-3 rounded-2xl text-xs font-bold shadow-sm", msg.senderId === user.$id ? "bg-primary text-white" : "bg-muted text-black")}>{msg.text}</div>
+                            <div key={i} className={cn("flex flex-col max-w-[80%]", msg.senderId === user?.$id ? "ml-auto items-end" : "items-start")}>
+                                <div className={cn("p-3 rounded-2xl text-xs font-bold shadow-sm", msg.senderId === user?.$id ? "bg-primary text-white" : "bg-muted text-black")}>{msg.text}</div>
                             </div>
                         ))}
                     </div>
@@ -299,18 +277,12 @@ export default function MeetingRoomPage() {
                 <div className="absolute inset-0 z-[140] bg-black flex flex-col items-center justify-center animate-in zoom-in-95">
                     <Button variant="ghost" size="icon" onClick={() => setActiveMode('voice')} className="absolute top-12 right-6 z-[150] rounded-full bg-black/50 text-white"><X /></Button>
                     <div className="relative w-full h-full">
-                        <div className="absolute inset-0 bg-muted flex flex-col items-center justify-center gap-4">
-                            <Video className="h-20 w-20 opacity-20" />
-                            <p className="font-black uppercase text-[10px] tracking-[0.3em] opacity-30 animate-pulse">Switching to Live Feed...</p>
-                        </div>
-                        <div className="absolute bottom-10 right-6 w-32 h-48 rounded-2xl border-2 border-white/20 overflow-hidden shadow-2xl">
-                            <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
-                        </div>
+                        <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
                     </div>
                 </div>
             )}
 
-            {/* BROWN DISPLAY BOARD (Blackboard) */}
+            {/* BROWN DISPLAY BOARD */}
             {meeting?.displayVisible && (
                 <div className="absolute inset-0 z-[100] bg-[#4e342e] flex flex-col items-center justify-center animate-in fade-in duration-300">
                     <div className="max-w-5xl w-full aspect-video bg-black rounded-[2rem] overflow-hidden border border-white/10 relative shadow-2xl">
@@ -389,7 +361,7 @@ export default function MeetingRoomPage() {
             </main>
 
             {!isCall && (
-                <footer className={cn("p-8 border-t flex justify-center safe-area-bottom z-[80]", isCall ? "bg-white border-black/5" : "bg-black border-white/10")}>
+                <footer className={cn("p-8 border-t flex justify-center safe-area-bottom z-[80] bg-black border-white/10")}>
                     <Button variant="destructive" className="rounded-full h-14 px-10 font-black uppercase text-xs tracking-widest shadow-2xl transition-all active:scale-90" onClick={endCall}>
                         <PhoneOff className="mr-2 h-5 w-5" /> Hang Up
                     </Button>
