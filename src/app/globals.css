@@ -4,6 +4,7 @@
 
 body {
   font-family: Arial, Helvetica, sans-serif;
+  -webkit-overflow-scrolling: touch;
 }
 
 @layer base {
@@ -84,5 +85,20 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+    scroll-behavior: smooth;
   }
+}
+
+.scrollbar-visible::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.scrollbar-visible::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.2);
+  border-radius: 10px;
+}
+
+.scrollbar-visible:hover::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.4);
 }

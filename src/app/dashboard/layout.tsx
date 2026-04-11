@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { Bell, Home, PlaySquare, Store, User, X, Bot, Download, MessageSquare } from 'lucide-react';
@@ -16,7 +15,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 
 /**
  * @fileOverview Unified Dashboard Layout.
- * Uses unified useUser hook and Firebase Data Service.
+ * Enhanced for scrollability and mobile responsiveness.
  */
 
 export default function DashboardLayout({
@@ -169,7 +168,9 @@ export default function DashboardLayout({
         </header>
       )}
       
-      <main className={cn("flex-1", !isImmersive && "pb-14 md:pb-0")}>{children}</main>
+      <main className={cn("flex-1 overflow-y-auto", !isImmersive && "pb-20 md:pb-6")}>
+        {children}
+      </main>
 
       {!isImmersive && (
         <footer className="fixed bottom-0 z-40 w-full border-t bg-background md:hidden shadow-lg h-14">

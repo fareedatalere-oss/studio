@@ -25,6 +25,7 @@ import Image from 'next/image';
  * @fileOverview Complete Media Hub Redesign based on User Sketch.
  * HEADER: Post (Top Left), Row of 5 buttons (Tabs, Text/Images, Reels, Films, music).
  * BODY: Mixed feed for "Tabs", specific layouts for each type.
+ * Updated for better scrollability.
  */
 
 type MediaTab = 'tabs' | 'text_images' | 'reels' | 'films' | 'music';
@@ -67,7 +68,7 @@ export default function MediaPage() {
   });
 
   return (
-    <div className="flex flex-col h-screen bg-background overflow-hidden font-body">
+    <div className="flex flex-col min-h-screen bg-background font-body pb-20">
       <header className="p-4 pt-12 bg-background border-b z-30 shadow-sm space-y-4">
         {/* ROW 1: Post Button (Top Left) as in sketch */}
         <div className="flex items-center justify-between">
@@ -82,7 +83,7 @@ export default function MediaPage() {
         </div>
 
         {/* ROW 2: Navigation Buttons (Sketch Order) */}
-        <div className="flex justify-between gap-2 overflow-x-auto no-scrollbar pb-1">
+        <div className="flex justify-between gap-2 overflow-x-auto pb-1 scrollbar-visible">
             {[
                 { id: 'tabs', label: 'Tabs' },
                 { id: 'text_images', label: 'Text/Images' },
@@ -118,9 +119,9 @@ export default function MediaPage() {
       </header>
 
       {/* FEED CONTENT */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-8 pb-24 scroll-smooth">
+      <main className="flex-1 p-4 space-y-8 pb-24">
         {loading ? (
-            <div className="h-full flex flex-col items-center justify-center opacity-30">
+            <div className="h-full flex flex-col items-center justify-center opacity-30 py-20">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
                 <p className="mt-4 font-black uppercase text-[10px] tracking-widest">Loading Media...</p>
             </div>

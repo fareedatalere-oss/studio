@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -20,6 +19,11 @@ import { databases, DATABASE_ID, COLLECTION_ID_APPS, COLLECTION_ID_PRODUCTS, COL
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+
+/**
+ * @fileOverview Marketplace Main View.
+ * Enhanced for fluid scrollability and category visibility.
+ */
 
 function MarketContent() {
   const { toast } = useToast();
@@ -231,16 +235,16 @@ function MarketContent() {
 
   if (dataLoading) {
       return (
-          <div className="h-screen flex justify-center items-center bg-background">
+          <div className="min-h-screen flex justify-center items-center bg-background py-20">
               <Loader2 className="animate-spin h-12 w-12 text-primary" />
           </div>
       );
   }
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-background flex flex-col pb-20">
       
-      <div className="p-4 pt-12 flex items-center justify-between gap-4 bg-muted/30 backdrop-blur-md border-b">
+      <div className="p-4 pt-12 flex items-center justify-between gap-4 bg-muted/30 backdrop-blur-md border-b sticky top-0 z-50">
         <Button asChild variant="ghost" size="icon" className="h-10 w-10 rounded-full bg-background/50 border shadow-sm">
             <Link href="/dashboard"><Home className="h-5 w-5" /></Link>
         </Button>
@@ -273,7 +277,7 @@ function MarketContent() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="p-4 space-y-6">
         <div className="flex justify-between items-center">
             {isSubscribed ? (
             <Badge variant="outline" className="h-10 px-4 font-black uppercase text-[10px] tracking-tighter border-primary text-primary bg-primary/5">
@@ -286,7 +290,7 @@ function MarketContent() {
         </div>
 
         <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 bg-muted h-12 rounded-2xl p-1">
+            <TabsList className="grid w-full grid-cols-4 bg-muted h-12 rounded-2xl p-1 scrollbar-visible">
                 <TabsTrigger value="apps" className="rounded-xl font-black uppercase text-[10px] tracking-tighter">Apps</TabsTrigger>
                 <TabsTrigger value="products" className="rounded-xl font-black uppercase text-[10px] tracking-tighter">Items</TabsTrigger>
                 <TabsTrigger value="bookstore" className="rounded-xl font-black uppercase text-[10px] tracking-tighter">Books</TabsTrigger>
