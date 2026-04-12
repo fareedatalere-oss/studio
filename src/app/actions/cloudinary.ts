@@ -31,7 +31,7 @@ export async function uploadToCloudinary(base64Data: string, resourceType: 'imag
 
   try {
     const uploadResponse = await cloudinary.uploader.upload(base64Data, {
-      resource_type: resourceType,
+      resource_type: resourceType === 'auto' ? 'auto' : resourceType,
       folder: 'ipay_chat_media',
     });
 

@@ -153,13 +153,11 @@ export const storage = {
             reader.onloadend = () => resolve(reader.result as string);
             reader.readAsDataURL(file);
         });
-        const res = await uploadToCloudinary(base64, file.type.startsWith('image') ? 'image' : 'auto');
+        const res = await uploadToCloudinary(base64, file.type.startsWith('image') ? 'image' : (file.type.startsWith('video') || file.type.startsWith('audio') ? 'video' : 'auto'));
         if (res.success) return { $id: res.publicId, url: res.url };
         else throw new Error(res.message || 'Cloudinary upload failed.');
     },
-    deleteFile: async (bucketId: string, fileId: string) => {
-        // Cloudinary cleanup handled separately
-    }
+    deleteFile: async (bucketId: string, fileId: string) => {}
 };
 
 export const account = {
