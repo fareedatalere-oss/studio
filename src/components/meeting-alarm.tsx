@@ -11,7 +11,7 @@ import { isBefore, parseISO, differenceInMinutes } from 'date-fns';
 
 /**
  * @fileOverview Master Alarm Engine.
- * PRODUCTION HARDENING: Admin Alerts for scheduled meetings and native vibration.
+ * PRODUCTION HARDENING: Real Smartphone ringtone and native vibration for critical calls.
  */
 
 export function MeetingAlarm() {
@@ -50,7 +50,7 @@ export function MeetingAlarm() {
 
         const now = new Date();
 
-        // 1. Check for incoming calls (for the Receiver)
+        // 1. Check for incoming calls
         const incomingCall = res.documents.find(m => m.type === 'call' && m.invitedUsers?.includes(user.$id));
         
         // 2. Check for scheduled meetings reaching time (for Admin/Host)
@@ -60,7 +60,6 @@ export function MeetingAlarm() {
             
             const schedTime = parseISO(m.scheduledAt);
             const diff = differenceInMinutes(now, schedTime);
-            // Ring if it's within 1 minute of start or up to 5 mins past
             return diff >= 0 && diff < 5;
         });
 
@@ -104,17 +103,14 @@ export function MeetingAlarm() {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
-    // 1. Setup Audio (High-Fidelity smartphone sound)
     if (!audioRef.current) {
-        audioRef.current = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-outgoing-call-signal-2174.mp3');
+        // High-Fidelity Professional Ringtone
+        audioRef.current = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-ringtone-for-telephone-alert-2173.mp3');
         audioRef.current.loop = true;
         audioRef.current.preload = 'auto';
     }
-    audioRef.current.play().catch(() => {
-        console.log("Audio blocked. Interaction needed.");
-    });
+    audioRef.current.play().catch(() => {});
 
-    // 2. Setup Native Vibration
     if (navigator.vibrate) {
         navigator.vibrate([500, 200, 500, 200, 500]);
         vibrationInterval.current = setInterval(() => {
@@ -126,7 +122,6 @@ export function MeetingAlarm() {
   const handleDecline = async () => {
     if (activeCall?.$id) {
         rungIds.current.add(activeCall.$id);
-        // If host, cancel it. If guest, just ignore it locally.
         if (activeCall.hostId === user.$id) {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'cancelled' });
         }
@@ -139,10 +134,8 @@ export function MeetingAlarm() {
     if (activeCall?.$id) {
         rungIds.current.add(activeCall.$id);
         if (activeCall.isHostAlert) {
-            // Admin accepts their own meeting
             router.push(`/dashboard/meeting/join/${activeCall.$id}?role=admin`);
         } else {
-            // Guest accepts call
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'connected' });
             router.push(`/dashboard/chat/call/${activeCall.$id}`);
         }
@@ -198,7 +191,7 @@ export function MeetingAlarm() {
       
       <div className="absolute bottom-10 flex items-center gap-2 opacity-20">
           <Volume2 className="h-3 w-3" />
-          <p className="text-[8px] font-black uppercase tracking-widest">Using Secure Audio Driver</p>
+          <p className="text-[8px] font-black uppercase tracking-widest">Incoming Call Service Active</p>
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ import {
     serverTimestamp, setDoc, updateDoc, 
     increment, getDocs, writeBatch, deleteDoc, arrayUnion
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } from '@/lib/data-service';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
 import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, Forward, Mic, X, CheckCircle2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -33,7 +33,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Chat Thread.
- * FIXED: Timestamp rendering crash by adding safe null-checks for serverTimestamp() values.
+ * UPGRADED: Returned Call functionality and fixed timestamp rendering safety.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -97,8 +97,8 @@ export default function ChatThreadPage() {
             const docs = snapshot.docs.map(d => ({ $id: d.id, ...d.data() }));
             const filtered = docs.filter((m: any) => !m.deleteFor?.includes(currentUser?.$id))
                 .sort((a: any, b: any) => {
-                    const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.timestamp || 0);
-                    const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.timestamp || 0);
+                    const timeA = (a.createdAt && typeof a.createdAt.toMillis === 'function') ? a.createdAt.toMillis() : (a.timestamp || Date.now());
+                    const timeB = (b.createdAt && typeof b.createdAt.toMillis === 'function') ? b.createdAt.toMillis() : (b.timestamp || Date.now());
                     return timeA - timeB;
                 });
             setMessages(filtered);
@@ -134,6 +134,24 @@ export default function ChatThreadPage() {
                 [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
         } catch (e) { toast({ variant: 'destructive', title: 'Send Error' }); }
+    };
+
+    const handleStartCall = async () => {
+        if (!currentUser || !otherUserId || !otherUser) return;
+        const callId = doc(collection(db, COLLECTION_ID_MEETINGS)).id;
+        try {
+            await setDoc(doc(db, COLLECTION_ID_MEETINGS, callId), {
+                hostId: currentUser.$id,
+                invitedUsers: [otherUserId],
+                type: 'call',
+                status: 'pending',
+                createdAt: serverTimestamp(),
+                activeView: 'none'
+            });
+            router.push(`/dashboard/chat/call/${callId}`);
+        } catch (e) {
+            toast({ variant: 'destructive', title: 'Call Failed' });
+        }
     };
 
     const startRecording = async () => {
@@ -209,6 +227,9 @@ export default function ChatThreadPage() {
                         </div>
                     </div>
                 )}
+                <Button onClick={handleStartCall} variant="ghost" size="icon" className="h-10 w-10 rounded-full text-primary hover:bg-primary/10">
+                    <Phone className="h-5 w-5" />
+                </Button>
             </header>
             
             <main className="flex-1 overflow-y-auto p-4 space-y-2 overscroll-contain bg-muted/5">
@@ -246,7 +267,9 @@ export default function ChatThreadPage() {
                                     </div>
                                     <div className="flex items-center justify-end gap-1 mt-1">
                                         <span className="text-[6px] font-black uppercase opacity-60">
-                                            {msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : (msg.timestamp ? format(msg.timestamp, 'HH:mm') : '...')}
+                                            {msg.createdAt && typeof msg.createdAt.toMillis === 'function' 
+                                                ? format(msg.createdAt.toMillis(), 'HH:mm') 
+                                                : (msg.timestamp ? format(msg.timestamp, 'HH:mm') : '...')}
                                         </span>
                                     </div>
                                 </div>

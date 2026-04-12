@@ -20,8 +20,13 @@ import Image from 'next/image';
 
 /**
  * @fileOverview Private Call Page.
- * UPGRADED: Master State Syncing for Chat/Display and unmuted remote audio.
+ * UPGRADED: Synchronized Call-Chat ID and unmuted remote partner audio for live voice.
  */
+
+const getChatId = (userId1: string, userId2: string) => {
+    const sortedIds = [userId1, userId2].sort();
+    return `${sortedIds[0]}_${sortedIds[1]}`;
+};
 
 export default function PrivateCallPage() {
     const params = useParams();
@@ -51,7 +56,7 @@ export default function PrivateCallPage() {
 
     const chatId = useMemo(() => {
         if (!user?.$id || !partner?.$id) return null;
-        return [user.$id, partner.$id].sort().join('_') + '_call';
+        return getChatId(user.$id, partner.$id);
     }, [user?.$id, partner?.$id]);
 
     const fetchCall = useCallback(async () => {
@@ -89,7 +94,6 @@ export default function PrivateCallPage() {
                     return;
                 }
                 setCall(payload);
-                // MASTER VIEW SYNC: Force UI to follow activeView
                 if (payload.activeView) {
                     setIsChatOpen(payload.activeView === 'chat');
                     setIsDisplayOpen(payload.activeView === 'display');
@@ -204,7 +208,7 @@ export default function PrivateCallPage() {
                     <h2 className="text-black text-2xl font-black tracking-tighter uppercase">@{partner.username}</h2>
                     <div className="flex items-center justify-center gap-2 mt-2 opacity-40">
                         <Volume2 className="h-3 w-3" />
-                        <p className="text-[10px] font-black uppercase tracking-widest">Voice Active</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest">Live Voice Active</p>
                     </div>
                 </div>
             </div>
@@ -239,7 +243,6 @@ export default function PrivateCallPage() {
                 </div>
             </footer>
 
-            {/* LIVE CHAT OVERLAY */}
             {isChatOpen && (
                 <div className="absolute inset-0 z-[200] bg-white flex flex-col animate-in slide-in-from-bottom duration-300">
                     <header className="p-6 pt-16 flex items-center justify-between border-b bg-muted/10">
@@ -265,7 +268,6 @@ export default function PrivateCallPage() {
                 </div>
             )}
 
-            {/* DISPLAY HUB OVERLAY */}
             {isDisplayOpen && (
                 <div className="absolute inset-0 z-[300] bg-black flex flex-col animate-in fade-in duration-300">
                     <header className="absolute top-12 left-0 right-0 flex items-center justify-between p-6 z-10">
@@ -276,13 +278,13 @@ export default function PrivateCallPage() {
                         {call.displayVisible ? (
                             <div className="w-full h-full rounded-[2.5rem] overflow-hidden bg-white/5 border border-white/10 relative flex items-center justify-center shadow-2xl">
                                 {call.displayType === 'image' && <Image src={call.displayUrl} alt="Display" fill className="object-contain" unoptimized />}
-                                {call.displayType === 'video' && <video src={call.displayUrl} controls autoPlay playsInline className="w-full h-full" preload="auto" />}
+                                {call.displayType === 'video' && <video src={call.displayUrl} controls autoPlay playsInline className="w-full h-full" preload="auto" muted={false} />}
                                 {call.displayType === 'music' && (
                                     <div className="flex flex-col items-center gap-8">
                                         <div className="h-40 w-40 rounded-full bg-primary/20 flex items-center justify-center border-4 border-primary animate-spin-slow">
                                             <Music className="h-20 w-20 text-primary" />
                                         </div>
-                                        <audio src={call.displayUrl} controls autoPlay preload="auto" className="w-full max-w-xs" />
+                                        <audio src={call.displayUrl} controls autoPlay playsInline preload="auto" muted={false} className="w-full max-w-xs" />
                                     </div>
                                 )}
                             </div>

@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center Page.
- * PRODUCTION HARDENING: Extreme null-safety for Vercel deployment.
+ * PRODUCTION HARDENING: Extreme safety guards to eliminate client-side exceptions during loading.
  */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
@@ -45,7 +45,9 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
         fetchOther();
     }, [chat, currentUid]);
 
-    const unreadCount = (currentUid && chat?.unreadCount) ? (chat.unreadCount[currentUid] || 0) : 0;
+    const unreadCount = (currentUid && chat?.unreadCount && typeof chat.unreadCount === 'object') 
+        ? (chat.unreadCount[currentUid] || 0) 
+        : 0;
 
     const deleteChatHistory = async () => {
         if (!chat?.$id) return;
@@ -135,11 +137,11 @@ export default function ChatPage() {
 
         const q = query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', currentUid));
         const unsubChats = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
+            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })).filter(Boolean);
             data.sort((a: any, b: any) => {
                 if (!a || !b) return 0;
-                const timeA = a.lastMessageAt?.toMillis ? a.lastMessageAt.toMillis() : (typeof a.lastMessageAt === 'string' ? new Date(a.lastMessageAt).getTime() : (typeof a.lastMessageAt === 'number' ? a.lastMessageAt : 0));
-                const timeB = b.lastMessageAt?.toMillis ? b.lastMessageAt.toMillis() : (typeof b.lastMessageAt === 'string' ? new Date(b.lastMessageAt).getTime() : (typeof b.lastMessageAt === 'number' ? b.lastMessageAt : 0));
+                const timeA = (a.lastMessageAt && typeof a.lastMessageAt.toMillis === 'function') ? a.lastMessageAt.toMillis() : 0;
+                const timeB = (b.lastMessageAt && typeof b.lastMessageAt.toMillis === 'function') ? b.lastMessageAt.toMillis() : 0;
                 return (timeB || 0) - (timeA || 0);
             });
             setRecentChats(data);
@@ -147,7 +149,7 @@ export default function ChatPage() {
         }, () => setLoading(false));
 
         const unsubUsers = onSnapshot(collection(db, COLLECTION_ID_PROFILES), (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
+            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })).filter(Boolean);
             setAllUsers(data);
         });
 
