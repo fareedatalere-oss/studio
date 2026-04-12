@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 
 /**
  * @fileOverview Meeting Entry Page.
- * ROBUST LINK PARSING: Extracts ID and Role from any I-Pay meeting link format.
+ * PRODUCTION HARDENING: Robust Link Parsing for Vercel URLs and shorten IDs.
  */
 
 export default function EnterMeetingPage() {
@@ -22,7 +22,7 @@ export default function EnterMeetingPage() {
   const [isVerifying, setIsVerifying] = useState(false);
 
   const handleJoin = async () => {
-    const rawInput = input.trim();
+    const rawInput = (input || '').trim();
     if (!rawInput) {
         toast({ variant: 'destructive', title: 'Input Required', description: 'Please paste a link or enter a meeting ID.' });
         return;
@@ -34,26 +34,34 @@ export default function EnterMeetingPage() {
         let cleanId = '';
         let isAdmin = false;
 
-        // 1. Try to extract ID using URL parser if it looks like a link
-        if (rawInput.includes('/') || rawInput.includes('?')) {
+        // 1. Better URL Parser for any I-Pay meeting link format
+        if (rawInput.includes('/') || rawInput.includes('?') || rawInput.startsWith('http')) {
             try {
+                // Ensure URL protocol for parser
                 const urlStr = rawInput.startsWith('http') ? rawInput : `https://${rawInput}`;
                 const url = new URL(urlStr);
+                
+                // Extract last path segment as the ID
                 const pathParts = url.pathname.split('/').filter(Boolean);
                 cleanId = pathParts[pathParts.length - 1] || '';
+                
+                // Check if it's an admin link
                 if (url.searchParams.get('role') === 'admin') isAdmin = true;
             } catch (e) {
-                // Fallback to regex if URL parser fails
-                const idMatch = rawInput.match(/[a-zA-Z0-9_-]{15,}/);
+                // Fallback: Just look for a UUID-like string
+                const idMatch = rawInput.match(/[a-zA-Z0-9_-]{10,}/);
                 cleanId = idMatch ? idMatch[0] : rawInput;
             }
         } else {
+            // Raw ID input
             cleanId = rawInput;
         }
 
-        if (!cleanId) throw new Error("Could not extract a valid Meeting ID.");
+        if (!cleanId || cleanId.length < 5) {
+            throw new Error("Could not extract a valid Meeting ID. Please check your link.");
+        }
 
-        // 3. Force Verification against Database
+        // 2. Database verification with descriptive error
         const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, cleanId);
         
         if (meeting.status === 'ended' || meeting.status === 'cancelled') {
@@ -63,15 +71,15 @@ export default function EnterMeetingPage() {
                 description: 'This meeting is no longer active or has been concluded.' 
             });
         } else {
-            // SUCCESS: Redirect to Join Page with extracted role
+            // SUCCESS: Route to the join screen
             router.push(`/dashboard/meeting/join/${cleanId}${isAdmin ? '?role=admin' : ''}`);
         }
     } catch (error: any) {
-        const errorMsg = error.message || "We could not find an active meeting with that ID or Link.";
+        const errorMsg = error.message || "We could not find an active meeting with that ID. Verify the link.";
         console.error("Verification Error:", errorMsg);
         toast({ 
             variant: 'destructive', 
-            title: 'Access Denied', 
+            title: 'Invalid Meeting', 
             description: errorMsg 
         });
     } finally {

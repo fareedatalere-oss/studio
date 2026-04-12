@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center Page.
- * EXTREME HARDENING: Total null-safety to eliminate "Client-side exception".
+ * PRODUCTION HARDENING: Extreme null-safety for Vercel deployment.
  */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
@@ -64,7 +64,8 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
 
     const formatChatDate = (ts: any) => {
         try {
-            const date = ts?.toMillis ? new Date(ts.toMillis()) : (typeof ts === 'string' ? new Date(ts) : null);
+            if (!ts) return '';
+            const date = ts?.toMillis ? new Date(ts.toMillis()) : (typeof ts === 'string' ? new Date(ts) : (typeof ts === 'number' ? new Date(ts) : null));
             if (!date || isNaN(date.getTime())) return '';
             if (isToday(date)) return format(date, 'HH:mm');
             if (isYesterday(date)) return 'Yesterday';
@@ -136,8 +137,9 @@ export default function ChatPage() {
         const unsubChats = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
             data.sort((a: any, b: any) => {
-                const timeA = a.lastMessageAt?.toMillis ? a.lastMessageAt.toMillis() : (typeof a.lastMessageAt === 'string' ? new Date(a.lastMessageAt).getTime() : 0);
-                const timeB = b.lastMessageAt?.toMillis ? b.lastMessageAt.toMillis() : (typeof b.lastMessageAt === 'string' ? new Date(b.lastMessageAt).getTime() : 0);
+                if (!a || !b) return 0;
+                const timeA = a.lastMessageAt?.toMillis ? a.lastMessageAt.toMillis() : (typeof a.lastMessageAt === 'string' ? new Date(a.lastMessageAt).getTime() : (typeof a.lastMessageAt === 'number' ? a.lastMessageAt : 0));
+                const timeB = b.lastMessageAt?.toMillis ? b.lastMessageAt.toMillis() : (typeof b.lastMessageAt === 'string' ? new Date(b.lastMessageAt).getTime() : (typeof b.lastMessageAt === 'number' ? b.lastMessageAt : 0));
                 return (timeB || 0) - (timeA || 0);
             });
             setRecentChats(data);
@@ -154,15 +156,15 @@ export default function ChatPage() {
 
     const filteredUsers = useMemo(() =>
         allUsers.filter(u =>
-            u && u.$id !== currentUid &&
-            (u.username || '').toLowerCase().includes(searchAll.toLowerCase())
+            u && u.$id && u.$id !== currentUid &&
+            (u.username || '').toLowerCase().includes((searchAll || '').toLowerCase())
         ).sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0)), 
         [allUsers, searchAll, currentUid]
     );
 
     const filteredRecent = useMemo(() =>
         recentChats.filter(c =>
-            c && (c.lastMessage || '').toLowerCase().includes(searchRecent.toLowerCase())
+            c && (c.lastMessage || '').toLowerCase().includes((searchRecent || '').toLowerCase())
         ), [recentChats, searchRecent]
     );
 

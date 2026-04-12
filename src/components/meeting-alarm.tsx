@@ -1,16 +1,17 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { PhoneOff, Video, CheckCircle2, Volume2 } from 'lucide-react';
+import { PhoneOff, Video, CheckCircle2, Volume2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query, client } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query, client } from '@/lib/data-service';
 import { useUser } from '@/hooks/use-appwrite';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter } from 'next/navigation';
+import { isBefore, parseISO, differenceInMinutes } from 'date-fns';
 
 /**
  * @fileOverview Master Alarm Engine.
- * UPGRADED: Added Native Vibration and High-Fidelity Ringing.
+ * PRODUCTION HARDENING: Admin Alerts for scheduled meetings and native vibration.
  */
 
 export function MeetingAlarm() {
@@ -40,24 +41,47 @@ export function MeetingAlarm() {
   useEffect(() => {
     if (!user || typeof window === 'undefined') return;
 
-    const checkIncoming = async () => {
+    const checkMeetings = async () => {
       try {
         const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
           Query.equal('status', 'pending'),
-          Query.limit(5)
+          Query.limit(10)
         ]);
 
+        const now = new Date();
+
+        // 1. Check for incoming calls (for the Receiver)
         const incomingCall = res.documents.find(m => m.type === 'call' && m.invitedUsers?.includes(user.$id));
         
-        if (incomingCall && !isRinging && !rungIds.current.has(incomingCall.$id)) {
-          const caller = await databases.getDocument(DATABASE_ID, 'profiles', incomingCall.hostId).catch(() => null);
-          setActiveCall({ ...incomingCall, callerAvatar: caller?.avatar, callerName: caller?.username });
+        // 2. Check for scheduled meetings reaching time (for Admin/Host)
+        const scheduledMeeting = res.documents.find(m => {
+            if (m.hostId !== user.$id || rungIds.current.has(m.$id)) return false;
+            if (!m.scheduledAt) return false;
+            
+            const schedTime = parseISO(m.scheduledAt);
+            const diff = differenceInMinutes(now, schedTime);
+            // Ring if it's within 1 minute of start or up to 5 mins past
+            return diff >= 0 && diff < 5;
+        });
+
+        const target = incomingCall || scheduledMeeting;
+        
+        if (target && !isRinging && !rungIds.current.has(target.$id)) {
+          const callerId = target.hostId === user.$id ? user.$id : target.hostId;
+          const caller = await databases.getDocument(DATABASE_ID, 'profiles', callerId).catch(() => null);
+          
+          setActiveCall({ 
+            ...target, 
+            isHostAlert: target.hostId === user.$id,
+            callerAvatar: caller?.avatar, 
+            callerName: caller?.username || (target.hostId === user.$id ? 'My Meeting' : 'I-Pay User')
+          });
           startRinging();
         }
       } catch (e) {}
     };
 
-    const interval = setInterval(checkIncoming, 3000); 
+    const interval = setInterval(checkMeetings, 5000); 
     
     const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
         const payload = response.payload as any;
@@ -80,7 +104,7 @@ export function MeetingAlarm() {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
-    // 1. Setup Audio (Using a reliable public ringing sound)
+    // 1. Setup Audio (High-Fidelity smartphone sound)
     if (!audioRef.current) {
         audioRef.current = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-outgoing-call-signal-2174.mp3');
         audioRef.current.loop = true;
@@ -102,7 +126,10 @@ export function MeetingAlarm() {
   const handleDecline = async () => {
     if (activeCall?.$id) {
         rungIds.current.add(activeCall.$id);
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'ended' });
+        // If host, cancel it. If guest, just ignore it locally.
+        if (activeCall.hostId === user.$id) {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'cancelled' });
+        }
     }
     stopRinging(); 
     setActiveCall(null);
@@ -111,8 +138,14 @@ export function MeetingAlarm() {
   const handleAccept = async () => {
     if (activeCall?.$id) {
         rungIds.current.add(activeCall.$id);
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'connected' });
-        router.push(`/dashboard/chat/call/${activeCall.$id}`);
+        if (activeCall.isHostAlert) {
+            // Admin accepts their own meeting
+            router.push(`/dashboard/meeting/join/${activeCall.$id}?role=admin`);
+        } else {
+            // Guest accepts call
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'connected' });
+            router.push(`/dashboard/chat/call/${activeCall.$id}`);
+        }
     }
     stopRinging(); 
     setActiveCall(null);
@@ -123,10 +156,14 @@ export function MeetingAlarm() {
   return (
     <div className="fixed inset-0 z-[1000] bg-white flex flex-col items-center justify-between py-24 animate-in fade-in zoom-in duration-500 font-body overflow-hidden">
       <div className="text-center space-y-2">
-          <p className="text-primary font-black uppercase tracking-[0.4em] text-2xl animate-pulse">Incoming Alert</p>
+          <p className="text-primary font-black uppercase tracking-[0.4em] text-2xl animate-pulse">
+            {activeCall?.isHostAlert ? 'Meeting Now' : 'Incoming Alert'}
+          </p>
           <div className="flex items-center justify-center gap-2 text-primary/60">
-            <Video className="h-4 w-4" />
-            <p className="text-[10px] font-black uppercase tracking-widest">I-Pay Private Line</p>
+            {activeCall?.isHostAlert ? <Clock className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+            <p className="text-[10px] font-black uppercase tracking-widest">
+                {activeCall?.isHostAlert ? 'Chairman Reminder' : 'I-Pay Private Line'}
+            </p>
           </div>
       </div>
 
@@ -139,19 +176,23 @@ export function MeetingAlarm() {
             </Avatar>
         </div>
         <div>
-            <h2 className="text-black text-3xl font-black tracking-tighter uppercase">@{activeCall?.callerName || 'User'}</h2>
-            <p className="text-muted-foreground font-bold text-xs mt-2 uppercase opacity-60">Calling you from I-Pay Hub</p>
+            <h2 className="text-black text-3xl font-black tracking-tighter uppercase">
+                {activeCall?.isHostAlert ? activeCall.name : `@${activeCall?.callerName}`}
+            </h2>
+            <p className="text-muted-foreground font-bold text-xs mt-2 uppercase opacity-60">
+                {activeCall?.isHostAlert ? 'Scheduled session is starting' : 'Calling you from I-Pay Hub'}
+            </p>
         </div>
       </div>
 
       <div className="flex items-center justify-center gap-16 w-full max-w-sm px-10">
           <div className="flex flex-col items-center gap-4">
               <Button onClick={handleDecline} size="icon" variant="destructive" className="h-20 w-20 rounded-full shadow-2xl bg-red-500 hover:bg-red-600 active:scale-90 transition-transform"><PhoneOff className="h-10 w-10 text-white" /></Button>
-              <span className="text-xs font-black uppercase text-red-600 tracking-widest">Decline</span>
+              <span className="text-xs font-black uppercase text-red-600 tracking-widest">{activeCall?.isHostAlert ? 'Close' : 'Decline'}</span>
           </div>
           <div className="flex flex-col items-center gap-4">
               <Button onClick={handleAccept} size="icon" className="h-20 w-20 rounded-full bg-green-500 hover:bg-green-600 shadow-2xl active:scale-90 transition-transform"><CheckCircle2 className="h-10 w-10 text-white" /></Button>
-              <span className="text-xs font-black uppercase text-green-600 tracking-widest">Accept</span>
+              <span className="text-xs font-black uppercase text-green-600 tracking-widest">{activeCall?.isHostAlert ? 'Join' : 'Accept'}</span>
           </div>
       </div>
       
