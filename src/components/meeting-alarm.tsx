@@ -12,7 +12,7 @@ import { isBefore } from 'date-fns';
 
 /**
  * @fileOverview Hardened Alarm Engine.
- * SSR FIX: Audio handled strictly client-side.
+ * SOUND: Updated to a professional smartphone ringtone.
  * LOGIC: Ring instantly for past times set today. Host only.
  */
 
@@ -83,7 +83,8 @@ export function MeetingAlarm() {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     if (!audioRef.current) {
-        audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/941/941-preview.mp3');
+        // High quality professional smartphone ringtone
+        audioRef.current = new Audio('https://cdn.pixabay.com/audio/2022/03/15/audio_7900000000.mp3');
         audioRef.current.loop = true;
     }
     audioRef.current.play().catch(() => {});

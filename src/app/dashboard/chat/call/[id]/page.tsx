@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { 
     PhoneOff, Loader2, Video, X, Send, 
     Mic, MicOff, MessageSquare, Layout, Smile,
-    ImageIcon, Music, Film, MonitorPlay, UploadCloud, Volume2
+    ImageIcon, Music, Film, MonitorPlay, Volume2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-appwrite';
@@ -18,8 +18,6 @@ import { Input } from '@/components/ui/input';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
-import { doc, updateDoc as firestoreUpdate } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 
 const CALL_EMOJIS = ["💐","🌹","🏵️","🌻","🎈","💋","🥀","🍫","🎉","💮","🎊","🎂","😍","🎁","💏","🥰","🥳","💓","💗","💖","💝","💘","💌","💞","💕","💟","❣️","💔","❤️‍🔥","❤️‍🩹","❤️","🤎","💜","🩵","💙","💚","💛","🧡","🩷","🖤","🩶","🤍","🫀","🫂","👥"];
 
@@ -34,6 +32,7 @@ export default function PrivateCallPage() {
     const [partner, setPartner] = useState<any>(null);
     const [duration, setDuration] = useState(0);
     
+    // View States (Now synced with database)
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isVideoOpen, setIsVideoOpen] = useState(false);
     const [isDisplayOpen, setIsDisplayOpen] = useState(false);
@@ -56,12 +55,12 @@ export default function PrivateCallPage() {
         try {
             const data = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId);
             setCall(data);
-            const partnerId = data.invitedUsers?.[0] === user?.$id ? data.hostId : data.invitedUsers?.[0];
-            if (partnerId) {
+            const partnerId = data.invitedUsers?.find((id: string) => id !== user?.$id) || data.hostId;
+            if (partnerId && partnerId !== user?.$id) {
                 const p = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, partnerId);
                 setPartner(p);
             }
-        } catch (e) { router.replace('/dashboard/chat'); }
+        } catch (e) { router.replace('/dashboard'); }
     }, [callId, user?.$id, router]);
 
     const fetchMessages = useCallback(async () => {
@@ -76,27 +75,36 @@ export default function PrivateCallPage() {
         } catch (e) {}
     }, [chatId]);
 
+    // 1. Sync Logic: Master State Watcher
     useEffect(() => {
         if (typeof window === 'undefined') return;
         fetchCall();
         const unsubCall = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${callId}`], response => {
             const payload = response.payload as any;
             if (payload.$id === callId) {
-                if (payload.status === 'ended') router.replace('/dashboard/chat');
+                if (payload.status === 'ended') {
+                    router.replace('/dashboard');
+                    return;
+                }
                 setCall(payload);
+                // MASTER SYNC: Force views to follow activeView
+                if (payload.activeView) {
+                    setIsChatOpen(payload.activeView === 'chat');
+                    setIsVideoOpen(payload.activeView === 'video');
+                    setIsDisplayOpen(payload.activeView === 'display');
+                } else {
+                    setIsChatOpen(false);
+                    setIsVideoOpen(false);
+                    setIsDisplayOpen(false);
+                }
             }
         });
         return () => { unsubCall(); if (timerRef.current) clearInterval(timerRef.current); };
     }, [callId, fetchCall, router]);
 
+    // 2. Chat Sync Logic
     useEffect(() => {
-        if (call?.status === 'connected' && !timerRef.current) {
-            timerRef.current = setInterval(() => setDuration(prev => prev + 1), 1000);
-        }
-    }, [call?.status]);
-
-    useEffect(() => {
-        if (isChatOpen && chatId) {
+        if (chatId) {
             fetchMessages();
             const unsubMsg = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`], response => {
                 const payload = response.payload as any;
@@ -104,7 +112,13 @@ export default function PrivateCallPage() {
             });
             return () => unsubMsg();
         }
-    }, [isChatOpen, chatId, fetchMessages]);
+    }, [chatId, fetchMessages]);
+
+    useEffect(() => {
+        if (call?.status === 'connected' && !timerRef.current) {
+            timerRef.current = setInterval(() => setDuration(prev => prev + 1), 1000);
+        }
+    }, [call?.status]);
 
     useEffect(() => {
         if (isVideoOpen && typeof window !== 'undefined') {
@@ -115,6 +129,11 @@ export default function PrivateCallPage() {
     }, [isVideoOpen, toast]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+    // View Toggles (Now updates database to trigger partner)
+    const toggleView = async (view: 'chat' | 'video' | 'display' | 'none') => {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { activeView: view });
+    };
 
     const handleSendChat = async () => {
         if (!chatInput.trim() || !chatId) return;
@@ -140,10 +159,11 @@ export default function PrivateCallPage() {
 
             const uploadRes = await uploadToCloudinary(base64, uploadType === 'music' ? 'auto' : uploadType);
             if (uploadRes.success) {
-                await firestoreUpdate(doc(db, COLLECTION_ID_MEETINGS, callId), {
+                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, {
                     displayUrl: uploadRes.url,
                     displayType: uploadType,
-                    displayVisible: true
+                    displayVisible: true,
+                    activeView: 'display'
                 });
                 toast({ title: 'Shared successfully!' });
             }
@@ -156,12 +176,12 @@ export default function PrivateCallPage() {
 
     const handleHangUp = async () => {
         try {
-            await firestoreUpdate(doc(db, COLLECTION_ID_MEETINGS, callId), { 
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { 
                 status: 'ended' 
             });
-            router.replace('/dashboard/chat');
+            router.replace('/dashboard');
         } catch (e) {
-            router.replace('/dashboard/chat');
+            router.replace('/dashboard');
         }
     };
 
@@ -206,20 +226,20 @@ export default function PrivateCallPage() {
                 {isConnected && (
                     <div className="flex items-center justify-center gap-10 w-full animate-in slide-in-from-bottom-10">
                         <div className="flex flex-col items-center gap-2">
-                            <Button onClick={() => setIsChatOpen(true)} variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
+                            <Button onClick={() => toggleView('chat')} variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
                                 <MessageSquare className="h-5 w-5 text-primary" />
                             </Button>
                             <span className="text-[8px] font-black uppercase opacity-40">Chat</span>
                         </div>
                         <div className="flex flex-col items-center gap-2">
-                            <Button onClick={() => setIsVideoOpen(true)} variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
-                                <Video className="h-5 w-5" />
+                            <Button onClick={() => toggleView('video')} variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
+                                <Video className={cn("h-5 w-5", isVideoOpen && "text-primary")} />
                             </Button>
                             <span className="text-[8px] font-black uppercase opacity-40">Video</span>
                         </div>
                         <div className="flex flex-col items-center gap-2">
-                            <Button onClick={() => setIsDisplayOpen(true)} variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
-                                <Layout className="h-5 w-5" />
+                            <Button onClick={() => toggleView('display')} variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
+                                <Layout className={cn("h-5 w-5", isDisplayOpen && "text-primary")} />
                             </Button>
                             <span className="text-[8px] font-black uppercase opacity-40">Display</span>
                         </div>
@@ -232,19 +252,19 @@ export default function PrivateCallPage() {
                 <span className="text-[10px] font-black uppercase text-red-600 tracking-widest">Hang up</span>
             </footer>
 
-            {/* VIDEO CALL OVERLAY */}
+            {/* VIDEO CALL OVERLAY (SYNCED) */}
             {isVideoOpen && (
                 <div className="absolute inset-0 z-[250] bg-black flex flex-col animate-in fade-in duration-300">
                     <header className="absolute top-12 left-0 right-0 flex items-center justify-between p-6 z-10">
                         <h2 className="text-white text-3xl font-black uppercase tracking-tighter">Video Call</h2>
-                        <Button variant="ghost" size="icon" onClick={() => setIsVideoOpen(false)} className="rounded-full bg-white/10 text-white h-12 w-12"><X className="h-8 w-8" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => toggleView('none')} className="rounded-full bg-white/10 text-white h-12 w-12"><X className="h-8 w-8" /></Button>
                     </header>
 
                     <div className="flex-1 relative flex flex-col items-center justify-center">
                         <div className="absolute inset-0 flex items-center justify-center opacity-30 grayscale">
                              <Avatar className="h-64 w-64"><AvatarImage src={partner.avatar}/></Avatar>
                         </div>
-                        <p className="absolute top-[45%] text-white/40 font-black uppercase text-xl tracking-[0.2em]">Receiver</p>
+                        <p className="absolute top-[45%] text-white/40 font-black uppercase text-xl tracking-[0.2em]">Receiver Live</p>
                         
                         <div className="absolute bottom-10 right-10 w-32 aspect-[9/16] bg-muted rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl">
                             <video ref={selfVideoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
@@ -254,15 +274,15 @@ export default function PrivateCallPage() {
                 </div>
             )}
 
-            {/* LIVE CHAT OVERLAY */}
+            {/* LIVE CHAT OVERLAY (SYNCED) */}
             {isChatOpen && (
                 <div className="absolute inset-0 z-[200] bg-white flex flex-col animate-in slide-in-from-bottom duration-300">
                     <header className="p-6 pt-16 flex items-center justify-between border-b bg-muted/10">
                         <h2 className="text-3xl font-black uppercase tracking-tighter text-primary">Chat</h2>
-                        <Button variant="ghost" size="icon" className="rounded-full bg-muted h-10 w-10" onClick={() => setIsChatOpen(false)}><X className="h-6 w-6" /></Button>
+                        <Button variant="ghost" size="icon" className="rounded-full bg-muted h-10 w-10" onClick={() => toggleView('none')}><X className="h-6 w-6" /></Button>
                     </header>
 
-                    <ScrollArea className="flex-1 p-6 space-y-4">
+                    <ScrollArea className="flex-1 p-6">
                         <div className="max-w-md mx-auto w-full space-y-4 pb-10">
                             {messages.map(m => (
                                 <div key={m.$id} className={cn("flex flex-col", m.senderId === user?.$id ? "items-end" : "items-start")}>
@@ -310,20 +330,15 @@ export default function PrivateCallPage() {
                 </div>
             )}
 
-            {/* DISPLAY HUB OVERLAY */}
-            {(isDisplayOpen || (call.displayVisible && isConnected)) && (
+            {/* DISPLAY HUB OVERLAY (SYNCED) */}
+            {isDisplayOpen && (
                 <div className="absolute inset-0 z-[300] bg-black flex flex-col animate-in fade-in duration-300">
                     <header className="absolute top-12 left-0 right-0 flex items-center justify-between p-6 z-10">
                         <div className="flex items-center gap-3">
                             <Layout className="h-6 w-6 text-primary" />
                             <h2 className="text-white text-xl font-black uppercase tracking-widest">Display Hub</h2>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={async () => {
-                            if (user?.$id === call.hostId) {
-                                await firestoreUpdate(doc(db, COLLECTION_ID_MEETINGS, callId), { displayVisible: false });
-                            }
-                            setIsDisplayOpen(false);
-                        }} className="rounded-full bg-white/10 text-white h-12 w-12"><X className="h-8 w-8" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => toggleView('none')} className="rounded-full bg-white/10 text-white h-12 w-12"><X className="h-8 w-8" /></Button>
                     </header>
 
                     <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
