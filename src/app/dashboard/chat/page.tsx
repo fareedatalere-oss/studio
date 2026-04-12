@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 /**
  * @fileOverview Chat Center Page.
  * PRODUCTION HARDENING: Shielded rendering to eliminate client-side exceptions on Vercel.
+ * FORCED: Automatic loading logic to ensure the page is never stuck.
  */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {

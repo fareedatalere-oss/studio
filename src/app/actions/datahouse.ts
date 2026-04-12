@@ -1,7 +1,6 @@
-
 'use server';
 
-import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID } from '@/lib/appwrite';
+import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS, ID } from '@/lib/data-service';
 
 const DATAHOUSE_TOKEN = '80ca2a529de4afa096c4eabefeb275dafe3a8941'; 
 const BASE_URL = 'https://datahouse.com.ng/api';
@@ -14,6 +13,12 @@ const getNetworkId = (name: string): number => {
     if (n.includes('9MOBILE')) return 4;
     return 1;
 };
+
+/**
+ * @fileOverview Universal Billing Action.
+ * FORCED: Logs both success AND failures to history.
+ * NOTIFIED: Sends real-time alerts for all attempts.
+ */
 
 export async function processDatahouseRecharge(payload: {
     userId: string;
@@ -114,10 +119,22 @@ export async function processDatahouseRecharge(payload: {
                 sessionId: `dh-${Date.now()}`,
             });
 
+            // FORCE NOTIFICATION
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
+                userId: payload.userId,
+                senderId: 'ipay_system',
+                type: 'payment',
+                description: `Success: ₦${payload.amount.toLocaleString()} ${payload.type} for ${payload.customer}.`,
+                isRead: false,
+                link: `/dashboard/history`,
+                createdAt: new Date().toISOString()
+            });
+
             return { success: true, message: "Transaction successful.", transactionId: transactionDoc.$id };
         } else {
             const detail = result.error || result.msg || result.message || result.Status || result.detail || JSON.stringify(result);
             
+            // LOG FAILURE TO HISTORY
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: payload.userId,
                 type: payload.type === 'cable' ? 'tv_subscription' : (payload.type === 'electric' ? 'electricity' : payload.type),
@@ -127,6 +144,17 @@ export async function processDatahouseRecharge(payload: {
                 recipientDetails: payload.customer,
                 narration: `Decline Reason: ${detail}`,
                 sessionId: `dh-fail-${Date.now()}`,
+            });
+
+            // NOTIFY FAILURE
+            await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
+                userId: payload.userId,
+                senderId: 'ipay_system',
+                type: 'system',
+                description: `Declined: Your ${payload.type} payment failed. Reason: ${detail}`,
+                isRead: false,
+                link: `/dashboard/history`,
+                createdAt: new Date().toISOString()
             });
 
             throw new Error(`Provider Declined: ${detail}`);

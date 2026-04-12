@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { useUser } from '@/hooks/use-appwrite';
+import { useUser } from '@/hooks/use-user';
 import { processDatahouseRecharge } from '@/app/actions/datahouse';
 
 const CORE_PROVIDERS = [
@@ -74,7 +74,6 @@ export default function BuyDataPage() {
             providerId: selectedPlan.id,
             customer: phoneNumber,
             amount: selectedPlan.price,
-            fee: 50, 
             description: `${selectedNetwork} Data: ${selectedPlan.name}`
         });
 
@@ -133,12 +132,12 @@ export default function BuyDataPage() {
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input placeholder="Search plans..." className="pl-9" value={planSearch} onChange={e => setPlanSearch(e.target.value)} />
                             </div>
-                            <div className="grid grid-cols-1 gap-2 max-h-[280px] overflow-y-auto">
+                            <div className="grid grid-cols-1 gap-2 max-h-[280px] overflow-y-auto pr-1">
                                 {filteredPlans.length > 0 ? filteredPlans.map((plan, idx) => (
                                     <Button 
                                         key={idx} 
                                         variant={selectedPlan?.id === plan.id ? 'default' : 'outline'} 
-                                        className="justify-between h-14" 
+                                        className="justify-between h-14 rounded-xl" 
                                         onClick={() => setSelectedPlan(plan)}
                                     >
                                         <span className="font-bold text-xs">{plan.name}</span>
@@ -155,7 +154,7 @@ export default function BuyDataPage() {
                                 {isPurchasing ? <Loader2 className="animate-spin" /> : 'Continue'}
                             </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent>
+                        <AlertDialogContent className="rounded-[2rem]">
                             <AlertDialogHeader><AlertDialogTitle>Confirm Purchase</AlertDialogTitle></AlertDialogHeader>
                             <div className="space-y-2 text-sm text-foreground">
                                 <p>Network: <span className="font-bold">{selectedNetwork}</span></p>
@@ -172,13 +171,14 @@ export default function BuyDataPage() {
                                     onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} 
                                     maxLength={5} 
                                     placeholder="*****" 
-                                    className="text-center text-2xl tracking-[1rem] h-14" 
+                                    className="text-center text-2xl tracking-[1rem] h-14 bg-muted border-none rounded-2xl" 
                                 />
                             </div>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel disabled={isPurchasing}>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handlePurchase} disabled={isPurchasing || pin.length !== 5}>
-                                    {isPurchasing ? <Loader2 className="animate-spin" /> : 'Confirm & Pay'}
+                            <AlertDialogFooter className="pt-4">
+                                <AlertDialogCancel disabled={isPurchasing} className="rounded-xl">Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handlePurchase} disabled={isPurchasing || pin.length !== 5} className="font-bold rounded-xl">
+                                    {isPurchasing ? <Loader2 className="animate-spin mr-2" /> : null}
+                                    {isPurchasing ? 'Processing...' : 'Confirm & Pay'}
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
