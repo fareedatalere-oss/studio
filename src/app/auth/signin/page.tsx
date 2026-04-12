@@ -10,13 +10,16 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
-import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
+import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/data-service';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 /**
  * @fileOverview Sign In Page.
- * Hardened to verify profile existence before entry.
+ * UPDATED: Admin login redirect for Ipatmanager17@gmail.com.
  */
+
+const ADMIN_EMAIL = 'ipatmanager17@gmail.com';
+const ADMIN_PASS = 'Abdussalam@100';
 
 export default function SignInPage() {
   const router = useRouter();
@@ -32,22 +35,41 @@ export default function SignInPage() {
     setIsLoading(true);
 
     try {
-      await account.createEmailPasswordSession(email, password);
-      const userRes: any = await account.get();
-      const userId = userRes.$id;
+      // 1. Check for Master Admin Credentials
+      if (email.trim().toLowerCase() === ADMIN_EMAIL && password === ADMIN_PASS) {
+          await account.createEmailPasswordSession(email, password).catch(() => {}); // Try login if user exists
+          toast({ title: 'Admin Access', description: 'Welcome back, Master Admin.' });
+          sessionStorage.setItem('ipay_admin_session', 'true');
+          router.push('/manager/dashboard');
+          return;
+      }
 
-      // Verify profile existence in Firestore
+      const res = await account.createEmailPasswordSession(email, password);
+      const userId = res.user?.$id || res.user?.uid;
+
+      // 2. Verify Block Status & Profile
       try {
-        await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
+        const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
+        
+        if (profile.isBlocked) {
+            await account.deleteSession('current');
+            toast({ 
+                variant: 'destructive', 
+                title: 'Access Denied', 
+                description: 'You are blocked by I-pay team contact them for further assistance.',
+                duration: 10000
+            });
+            setIsLoading(false);
+            return;
+        }
+
         sessionStorage.setItem('ipay_pin_verified', 'true');
         toast({ title: 'Signed In', description: 'Welcome back to I-pay online world.' });
         router.push('/dashboard');
       } catch (profileError: any) {
-        // Only redirect to profile completion if the document is missing (404)
         if (profileError.code === 404) {
             router.push('/auth/signup/profile');
         } else {
-            // General error (like permissions), let the useUser hook handle it or show toast
             router.push('/dashboard');
         }
       }
@@ -56,15 +78,11 @@ export default function SignInPage() {
         let message = "Invalid credentials. Please try again.";
         if (error.code === 401 || error.code === 'auth/invalid-credential') {
             message = "This account isn't registered or details are wrong.";
-        } else if (error.message?.includes('network')) {
-            message = "Connection failed. Check your internet.";
         }
-
         toast({ 
             title: 'Sign In Failed', 
             description: message, 
-            variant: 'destructive',
-            duration: 8000
+            variant: 'destructive'
         });
         setIsLoading(false);
     }
@@ -97,15 +115,13 @@ export default function SignInPage() {
                   required 
                   className="h-11 rounded-xl bg-muted/50 border-none px-4 pr-12 text-sm"
                 />
-                <Button 
+                <button 
                   type="button" 
-                  variant="ghost" 
-                  size="icon" 
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground flex items-center justify-center"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
+                </button>
               </div>
             </div>
             <div className="flex items-center justify-end">

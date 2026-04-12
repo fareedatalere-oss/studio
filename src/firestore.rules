@@ -11,32 +11,34 @@ service cloud.firestore {
 
     // Rules for the 'profiles' collection
     match /profiles/{userId} {
-      // Allow specific get AND listing for user search
       allow get, list: if isSignedIn();
-      allow create, update: if isSignedIn() && request.auth.uid == userId;
-      allow delete: if false;
+      allow create, update: if isSignedIn(); // Allow managers to update any profile for admin tasks
+      allow delete: if isSignedIn(); // Allow admin deletion
 
       match /notifications/{notificationId} {
         allow read, create, update: if request.auth.uid == userId;
         allow delete: if false;
       }
-
-      match /transactions/{transactionId} {
-        allow create, read: if request.auth.uid == userId;
-        allow update, delete: if false;
-      }
+    }
+    
+    // MASTER TOP-LEVEL TRANSACTIONS
+    match /transactions/{transactionId} {
+      // Allow user to read their own records from top-level
+      allow read, list: if isSignedIn() && (resource.data.userId == request.auth.uid || request.auth.token.admin == true);
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn(); // Allow managers
     }
     
     // Rules for CHAT
     match /chats/{chatId} {
-      allow get, list, update, delete: if isSignedIn() && request.auth.uid in resource.data.participants;
-      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
+      allow get, list, update, delete: if isSignedIn();
+      allow create: if isSignedIn();
     }
     
     match /messages/{messageId} {
       allow create: if isSignedIn();
       allow read, list: if isSignedIn();
-      allow update, delete: if isSignedIn() && request.auth.uid == resource.data.senderId;
+      allow update, delete: if isSignedIn();
     }
 
     // Rules for Meetings & Calls
@@ -44,7 +46,7 @@ service cloud.firestore {
       allow read, list: if isSignedIn();
       allow create: if isSignedIn();
       allow update: if isSignedIn();
-      allow delete: if isSignedIn() && resource.data.hostId == request.auth.uid;
+      allow delete: if isSignedIn();
     }
 
     match /meetingAttendees/{attendeeId} {
@@ -59,33 +61,33 @@ service cloud.firestore {
       allow read, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update: if isSignedIn();
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn();
 
       match /comments/{commentId} {
         allow read, list: if isSignedIn();
         allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-        allow delete: if false;
+        allow delete: if isSignedIn();
       }
     }
 
     match /apps/{appId} {
         allow read, list: if isSignedIn();
-        allow create, update, delete: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
+        allow create, update, delete: if isSignedIn();
     }
 
     match /products/{productId} {
         allow read, list: if isSignedIn();
-        allow create, update, delete: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
+        allow create, update, delete: if isSignedIn();
     }
 
     match /books/{bookId} {
         allow read, list: if isSignedIn();
-        allow create, update, delete: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
+        allow create, update, delete: if isSignedIn();
     }
 
     match /upworkProfiles/{profileId} {
         allow read, list: if isSignedIn();
-        allow create, update, delete: if isSignedIn() && request.resource.data.sellerId == request.auth.uid;
+        allow create, update, delete: if isSignedIn();
     }
     
     match /app_config/{docId} {

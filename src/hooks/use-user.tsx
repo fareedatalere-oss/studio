@@ -7,10 +7,11 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { toast } from '@/hooks/use-toast';
 
 /**
  * @fileOverview Unified Master Auth & Data Hook.
- * Hardened to prevent premature redirects and ensure profile visibility.
+ * UPDATED: Handle Blocked/Suspended user states.
  */
 
 type UserContextType = {
@@ -38,15 +39,30 @@ export function UserProvider({ children }: { children: ReactNode }) {
         try {
             const prof = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, uid).catch(() => null);
             setProfile(prof);
-            if (prof && typeof window !== 'undefined') {
-                await updateDoc(doc(db, COLLECTION_ID_PROFILES, uid), {
-                    isOnline: true,
-                    lastSeen: serverTimestamp()
-                }).catch(() => {});
+            
+            if (prof) {
+                // FORCE REDIRECT IF BLOCKED
+                if (prof.isBlocked && !pathname.includes('/auth/signin')) {
+                    await auth.signOut();
+                    toast({ 
+                        variant: 'destructive', 
+                        title: 'Access Revoked', 
+                        description: 'you are blocked by I-pay team contact them for further assistance.' 
+                    });
+                    router.replace('/auth/signin');
+                    return null;
+                }
+
+                if (typeof window !== 'undefined') {
+                    await updateDoc(doc(db, COLLECTION_ID_PROFILES, uid), {
+                        isOnline: true,
+                        lastSeen: serverTimestamp()
+                    }).catch(() => {});
+                }
             }
             return prof;
         } catch (e) { return null; }
-    }, []);
+    }, [pathname, router]);
 
     useEffect(() => {
         const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -54,27 +70,22 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 setUser({ $id: firebaseUser.uid, uid: firebaseUser.uid, email: firebaseUser.email, name: firebaseUser.displayName });
                 const prof = await fetchProfile(firebaseUser.uid);
                 
-                if (typeof window !== 'undefined') {
+                if (typeof window !== 'undefined' && prof) {
                     const isAuthPath = pathname.includes('/auth');
                     const isSignupProfile = pathname.includes('/signup/profile');
                     const isMeetingPath = pathname.includes('/meeting/room/') || pathname.includes('/meeting/join/');
 
-                    // ONLY REDIRECT IF LOAD IS FINISHED
                     if (!prof && !isAuthPath && !isSignupProfile && !isMeetingPath) {
                         router.replace('/auth/signup/profile');
-                    } else if (prof && isAuthPath) {
+                    } else if (prof && isAuthPath && !pathname.includes('/manager')) {
                         router.replace('/dashboard');
                     }
                 }
             } else {
                 setUser(null);
                 setProfile(null);
-                if (typeof window !== 'undefined') {
-                    const isMeetingJoin = pathname.includes('/meeting/join/') || pathname.includes('/meeting/room/');
-                    const isAuthPath = pathname.includes('/auth');
-                    if (pathname.startsWith('/dashboard') && !isAuthPath && !isMeetingJoin) {
-                        router.replace('/auth/signin');
-                    }
+                if (typeof window !== 'undefined' && !pathname.includes('/auth') && pathname.startsWith('/dashboard')) {
+                    router.replace('/auth/signin');
                 }
             }
             setIsLoading(false);
@@ -95,16 +106,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
         fetchConfig();
         return () => unsubAuth();
     }, [pathname, router, fetchProfile]);
-
-    useEffect(() => {
-        if (!user?.$id || typeof window === 'undefined') return;
-        const interval = setInterval(() => {
-            updateDoc(doc(db, COLLECTION_ID_PROFILES, user.$id), { lastSeen: serverTimestamp(), isOnline: true }).catch(() => {});
-        }, 30000);
-        const setOffline = () => { if(user?.$id) updateDoc(doc(db, COLLECTION_ID_PROFILES, user.$id), { isOnline: false }).catch(() => {}); };
-        window.addEventListener('beforeunload', setOffline);
-        return () => { clearInterval(interval); window.removeEventListener('beforeunload', setOffline); };
-    }, [user]);
 
     const recheck = async () => {
         const currentUser = auth.currentUser;

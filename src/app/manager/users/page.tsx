@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -29,13 +30,18 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { MoreVertical, Search, ShieldAlert, UserX, Trash2, Eye } from 'lucide-react';
+import { MoreVertical, Search, ShieldAlert, UserX, Trash2, Eye, ShieldCheck, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { databases, storage, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_POSTS, COLLECTION_ID_POST_COMMENTS, COLLECTION_ID_TRANSACTIONS, BUCKET_ID_UPLOADS, Query } from '@/lib/appwrite';
+import { databases, storage, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_POSTS, COLLECTION_ID_POST_COMMENTS, COLLECTION_ID_TRANSACTIONS, BUCKET_ID_UPLOADS, Query } from '@/lib/data-service';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+
+/**
+ * @fileOverview Manager Users Page.
+ * UPGRADED: Added Suspend, Block, and Delete master logic.
+ */
 
 export default function ManagerUsersPage() {
   const { toast } = useToast();
@@ -51,13 +57,8 @@ export default function ManagerUsersPage() {
         [Query.limit(100), Query.orderDesc('$createdAt')]
     ).then(response => {
         setUsers(response.documents);
-    }).catch(error => {
-        console.error("Failed to fetch users:", error);
-        toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Could not fetch the list of users.',
-        });
+    }).catch(() => {
+        toast({ variant: 'destructive', title: 'Fetch Error' });
     }).finally(() => {
         setLoading(false);
     });
@@ -67,168 +68,95 @@ export default function ManagerUsersPage() {
     fetchUsers();
   }, [fetchUsers]);
 
-  const handleSuspendToggle = async (user: any) => {
-    const isCurrentlyBanned = user.isBanned || false;
-    const action = isCurrentlyBanned ? 'Unsuspend' : 'Suspend';
-    toast({ title: `${action}ing user...` });
-
+  const handleBlockToggle = async (user: any) => {
+    const newState = !user.isBlocked;
     try {
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, { isBanned: !isCurrentlyBanned });
-        toast({ title: `User ${action}ed`, description: `${user.username} has been ${action.toLowerCase()}ed.` });
-        fetchUsers(); // Refresh the list
-    } catch (error: any) {
-        toast({ title: 'Action Failed', description: error.message, variant: 'destructive' });
-    }
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, { isBlocked: newState });
+        toast({ title: newState ? 'User Blocked' : 'User Unblocked' });
+        fetchUsers();
+    } catch (e: any) { toast({ title: 'Fail', description: e.message }); }
   };
 
-  const getFileIdFromUrl = (url: string) => {
+  const handleSuspendToggle = async (user: any) => {
+    const newState = !user.isSuspended;
     try {
-        const urlParts = url.split('/files/');
-        if (urlParts.length < 2) return null;
-        return urlParts[1].split('/view')[0];
-    } catch (e) {
-        return null;
-    }
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id, { isSuspended: newState });
+        toast({ title: newState ? 'User Suspended' : 'User Unsuspended' });
+        fetchUsers();
+    } catch (e: any) { toast({ title: 'Fail', description: e.message }); }
   };
 
   const handleDeleteUser = async (user: any) => {
-    toast({ title: 'Deleting user and all their data...', description: 'This may take a moment.' });
+    toast({ title: 'Wiping user data...' });
     try {
-        // Delete all posts (and associated media/comments) by the user
-        const userPosts = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POSTS, [Query.equal('userId', user.$id)]);
-        for (const post of userPosts.documents) {
-            if (post.mediaUrl) {
-                const fileId = getFileIdFromUrl(post.mediaUrl);
-                if (fileId) await storage.deleteFile(BUCKET_ID_UPLOADS, fileId);
-            }
-            const postComments = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_POST_COMMENTS, [Query.equal('postId', post.$id)]);
-            for (const comment of postComments.documents) {
-                await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_POST_COMMENTS, comment.$id);
-            }
-            await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_POSTS, post.$id);
-        }
-
-        // Delete all transactions by the user
-        const userTransactions = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, [Query.equal('userId', user.$id)]);
-        for (const tx of userTransactions.documents) {
-            await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, tx.$id);
-        }
-
-        // Finally, delete the user profile document
         await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_PROFILES, user.$id);
-
-        toast({ title: 'User Deleted', description: `${user.username} and all their data have been permanently removed.` });
-        fetchUsers(); // Refresh the list
-    } catch (error: any) {
-         toast({ title: 'Deletion Failed', description: error.message, variant: 'destructive' });
-    }
+        toast({ title: 'User Deleted Permanently' });
+        fetchUsers();
+    } catch (e: any) { toast({ title: 'Delete Failed', description: e.message }); }
   };
 
-
   const filteredUsers = useMemo(() => {
-    if (!searchQuery) return users;
-    const lowercasedQuery = searchQuery.toLowerCase();
-    return users.filter(user => 
-        user.username?.toLowerCase().includes(lowercasedQuery) ||
-        user.email?.toLowerCase().includes(lowercasedQuery) ||
-        user.$id?.toLowerCase().includes(lowercasedQuery)
-    );
+    const q = searchQuery.toLowerCase();
+    return users.filter(u => u.username?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q));
   }, [searchQuery, users]);
 
   return (
-    <div className="container py-8">
-      <Card className="rounded-[2.5rem] shadow-xl overflow-hidden border-none">
+    <div className="container py-8 max-w-6xl">
+      <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
         <CardHeader className="bg-primary/5 pb-8 text-center">
-          <CardTitle className="text-2xl font-black uppercase tracking-tighter">I-Pay Users Hub</CardTitle>
-          <CardDescription className="font-bold">Total Management of Registered Identities</CardDescription>
+          <CardTitle className="text-2xl font-black uppercase tracking-tighter">Identity Management</CardTitle>
+          <CardDescription className="font-bold">Total Control of I-Pay Users</CardDescription>
         </CardHeader>
         <CardContent className="pt-8">
             <div className="relative mb-6">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                    placeholder="Search ID, username, or email..."
-                    className="pl-11 h-12 rounded-2xl bg-muted border-none shadow-none font-bold"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                />
+                <Input placeholder="Search user..." className="pl-11 h-12 rounded-2xl bg-muted border-none font-bold" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
           <Table>
-            <TableHeader>
-              <TableRow className="border-none hover:bg-transparent">
-                <TableHead className="font-black uppercase text-[10px]">User</TableHead>
-                <TableHead className="hidden md:table-cell font-black uppercase text-[10px]">Email</TableHead>
-                <TableHead className="hidden sm:table-cell font-black uppercase text-[10px]">UID</TableHead>
-                <TableHead className="text-right font-black uppercase text-[10px]">Manage</TableHead>
-              </TableRow>
-            </TableHeader>
+            <TableHeader><TableRow className="border-none"><TableHead className="font-black uppercase text-[10px]">Identity</TableHead><TableHead className="font-black uppercase text-[10px]">Status</TableHead><TableHead className="text-right font-black uppercase text-[10px]">Master Command</TableHead></TableRow></TableHeader>
             <TableBody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>
-                        <TableCell><div className="flex items-center gap-3"><Skeleton className="h-10 w-10 rounded-full" /><Skeleton className="h-5 w-24" /></div></TableCell>
-                        <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-40" /></TableCell>
-                        <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-32" /></TableCell>
-                        <TableCell className="text-right"><Skeleton className="h-8 w-8" /></TableCell>
-                    </TableRow>
-                ))
-              ) : filteredUsers.length > 0 ? (
-                filteredUsers.map((user) => (
-                    <TableRow key={user.$id} className={cn("border-muted/20", user.isBanned && "bg-destructive/5 text-destructive")}>
-                    <TableCell>
-                        <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
-                            <AvatarImage src={user.avatar} alt={user.username} />
-                            <AvatarFallback className="font-black bg-muted text-foreground/30">{user.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
-                        </Avatar>
-                        <span className="font-bold text-xs">@{user.username || 'N/A'}</span>
-                        </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell text-xs font-medium opacity-70">{user.email || 'N/A'}</TableCell>
-                    <TableCell className="hidden sm:table-cell font-mono text-[9px] opacity-40 uppercase">{user.$id}</TableCell>
-                    <TableCell className="text-right">
-                        <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-primary/10">
-                            <MoreVertical className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="font-black uppercase text-[10px]">
-                            <DropdownMenuItem asChild>
-                                <Link href={`/manager/users/view/${user.$id}`} className="flex items-center gap-2"><Eye className="h-3.5 w-3.5" /> Open Record</Link>
-                            </DropdownMenuItem>
-                             <DropdownMenuItem onClick={() => handleSuspendToggle(user)} className="flex items-center gap-2">
-                                {user.isBanned ? <Check className="h-3.5 w-3.5 text-green-500"/> : <ShieldAlert className="h-3.5 w-3.5 text-destructive"/> }
-                                {user.isBanned ? 'Unsuspend' : 'Suspend'}
-                            </DropdownMenuItem>
-                             <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive flex items-center gap-2">
-                                        <Trash2 className="h-3.5 w-3.5" /> WIPE USER
-                                    </DropdownMenuItem>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent className="rounded-[2.5rem]">
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle className="font-black uppercase text-center">Master Wipe Command</AlertDialogTitle>
-                                        <AlertDialogDescription className="text-center font-bold text-xs">
-                                            This will permanently delete {user.username} and all associated cloud assets (Posts, Media, History). This cannot be reversed.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter className="flex-row gap-2">
-                                        <AlertDialogCancel className="flex-1 rounded-xl">Cancel</AlertDialogCancel>
-                                        <AlertDialogAction className="flex-1 bg-destructive hover:bg-destructive/90 rounded-xl" onClick={() => handleDeleteUser(user)}>Wipe Data</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                             </AlertDialog>
-                        </DropdownMenuContent>
-                        </DropdownMenu>
-                    </TableCell>
-                    </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground font-bold">No users found.</TableCell>
+              {loading ? [1,2,3].map(i => <TableRow key={i}><TableCell><Skeleton className="h-10 w-32"/></TableCell><TableCell><Skeleton className="h-10 w-20"/></TableCell><TableCell><Skeleton className="h-8 w-8 ml-auto"/></TableCell></TableRow>) : filteredUsers.map((u) => (
+                <TableRow key={u.$id} className={cn("border-muted/20", u.isBlocked && "bg-destructive/5")}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
+                        <AvatarImage src={u.avatar}/><AvatarFallback className="font-black uppercase">{u.username?.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <span className="font-black text-xs uppercase">@{u.username}</span>
+                        <span className="text-[8px] font-bold opacity-50 uppercase">{u.email}</span>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1 flex-wrap">
+                        {u.isBlocked && <Badge variant="destructive" className="text-[7px] font-black uppercase h-4">Blocked</Badge>}
+                        {u.isSuspended && <Badge variant="outline" className="text-[7px] font-black uppercase h-4 border-primary text-primary">Suspended</Badge>}
+                        {!u.isBlocked && !u.isSuspended && <Badge variant="secondary" className="text-[7px] font-black uppercase h-4 text-green-600">Active</Badge>}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="font-black uppercase text-[10px]">
+                        <DropdownMenuItem asChild><Link href={`/manager/users/view/${u.$id}`}><Eye className="mr-2 h-3.5 w-3.5" /> Preview Identity</Link></DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleBlockToggle(u)} className={u.isBlocked ? "text-green-600" : "text-destructive"}><UserX className="mr-2 h-3.5 w-3.5" /> {u.isBlocked ? 'Unblock User' : 'BLOCK USER'}</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleSuspendToggle(u)}><ShieldAlert className="mr-2 h-3.5 w-3.5" /> {u.isSuspended ? 'Unsuspend' : 'Suspend Postings'}</DropdownMenuItem>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild><DropdownMenuItem onSelect={e => e.preventDefault()} className="text-destructive font-black"><Trash2 className="mr-2 h-3.5 w-3.5" /> WIPE ACCOUNT</DropdownMenuItem></AlertDialogTrigger>
+                            <AlertDialogContent className="rounded-[2.5rem]">
+                                <AlertDialogHeader><AlertDialogTitle>Confirm Master Wipe?</AlertDialogTitle><AlertDialogDescription>This will delete @{u.username} permanently. This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                                <AlertDialogFooter className="flex-row gap-2">
+                                    <AlertDialogCancel className="flex-1 rounded-xl font-black uppercase">Cancel</AlertDialogCancel>
+                                    <AlertDialogAction className="flex-1 bg-destructive hover:bg-destructive/90 rounded-xl font-black uppercase" onClick={() => handleDeleteUser(u)}>Wipe Identity</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
                 </TableRow>
-              )}
+              ))}
             </TableBody>
           </Table>
         </CardContent>
