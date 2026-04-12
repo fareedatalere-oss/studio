@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center Page.
- * PRODUCTION HARDENING: Extreme safety guards to eliminate client-side exceptions during loading on Vercel.
+ * PRODUCTION HARDENING: Shielded rendering to eliminate client-side exceptions on Vercel.
  */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
@@ -132,18 +132,28 @@ export default function ChatPage() {
 
     const currentUid = currentUser?.$id || currentUser?.uid;
 
+    const safeGetTime = (ts: any) => {
+        if (!ts) return 0;
+        if (ts?.toMillis) return ts.toMillis();
+        if (typeof ts === 'number') return ts;
+        if (typeof ts === 'string') return new Date(ts).getTime();
+        return 0;
+    };
+
     useEffect(() => {
         if (!currentUid) return;
 
         const q = query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', currentUid));
         const unsubChats = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })).filter(Boolean);
+            
+            // SHIELDED SORT: Defends against client-side exceptions during loading
             data.sort((a: any, b: any) => {
-                if (!a?.lastMessageAt || !b?.lastMessageAt) return 0;
-                const timeA = a.lastMessageAt?.toMillis ? a.lastMessageAt.toMillis() : 0;
-                const timeB = b.lastMessageAt?.toMillis ? b.lastMessageAt.toMillis() : 0;
-                return (timeB || 0) - (timeA || 0);
+                const timeA = safeGetTime(a?.lastMessageAt);
+                const timeB = safeGetTime(b?.lastMessageAt);
+                return timeB - timeA;
             });
+            
             setRecentChats(data);
             setLoading(false);
         }, () => setLoading(false));

@@ -34,6 +34,7 @@ import { format } from 'date-fns';
 /**
  * @fileOverview Sofia AI Chat - Optimized for Production.
  * UPGRADED: Added Torch control, SMS, and Post preparation support.
+ * SHIELDED: Forced instant opening and rendering stability.
  */
 
 type Message = {
@@ -57,7 +58,6 @@ export default function AiChatPage() {
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [locationStr, setLocationStr] = useState('Determining Location...');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [isListening, setIsListening] = useState(false);
   const [isLangPopoverOpen, setIsLangPopoverOpen] = useState(false);
   
   const [msgToDelete, setMsgToDelete] = useState<string | null>(null);
@@ -65,9 +65,16 @@ export default function AiChatPage() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<any>(null);
 
   const chatId = useMemo(() => user?.$id ? `ai_${user.$id}` : null, [user?.$id]);
+
+  const safeGetTime = (doc: any) => {
+      if (!doc) return Date.now();
+      if (doc.createdAt?.toMillis) return doc.createdAt.toMillis();
+      if (typeof doc.createdAt === 'string') return new Date(doc.createdAt).getTime();
+      if (typeof doc.createdAt === 'number') return doc.createdAt;
+      return doc.timestamp || Date.now();
+  };
 
   const fetchHistory = async () => {
     if (!chatId) return;
@@ -90,10 +97,11 @@ export default function AiChatPage() {
                 role: doc.senderId === user?.$id ? 'user' : 'sofia',
                 text: doc.text || '',
                 image: doc.image,
-                timestamp: doc.createdAt?.toMillis ? doc.createdAt.toMillis() : (typeof doc.createdAt === 'string' ? new Date(doc.createdAt).getTime() : Date.now()),
+                timestamp: safeGetTime(doc),
                 thoughts: doc.thoughts
             } as Message));
 
+            // SHIELDED SORT
             mapped.sort((a, b) => a.timestamp - b.timestamp);
             setMessages(mapped);
         }
@@ -183,7 +191,7 @@ export default function AiChatPage() {
       }
     } catch (error: any) {
       console.error("Sofia Error:", error);
-      toast({ variant: 'destructive', title: "Sofia Snagged", description: "Connection weak. Try again." });
+      toast({ variant: 'destructive', title: "Sofia Snagged", description: "Vercel Timeout or Connection weak. Try simpler questions." });
     } finally {
       setIsLoading(false);
     }
@@ -239,6 +247,7 @@ export default function AiChatPage() {
 
   const formatTimestamp = (ts: number) => {
       try {
+          if (!ts) return 'Now';
           return format(new Date(ts), 'HH:mm');
       } catch (e) {
           return 'Now';

@@ -1,4 +1,3 @@
-
 import { auth, db } from './firebase';
 import { 
   signInWithEmailAndPassword, 
@@ -29,6 +28,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 /**
  * @fileOverview Master Firebase Data Service.
  * Consolidated for high performance using Profiles collection and Cloudinary.
+ * SHIELDED: Robust timestamp mapping to prevent Vercel crashes.
  */
 
 export const DATABASE_ID = 'default';
@@ -61,12 +61,17 @@ const sanitize = (data: any) => {
 const mapDoc = (snapshot: any) => {
     if (!snapshot.exists()) return null;
     const data = snapshot.data();
+    
+    // SHIELDED MAPPING: Ensure createdAt/updatedAt never trigger null property crashes
+    const safeCreatedAt = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString());
+    const safeUpdatedAt = data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : (data.updatedAt || new Date().toISOString());
+
     return {
         $id: snapshot.id,
         uid: snapshot.id,
         ...data,
-        $createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
-        $updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt,
+        $createdAt: safeCreatedAt,
+        $updatedAt: safeUpdatedAt,
     };
 };
 

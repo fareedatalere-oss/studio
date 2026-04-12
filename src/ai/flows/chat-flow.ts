@@ -2,12 +2,16 @@
 /**
  * @fileOverview Sofia - The I-Pay Best Friend & Global Knowledge Assistant.
  * UPGRADED: Added Google Search, Device Actions (Torch, SMS, Call), and App Navigation.
+ * FORCED: Increased maxDuration for Vercel stability.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/data-service';
+
+// FORCE VERCEL TO WAIT FOR AI RESEARCH
+export const maxDuration = 120;
 
 const SofiaInputSchema = z.object({
   message: z.string().describe('The user message.'),
