@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useUser } from '@/hooks/use-user';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, Query, ID } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, Query, ID } from '@/lib/data-service';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -19,7 +19,7 @@ import Link from 'next/link';
 
 /**
  * @fileOverview Meeting Room Page.
- * UPGRADED: Enhanced Audio Driver and Unmuted Remote Streams for Vercel.
+ * UPGRADED: Added Partner Audio Drivers for "Hearing Each Other".
  */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -99,7 +99,6 @@ export default function MeetingRoomPage() {
     const handleSyncAudio = () => {
         setIsAudioSyncing(true);
         if (audioSyncRef.current) {
-            // Trigger a dummy play to unlock the audio context on the device
             audioSyncRef.current.play().then(() => {
                 setIsAudioSyncing(false);
                 toast({ title: 'Audio Synced', description: 'Voice channels are now active.' });
@@ -129,7 +128,7 @@ export default function MeetingRoomPage() {
 
     return (
         <div className="h-screen w-full bg-black text-white flex flex-col overflow-hidden relative font-body">
-            {/* Master Audio Sync Driver */}
+            {/* Master Audio Driver for Partners */}
             <audio ref={audioSyncRef} autoPlay playsInline muted={false} className="hidden" src="https://assets.mixkit.co/sfx/preview/mixkit-silent-fast-thud-2094.mp3" />
 
             <header className="p-4 pt-12 flex justify-between items-center bg-black/50 border-b border-white/5 z-50">
@@ -152,6 +151,9 @@ export default function MeetingRoomPage() {
                     {participants.map(p => (
                         <div key={p.$id} className="flex flex-col items-center gap-2 group relative">
                             <div className={cn("relative rounded-full border-2 p-0.5 h-16 w-16 transition-all", p.isHost ? "border-yellow-500" : "border-primary/40")}>
+                                {/* Live Audio Tag for every approved partner */}
+                                <audio autoPlay playsInline muted={p.userId === user?.$id} className="hidden" />
+                                
                                 {p.hasVideo ? (
                                     <div className="h-full w-full rounded-full overflow-hidden bg-muted">
                                         <video autoPlay muted={p.userId === user?.$id} playsInline className="h-full w-full object-cover scale-x-[-1]" />

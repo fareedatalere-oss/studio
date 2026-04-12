@@ -11,7 +11,7 @@ import { parseISO, differenceInSeconds } from 'date-fns';
 
 /**
  * @fileOverview Master Alarm Engine.
- * UPGRADED: Professional Smartphone Ringtone and Admin Reminder Logic.
+ * NATIVE UPDATE: Removed custom ringtone. Uses System Default Notification and Vibration.
  */
 
 export function MeetingAlarm() {
@@ -19,16 +19,11 @@ export function MeetingAlarm() {
   const router = useRouter();
   const [activeCall, setActiveCall] = useState<any>(null);
   const [isRinging, setIsRinging] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const vibrationInterval = useRef<NodeJS.Timeout | null>(null);
   const rungIds = useRef<Set<string>>(new Set());
 
   const stopRinging = () => {
     setIsRinging(false);
-    if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-    }
     if (vibrationInterval.current) {
         clearInterval(vibrationInterval.current);
         vibrationInterval.current = null;
@@ -82,7 +77,7 @@ export function MeetingAlarm() {
       } catch (e) {}
     };
 
-    const interval = setInterval(checkMeetings, 3000); // Check every 3 seconds for speed
+    const interval = setInterval(checkMeetings, 3000); 
     
     const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
         const payload = response.payload as any;
@@ -105,19 +100,23 @@ export function MeetingAlarm() {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
-    if (!audioRef.current) {
-        // High-Fidelity Master Smartphone Ringtone
-        audioRef.current = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-ringtone-for-telephone-alert-2173.mp3');
-        audioRef.current.loop = true;
-        audioRef.current.preload = 'auto';
+    // Trigger Native System Notification (this plays the user's default device sound)
+    if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(activeCall?.isHostAlert ? 'I-Pay: Meeting Now' : 'I-Pay: Incoming Call', {
+            body: activeCall?.isHostAlert ? `Your session "${activeCall.name}" is starting.` : `Call from @${activeCall?.callerName}`,
+            icon: '/logo.png',
+            tag: 'meeting-alert',
+            renotify: true,
+            silent: false 
+        });
     }
-    audioRef.current.play().catch(() => {});
 
+    // Force Native Vibration
     if (navigator.vibrate) {
-        navigator.vibrate([500, 200, 500, 200, 500]);
+        navigator.vibrate([1000, 500, 1000, 500, 1000]);
         vibrationInterval.current = setInterval(() => {
-            navigator.vibrate([500, 200, 500, 200, 500]);
-        }, 2000);
+            navigator.vibrate([1000, 500, 1000, 500, 1000]);
+        }, 3000);
     }
   };
 

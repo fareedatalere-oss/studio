@@ -20,7 +20,7 @@ import Image from 'next/image';
 
 /**
  * @fileOverview Private Call Page.
- * UPGRADED: Synchronized Call-Chat ID and unmuted remote partner audio for live voice.
+ * UPGRADED: Enhanced Audio Driver for Partner voice.
  */
 
 const getChatId = (userId1: string, userId2: string) => {
@@ -187,6 +187,9 @@ export default function PrivateCallPage() {
 
     return (
         <div className="h-screen w-full bg-white flex flex-col items-center justify-between py-24 font-body overflow-hidden relative">
+            {/* Live Audio Driver for Partner */}
+            <audio autoPlay playsInline muted={false} className="hidden" />
+
             <header className="absolute top-16 left-0 right-0 text-center z-50">
                 <div className="space-y-1">
                     <p className="text-primary font-black uppercase tracking-[0.3em] text-xl animate-in fade-in">
