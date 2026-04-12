@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 /**
  * @fileOverview Chat Center Page.
  * HARDENED: Added strict guards for currentUser profile to prevent crashes.
+ * FIXED: Resolved potential "Client-side exception" by sanitizing filter inputs.
  */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
@@ -29,10 +30,11 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     const { toast } = useToast();
     
     // Safety check: ensure currentUser and chat exist
-    if (!currentUser?.$id || !chat?.participants) return null;
+    const currentUid = currentUser?.$id || currentUser?.uid;
+    if (!currentUid || !chat?.participants || !Array.isArray(chat.participants)) return null;
 
-    const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
-    const unreadCount = chat.unreadCount?.[currentUser.$id] || 0;
+    const otherUserId = chat.participants.find((p: string) => p !== currentUid);
+    const unreadCount = chat.unreadCount?.[currentUid] || 0;
 
     useEffect(() => {
         if (!otherUserId) return;
@@ -62,9 +64,11 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     };
 
     const formatChatDate = (date: Date) => {
-        if (isToday(date)) return format(date, 'HH:mm');
-        if (isYesterday(date)) return 'Yesterday';
-        return format(date, 'dd/MM/yy');
+        try {
+            if (isToday(date)) return format(date, 'HH:mm');
+            if (isYesterday(date)) return 'Yesterday';
+            return format(date, 'dd/MM/yy');
+        } catch (e) { return ''; }
     };
 
     if (!otherUser) return null;
@@ -122,12 +126,14 @@ export default function ChatPage() {
     const [searchAll, setSearchAll] = useState('');
     const [loading, setLoading] = useState(true);
 
+    const currentUid = currentUser?.$id || currentUser?.uid;
+
     useEffect(() => {
-        if (!currentUser?.$id) return;
+        if (!currentUid) return;
 
         const q = query(
             collection(db, COLLECTION_ID_CHATS),
-            where('participants', 'array-contains', currentUser.$id)
+            where('participants', 'array-contains', currentUid)
         );
 
         const unsubChats = onSnapshot(q, (snapshot) => {
@@ -150,14 +156,14 @@ export default function ChatPage() {
         });
 
         return () => { unsubChats(); unsubUsers(); };
-    }, [currentUser]);
+    }, [currentUid]);
 
     const filteredUsers = useMemo(() =>
         allUsers.filter(u =>
-            u.$id !== currentUser?.$id &&
+            u.$id !== currentUid &&
             (u.username?.toLowerCase() || '').includes(searchAll.toLowerCase())
         ).sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0)), 
-        [allUsers, searchAll, currentUser]
+        [allUsers, searchAll, currentUid]
     );
 
     const filteredRecent = useMemo(() =>
@@ -165,6 +171,15 @@ export default function ChatPage() {
             (c.lastMessage?.toLowerCase() || '').includes(searchRecent.toLowerCase())
         ), [recentChats, searchRecent]
     );
+
+    if (userLoading || (!currentUserProfile && loading)) {
+        return (
+            <div className="flex flex-col min-h-screen bg-background items-center justify-center">
+                <Loader2 className="animate-spin h-10 w-10 text-primary/30" />
+                <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Syncing Encrypted Hub...</p>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col min-h-screen bg-background font-body">
@@ -195,7 +210,7 @@ export default function ChatPage() {
                                 onChange={(e) => setSearchRecent(e.target.value)}
                             />
                         </div>
-                        {loading || userLoading ? (
+                        {loading ? (
                             <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary/30" /></div>
                         ) : filteredRecent.length > 0 ? (
                             <div className="space-y-1">

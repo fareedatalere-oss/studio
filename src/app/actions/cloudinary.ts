@@ -23,13 +23,14 @@ export async function uploadToCloudinary(base64Data: string, resourceType: 'imag
 
   // Force configuration inside the action to ensure valid signing
   cloudinary.config({
-    cloud_name: cloudName,
-    api_key: apiKey,
-    api_secret: apiSecret,
+    cloud_name: cloudName.trim(),
+    api_key: apiKey.trim(),
+    api_secret: apiSecret.trim(),
     secure: true,
   });
 
   try {
+    // We use the base64 data directly. The folder must be part of the signed parameters.
     const uploadResponse = await cloudinary.uploader.upload(base64Data, {
       resource_type: resourceType,
       folder: 'ipay_chat_media',
@@ -43,6 +44,7 @@ export async function uploadToCloudinary(base64Data: string, resourceType: 'imag
     };
   } catch (error: any) {
     console.error('Cloudinary Upload Error Details:', error);
+    // Return the specific error from Cloudinary to help debugging
     return { success: false, message: error.message || 'Upload failed' };
   }
 }
