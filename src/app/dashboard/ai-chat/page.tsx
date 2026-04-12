@@ -19,20 +19,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Languages, Mic, Send, Loader2, Trash2, ImageIcon, X, Search, Globe, BrainCircuit } from 'lucide-react';
+import { Languages, Mic, Send, Loader2, Trash2, ImageIcon, X, Search, Globe, BrainCircuit, Lightbulb, LightbulbOff } from 'lucide-react';
 import { chatSofia } from '@/ai/flows/chat-flow';
 import { cn } from '@/lib/utils';
-import { useUser } from '@/hooks/use-appwrite';
+import { useUser } from '@/hooks/use-user';
 import { useRouter } from 'next/navigation';
 import { account, databases, DATABASE_ID, COLLECTION_ID_MESSAGES, Query, ID, client } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
+import { format } from 'date-fns';
 
 /**
  * @fileOverview Sofia AI Chat - Optimized for Production.
- * HARDENED: Robust timestamp handling and navigation action support.
+ * UPGRADED: Added Torch control, SMS, and Post preparation support.
  */
 
 type Message = {
@@ -60,6 +61,7 @@ export default function AiChatPage() {
   const [isLangPopoverOpen, setIsLangPopoverOpen] = useState(false);
   
   const [msgToDelete, setMsgToDelete] = useState<string | null>(null);
+  const [torchStream, setTorchStream] = useState<MediaStream | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,7 +81,7 @@ export default function AiChatPage() {
             setMessages([{
                 $id: 'welcome',
                 role: 'sofia',
-                text: "Hello! I am Sofia, your best friend and I-Pay companion. I can check your balance, verify bank accounts, or take you to any part of the app. How can I help you today?",
+                text: "Hello! I am Sofia, your best friend and I-Pay companion. I can search Google for news, check your balance, verify bank accounts, or control your torch. How can I help you today?",
                 timestamp: Date.now()
             }]);
         } else {
@@ -88,7 +90,6 @@ export default function AiChatPage() {
                 role: doc.senderId === user?.$id ? 'user' : 'sofia',
                 text: doc.text || '',
                 image: doc.image,
-                // EXTRA SAFE TIMESTAMP HANDLING
                 timestamp: doc.createdAt?.toMillis ? doc.createdAt.toMillis() : (typeof doc.createdAt === 'string' ? new Date(doc.createdAt).getTime() : Date.now()),
                 thoughts: doc.thoughts
             } as Message));
@@ -122,21 +123,12 @@ export default function AiChatPage() {
         });
     }
 
-    if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        recognitionRef.current = new SpeechRecognition();
-        recognitionRef.current.continuous = false;
-        recognitionRef.current.interimResults = false;
-        recognitionRef.current.onresult = (event: any) => {
-            const transcript = event.results[0][0].transcript;
-            setInput(transcript);
-            setIsListening(false);
-        };
-        recognitionRef.current.onerror = () => setIsListening(false);
-        recognitionRef.current.onend = () => setIsListening(false);
-    }
-
-    return () => unsub();
+    return () => {
+        unsub();
+        if (torchStream) {
+            torchStream.getTracks().forEach(t => t.stop());
+        }
+    };
   }, [chatId, user?.$id]);
 
   useEffect(() => {
@@ -197,10 +189,11 @@ export default function AiChatPage() {
     }
   };
 
-  const handleSofiaAction = (action: string, param?: string) => {
+  const handleSofiaAction = async (action: string, param?: string) => {
     switch (action) {
         case 'logout': account.deleteSession('current').then(() => router.push('/auth/signin')); break;
         case 'call': window.location.href = `tel:${param || ''}`; break;
+        case 'sms': window.location.href = `sms:${param || ''}`; break;
         case 'market': router.push('/dashboard/market'); break;
         case 'media': router.push('/dashboard/media'); break;
         case 'transfer': router.push('/dashboard/transfer'); break;
@@ -208,6 +201,30 @@ export default function AiChatPage() {
         case 'chat': router.push('/dashboard/chat'); break;
         case 'profile': router.push('/dashboard/profile'); break;
         case 'home': router.push('/dashboard'); break;
+        case 'prepare_post': 
+            toast({ title: "Post Prepared", description: "Taking you to upload screen..." });
+            router.push(`/dashboard/media/upload/text?initialText=${encodeURIComponent(param || '')}`); 
+            break;
+        case 'torch_on':
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                const track = stream.getVideoTracks()[0];
+                if (track.getCapabilities().torch) {
+                    await track.applyConstraints({ advanced: [{ torch: true }] } as any);
+                    setTorchStream(stream);
+                    toast({ title: "Torch Active", description: "Sofia turned on your light." });
+                } else {
+                    toast({ variant: 'destructive', title: "No Torch", description: "Your device doesn't support flashlight control via browser." });
+                }
+            } catch (e) { toast({ variant: 'destructive', title: "Torch Denied" }); }
+            break;
+        case 'torch_off':
+            if (torchStream) {
+                torchStream.getTracks().forEach(t => t.stop());
+                setTorchStream(null);
+                toast({ title: "Torch Off" });
+            }
+            break;
         default: break;
     }
   }
@@ -218,6 +235,14 @@ export default function AiChatPage() {
           await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, msgToDelete);
           fetchHistory();
       } catch (e) {} finally { setMsgToDelete(null); }
+  };
+
+  const formatTimestamp = (ts: number) => {
+      try {
+          return format(new Date(ts), 'HH:mm');
+      } catch (e) {
+          return 'Now';
+      }
   };
 
   return (
@@ -233,20 +258,23 @@ export default function AiChatPage() {
                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{locationStr}</p>
             </div>
         </div>
-        <Popover open={isLangPopoverOpen} onOpenChange={setIsLangPopoverOpen}>
-            <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 rounded-full font-black uppercase text-[9px] gap-2">
-                    <Globe className="h-3 w-3 text-primary" /> {selectedLanguage}
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-[200px] p-0 rounded-2xl overflow-hidden border-primary/20">
-                <ScrollArea className="h-[200px]">
-                    {['English', 'Hausa', 'Yoruba', 'Igbo', 'French'].map(l => (
-                        <Button key={l} variant="ghost" className="w-full justify-start text-[10px] font-bold uppercase h-10" onClick={() => { setSelectedLanguage(l); setIsLangPopoverOpen(false); }}>{l}</Button>
-                    ))}
-                </ScrollArea>
-            </PopoverContent>
-        </Popover>
+        <div className="flex items-center gap-2">
+            {torchStream && <Lightbulb className="h-4 w-4 text-yellow-500 animate-pulse" />}
+            <Popover open={isLangPopoverOpen} onOpenChange={setIsLangPopoverOpen}>
+                <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 rounded-full font-black uppercase text-[9px] gap-2">
+                        <Globe className="h-3 w-3 text-primary" /> {selectedLanguage}
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-[200px] p-0 rounded-2xl overflow-hidden border-primary/20">
+                    <ScrollArea className="h-[200px]">
+                        {['English', 'Hausa', 'Yoruba', 'Igbo', 'French'].map(l => (
+                            <Button key={l} variant="ghost" className="w-full justify-start text-[10px] font-bold uppercase h-10" onClick={() => { setSelectedLanguage(l); setIsLangPopoverOpen(false); }}>{l}</Button>
+                        ))}
+                    </ScrollArea>
+                </PopoverContent>
+            </Popover>
+        </div>
       </header>
 
       <div className="flex-1 p-4 overflow-y-auto space-y-6 pb-40">
@@ -277,7 +305,7 @@ export default function AiChatPage() {
                     )}
                 </div>
                 <span className="text-[8px] font-black uppercase text-muted-foreground mt-2 px-2">
-                    {isNaN(msg.timestamp) ? 'Now' : format(new Date(msg.timestamp), 'HH:mm')}
+                    {formatTimestamp(msg.timestamp)}
                 </span>
             </div>
         ))}
@@ -285,7 +313,7 @@ export default function AiChatPage() {
             <div className="flex justify-start">
                 <div className="bg-muted border rounded-[1.5rem] p-4 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 animate-pulse">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    Sofia is validating... 💭
+                    Sofia is thinking... 💭
                 </div>
             </div>
         )}
@@ -295,7 +323,7 @@ export default function AiChatPage() {
       <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t pb-20 z-50">
         <form onSubmit={handleSend} className="flex items-center gap-2 max-w-2xl mx-auto px-2">
           <Input 
-            placeholder={`Ask Sofia about I-Pay...`} 
+            placeholder={`Ask Sofia anything...`} 
             value={input}
             onChange={e => setInput(e.target.value)}
             className="h-12 bg-muted/50 border-none rounded-[1.2rem] px-6 font-bold shadow-inner"

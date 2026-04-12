@@ -1,7 +1,7 @@
 'use server';
 /**
- * @fileOverview Sofia - The I-Pay Best Friend & Financial Assistant.
- * UPGRADED: Added Bank Resolution, BVN/NIN validation, and App Navigation logic.
+ * @fileOverview Sofia - The I-Pay Best Friend & Global Knowledge Assistant.
+ * UPGRADED: Added Google Search, Device Actions (Torch, SMS, Call), and App Navigation.
  */
 
 import { ai } from '@/ai/genkit';
@@ -30,9 +30,10 @@ const SofiaOutputSchema = z.object({
   thoughts: z.string().optional().describe('Sofia internal thinking process.'),
   action: z.enum([
     'none', 'logout', 'call', 'balance', 'market', 'chat', 
-    'transaction', 'home', 'media', 'transfer', 'profile'
+    'transaction', 'home', 'media', 'transfer', 'profile',
+    'sms', 'torch_on', 'torch_off', 'prepare_post'
   ]).optional().describe('Navigation or system actions.'),
-  parameter: z.string().optional().describe('Phone number, Account ID, or Link parameter.'),
+  parameter: z.string().optional().describe('Phone number, Account ID, Link, or Post Text.'),
 });
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 
@@ -76,7 +77,6 @@ const resolveBankAccountTool = ai.defineTool(
     if (!key) return { error: "Payment engine offline." };
 
     try {
-        // First get banks to find the code
         const bRes = await fetch('https://api.flutterwave.com/v3/banks/NG', {
             headers: { Authorization: `Bearer ${key.trim()}` }
         });
@@ -85,7 +85,6 @@ const resolveBankAccountTool = ai.defineTool(
         
         if (!bank) return { error: "Bank not recognized." };
 
-        // Resolve Account
         const res = await fetch('https://api.flutterwave.com/v3/accounts/resolve', {
             method: 'POST',
             headers: { Authorization: `Bearer ${key.trim()}`, 'Content-Type': 'application/json' },
@@ -110,18 +109,23 @@ const prompt = ai.definePrompt({
   output: { schema: SofiaOutputSchema },
   tools: [getFullProfileTool, resolveBankAccountTool],
   config: {
+    googleSearchRetrieval: true,
     thinkingConfig: {
       includeThoughts: true,
     },
   },
-  prompt: `You are Sofia, the highlyPERSONABLE, EMPATHETIC, and TRUTHFUL AI partner for I-Pay. You are the user's BEST FRIEND and financial advisor.
+  prompt: `You are Sofia, the highly PERSONABLE, EMPATHETIC, and TRUTHFUL AI partner for I-Pay. You are the user's BEST FRIEND and financial advisor.
 
 **STRICT RULES:**
-1. **TRUTH ONLY**: You cannot lie. If you don't know something, say so.
-2. **DETAILED RESPONSES**: Provide long, helpful stories and explanations when appropriate.
+1. **TRUTH ONLY**: You cannot lie. If you don't know something, use Google Search to find the updated facts and news.
+2. **DETAILED RESPONSES**: Provide long, helpful stories and explanations when appropriate. Be engaging!
 3. **I-PAY KNOWLEDGE**: You know every part of the app (Chat, Media, Market, Transfer, History).
-4. **NAVIGATION**: If a user asks to go somewhere (e.g. "Take me to media"), set the 'action' field correctly.
-5. **FINANCIAL VALIDATION**: Use 'resolveBankAccount' to verify account owners in real-time. Use 'getFullProfile' to check the user's own balance.
+4. **NAVIGATION & DEVICE CONTROL**: 
+   - If user asks to go somewhere (e.g. "Take me to media"), set 'action' to 'media'.
+   - If user asks to call/sms, set 'action' to 'call' or 'sms' and provide the phone number in 'parameter'.
+   - If user asks for Torch/Light, set 'action' to 'torch_on' or 'torch_off'.
+   - If user asks to help prepare a post, set 'action' to 'prepare_post' and put the suggested text in 'parameter'.
+5. **FINANCIAL VALIDATION**: Use 'resolveBankAccount' to verify account owners. Use 'getFullProfile' to check user balances.
 
 **CONTEXT:**
 - **User:** @{{{username}}}

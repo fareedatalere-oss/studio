@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center Page.
- * HARDENED: Robust null-guards and type checks to eliminate "Client-side exception".
+ * EXTREME HARDENING: Total null-safety to eliminate "Client-side exception".
  */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
@@ -45,7 +45,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
         fetchOther();
     }, [chat, currentUid]);
 
-    const unreadCount = (currentUid && chat.unreadCount) ? (chat.unreadCount[currentUid] || 0) : 0;
+    const unreadCount = (currentUid && chat?.unreadCount) ? (chat.unreadCount[currentUid] || 0) : 0;
 
     const deleteChatHistory = async () => {
         if (!chat?.$id) return;
@@ -62,8 +62,9 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
         }
     };
 
-    const formatChatDate = (date: Date) => {
+    const formatChatDate = (ts: any) => {
         try {
+            const date = ts?.toMillis ? new Date(ts.toMillis()) : (typeof ts === 'string' ? new Date(ts) : null);
             if (!date || isNaN(date.getTime())) return '';
             if (isToday(date)) return format(date, 'HH:mm');
             if (isYesterday(date)) return 'Yesterday';
@@ -71,7 +72,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
         } catch (e) { return ''; }
     };
 
-    if (!otherUser || !currentUid) return null;
+    if (!otherUser || !currentUid || !chat) return null;
 
     return (
         <div className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all group max-w-xl mx-auto">
@@ -87,7 +88,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
                     <div className="flex justify-between items-center mb-0.5">
                         <p className="font-bold text-xs">@{otherUser.username || 'user'}</p>
                         <p className="text-[7px] font-black uppercase text-muted-foreground">
-                            {chat.lastMessageAt?.toMillis ? formatChatDate(new Date(chat.lastMessageAt.toMillis())) : ''}
+                            {formatChatDate(chat.lastMessageAt)}
                         </p>
                     </div>
                     <div className="flex justify-between items-center gap-2">
@@ -135,9 +136,9 @@ export default function ChatPage() {
         const unsubChats = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
             data.sort((a: any, b: any) => {
-                const timeA = a.lastMessageAt?.toMillis ? a.lastMessageAt.toMillis() : 0;
-                const timeB = b.lastMessageAt?.toMillis ? b.lastMessageAt.toMillis() : 0;
-                return timeB - timeA;
+                const timeA = a.lastMessageAt?.toMillis ? a.lastMessageAt.toMillis() : (typeof a.lastMessageAt === 'string' ? new Date(a.lastMessageAt).getTime() : 0);
+                const timeB = b.lastMessageAt?.toMillis ? b.lastMessageAt.toMillis() : (typeof b.lastMessageAt === 'string' ? new Date(b.lastMessageAt).getTime() : 0);
+                return (timeB || 0) - (timeA || 0);
             });
             setRecentChats(data);
             setLoading(false);
@@ -197,7 +198,7 @@ export default function ChatPage() {
                             <Input placeholder="Search recent..." className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none shadow-none font-bold" value={searchRecent} onChange={(e) => setSearchRecent(e.target.value)} />
                         </div>
                         {loading ? <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary/30" /></div> : filteredRecent.length > 0 ? (
-                            <div className="space-y-1">{filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} />)}</div>
+                            <div className="space-y-1">{filteredRecent.map(chat => <RecentChatItem key={chat?.$id || Math.random()} chat={chat} currentUser={currentUser} />)}</div>
                         ) : <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-[0.3em] opacity-30">No Recent Chats</div>}
                     </TabsContent>
 
@@ -208,7 +209,7 @@ export default function ChatPage() {
                         </div>
                         <div className="grid gap-1">
                             {filteredUsers.length > 0 ? filteredUsers.map(u => (
-                                <Link key={u.$id} href={`/dashboard/chat/${u.$id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all active:scale-[0.98]">
+                                <Link key={u?.$id || Math.random()} href={`/dashboard/chat/${u?.$id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all active:scale-[0.98]">
                                     <div className="relative">
                                         <Avatar className="h-12 w-12 border-2 border-primary/10 shadow-sm"><AvatarImage src={u.avatar} className="object-cover" /><AvatarFallback className="font-black bg-muted text-foreground/50">{u.username?.charAt(0) || '?'}</AvatarFallback></Avatar>
                                         {u.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white"></div>}
