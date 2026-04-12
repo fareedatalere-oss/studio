@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center Page.
- * PRODUCTION HARDENING: Extreme safety guards to eliminate client-side exceptions during loading.
+ * PRODUCTION HARDENING: Extreme safety guards to eliminate client-side exceptions during loading on Vercel.
  */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
@@ -139,9 +139,9 @@ export default function ChatPage() {
         const unsubChats = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })).filter(Boolean);
             data.sort((a: any, b: any) => {
-                if (!a || !b) return 0;
-                const timeA = (a.lastMessageAt && typeof a.lastMessageAt.toMillis === 'function') ? a.lastMessageAt.toMillis() : 0;
-                const timeB = (b.lastMessageAt && typeof b.lastMessageAt.toMillis === 'function') ? b.lastMessageAt.toMillis() : 0;
+                if (!a?.lastMessageAt || !b?.lastMessageAt) return 0;
+                const timeA = a.lastMessageAt?.toMillis ? a.lastMessageAt.toMillis() : 0;
+                const timeB = b.lastMessageAt?.toMillis ? b.lastMessageAt.toMillis() : 0;
                 return (timeB || 0) - (timeA || 0);
             });
             setRecentChats(data);

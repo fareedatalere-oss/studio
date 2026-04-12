@@ -10,7 +10,7 @@ import {
     increment, getDocs, writeBatch, deleteDoc, arrayUnion
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, Forward, Mic, X, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, Forward, Mic, X, CheckCircle2, Check } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Chat Thread.
- * UPGRADED: Returned Call functionality and fixed timestamp rendering safety.
+ * UPGRADED: Fix client-side exception and sender-only indicators.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -271,6 +271,9 @@ export default function ChatThreadPage() {
                                                 ? format(msg.createdAt.toMillis(), 'HH:mm') 
                                                 : (msg.timestamp ? format(msg.timestamp, 'HH:mm') : '...')}
                                         </span>
+                                        {isMine && (
+                                            msg.status === 'seen' ? <CheckCircle2 className="h-2 w-2 text-white" /> : <Check className="h-2 w-2 text-white/50" />
+                                        )}
                                     </div>
                                 </div>
                             </div>

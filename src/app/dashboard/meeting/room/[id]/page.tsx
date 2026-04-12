@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -10,7 +9,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { useUser } from '@/hooks/use-appwrite';
+import { useUser } from '@/hooks/use-user';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, Query, ID } from '@/lib/appwrite';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -20,7 +19,7 @@ import Link from 'next/link';
 
 /**
  * @fileOverview Meeting Room Page.
- * UPGRADED: Enhanced Audio Driver and Unmuted Remote Streams.
+ * UPGRADED: Enhanced Audio Driver and Unmuted Remote Streams for Vercel.
  */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -100,9 +99,10 @@ export default function MeetingRoomPage() {
     const handleSyncAudio = () => {
         setIsAudioSyncing(true);
         if (audioSyncRef.current) {
+            // Trigger a dummy play to unlock the audio context on the device
             audioSyncRef.current.play().then(() => {
                 setIsAudioSyncing(false);
-                toast({ title: 'Audio Synced', description: 'Partner voices are now active.' });
+                toast({ title: 'Audio Synced', description: 'Voice channels are now active.' });
             }).catch(() => setIsAudioSyncing(false));
         }
     };
@@ -129,8 +129,8 @@ export default function MeetingRoomPage() {
 
     return (
         <div className="h-screen w-full bg-black text-white flex flex-col overflow-hidden relative font-body">
-            {/* Hidden Unmuted Audio Engine */}
-            <audio ref={audioSyncRef} autoPlay playsInline muted={false} className="hidden" />
+            {/* Master Audio Sync Driver */}
+            <audio ref={audioSyncRef} autoPlay playsInline muted={false} className="hidden" src="https://assets.mixkit.co/sfx/preview/mixkit-silent-fast-thud-2094.mp3" />
 
             <header className="p-4 pt-12 flex justify-between items-center bg-black/50 border-b border-white/5 z-50">
                 <div className="flex-1">
@@ -138,11 +138,9 @@ export default function MeetingRoomPage() {
                     <p className="text-[8px] font-bold opacity-50 uppercase">{isAdmin ? 'Chairman View' : 'Guest View'}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {!isAdmin && (
-                        <Button onClick={handleSyncAudio} variant="outline" size="sm" className="h-8 rounded-full font-black uppercase text-[8px] gap-1 px-3">
-                            <Volume2 className="h-3 w-3" /> {isAudioSyncing ? 'Syncing...' : 'Sync Audio'}
-                        </Button>
-                    )}
+                    <Button onClick={handleSyncAudio} variant="outline" size="sm" className="h-8 rounded-full font-black uppercase text-[8px] gap-1 px-3 bg-white/5">
+                        <Volume2 className="h-3 w-3" /> {isAudioSyncing ? 'Syncing...' : 'Sync Audio'}
+                    </Button>
                     <Button onClick={handleEndMeeting} size="sm" variant="destructive" className="h-8 rounded-full font-black uppercase text-[9px] shadow-lg">
                         {isAdmin ? 'End Meeting' : 'Leave'}
                     </Button>
@@ -210,7 +208,7 @@ export default function MeetingRoomPage() {
                     </div>
                     <div className="text-left">
                         <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none">You (Live)</p>
-                        <p className="text-[8px] font-bold opacity-50 mt-1 uppercase">Ready to talk</p>
+                        <p className="text-[8px] font-bold opacity-50 mt-1 uppercase">Mic active</p>
                     </div>
                 </div>
                 
