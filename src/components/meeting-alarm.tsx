@@ -4,14 +4,14 @@ import { useState, useEffect, useRef } from 'react';
 import { PhoneOff, Video, CheckCircle2, Volume2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query, client } from '@/lib/data-service';
-import { useUser } from '@/hooks/use-appwrite';
+import { useUser } from '@/hooks/use-user';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter } from 'next/navigation';
-import { isBefore, parseISO, differenceInMinutes } from 'date-fns';
+import { parseISO, differenceInSeconds } from 'date-fns';
 
 /**
  * @fileOverview Master Alarm Engine.
- * PRODUCTION HARDENING: Real Smartphone ringtone and native vibration for critical calls.
+ * UPGRADED: Professional Smartphone Ringtone and Admin Reminder Logic.
  */
 
 export function MeetingAlarm() {
@@ -50,17 +50,19 @@ export function MeetingAlarm() {
 
         const now = new Date();
 
-        // 1. Check for incoming calls
+        // 1. Check for incoming calls (for Guests)
         const incomingCall = res.documents.find(m => m.type === 'call' && m.invitedUsers?.includes(user.$id));
         
-        // 2. Check for scheduled meetings reaching time (for Admin/Host)
+        // 2. Check for scheduled meetings (for Admin/Chairman)
         const scheduledMeeting = res.documents.find(m => {
             if (m.hostId !== user.$id || rungIds.current.has(m.$id)) return false;
             if (!m.scheduledAt) return false;
             
             const schedTime = parseISO(m.scheduledAt);
-            const diff = differenceInMinutes(now, schedTime);
-            return diff >= 0 && diff < 5;
+            const diffSec = differenceInSeconds(now, schedTime);
+            
+            // Ring if we are within 60 seconds of the start time
+            return diffSec >= -10 && diffSec < 60;
         });
 
         const target = incomingCall || scheduledMeeting;
@@ -80,7 +82,7 @@ export function MeetingAlarm() {
       } catch (e) {}
     };
 
-    const interval = setInterval(checkMeetings, 5000); 
+    const interval = setInterval(checkMeetings, 3000); // Check every 3 seconds for speed
     
     const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
         const payload = response.payload as any;
@@ -104,7 +106,7 @@ export function MeetingAlarm() {
     setIsRinging(true);
     
     if (!audioRef.current) {
-        // High-Fidelity Professional Ringtone
+        // High-Fidelity Master Smartphone Ringtone
         audioRef.current = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-ringtone-for-telephone-alert-2173.mp3');
         audioRef.current.loop = true;
         audioRef.current.preload = 'auto';
@@ -134,7 +136,7 @@ export function MeetingAlarm() {
     if (activeCall?.$id) {
         rungIds.current.add(activeCall.$id);
         if (activeCall.isHostAlert) {
-            router.push(`/dashboard/meeting/join/${activeCall.$id}?role=admin`);
+            router.push(`/dashboard/meeting/room/${activeCall.$id}`);
         } else {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'connected' });
             router.push(`/dashboard/chat/call/${activeCall.$id}`);
@@ -150,12 +152,12 @@ export function MeetingAlarm() {
     <div className="fixed inset-0 z-[1000] bg-white flex flex-col items-center justify-between py-24 animate-in fade-in zoom-in duration-500 font-body overflow-hidden">
       <div className="text-center space-y-2">
           <p className="text-primary font-black uppercase tracking-[0.4em] text-2xl animate-pulse">
-            {activeCall?.isHostAlert ? 'Meeting Now' : 'Incoming Alert'}
+            {activeCall?.isHostAlert ? 'Meeting Now' : 'Incoming Call'}
           </p>
           <div className="flex items-center justify-center gap-2 text-primary/60">
             {activeCall?.isHostAlert ? <Clock className="h-4 w-4" /> : <Video className="h-4 w-4" />}
             <p className="text-[10px] font-black uppercase tracking-widest">
-                {activeCall?.isHostAlert ? 'Chairman Reminder' : 'I-Pay Private Line'}
+                {activeCall?.isHostAlert ? 'Chairman Reminder' : 'I-Pay Voice Line'}
             </p>
           </div>
       </div>
@@ -173,7 +175,7 @@ export function MeetingAlarm() {
                 {activeCall?.isHostAlert ? activeCall.name : `@${activeCall?.callerName}`}
             </h2>
             <p className="text-muted-foreground font-bold text-xs mt-2 uppercase opacity-60">
-                {activeCall?.isHostAlert ? 'Scheduled session is starting' : 'Calling you from I-Pay Hub'}
+                {activeCall?.isHostAlert ? 'Your scheduled session is live' : 'Calling from I-Pay Hub'}
             </p>
         </div>
       </div>
@@ -191,7 +193,7 @@ export function MeetingAlarm() {
       
       <div className="absolute bottom-10 flex items-center gap-2 opacity-20">
           <Volume2 className="h-3 w-3" />
-          <p className="text-[8px] font-black uppercase tracking-widest">Incoming Call Service Active</p>
+          <p className="text-[8px] font-black uppercase tracking-widest">Master Alert Service Active</p>
       </div>
     </div>
   );

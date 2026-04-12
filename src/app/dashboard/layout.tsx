@@ -15,7 +15,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 
 /**
  * @fileOverview Unified Dashboard Layout.
- * Enhanced for scrollability and mobile responsiveness.
+ * UPGRADED: Forced Real-time Notification Engine with Audio & Native Push.
  */
 
 export default function DashboardLayout({
@@ -34,10 +34,19 @@ export default function DashboardLayout({
   const [isPulsing, setIsPulsing] = useState(false);
   
   const lastCountRef = useRef(0);
+  const audioContextUnlocked = useRef(false);
 
   const isImmersive = 
     pathname.includes('/room/') ||
     pathname.match(/\/dashboard\/chat\/[a-zA-Z0-9_]+/);
+
+  const unlockAudio = () => {
+    if (audioContextUnlocked.current) return;
+    const silentAudio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-silent-fast-thud-2094.mp3');
+    silentAudio.play().then(() => {
+        audioContextUnlocked.current = true;
+    }).catch(() => {});
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -54,7 +63,11 @@ export default function DashboardLayout({
       setShowInstallBanner(true);
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('click', unlockAudio, { once: true });
+
+    return () => {
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
   }, []);
   
   const handleInstallClick = async () => {
@@ -97,15 +110,43 @@ export default function DashboardLayout({
   useEffect(() => {
     if (user) {
       fetchUnreadCounts();
-      const unsub = client.subscribe(`databases.default.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`, (response: any) => {
+      const nowTime = new Date().getTime();
+
+      const unsub = client.subscribe([`databases.default.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`], (response: any) => {
           const payload = response.payload;
+          const isNew = response.events[0].endsWith('.added');
+          
           if (payload.userId === user.$id) {
             fetchUnreadCounts();
+
+            // FORCE ALERT LOGIC: Trigger sound and toast for live events
+            const recordTime = new Date(payload.$createdAt).getTime();
+            if (isNew && recordTime > nowTime - 10000) {
+                // 1. Play Ping Sound
+                const ping = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3');
+                ping.volume = 0.6;
+                ping.play().catch(() => {});
+
+                // 2. Push Native Notification
+                if (Notification.permission === 'granted') {
+                    new Notification('I-Pay Alert', {
+                        body: payload.description,
+                        icon: '/logo.png'
+                    });
+                }
+
+                // 3. Show Master Toast
+                toast({
+                    title: "Alert Received",
+                    description: payload.description,
+                    variant: payload.type === 'payment' ? 'default' : 'default',
+                });
+            }
           }
       });
       return () => unsub();
     }
-  }, [user, fetchUnreadCounts]);
+  }, [user, fetchUnreadCounts, toast, router]);
 
   const isTabOn = (key: string) => (!proof) ? true : proof[key] !== false;
 
