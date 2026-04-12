@@ -62,9 +62,12 @@ const mapDoc = (snapshot: any) => {
     if (!snapshot.exists()) return null;
     const data = snapshot.data();
     
-    // SHIELDED MAPPING: Terminate null property crashes
-    const safeCreatedAt = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString());
-    const safeUpdatedAt = data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : (data.updatedAt || new Date().toISOString());
+    // SHIELDED MAPPING: Terminate null property crashes by providing safe fallbacks
+    const createdAtRaw = data.createdAt || data.timestamp || data.$createdAt;
+    const safeCreatedAt = createdAtRaw?.toDate ? createdAtRaw.toDate().toISOString() : (typeof createdAtRaw === 'string' ? createdAtRaw : new Date().toISOString());
+    
+    const updatedAtRaw = data.updatedAt || data.$updatedAt;
+    const safeUpdatedAt = updatedAtRaw?.toDate ? updatedAtRaw.toDate().toISOString() : (typeof updatedAtRaw === 'string' ? updatedAtRaw : safeCreatedAt);
 
     return {
         $id: snapshot.id,

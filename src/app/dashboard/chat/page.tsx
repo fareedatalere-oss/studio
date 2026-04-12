@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 /**
  * @fileOverview Chat Center Page.
  * PRODUCTION HARDENING: Shielded rendering to eliminate client-side exceptions on Vercel.
- * FORCED: Automatic loading logic to ensure the page is never stuck.
+ * FORCED: Defensive sorting to prevent crashes on null server timestamps.
  */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
@@ -68,7 +68,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     const formatChatDate = (ts: any) => {
         try {
             if (!ts) return '';
-            const date = ts?.toMillis ? new Date(ts.toMillis()) : (typeof ts === 'string' ? new Date(ts) : (typeof ts === 'number' ? new Date(ts) : null));
+            const date = ts?.toDate ? ts.toDate() : (ts?.toMillis ? new Date(ts.toMillis()) : (typeof ts === 'string' ? new Date(ts) : (typeof ts === 'number' ? new Date(ts) : null)));
             if (!date || isNaN(date.getTime())) return '';
             if (isToday(date)) return format(date, 'HH:mm');
             if (isYesterday(date)) return 'Yesterday';
@@ -136,6 +136,7 @@ export default function ChatPage() {
     const safeGetTime = (ts: any) => {
         if (!ts) return 0;
         if (ts?.toMillis) return ts.toMillis();
+        if (ts?.toDate) return ts.toDate().getTime();
         if (typeof ts === 'number') return ts;
         if (typeof ts === 'string') return new Date(ts).getTime();
         return 0;

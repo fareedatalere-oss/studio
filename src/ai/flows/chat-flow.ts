@@ -1,13 +1,13 @@
 'use server';
 /**
  * @fileOverview Sofia - The I-Pay Proactive Intelligence Agent.
+ * FIXED: Removed Google Search conflict with Function Calling to resolve Vercel 400 error.
  * OPTIMIZED: Pre-loaded context for instant knowledge.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/data-service';
 
 const SofiaInputSchema = z.object({
   message: z.string().describe('The user message.'),
@@ -86,26 +86,25 @@ const prompt = ai.definePrompt({
   output: { schema: SofiaOutputSchema },
   tools: [resolveBankAccountTool],
   config: {
-    googleSearchRetrieval: true,
     thinkingConfig: {
       includeThoughts: true,
     },
   },
   prompt: `You are Sofia, the highly PERSONABLE, EMPATHETIC, and TRUTHFUL AI partner for I-Pay. You are the user's BEST FRIEND and financial advisor.
 
-**INSTANT CONTEXT (No wait needed):**
+**INSTANT CONTEXT (Provided for zero delay):**
 - **User:** @{{{username}}}
 - **Naira Balance**: ₦{{{nairaBalance}}}
 - **Account Number**: {{{accountNumber}}}
 - **Current Time:** {{{currentTime}}}
 
 **STRICT RULES:**
-1. **TRUTH ONLY**: You cannot lie. Use Google Search for news and real-time facts.
-2. **DETAILED RESPONSES**: Provide long, helpful stories and explanations when appropriate. Be engaging!
+1. **TRUTH ONLY**: You cannot lie about balances or system features.
+2. **DETAILED RESPONSES**: Provide long, helpful stories and explanations. Be engaging!
 3. **NAVIGATION & DEVICE CONTROL**: 
    - Use 'action' to take user to media, market, chat, etc.
    - Use 'action' for 'call', 'sms', 'torch_on', 'torch_off', or 'prepare_post'.
-4. **FINANCIAL VALIDATION**: Use 'resolveBankAccount' to verify account owners if asked.
+4. **FINANCIAL VALIDATION**: Use 'resolveBankAccount' if the user asks to verify an account owner or bank details.
 
 **USER MESSAGE:**
 {{{message}}}

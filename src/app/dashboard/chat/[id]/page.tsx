@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -68,6 +67,15 @@ export default function ChatThreadPage() {
         return getChatId(currentUser.$id, otherUserId);
     }, [currentUser?.$id, otherUserId]);
 
+    const safeGetTime = (ts: any) => {
+        if (!ts) return 0;
+        if (ts?.toMillis) return ts.toMillis();
+        if (ts?.toDate) return ts.toDate().getTime();
+        if (typeof ts === 'number') return ts;
+        if (typeof ts === 'string') return new Date(ts).getTime();
+        return 0;
+    };
+
     useEffect(() => {
         if (!chatId || !currentUser) return;
 
@@ -98,8 +106,8 @@ export default function ChatThreadPage() {
             const docs = snapshot.docs.map(d => ({ $id: d.id, ...d.data() }));
             const filtered = docs.filter((m: any) => !m.deleteFor?.includes(currentUser?.$id))
                 .sort((a: any, b: any) => {
-                    const timeA = (a.createdAt && typeof a.createdAt.toMillis === 'function') ? a.createdAt.toMillis() : (a.timestamp || Date.now());
-                    const timeB = (b.createdAt && typeof b.createdAt.toMillis === 'function') ? b.createdAt.toMillis() : (b.timestamp || Date.now());
+                    const timeA = safeGetTime(a?.createdAt || a?.timestamp);
+                    const timeB = safeGetTime(b?.createdAt || b?.timestamp);
                     return timeA - timeB;
                 });
             setMessages(filtered);
@@ -141,7 +149,7 @@ export default function ChatThreadPage() {
                 userId: otherUserId,
                 senderId: currentUser.$id,
                 type: 'message',
-                description: text || 'Sent you a file.',
+                description: `sent you a message: ${text || 'media'}`,
                 isRead: false,
                 link: `/dashboard/chat/${currentUser.$id}`,
                 createdAt: new Date().toISOString()
