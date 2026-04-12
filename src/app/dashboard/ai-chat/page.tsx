@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Languages, Mic, Send, Loader2, Trash2, ImageIcon, X, Search, Globe, BrainCircuit, Lightbulb, LightbulbOff } from 'lucide-react';
+import { Languages, Mic, Send, Loader2, Trash2, ImageIcon, X, Search, Globe, BrainCircuit, Lightbulb, ShieldCheck, Fingerprint } from 'lucide-react';
 import { chatSofia } from '@/ai/flows/chat-flow';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/use-user';
@@ -34,6 +34,7 @@ import { format } from 'date-fns';
 /**
  * @fileOverview Sofia AI Chat - Optimized for Instant Opening.
  * PROACTIVE: Pre-loads profile data to avoid AI delay.
+ * SECURE: Handles NIN/BVN validation requests from Sofia.
  */
 
 type Message = {
@@ -59,6 +60,9 @@ export default function AiChatPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isLangPopoverOpen, setIsLangPopoverOpen] = useState(false);
   
+  const [validationRequest, setValidationRequest] = useState<string | null>(null);
+  const [validationValue, setValidationValue] = useState('');
+  
   const [msgToDelete, setMsgToDelete] = useState<string | null>(null);
   const [torchStream, setTorchStream] = useState<MediaStream | null>(null);
 
@@ -69,10 +73,12 @@ export default function AiChatPage() {
 
   const safeGetTime = (doc: any) => {
       if (!doc) return Date.now();
-      if (doc.createdAt?.toMillis) return doc.createdAt.toMillis();
-      if (typeof doc.createdAt === 'string') return new Date(doc.createdAt).getTime();
-      if (typeof doc.createdAt === 'number') return doc.createdAt;
-      return doc.timestamp || Date.now();
+      const raw = doc.createdAt || doc.timestamp || doc.$createdAt;
+      if (!raw) return Date.now();
+      if (raw.toMillis) return raw.toMillis();
+      if (typeof raw === 'string') return new Date(raw).getTime();
+      if (typeof raw === 'number') return raw;
+      return Date.now();
   };
 
   const fetchHistory = useCallback(async () => {
@@ -80,7 +86,8 @@ export default function AiChatPage() {
     try {
         const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
             Query.equal('chatId', chatId),
-            Query.limit(100)
+            Query.limit(50),
+            Query.orderDesc('$createdAt')
         ]);
         
         if (res.total === 0) {
@@ -138,14 +145,14 @@ export default function AiChatPage() {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if ((!input.trim() && !selectedImage) || isLoading || !user || !chatId) return;
+  const handleSend = async (messageOverride?: string) => {
+    const userMsg = messageOverride || input.trim();
+    if ((!userMsg && !selectedImage) || isLoading || !user || !chatId) return;
 
-    const userMsg = input.trim();
     const currentImgB64 = selectedImage;
     setInput('');
     setSelectedImage(null);
+    setValidationRequest(null);
     setIsLoading(true);
 
     try {
@@ -187,7 +194,7 @@ export default function AiChatPage() {
           handleSofiaAction(response.action, response.parameter);
       }
     } catch (error: any) {
-      toast({ variant: 'destructive', title: "Sofia Timeout", description: "Vercel limited the thought time. Try a simpler question." });
+      toast({ variant: 'destructive', title: "Sofia Timeout", description: "The research took longer than expected. Try a shorter question." });
     } finally {
       setIsLoading(false);
     }
@@ -205,6 +212,9 @@ export default function AiChatPage() {
         case 'chat': router.push('/dashboard/chat'); break;
         case 'profile': router.push('/dashboard/profile'); break;
         case 'home': router.push('/dashboard'); break;
+        case 'request_validation': 
+            setValidationRequest(param || 'BVN/NIN/Phone');
+            break;
         case 'prepare_post': 
             router.push(`/dashboard/media/upload/text?initialText=${encodeURIComponent(param || '')}`); 
             break;
@@ -236,6 +246,13 @@ export default function AiChatPage() {
           await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, msgToDelete);
           fetchHistory();
       } catch (e) {} finally { setMsgToDelete(null); }
+  };
+
+  const handleValidationSubmit = () => {
+      if (!validationValue.trim()) return;
+      const msg = `Verify ${validationRequest}: ${validationValue}`;
+      setValidationValue('');
+      handleSend(msg);
   };
 
   return (
@@ -302,6 +319,28 @@ export default function AiChatPage() {
                 </span>
             </div>
         ))}
+        
+        {validationRequest && (
+            <div className="flex justify-start animate-in slide-in-from-bottom-2">
+                <div className="bg-primary/5 border border-primary/20 rounded-[1.5rem] p-6 w-full max-w-[85%] space-y-4">
+                    <div className="flex items-center gap-2 text-primary">
+                        <Fingerprint className="h-5 w-5" />
+                        <p className="font-black uppercase text-xs tracking-tighter">Secure Validation</p>
+                    </div>
+                    <p className="text-[10px] font-bold opacity-70">Sofia is ready to investigate. Please provide the {validationRequest} below.</p>
+                    <div className="flex gap-2">
+                        <Input 
+                            placeholder={`Enter ${validationRequest}...`}
+                            value={validationValue}
+                            onChange={e => setValidationValue(e.target.value)}
+                            className="bg-white border-none h-10 rounded-xl font-bold shadow-sm"
+                        />
+                        <Button onClick={handleValidationSubmit} size="sm" className="rounded-xl font-black uppercase text-[10px]">Verify</Button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {isLoading && (
             <div className="flex justify-start">
                 <div className="bg-muted border rounded-[1.5rem] p-4 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 animate-pulse">
@@ -314,7 +353,7 @@ export default function AiChatPage() {
       </div>
 
       <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t pb-20 z-50">
-        <form onSubmit={handleSend} className="flex items-center gap-2 max-w-2xl mx-auto px-2">
+        <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 max-w-2xl mx-auto px-2">
           <Input 
             placeholder={`Ask Sofia anything...`} 
             value={input}

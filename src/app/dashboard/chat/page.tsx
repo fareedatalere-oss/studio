@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 /**
  * @fileOverview Chat Center Page.
  * PRODUCTION HARDENING: Shielded rendering to eliminate client-side exceptions on Vercel.
- * FORCED: Defensive sorting to prevent crashes on null server timestamps.
+ * FORCED: Instant loading with defensive sorting for pending timestamps.
  */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
@@ -79,7 +79,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     if (!otherUser || !currentUid || !chat) return null;
 
     return (
-        <div className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all group max-w-xl mx-auto">
+        <div className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all group max-w-xl mx-auto animate-in fade-in">
             <Link href={`/dashboard/chat/${otherUser.$id}`} className="flex-1 flex items-center gap-3 overflow-hidden">
                 <div className="relative">
                     <Avatar className="h-12 w-12 border-2 border-primary/5 shadow-sm">
@@ -135,10 +135,12 @@ export default function ChatPage() {
 
     const safeGetTime = (ts: any) => {
         if (!ts) return 0;
-        if (ts?.toMillis) return ts.toMillis();
-        if (ts?.toDate) return ts.toDate().getTime();
-        if (typeof ts === 'number') return ts;
-        if (typeof ts === 'string') return new Date(ts).getTime();
+        try {
+            if (ts?.toMillis) return ts.toMillis();
+            if (ts?.toDate) return ts.toDate().getTime();
+            if (typeof ts === 'number') return ts;
+            if (typeof ts === 'string') return new Date(ts).getTime();
+        } catch (e) {}
         return 0;
     };
 
@@ -149,7 +151,7 @@ export default function ChatPage() {
         const unsubChats = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })).filter(Boolean);
             
-            // SHIELDED SORT: Defends against client-side exceptions during loading
+            // SHIELDED SORT: Prevents Client-side exception by handling null timestamps as 0
             data.sort((a: any, b: any) => {
                 const timeA = safeGetTime(a?.lastMessageAt);
                 const timeB = safeGetTime(b?.lastMessageAt);

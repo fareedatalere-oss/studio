@@ -1,18 +1,22 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Loader2, ClipboardCopy, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Loader2, ClipboardCopy, CheckCircle2, ShieldCheck, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { generateVirtualAccount } from '@/app/actions/flutterwave';
 import { useUser } from '@/hooks/use-appwrite';
-import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
+import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES, Query } from '@/lib/appwrite';
 import { useRouter } from 'next/navigation';
+
+/**
+ * @fileOverview Identity Sync & Account Generation.
+ * SECURITY: Enforces uniqueness of BVN/NIN and Phone.
+ */
 
 export default function GetAccountNumberPage() {
   const { toast } = useToast();
@@ -64,14 +68,48 @@ export default function GetAccountNumberPage() {
     }
   };
 
+  const checkUniqueness = async () => {
+      try {
+          // 1. Check for Duplicate BVN
+          const bvnCheck = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_PROFILES, [
+              Query.equal('bvn', formData.bvn)
+          ]);
+          
+          if (bvnCheck.total > 0 && bvnCheck.documents.some(d => d.$id !== user?.$id)) {
+              throw new Error("This BVN/NIN is already linked to another I-Pay account.");
+          }
+
+          // 2. Check for Duplicate Phone
+          const phoneCheck = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_PROFILES, [
+              Query.equal('phone', formData.phone)
+          ]);
+
+          if (phoneCheck.total > 0 && phoneCheck.documents.some(d => d.$id !== user?.$id)) {
+              throw new Error("This Phone number is already linked to another I-Pay account.");
+          }
+
+          return true;
+      } catch (e: any) {
+          toast({ variant: 'destructive', title: 'Security Alert', description: e.message });
+          return false;
+      }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     
     setIsGenerating(true);
-    toast({ title: 'Verifying with Flutterwave...' });
+    toast({ title: 'Running Security Checks...' });
 
     try {
+        // Enforce Uniqueness First
+        const isUnique = await checkUniqueness();
+        if (!isUnique) {
+            setIsGenerating(false);
+            return;
+        }
+
         const result = await generateVirtualAccount({
             email: user.email, 
             firstname: formData.firstName,
@@ -84,7 +122,6 @@ export default function GetAccountNumberPage() {
             const accNum = result.data.account_number;
             const bankName = result.data.bank_name;
 
-            // SAVE PERMANENTLY TO PROFILE
             await databases.updateDocument(
                 DATABASE_ID,
                 COLLECTION_ID_PROFILES,
@@ -103,10 +140,10 @@ export default function GetAccountNumberPage() {
             setGeneratedAccount({ number: accNum, bank: bankName });
             toast({ title: "Account Active!" });
         } else {
-            throw new Error(result.message || 'Verification failed. Ensure BVN/NIN is correct.');
+            throw new Error(result.message || 'Identity verification failed. Please check your BVN/NIN.');
         }
     } catch (error: any) {
-         toast({ variant: 'destructive', title: 'Action Failed', description: error.message });
+         toast({ variant: 'destructive', title: 'Verification Failed', description: error.message });
     } finally {
         setIsGenerating(false);
     }
@@ -150,36 +187,49 @@ export default function GetAccountNumberPage() {
   return (
     <div className="container py-8 max-w-lg">
       <Link href="/dashboard" className="flex items-center gap-2 mb-6 text-sm font-black uppercase text-muted-foreground hover:text-primary">
-        <ArrowLeft className="h-4 w-4" /> Cancel
+        <ArrowLeft className="h-4 w-4" /> Hub
       </Link>
       <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
-        <CardHeader className="bg-primary/5 pb-8">
-          <CardTitle className="font-black uppercase tracking-tighter text-2xl text-center">Identity Sync</CardTitle>
-          <CardDescription className="font-bold text-center">Provide details for Flutterwave verification.</CardDescription>
+        <CardHeader className="bg-primary text-white pb-10 pt-10 text-center">
+          <CardTitle className="font-black uppercase tracking-widest text-xl">Identity Sync</CardTitle>
+          <CardDescription className="text-white/70 font-bold">Secure verification with Flutterwave</CardDescription>
         </CardHeader>
-        <CardContent className="pt-8 space-y-4">
+        <CardContent className="pt-8 space-y-6">
           {isPageLoading ? (
             <div className="flex justify-center p-12"><Loader2 className="h-10 w-10 animate-spin text-primary/30" /></div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="p-4 bg-muted/30 rounded-2xl border border-dashed flex items-start gap-3">
+                    <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                    <p className="text-[10px] font-bold text-muted-foreground leading-tight italic">
+                        All information must be unique. Providing duplicate BVN or NIN details will block the generation process.
+                    </p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-50">First Name</Label><Input id="firstName" value={formData.firstName} onChange={handleChange} required className="rounded-xl bg-muted/50 border-none" /></div>
-                    <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-50">Last Name</Label><Input id="lastName" value={formData.lastName} onChange={handleChange} required className="rounded-xl bg-muted/50 border-none" /></div>
+                    <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-50 pl-1">First Name</Label><Input id="firstName" value={formData.firstName} onChange={handleChange} required className="h-12 rounded-xl bg-muted/50 border-none px-4" /></div>
+                    <div className="space-y-1"><Label className="text-[9px] font-black uppercase opacity-50 pl-1">Last Name</Label><Input id="lastName" value={formData.lastName} onChange={handleChange} required className="h-12 rounded-xl bg-muted/50 border-none px-4" /></div>
                 </div>
                 <div className="space-y-1">
-                    <Label className="text-[9px] font-black uppercase opacity-50">BVN or NIN (11 digits)</Label>
-                    <Input id="bvn" value={formData.bvn} onChange={handleChange} required maxLength={11} minLength={11} className="font-mono text-lg rounded-xl bg-muted/50 border-none" />
+                    <Label className="text-[9px] font-black uppercase opacity-50 pl-1">BVN or NIN (11 digits)</Label>
+                    <Input id="bvn" value={formData.bvn} onChange={handleChange} required maxLength={11} minLength={11} className="h-12 font-mono text-lg rounded-xl bg-muted/50 border-none px-4 tracking-[0.2em]" />
                 </div>
                 <div className="space-y-1">
-                    <Label className="text-[9px] font-black uppercase opacity-50">Phone Number</Label>
-                    <Input id="phone" type="tel" value={formData.phone} onChange={handleChange} required className="font-mono text-lg rounded-xl bg-muted/50 border-none" />
+                    <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Phone Number</Label>
+                    <Input id="phone" type="tel" value={formData.phone} onChange={handleChange} required className="h-12 font-mono text-lg rounded-xl bg-muted/50 border-none px-4" />
                 </div>
                 <Button type="submit" className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-xl mt-4" disabled={isGenerating}>
-                    {isGenerating ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Verifying...</> : 'Activate Account'}
+                    {isGenerating ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Investigating Identity...</> : 'Activate Account'}
                 </Button>
             </form>
            )}
         </CardContent>
+        <CardFooter className="bg-muted/30 p-6 text-center">
+            <div className="flex items-center justify-center gap-2 opacity-30 mx-auto">
+                <AlertCircle className="h-3 w-3" />
+                <p className="text-[8px] font-black uppercase tracking-widest">End-to-End Identity Protection</p>
+            </div>
+        </CardFooter>
       </Card>
     </div>
   );

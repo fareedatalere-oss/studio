@@ -64,10 +64,19 @@ const mapDoc = (snapshot: any) => {
     
     // SHIELDED MAPPING: Terminate null property crashes by providing safe fallbacks
     const createdAtRaw = data.createdAt || data.timestamp || data.$createdAt;
-    const safeCreatedAt = createdAtRaw?.toDate ? createdAtRaw.toDate().toISOString() : (typeof createdAtRaw === 'string' ? createdAtRaw : new Date().toISOString());
+    let safeCreatedAt = new Date().toISOString();
+    if (createdAtRaw) {
+        if (typeof createdAtRaw.toDate === 'function') safeCreatedAt = createdAtRaw.toDate().toISOString();
+        else if (typeof createdAtRaw === 'string') safeCreatedAt = createdAtRaw;
+        else if (typeof createdAtRaw === 'number') safeCreatedAt = new Date(createdAtRaw).toISOString();
+    }
     
     const updatedAtRaw = data.updatedAt || data.$updatedAt;
-    const safeUpdatedAt = updatedAtRaw?.toDate ? updatedAtRaw.toDate().toISOString() : (typeof updatedAtRaw === 'string' ? updatedAtRaw : safeCreatedAt);
+    let safeUpdatedAt = safeCreatedAt;
+    if (updatedAtRaw) {
+        if (typeof updatedAtRaw.toDate === 'function') safeUpdatedAt = updatedAtRaw.toDate().toISOString();
+        else if (typeof updatedAtRaw === 'string') safeUpdatedAt = updatedAtRaw;
+    }
 
     return {
         $id: snapshot.id,
