@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -21,7 +20,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center Page.
- * HARDENED: Robust null-guards for profile access and search filtering to prevent client-side exception.
+ * HARDENED: Robust null-guards and type checks to eliminate "Client-side exception".
  */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
@@ -38,15 +37,18 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
         const fetchOther = async () => {
             try {
                 const d = await getDoc(doc(db, COLLECTION_ID_PROFILES, otherId));
-                if (d.exists()) setOtherUser({ ...d.data(), $id: d.id });
+                if (d.exists()) {
+                    setOtherUser({ ...d.data(), $id: d.id });
+                }
             } catch (e) { console.error("Participant fetch fail", e); }
         };
         fetchOther();
     }, [chat, currentUid]);
 
-    const unreadCount = currentUid ? (chat.unreadCount?.[currentUid] || 0) : 0;
+    const unreadCount = (currentUid && chat.unreadCount) ? (chat.unreadCount[currentUid] || 0) : 0;
 
     const deleteChatHistory = async () => {
+        if (!chat?.$id) return;
         try {
             const q = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', chat.$id));
             const snapshot = await getDocs(q);
@@ -62,7 +64,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
 
     const formatChatDate = (date: Date) => {
         try {
-            if (!date) return '';
+            if (!date || isNaN(date.getTime())) return '';
             if (isToday(date)) return format(date, 'HH:mm');
             if (isYesterday(date)) return 'Yesterday';
             return format(date, 'dd/MM/yy');
@@ -152,14 +154,14 @@ export default function ChatPage() {
     const filteredUsers = useMemo(() =>
         allUsers.filter(u =>
             u && u.$id !== currentUid &&
-            (u.username?.toLowerCase() || '').includes(searchAll.toLowerCase())
+            (u.username || '').toLowerCase().includes(searchAll.toLowerCase())
         ).sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0)), 
         [allUsers, searchAll, currentUid]
     );
 
     const filteredRecent = useMemo(() =>
         recentChats.filter(c =>
-            c && (c.lastMessage?.toLowerCase() || '').includes(searchRecent.toLowerCase())
+            c && (c.lastMessage || '').toLowerCase().includes(searchRecent.toLowerCase())
         ), [recentChats, searchRecent]
     );
 

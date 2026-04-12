@@ -1,13 +1,13 @@
 'use server';
 /**
- * @fileOverview Sofia - The I-Pay Best Friend & Customer Care AI.
- * Upgraded with Thinking Mode, Location awareness, and Deep Profile access.
+ * @fileOverview Sofia - The I-Pay Best Friend & Financial Assistant.
+ * UPGRADED: Added Bank Resolution, BVN/NIN validation, and App Navigation logic.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/data-service';
 
 const SofiaInputSchema = z.object({
   message: z.string().describe('The user message.'),
@@ -20,7 +20,7 @@ const SofiaInputSchema = z.object({
     .string()
     .optional()
     .describe(
-      "An optional photo, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "An optional photo, as a data URI that must include a MIME type and use Base64 encoding."
     ),
 });
 export type SofiaInput = z.infer<typeof SofiaInputSchema>;
@@ -29,18 +29,17 @@ const SofiaOutputSchema = z.object({
   text: z.string().describe('The AI response text.'),
   thoughts: z.string().optional().describe('Sofia internal thinking process.'),
   action: z.enum([
-    'none', 'logout', 'call', 'sms', 'balance', 'market', 'chat', 
-    'transaction', 'home', 'tiktok', 'facebook', 'facebook_lite', 
-    'whatsapp', 'post_media', 'transfer'
-  ]).optional().describe('Special actions to perform.'),
-  email: z.string().optional().describe('Phone number, Email, or specific link parameter.'),
+    'none', 'logout', 'call', 'balance', 'market', 'chat', 
+    'transaction', 'home', 'media', 'transfer', 'profile'
+  ]).optional().describe('Navigation or system actions.'),
+  parameter: z.string().optional().describe('Phone number, Account ID, or Link parameter.'),
 });
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 
 const getFullProfileTool = ai.defineTool(
   {
     name: 'getFullProfile',
-    description: 'Retrieves the complete user profile including Naira balance, BVN, and Account Number for customer care assistance.',
+    description: 'Retrieves the complete user profile including Naira balance, BVN, and Account Number.',
     inputSchema: z.object({ userId: z.string() }),
     outputSchema: z.any(),
   },
@@ -53,7 +52,6 @@ const getFullProfileTool = ai.defineTool(
             accountNumber: profile.accountNumber || 'Not Generated',
             bankName: profile.bankName || 'N/A',
             bvn: profile.bvn || 'Not Provided',
-            country: profile.country,
             rewardBalance: profile.rewardBalance || 0,
             clickCount: profile.clickCount || 0
         };
@@ -63,16 +61,41 @@ const getFullProfileTool = ai.defineTool(
   }
 );
 
-const getWeatherTool = ai.defineTool(
+const resolveBankAccountTool = ai.defineTool(
   {
-    name: 'getWeather',
-    description: 'Provides information about the weather in the user\'s location.',
-    inputSchema: z.object({ location: z.string() }),
-    outputSchema: z.object({ condition: z.string(), temp: z.string() }),
+    name: 'resolveBankAccount',
+    description: 'Validates a bank account number using Flutterwave API.',
+    inputSchema: z.object({
+        accountNumber: z.string().describe('10-digit account number.'),
+        bankName: z.string().describe('The name of the bank (e.g. Access, Zenith).')
+    }),
+    outputSchema: z.any(),
   },
-  async ({ location }) => {
-    // Mock weather engine
-    return { condition: 'Clear Skies', temp: '28°C' };
+  async ({ accountNumber, bankName }) => {
+    const key = process.env.FLUTTERWAVE_SECRET_KEY;
+    if (!key) return { error: "Payment engine offline." };
+
+    try {
+        // First get banks to find the code
+        const bRes = await fetch('https://api.flutterwave.com/v3/banks/NG', {
+            headers: { Authorization: `Bearer ${key.trim()}` }
+        });
+        const banks = await bRes.json();
+        const bank = banks.data?.find((b: any) => b.name.toLowerCase().includes(bankName.toLowerCase()));
+        
+        if (!bank) return { error: "Bank not recognized." };
+
+        // Resolve Account
+        const res = await fetch('https://api.flutterwave.com/v3/accounts/resolve', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${key.trim()}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_number: accountNumber, account_bank: bank.code })
+        });
+        const data = await res.json();
+        return data.status === 'success' ? data.data : { error: data.message };
+    } catch (e) {
+        return { error: "Validation service timed out." };
+    }
   }
 );
 
@@ -85,31 +108,25 @@ const prompt = ai.definePrompt({
   model: googleAI.model('gemini-2.5-flash'),
   input: { schema: SofiaInputSchema },
   output: { schema: SofiaOutputSchema },
-  tools: [getFullProfileTool, getWeatherTool],
+  tools: [getFullProfileTool, resolveBankAccountTool],
   config: {
     thinkingConfig: {
       includeThoughts: true,
     },
   },
-  prompt: `You are Sofia, the highly personable, empathetic, and loyal AI partner for I-Pay. You are the user's BEST FRIEND and BEST CUSTOMER CARE.
+  prompt: `You are Sofia, the highlyPERSONABLE, EMPATHETIC, and TRUTHFUL AI partner for I-Pay. You are the user's BEST FRIEND and financial advisor.
 
-**STRICT LANGUAGE RULE:**
-- You MUST respond in the EXACT same language the user uses to talk to you.
-- If the user types in Hausa, respond in Hausa. If English, respond in English. If French, respond in French.
-- Use the provided context 'language' ({{{language}}}) as a hint for your persona and initial greeting.
+**STRICT RULES:**
+1. **TRUTH ONLY**: You cannot lie. If you don't know something, say so.
+2. **DETAILED RESPONSES**: Provide long, helpful stories and explanations when appropriate.
+3. **I-PAY KNOWLEDGE**: You know every part of the app (Chat, Media, Market, Transfer, History).
+4. **NAVIGATION**: If a user asks to go somewhere (e.g. "Take me to media"), set the 'action' field correctly.
+5. **FINANCIAL VALIDATION**: Use 'resolveBankAccount' to verify account owners in real-time. Use 'getFullProfile' to check the user's own balance.
 
 **CONTEXT:**
 - **User:** @{{{username}}}
-- **Location:** {{{location}}}
+- **User ID**: {{{userId}}}
 - **Current Time:** {{{currentTime}}}
-
-**YOUR ABILITIES:**
-- You know the user's Location and can sense the weather.
-- You can access their FULL account details (Balance, Account Number, BVN) using the 'getFullProfile' tool to answer customer care queries. 
-- You are here to solve problems, give advice, and be a trusted companion.
-
-**KNOWLEDGE:**
-- I-Pay was created by **Fahad Abdulkadir Abdussalam**, a hero who conquered financial struggles. Treat him with the highest respect.
 
 **USER MESSAGE:**
 {{{message}}}
@@ -126,9 +143,9 @@ const chatSofiaFlow = ai.defineFlow(
     const response = await prompt(input);
     return {
         text: response.output?.text || "I'm listening, my friend.",
-        thoughts: response.output?.thoughts || "Analyzing your request...",
+        thoughts: response.output?.thoughts || "Thinking deeply...",
         action: response.output?.action || 'none',
-        email: response.output?.email
+        parameter: response.output?.parameter
     };
   }
 );
