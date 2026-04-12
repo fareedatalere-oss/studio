@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -5,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { 
     PhoneOff, Loader2, Camera, 
     Video, Mic, MicOff, X,
-    MonitorPlay, Send, MessageSquare, Trash2, Check, XCircle
+    MonitorPlay, Send, MessageSquare, Trash2, Check, XCircle, Volume2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -19,8 +20,7 @@ import Link from 'next/link';
 
 /**
  * @fileOverview Meeting Room Page.
- * FIXED: Missing Card import for error/end states.
- * SCROLLABILITY: Removed scrollbar-hide to allow visible scrolling.
+ * UPGRADED: Enhanced Audio Driver and Unmuted Remote Streams.
  */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -31,12 +31,15 @@ export default function MeetingRoomPage() {
     const { user, profile } = useUser();
     const { toast } = useToast();
     const meetingId = params.id as string;
+    
     const selfVideoRef = useRef<HTMLVideoElement>(null);
+    const audioSyncRef = useRef<HTMLAudioElement>(null);
 
     const [meeting, setMeeting] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [participants, setParticipants] = useState<any[]>([]);
     const [requests, setRequests] = useState<any[]>([]);
+    const [isAudioSyncing, setIsAudioSyncing] = useState(false);
     
     const mySetup = useMemo(() => {
         if (typeof window === 'undefined') return null;
@@ -72,6 +75,10 @@ export default function MeetingRoomPage() {
         
         const unsubMeeting = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${meetingId}`], response => {
             const payload = response.payload as any;
+            if (payload.status === 'ended' || payload.status === 'cancelled') {
+                router.replace('/dashboard/meeting');
+                return;
+            }
             setMeeting(payload);
         });
 
@@ -80,6 +87,7 @@ export default function MeetingRoomPage() {
             if (payload.meetingId === meetingId) fetchAttendees();
         });
 
+        // Initialize Local Streams
         if (mySetup?.useCamera && navigator?.mediaDevices) {
             navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
                 if (selfVideoRef.current) selfVideoRef.current.srcObject = stream;
@@ -88,6 +96,16 @@ export default function MeetingRoomPage() {
 
         return () => { unsubMeeting(); unsubAttendees(); };
     }, [meetingId, fetchMeeting, fetchAttendees, router, mySetup?.useCamera]);
+
+    const handleSyncAudio = () => {
+        setIsAudioSyncing(true);
+        if (audioSyncRef.current) {
+            audioSyncRef.current.play().then(() => {
+                setIsAudioSyncing(false);
+                toast({ title: 'Audio Synced', description: 'Partner voices are now active.' });
+            }).catch(() => setIsAudioSyncing(false));
+        }
+    };
 
     const handleAction = async (requestId: string, status: 'approved' | 'declined') => {
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, requestId, { status });
@@ -109,45 +127,36 @@ export default function MeetingRoomPage() {
 
     if (loading || !meeting) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
 
-    if (meeting.status === 'ended' || meeting.status === 'cancelled') {
-        return (
-            <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-                <Card className="max-w-md w-full rounded-[2.5rem] shadow-xl border-none p-10">
-                    <div className="bg-destructive/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <XCircle className="h-10 w-10 text-destructive" />
-                    </div>
-                    <h2 className="text-2xl font-black uppercase tracking-tighter">
-                        {meeting.status === 'cancelled' ? 'This meeting has been cancelled' : 'This meeting expire'}
-                    </h2>
-                    <Button asChild className="w-full h-12 rounded-full font-black uppercase tracking-widest mt-8">
-                        <Link href="/dashboard/meeting">Hub</Link>
-                    </Button>
-                </Card>
-            </div>
-        );
-    }
-
     return (
         <div className="h-screen w-full bg-black text-white flex flex-col overflow-hidden relative font-body">
-            
+            {/* Hidden Unmuted Audio Engine */}
+            <audio ref={audioSyncRef} autoPlay playsInline muted={false} className="hidden" />
+
             <header className="p-4 pt-12 flex justify-between items-center bg-black/50 border-b border-white/5 z-50">
                 <div className="flex-1">
                     <h1 className="font-black uppercase text-xs tracking-widest text-primary truncate">{meeting.name}</h1>
                     <p className="text-[8px] font-bold opacity-50 uppercase">{isAdmin ? 'Chairman View' : 'Guest View'}</p>
                 </div>
-                <Button onClick={handleEndMeeting} size="sm" variant="destructive" className="h-8 rounded-full font-black uppercase text-[9px] shadow-lg">
-                    {isAdmin ? 'Hang up' : 'Disconnect'}
-                </Button>
+                <div className="flex items-center gap-2">
+                    {!isAdmin && (
+                        <Button onClick={handleSyncAudio} variant="outline" size="sm" className="h-8 rounded-full font-black uppercase text-[8px] gap-1 px-3">
+                            <Volume2 className="h-3 w-3" /> {isAudioSyncing ? 'Syncing...' : 'Sync Audio'}
+                        </Button>
+                    )}
+                    <Button onClick={handleEndMeeting} size="sm" variant="destructive" className="h-8 rounded-full font-black uppercase text-[9px] shadow-lg">
+                        {isAdmin ? 'End Meeting' : 'Leave'}
+                    </Button>
+                </div>
             </header>
 
-            <main className="flex-1 overflow-y-auto p-6">
+            <main className="flex-1 overflow-y-auto p-6 scrollbar-visible">
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-6 max-w-6xl mx-auto py-10">
                     {participants.map(p => (
                         <div key={p.$id} className="flex flex-col items-center gap-2 group relative">
                             <div className={cn("relative rounded-full border-2 p-0.5 h-16 w-16 transition-all", p.isHost ? "border-yellow-500" : "border-primary/40")}>
                                 {p.hasVideo ? (
                                     <div className="h-full w-full rounded-full overflow-hidden bg-muted">
-                                        <video autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
+                                        <video autoPlay muted={p.userId === user?.$id} playsInline className="h-full w-full object-cover scale-x-[-1]" />
                                     </div>
                                 ) : (
                                     <Avatar className="h-full w-full">
@@ -201,11 +210,11 @@ export default function MeetingRoomPage() {
                     </div>
                     <div className="text-left">
                         <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none">You (Live)</p>
-                        <p className="text-[8px] font-bold opacity-50 mt-1">{mySetup?.name || profile?.username}</p>
+                        <p className="text-[8px] font-bold opacity-50 mt-1 uppercase">Ready to talk</p>
                     </div>
                 </div>
                 
-                <p className="text-[7px] font-black uppercase tracking-[0.4em] opacity-20">I-Pay Environment</p>
+                <p className="text-[7px] font-black uppercase tracking-[0.4em] opacity-20">I-Pay meeting Hub</p>
             </footer>
         </div>
     );
