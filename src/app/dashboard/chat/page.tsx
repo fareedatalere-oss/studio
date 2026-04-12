@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Search, MoreVertical, Trash2, ArrowLeft, Loader2, Video } from 'lucide-react';
-import { useUser } from '@/hooks/use-appwrite';
+import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, doc, getDoc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
 import { COLLECTION_ID_CHATS, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES } from '@/lib/appwrite';
@@ -19,11 +19,20 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
+/**
+ * @fileOverview Chat Center Page.
+ * HARDENED: Added strict guards for currentUser profile to prevent crashes.
+ */
+
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
     const [otherUser, setOtherUser] = useState<any>(null);
     const { toast } = useToast();
-    const otherUserId = chat.participants?.find((p: string) => p !== currentUser?.uid);
-    const unreadCount = chat.unreadCount?.[currentUser?.uid] || 0;
+    
+    // Safety check: ensure currentUser and chat exist
+    if (!currentUser?.$id || !chat?.participants) return null;
+
+    const otherUserId = chat.participants.find((p: string) => p !== currentUser.$id);
+    const unreadCount = chat.unreadCount?.[currentUser.$id] || 0;
 
     useEffect(() => {
         if (!otherUserId) return;
@@ -105,7 +114,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
 
 export default function ChatPage() {
     const router = useRouter();
-    const { user: currentUser, profile: currentUserProfile } = useUser();
+    const { user: currentUser, profile: currentUserProfile, loading: userLoading } = useUser();
     
     const [recentChats, setRecentChats] = useState<any[]>([]);
     const [allUsers, setAllUsers] = useState<any[]>([]);
@@ -129,6 +138,9 @@ export default function ChatPage() {
                 return timeB - timeA;
             });
             setRecentChats(data);
+            setLoading(false);
+        }, (error) => {
+            console.error("Chat snapshot error:", error);
             setLoading(false);
         });
 
@@ -183,7 +195,7 @@ export default function ChatPage() {
                                 onChange={(e) => setSearchRecent(e.target.value)}
                             />
                         </div>
-                        {loading ? (
+                        {loading || userLoading ? (
                             <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary/30" /></div>
                         ) : filteredRecent.length > 0 ? (
                             <div className="space-y-1">

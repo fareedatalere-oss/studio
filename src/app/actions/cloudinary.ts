@@ -5,32 +5,29 @@ import { v2 as cloudinary } from 'cloudinary';
 
 /**
  * @fileOverview Cloudinary Server Action for Secure Uploads.
- * Configured to strictly use environment variables for production.
+ * Hardened config logic to ensure signatures are valid across all environments.
  */
 
-// Verify credentials exist to provide a clear error message to the user
-const isConfigured = !!(
-  process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME &&
-  process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY &&
-  process.env.CLOUDINARY_API_SECRET
-);
-
-if (isConfigured) {
-  cloudinary.config({
-    cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-    secure: true,
-  });
-}
-
 export async function uploadToCloudinary(base64Data: string, resourceType: 'image' | 'video' | 'raw' | 'auto' = 'auto') {
-  if (!isConfigured) {
+  // Verify credentials exist to provide a clear error message to the user
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  if (!cloudName || !apiKey || !apiSecret) {
       return { 
         success: false, 
         message: 'Cloudinary Error: Keys missing in Vercel settings (Cloud Name, API Key, or Secret).' 
       };
   }
+
+  // Force configuration inside the action to ensure valid signing
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+    secure: true,
+  });
 
   try {
     const uploadResponse = await cloudinary.uploader.upload(base64Data, {
