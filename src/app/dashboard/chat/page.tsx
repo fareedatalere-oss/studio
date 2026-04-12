@@ -21,15 +21,13 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center Page.
- * HARDENED: Added strict guards for currentUser profile to prevent crashes.
- * FIXED: Resolved potential "Client-side exception" by sanitizing filter inputs.
+ * HARDENED: Extreme safety guards added to prevent "Client-side Exception".
  */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
     const [otherUser, setOtherUser] = useState<any>(null);
     const { toast } = useToast();
     
-    // Safety check: ensure currentUser and chat exist
     const currentUid = currentUser?.$id || currentUser?.uid;
     if (!currentUid || !chat?.participants || !Array.isArray(chat.participants)) return null;
 
@@ -43,7 +41,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
                 const d = await getDoc(doc(db, COLLECTION_ID_PROFILES, otherUserId));
                 if (d.exists()) setOtherUser({ ...d.data(), $id: d.id });
             } catch (e) {
-                console.error("Failed to fetch chat participant", e);
+                console.error("Participant fetch fail", e);
             }
         };
         fetchOther();
@@ -65,6 +63,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
 
     const formatChatDate = (date: Date) => {
         try {
+            if (!date) return '';
             if (isToday(date)) return format(date, 'HH:mm');
             if (isYesterday(date)) return 'Yesterday';
             return format(date, 'dd/MM/yy');
@@ -137,7 +136,7 @@ export default function ChatPage() {
         );
 
         const unsubChats = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
+            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })).filter(Boolean);
             data.sort((a: any, b: any) => {
                 const timeA = a.lastMessageAt?.toMillis ? a.lastMessageAt.toMillis() : 0;
                 const timeB = b.lastMessageAt?.toMillis ? b.lastMessageAt.toMillis() : 0;
@@ -151,7 +150,7 @@ export default function ChatPage() {
         });
 
         const unsubUsers = onSnapshot(collection(db, COLLECTION_ID_PROFILES), (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
+            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })).filter(Boolean);
             setAllUsers(data);
         });
 
@@ -160,7 +159,7 @@ export default function ChatPage() {
 
     const filteredUsers = useMemo(() =>
         allUsers.filter(u =>
-            u.$id !== currentUid &&
+            u && u.$id !== currentUid &&
             (u.username?.toLowerCase() || '').includes(searchAll.toLowerCase())
         ).sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0)), 
         [allUsers, searchAll, currentUid]
@@ -168,15 +167,15 @@ export default function ChatPage() {
 
     const filteredRecent = useMemo(() =>
         recentChats.filter(c =>
-            (c.lastMessage?.toLowerCase() || '').includes(searchRecent.toLowerCase())
+            c && (c.lastMessage?.toLowerCase() || '').includes(searchRecent.toLowerCase())
         ), [recentChats, searchRecent]
     );
 
-    if (userLoading || (!currentUserProfile && loading)) {
+    if (userLoading || (!currentUser && loading)) {
         return (
             <div className="flex flex-col min-h-screen bg-background items-center justify-center">
                 <Loader2 className="animate-spin h-10 w-10 text-primary/30" />
-                <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Syncing Encrypted Hub...</p>
+                <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Syncing Hub...</p>
             </div>
         );
     }
@@ -214,7 +213,7 @@ export default function ChatPage() {
                             <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary/30" /></div>
                         ) : filteredRecent.length > 0 ? (
                             <div className="space-y-1">
-                                {filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUserProfile} />)}
+                                {filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} />)}
                             </div>
                         ) : (
                             <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-[0.3em] opacity-30">No Recent Chats</div>

@@ -27,12 +27,12 @@ import {
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Master Firebase Data Service (No Appwrite).
- * Consolidates all data fetching and storage logic using Cloudinary for files.
+ * @fileOverview Master Firebase Data Service.
+ * Consolidated for high performance using Users collection and Cloudinary.
  */
 
 export const DATABASE_ID = 'default';
-export const COLLECTION_ID_PROFILES = 'profiles';
+export const COLLECTION_ID_PROFILES = 'users'; // POINTING TO USERS PER BACKEND.JSON
 export const COLLECTION_ID_APP_CONFIG = 'app_config';
 export const COLLECTION_ID_TRANSACTIONS = 'transactions';
 export const COLLECTION_ID_POSTS = 'posts';
@@ -91,7 +91,7 @@ export const databases = {
         const res = await getDocs(q);
         return {
             total: res.size,
-            documents: res.docs.map(mapDoc)
+            documents: res.docs.map(mapDoc).filter(Boolean)
         };
     },
     createDocument: async (dbId: string, collId: string, docId: string, data: any) => {
@@ -118,14 +118,11 @@ export const databases = {
             const unsubs = chans.map(chan => {
                 if (typeof chan !== 'string') return null;
                 const parts = chan.split('.');
-                
-                // Extract collection ID (handles both databases.X.collections.Y.docs and collections.Y.docs)
                 let collId = '';
                 const collIndex = parts.indexOf('collections');
                 if (collIndex !== -1 && parts[collIndex + 1]) {
                     collId = parts[collIndex + 1];
                 } else {
-                    // Fallback to simple parts check if 'collections' is missing
                     collId = parts[2] || parts[1];
                 }
 
@@ -161,7 +158,7 @@ export const storage = {
         else throw new Error(res.message || 'Cloudinary upload failed.');
     },
     deleteFile: async (bucketId: string, fileId: string) => {
-        // Cloudinary cleanup handled separately in production
+        // Cloudinary cleanup handled separately
     }
 };
 
