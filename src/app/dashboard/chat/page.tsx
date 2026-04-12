@@ -13,7 +13,7 @@ import { Search, MoreVertical, Trash2, ArrowLeft, Loader2, Video } from 'lucide-
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, doc, getDoc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
-import { COLLECTION_ID_CHATS, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES } from '@/lib/appwrite';
+import { COLLECTION_ID_CHATS, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES } from '@/lib/data-service';
 import { isYesterday, isToday, format } from 'date-fns';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center Page.
- * HARDENED: Extreme safety guards added to prevent "Client-side Exception".
+ * HARDENED: Robust null-guards for profile access and search filtering to prevent client-side exception.
  */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
@@ -29,23 +29,22 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     const { toast } = useToast();
     
     const currentUid = currentUser?.$id || currentUser?.uid;
-    if (!currentUid || !chat?.participants || !Array.isArray(chat.participants)) return null;
-
-    const otherUserId = chat.participants.find((p: string) => p !== currentUid);
-    const unreadCount = chat.unreadCount?.[currentUid] || 0;
-
+    
     useEffect(() => {
-        if (!otherUserId) return;
+        if (!currentUid || !chat?.participants || !Array.isArray(chat.participants)) return;
+        const otherId = chat.participants.find((p: string) => p !== currentUid);
+        if (!otherId) return;
+
         const fetchOther = async () => {
             try {
-                const d = await getDoc(doc(db, COLLECTION_ID_PROFILES, otherUserId));
+                const d = await getDoc(doc(db, COLLECTION_ID_PROFILES, otherId));
                 if (d.exists()) setOtherUser({ ...d.data(), $id: d.id });
-            } catch (e) {
-                console.error("Participant fetch fail", e);
-            }
+            } catch (e) { console.error("Participant fetch fail", e); }
         };
         fetchOther();
-    }, [otherUserId]);
+    }, [chat, currentUid]);
+
+    const unreadCount = currentUid ? (chat.unreadCount?.[currentUid] || 0) : 0;
 
     const deleteChatHistory = async () => {
         try {
@@ -70,11 +69,11 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
         } catch (e) { return ''; }
     };
 
-    if (!otherUser) return null;
+    if (!otherUser || !currentUid) return null;
 
     return (
         <div className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all group max-w-xl mx-auto">
-            <Link href={`/dashboard/chat/${otherUserId}`} className="flex-1 flex items-center gap-3 overflow-hidden">
+            <Link href={`/dashboard/chat/${otherUser.$id}`} className="flex-1 flex items-center gap-3 overflow-hidden">
                 <div className="relative">
                     <Avatar className="h-12 w-12 border-2 border-primary/5 shadow-sm">
                         <AvatarImage src={otherUser.avatar} className="object-cover" />
@@ -117,7 +116,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
 
 export default function ChatPage() {
     const router = useRouter();
-    const { user: currentUser, profile: currentUserProfile, loading: userLoading } = useUser();
+    const { user: currentUser, loading: userLoading } = useUser();
     
     const [recentChats, setRecentChats] = useState<any[]>([]);
     const [allUsers, setAllUsers] = useState<any[]>([]);
@@ -130,13 +129,9 @@ export default function ChatPage() {
     useEffect(() => {
         if (!currentUid) return;
 
-        const q = query(
-            collection(db, COLLECTION_ID_CHATS),
-            where('participants', 'array-contains', currentUid)
-        );
-
+        const q = query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', currentUid));
         const unsubChats = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })).filter(Boolean);
+            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
             data.sort((a: any, b: any) => {
                 const timeA = a.lastMessageAt?.toMillis ? a.lastMessageAt.toMillis() : 0;
                 const timeB = b.lastMessageAt?.toMillis ? b.lastMessageAt.toMillis() : 0;
@@ -144,13 +139,10 @@ export default function ChatPage() {
             });
             setRecentChats(data);
             setLoading(false);
-        }, (error) => {
-            console.error("Chat snapshot error:", error);
-            setLoading(false);
-        });
+        }, () => setLoading(false));
 
         const unsubUsers = onSnapshot(collection(db, COLLECTION_ID_PROFILES), (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })).filter(Boolean);
+            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
             setAllUsers(data);
         });
 
@@ -171,7 +163,7 @@ export default function ChatPage() {
         ), [recentChats, searchRecent]
     );
 
-    if (userLoading || (!currentUser && loading)) {
+    if (userLoading || (!currentUid && loading)) {
         return (
             <div className="flex flex-col min-h-screen bg-background items-center justify-center">
                 <Loader2 className="animate-spin h-10 w-10 text-primary/30" />
@@ -184,9 +176,7 @@ export default function ChatPage() {
         <div className="flex flex-col min-h-screen bg-background font-body">
             <header className="p-4 pt-12 max-w-xl mx-auto w-full border-b bg-muted/5">
                 <div className="flex items-center justify-between mb-6">
-                    <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-10 w-10 bg-muted/50 rounded-full border shadow-sm">
-                        <ArrowLeft className="h-5 w-5" />
-                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-10 w-10 bg-muted/50 rounded-full border shadow-sm"><ArrowLeft className="h-5 w-5" /></Button>
                     <h1 className="font-black uppercase text-xs tracking-[0.3em] text-primary">Chat Center</h1>
                     <Button asChild variant="ghost" size="icon" className="h-10 w-10 bg-primary/10 text-primary rounded-full shadow-inner">
                         <Link href="/dashboard/meeting" title="Meeting Hub"><Video className="h-5 w-5" /></Link>
@@ -202,62 +192,33 @@ export default function ChatPage() {
                     <TabsContent value="recent" className="m-0 space-y-1">
                         <div className="relative w-full mb-4">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
-                            <Input
-                                placeholder="Search recent..."
-                                className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none shadow-none font-bold"
-                                value={searchRecent}
-                                onChange={(e) => setSearchRecent(e.target.value)}
-                            />
+                            <Input placeholder="Search recent..." className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none shadow-none font-bold" value={searchRecent} onChange={(e) => setSearchRecent(e.target.value)} />
                         </div>
-                        {loading ? (
-                            <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary/30" /></div>
-                        ) : filteredRecent.length > 0 ? (
-                            <div className="space-y-1">
-                                {filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} />)}
-                            </div>
-                        ) : (
-                            <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-[0.3em] opacity-30">No Recent Chats</div>
-                        )}
+                        {loading ? <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary/30" /></div> : filteredRecent.length > 0 ? (
+                            <div className="space-y-1">{filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} />)}</div>
+                        ) : <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-[0.3em] opacity-30">No Recent Chats</div>}
                     </TabsContent>
 
                     <TabsContent value="all" className="m-0 space-y-1">
                         <div className="relative w-full mb-4">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
-                            <Input
-                                placeholder="Search I-Pay users..."
-                                className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none shadow-none font-bold"
-                                value={searchAll}
-                                onChange={(e) => setSearchAll(e.target.value)}
-                            />
+                            <Input placeholder="Search users..." className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none shadow-none font-bold" value={searchAll} onChange={(e) => setSearchAll(e.target.value)} />
                         </div>
                         <div className="grid gap-1">
-                            {filteredUsers.length > 0 ? (
-                                filteredUsers.map(user => (
-                                    <Link key={user.$id} href={`/dashboard/chat/${user.$id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all active:scale-[0.98]">
-                                        <div className="relative">
-                                            <Avatar className="h-12 w-12 border-2 border-primary/10 shadow-sm">
-                                                <AvatarImage src={user.avatar} className="object-cover" />
-                                                <AvatarFallback className="font-black bg-muted text-foreground/50">{user.username?.charAt(0) || '?'}</AvatarFallback>
-                                            </Avatar>
-                                            {user.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white"></div>}
-                                        </div>
-                                        <div className="flex-1 overflow-hidden">
-                                            <p className="font-bold text-xs tracking-tight text-foreground/80">@{user.username || 'user'}</p>
-                                            <p className="text-[8px] font-bold uppercase text-primary/60">{user.isOnline ? 'Online Now' : 'Offline'}</p>
-                                        </div>
-                                    </Link>
-                                ))
-                            ) : (
-                                <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-[0.3em] opacity-30">No Users Found</div>
-                            )}
+                            {filteredUsers.length > 0 ? filteredUsers.map(u => (
+                                <Link key={u.$id} href={`/dashboard/chat/${u.$id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all active:scale-[0.98]">
+                                    <div className="relative">
+                                        <Avatar className="h-12 w-12 border-2 border-primary/10 shadow-sm"><AvatarImage src={u.avatar} className="object-cover" /><AvatarFallback className="font-black bg-muted text-foreground/50">{u.username?.charAt(0) || '?'}</AvatarFallback></Avatar>
+                                        {u.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white"></div>}
+                                    </div>
+                                    <div className="flex-1 overflow-hidden"><p className="font-bold text-xs tracking-tight text-foreground/80">@{u.username || 'user'}</p><p className="text-[8px] font-bold uppercase text-primary/60">{u.isOnline ? 'Online Now' : 'Offline'}</p></div>
+                                </Link>
+                            )) : <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-[0.3em] opacity-30">No Users Found</div>}
                         </div>
                     </TabsContent>
                 </Tabs>
             </header>
-
-            <footer className="mt-auto p-6 border-t bg-muted/5 flex flex-col items-center gap-4 pb-24">
-                <p className="text-[7px] font-black uppercase tracking-[0.4em] opacity-20">I-Pay Communication Hub</p>
-            </footer>
+            <footer className="mt-auto p-6 border-t bg-muted/5 flex flex-col items-center gap-4 pb-24"><p className="text-[7px] font-black uppercase tracking-[0.4em] opacity-20">I-Pay Communication Hub</p></footer>
         </div>
     );
 }

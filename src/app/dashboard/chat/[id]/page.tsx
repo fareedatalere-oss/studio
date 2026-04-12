@@ -11,7 +11,7 @@ import {
     increment, getDocs, writeBatch, deleteDoc, arrayUnion
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreHorizontal, Trash2, Forward, Mic, X, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, Forward, Mic, X, CheckCircle2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -34,8 +34,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Chat Thread.
- * FIXED: handleStartCall creates a session first.
- * FEATURES: Voice Note Hub (Record -> Stop -> Preview -> Send), Smart Deletion.
+ * HARDENED: Robust null-guards for all rendering and sorting to prevent client-side exception.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -87,7 +86,7 @@ export default function ChatThreadPage() {
                     batch.update(d.ref, { status: 'seen' });
                 }
             });
-            await batch.commit();
+            await batch.commit().catch(() => {});
         };
         markAsSeen();
 
@@ -99,7 +98,11 @@ export default function ChatThreadPage() {
         const unsub = onSnapshot(q, (snapshot) => {
             const docs = snapshot.docs.map(d => ({ $id: d.id, ...d.data() }));
             const filtered = docs.filter((m: any) => !m.deleteFor?.includes(currentUser?.$id))
-                .sort((a: any, b: any) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
+                .sort((a: any, b: any) => {
+                    const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.timestamp || 0);
+                    const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.timestamp || 0);
+                    return timeA - timeB;
+                });
             setMessages(filtered);
         });
 
@@ -122,6 +125,7 @@ export default function ChatThreadPage() {
                 text: text || '', 
                 status: 'sent',
                 createdAt: serverTimestamp(),
+                timestamp: Date.now(),
                 deleteFor: [],
                 ...(mediaData && { mediaUrl: mediaData.url, mediaType: mediaData.type })
             });
@@ -175,6 +179,8 @@ export default function ChatThreadPage() {
             if (up.success) {
                 await handleSend('', { url: up.url, type: 'audio' });
                 cancelRecording();
+            } else {
+                toast({ variant: 'destructive', title: 'Upload Failed', description: up.message });
             }
         } catch (err: any) { toast({ variant: 'destructive', title: 'Failed' }); }
         finally { setIsUploading(false); }
@@ -258,7 +264,9 @@ export default function ChatThreadPage() {
                                         </DropdownMenu>
                                     </div>
                                     <div className="flex items-center justify-end gap-1 mt-1">
-                                        <span className="text-[6px] font-black uppercase opacity-60">{msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : '...'}</span>
+                                        <span className="text-[6px] font-black uppercase opacity-60">
+                                            {msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : '...'}
+                                        </span>
                                         {isMine && <DeliveryStatus status={msg.status} receiverOnline={otherUser?.isOnline} />}
                                     </div>
                                 </div>
@@ -299,7 +307,7 @@ export default function ChatThreadPage() {
                     <DialogHeader><DialogTitle className="text-center font-black uppercase text-sm">Forward Message</DialogTitle></DialogHeader>
                     <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-4">Click to resend here</p>
-                        <Button variant="outline" className="w-full h-14 rounded-2xl font-black uppercase text-[10px]" onClick={() => { handleSend(forwardMessage.text, forwardMessage.mediaUrl ? {url: forwardMessage.mediaUrl, type: forwardMessage.mediaType} : null); setIsForwardOpen(false); toast({title: 'Forwarded'}); }}>Resend Here</Button>
+                        <Button variant="outline" className="w-full h-14 rounded-2xl font-black uppercase text-[10px]" onClick={() => { if(forwardMessage) { handleSend(forwardMessage.text, forwardMessage.mediaUrl ? {url: forwardMessage.mediaUrl, type: forwardMessage.mediaType} : null); setIsForwardOpen(false); toast({title: 'Forwarded'}); } }}>Resend Here</Button>
                     </div>
                 </DialogContent>
             </Dialog>

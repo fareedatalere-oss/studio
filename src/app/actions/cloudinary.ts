@@ -6,31 +6,30 @@ import { v2 as cloudinary } from 'cloudinary';
 /**
  * @fileOverview Cloudinary Server Action for Secure Uploads.
  * Hardened config logic to ensure signatures are valid across all environments.
+ * TRIMMING: All keys are trimmed to prevent whitespace signature mismatches.
  */
 
 export async function uploadToCloudinary(base64Data: string, resourceType: 'image' | 'video' | 'raw' | 'auto' = 'auto') {
-  // Verify credentials exist to provide a clear error message to the user
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
-  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim();
+  const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY?.trim();
+  const apiSecret = process.env.CLOUDINARY_API_SECRET?.trim();
 
   if (!cloudName || !apiKey || !apiSecret) {
       return { 
         success: false, 
-        message: 'Cloudinary Error: Keys missing in Vercel settings (Cloud Name, API Key, or Secret).' 
+        message: 'Cloudinary Error: Keys missing in Vercel settings.' 
       };
   }
 
-  // Force configuration inside the action to ensure valid signing
+  // Configuration must be applied inside the action for valid signing at runtime
   cloudinary.config({
-    cloud_name: cloudName.trim(),
-    api_key: apiKey.trim(),
-    api_secret: apiSecret.trim(),
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
     secure: true,
   });
 
   try {
-    // We use the base64 data directly. The folder must be part of the signed parameters.
     const uploadResponse = await cloudinary.uploader.upload(base64Data, {
       resource_type: resourceType,
       folder: 'ipay_chat_media',
@@ -43,8 +42,7 @@ export async function uploadToCloudinary(base64Data: string, resourceType: 'imag
       duration: uploadResponse.duration ? Math.round(uploadResponse.duration) : undefined,
     };
   } catch (error: any) {
-    console.error('Cloudinary Upload Error Details:', error);
-    // Return the specific error from Cloudinary to help debugging
+    console.error('Cloudinary Action Error:', error);
     return { success: false, message: error.message || 'Upload failed' };
   }
 }

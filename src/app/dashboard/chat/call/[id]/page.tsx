@@ -32,7 +32,7 @@ export default function PrivateCallPage() {
     const [partner, setPartner] = useState<any>(null);
     const [duration, setDuration] = useState(0);
     
-    // View States (Now synced with database)
+    // View States (Synced with database activeView)
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isVideoOpen, setIsVideoOpen] = useState(false);
     const [isDisplayOpen, setIsDisplayOpen] = useState(false);
@@ -82,20 +82,18 @@ export default function PrivateCallPage() {
         const unsubCall = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${callId}`], response => {
             const payload = response.payload as any;
             if (payload.$id === callId) {
-                if (payload.status === 'ended') {
+                if (payload.status === 'ended' || payload.status === 'cancelled') {
                     router.replace('/dashboard');
                     return;
                 }
                 setCall(payload);
-                // MASTER SYNC: Force views to follow activeView
+                // MASTER SYNC: View following
                 if (payload.activeView) {
                     setIsChatOpen(payload.activeView === 'chat');
                     setIsVideoOpen(payload.activeView === 'video');
                     setIsDisplayOpen(payload.activeView === 'display');
                 } else {
-                    setIsChatOpen(false);
-                    setIsVideoOpen(false);
-                    setIsDisplayOpen(false);
+                    setIsChatOpen(false); setIsVideoOpen(false); setIsDisplayOpen(false);
                 }
             }
         });
@@ -130,7 +128,7 @@ export default function PrivateCallPage() {
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-    // View Toggles (Now updates database to trigger partner)
+    // View Toggles (Master Sync updates DB to trigger partner)
     const toggleView = async (view: 'chat' | 'video' | 'display' | 'none') => {
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { activeView: view });
     };
@@ -140,49 +138,33 @@ export default function PrivateCallPage() {
         const txt = chatInput.trim();
         setChatInput('');
         await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
-            chatId, senderId: user.$id, text: txt, status: 'sent'
+            chatId, senderId: user.$id, text: txt, status: 'sent', createdAt: new Date().toISOString()
         });
     };
 
     const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !uploadType) return;
-
         toast({ title: `Sharing ${uploadType}...` });
-
         try {
             const reader = new FileReader();
-            const base64: string = await new Promise((resolve) => {
-                reader.onloadend = () => resolve(reader.result as string);
+            const b64: string = await new Promise((res) => {
+                reader.onloadend = () => res(reader.result as string);
                 reader.readAsDataURL(file);
             });
-
-            const uploadRes = await uploadToCloudinary(base64, uploadType === 'music' ? 'auto' : uploadType);
-            if (uploadRes.success) {
+            const up = await uploadToCloudinary(b64, uploadType === 'music' ? 'auto' : uploadType);
+            if (up.success) {
                 await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, {
-                    displayUrl: uploadRes.url,
-                    displayType: uploadType,
-                    displayVisible: true,
-                    activeView: 'display'
+                    displayUrl: up.url, displayType: uploadType, displayVisible: true, activeView: 'display'
                 });
-                toast({ title: 'Shared successfully!' });
+                toast({ title: 'Shared!' });
             }
-        } catch (error) {
-            toast({ variant: 'destructive', title: 'Upload failed' });
-        } finally {
-            setUploadType(null);
-        }
+        } catch (error) { toast({ variant: 'destructive', title: 'Upload failed' }); } finally { setUploadType(null); }
     };
 
     const handleHangUp = async () => {
-        try {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { 
-                status: 'ended' 
-            });
-            router.replace('/dashboard');
-        } catch (e) {
-            router.replace('/dashboard');
-        }
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { status: 'ended' });
+        router.replace('/dashboard');
     };
 
     const formatDuration = (seconds: number) => {
@@ -193,22 +175,17 @@ export default function PrivateCallPage() {
 
     if (!partner || !call) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-primary" /></div>;
 
-    const isConnected = call.status === 'connected';
+    const isConnected = call.status === 'connected' || call.status === 'pending';
 
     return (
         <div className="h-screen w-full bg-white flex flex-col items-center justify-between py-24 font-body overflow-hidden relative">
-            
             <header className="absolute top-16 left-0 right-0 text-center z-50">
                 {isConnected ? (
                     <div className="space-y-1">
                         <p className="text-primary font-black uppercase tracking-[0.3em] text-xl animate-in fade-in">Connected</p>
                         <p className="text-lg font-black text-black/40">{formatDuration(duration)}</p>
                     </div>
-                ) : (
-                    <p className="text-primary font-black uppercase tracking-[0.3em] text-xl animate-pulse">
-                        {call.hostId === user?.$id ? 'Ringing...' : 'Incoming Call...'}
-                    </p>
-                )}
+                ) : <p className="text-primary font-black uppercase tracking-[0.3em] text-xl animate-pulse">Incoming Alert</p>}
             </header>
 
             <div className="flex-1 flex flex-col items-center justify-center space-y-8 w-full px-6">
@@ -218,33 +195,31 @@ export default function PrivateCallPage() {
                 </Avatar>
                 <div className="text-center">
                     <h2 className="text-black text-2xl font-black tracking-tighter">@{partner.username}</h2>
-                    {!isConnected && <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mt-2">I-Pay Secure Line</p>}
+                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mt-2">I-Pay Secure Line</p>
                 </div>
             </div>
 
             <footer className="w-full max-sm px-10 flex flex-col items-center gap-8 z-50">
-                {isConnected && (
-                    <div className="flex items-center justify-center gap-10 w-full animate-in slide-in-from-bottom-10">
-                        <div className="flex flex-col items-center gap-2">
-                            <Button onClick={() => toggleView('chat')} variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
-                                <MessageSquare className="h-5 w-5 text-primary" />
-                            </Button>
-                            <span className="text-[8px] font-black uppercase opacity-40">Chat</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-2">
-                            <Button onClick={() => toggleView('video')} variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
-                                <Video className={cn("h-5 w-5", isVideoOpen && "text-primary")} />
-                            </Button>
-                            <span className="text-[8px] font-black uppercase opacity-40">Video</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-2">
-                            <Button onClick={() => toggleView('display')} variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
-                                <Layout className={cn("h-5 w-5", isDisplayOpen && "text-primary")} />
-                            </Button>
-                            <span className="text-[8px] font-black uppercase opacity-40">Display</span>
-                        </div>
+                <div className="flex items-center justify-center gap-10 w-full animate-in slide-in-from-bottom-10">
+                    <div className="flex flex-col items-center gap-2">
+                        <Button onClick={() => toggleView('chat')} variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
+                            <MessageSquare className={cn("h-5 w-5", isChatOpen && "text-primary")} />
+                        </Button>
+                        <span className="text-[8px] font-black uppercase opacity-40">Chat</span>
                     </div>
-                )}
+                    <div className="flex flex-col items-center gap-2">
+                        <Button onClick={() => toggleView('video')} variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
+                            <Video className={cn("h-5 w-5", isVideoOpen && "text-primary")} />
+                        </Button>
+                        <span className="text-[8px] font-black uppercase opacity-40">Video</span>
+                    </div>
+                    <div className="flex flex-col items-center gap-2">
+                        <Button onClick={() => toggleView('display')} variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-muted">
+                            <Layout className={cn("h-5 w-5", isDisplayOpen && "text-primary")} />
+                        </Button>
+                        <span className="text-[8px] font-black uppercase opacity-40">Display</span>
+                    </div>
+                </div>
 
                 <Button onClick={handleHangUp} size="icon" variant="destructive" className="h-20 w-20 rounded-full shadow-2xl bg-red-500 hover:bg-red-600 active:scale-90 transition-transform">
                     <PhoneOff className="h-8 w-8 text-white" />
@@ -259,13 +234,9 @@ export default function PrivateCallPage() {
                         <h2 className="text-white text-3xl font-black uppercase tracking-tighter">Video Call</h2>
                         <Button variant="ghost" size="icon" onClick={() => toggleView('none')} className="rounded-full bg-white/10 text-white h-12 w-12"><X className="h-8 w-8" /></Button>
                     </header>
-
                     <div className="flex-1 relative flex flex-col items-center justify-center">
-                        <div className="absolute inset-0 flex items-center justify-center opacity-30 grayscale">
-                             <Avatar className="h-64 w-64"><AvatarImage src={partner.avatar}/></Avatar>
-                        </div>
-                        <p className="absolute top-[45%] text-white/40 font-black uppercase text-xl tracking-[0.2em]">Receiver Live</p>
-                        
+                        <div className="absolute inset-0 flex items-center justify-center opacity-30 grayscale"><Avatar className="h-64 w-64"><AvatarImage src={partner.avatar}/></Avatar></div>
+                        <p className="absolute top-[45%] text-white/40 font-black uppercase text-xl tracking-[0.2em]">Partner Live</p>
                         <div className="absolute bottom-10 right-10 w-32 aspect-[9/16] bg-muted rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl">
                             <video ref={selfVideoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
                             <p className="absolute bottom-2 left-0 right-0 text-center text-[8px] font-black uppercase text-white/60">You</p>
@@ -281,49 +252,25 @@ export default function PrivateCallPage() {
                         <h2 className="text-3xl font-black uppercase tracking-tighter text-primary">Chat</h2>
                         <Button variant="ghost" size="icon" className="rounded-full bg-muted h-10 w-10" onClick={() => toggleView('none')}><X className="h-6 w-6" /></Button>
                     </header>
-
                     <ScrollArea className="flex-1 p-6">
                         <div className="max-w-md mx-auto w-full space-y-4 pb-10">
                             {messages.map(m => (
                                 <div key={m.$id} className={cn("flex flex-col", m.senderId === user?.$id ? "items-end" : "items-start")}>
-                                    <div className={cn(
-                                        "p-4 rounded-[1.5rem] shadow-sm text-sm font-bold max-w-[80%]",
-                                        m.senderId === user?.$id ? "bg-primary text-white rounded-tr-none" : "bg-muted text-black rounded-tl-none border"
-                                    )}>
-                                        {m.text}
-                                    </div>
+                                    <div className={cn("p-4 rounded-[1.5rem] shadow-sm text-sm font-bold max-w-[80%]", m.senderId === user?.$id ? "bg-primary text-white rounded-tr-none" : "bg-muted text-black rounded-tl-none border")}>{m.text}</div>
                                 </div>
                             ))}
                             <div ref={messagesEndRef} />
                         </div>
                     </ScrollArea>
-
                     <footer className="p-4 bg-muted/20 border-t pb-10">
                         <div className="max-w-md mx-auto w-full space-y-4">
                             <div className="flex gap-2 items-center">
-                                <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-white shadow-sm" title="Emoji Keyboard"><Smile className="h-6 w-6 text-primary" /></Button>
-                                <Input 
-                                    value={chatInput} 
-                                    onChange={e => setChatInput(e.target.value)} 
-                                    onKeyPress={e => e.key === 'Enter' && handleSendChat()}
-                                    placeholder="Keyboard..." 
-                                    className="h-12 flex-1 rounded-2xl bg-white border-none px-6 font-bold shadow-inner"
-                                />
+                                <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-white shadow-sm" onClick={() => toast({title: 'Emojis enabled'})}><Smile className="h-6 w-6 text-primary" /></Button>
+                                <Input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSendChat()} placeholder="Type something..." className="h-12 flex-1 rounded-2xl bg-white border-none px-6 font-bold shadow-inner" />
                                 <Button onClick={handleSendChat} size="icon" className="h-12 w-12 rounded-full bg-primary shadow-lg"><Send className="h-5 w-5 text-white" /></Button>
                             </div>
-                            
                             <ScrollArea className="w-full whitespace-nowrap pb-2">
-                                <div className="flex gap-3">
-                                    {CALL_EMOJIS.map((e, idx) => (
-                                        <button 
-                                            key={idx} 
-                                            onClick={() => setChatInput(prev => prev + e)}
-                                            className="text-2xl hover:scale-125 transition-transform active:scale-90"
-                                        >
-                                            {e}
-                                        </button>
-                                    ))}
-                                </div>
+                                <div className="flex gap-3">{CALL_EMOJIS.map((e, idx) => (<button key={idx} onClick={() => setChatInput(prev => prev + e)} className="text-2xl hover:scale-125 transition-transform active:scale-90">{e}</button>))}</div>
                             </ScrollArea>
                         </div>
                     </footer>
@@ -334,67 +281,30 @@ export default function PrivateCallPage() {
             {isDisplayOpen && (
                 <div className="absolute inset-0 z-[300] bg-black flex flex-col animate-in fade-in duration-300">
                     <header className="absolute top-12 left-0 right-0 flex items-center justify-between p-6 z-10">
-                        <div className="flex items-center gap-3">
-                            <Layout className="h-6 w-6 text-primary" />
-                            <h2 className="text-white text-xl font-black uppercase tracking-widest">Display Hub</h2>
-                        </div>
+                        <div className="flex items-center gap-3"><Layout className="h-6 w-6 text-primary" /><h2 className="text-white text-xl font-black uppercase tracking-widest">Display Hub</h2></div>
                         <Button variant="ghost" size="icon" onClick={() => toggleView('none')} className="rounded-full bg-white/10 text-white h-12 w-12"><X className="h-8 w-8" /></Button>
                     </header>
-
                     <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
                         {call.displayVisible ? (
                             <div className="w-full h-full rounded-[2.5rem] overflow-hidden bg-white/5 border border-white/10 relative flex items-center justify-center shadow-2xl">
-                                {call.displayType === 'image' && (
-                                    <Image src={call.displayUrl} alt="Shared Display" fill className="object-contain" unoptimized />
-                                )}
-                                {call.displayType === 'video' && (
-                                    <video src={call.displayUrl} controls autoPlay className="w-full h-full" />
-                                )}
-                                {call.displayType === 'music' && (
-                                    <div className="flex flex-col items-center gap-8">
-                                        <div className="h-40 w-40 rounded-full bg-primary/20 flex items-center justify-center border-4 border-primary animate-pulse">
-                                            <Music className="h-20 w-20 text-primary" />
-                                        </div>
-                                        <audio src={call.displayUrl} controls autoPlay className="w-full max-w-xs" />
-                                        <p className="text-white font-black uppercase text-xs tracking-widest">Playing Live Audio...</p>
-                                    </div>
-                                )}
+                                {call.displayType === 'image' && <Image src={call.displayUrl} alt="Display" fill className="object-contain" unoptimized />}
+                                {call.displayType === 'video' && <video src={call.displayUrl} controls autoPlay className="w-full h-full" />}
+                                {call.displayType === 'music' && (<div className="flex flex-col items-center gap-8"><div className="h-40 w-40 rounded-full bg-primary/20 flex items-center justify-center border-4 border-primary animate-pulse"><Music className="h-20 w-20 text-primary" /></div><audio src={call.displayUrl} controls autoPlay className="w-full max-w-xs" /></div>)}
                             </div>
                         ) : (
                             <div className="text-center space-y-8 max-w-xs">
                                 <MonitorPlay className="h-20 w-20 mx-auto text-primary opacity-30" />
-                                <div className="space-y-2">
-                                    <p className="text-white font-black uppercase text-lg tracking-tighter">Nothing Shared Yet</p>
-                                    <p className="text-white/40 text-[10px] font-bold uppercase leading-relaxed">
-                                        You can share images, films, or music tracks with each other in real-time.
-                                    </p>
-                                </div>
-                                
+                                <div className="space-y-2"><p className="text-white font-black uppercase text-lg tracking-tighter">Display Ready</p><p className="text-white/40 text-[10px] font-bold uppercase">Share images, films, or music tracks now.</p></div>
                                 <div className="grid grid-cols-3 gap-4">
-                                    <Button onClick={() => { setUploadType('image'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10">
-                                        <ImageIcon className="h-6 w-6 text-primary" />
-                                        <span className="text-[8px] font-black uppercase">Image</span>
-                                    </Button>
-                                    <Button onClick={() => { setUploadType('video'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10">
-                                        <Film className="h-6 w-6 text-primary" />
-                                        <span className="text-[8px] font-black uppercase">Video</span>
-                                    </Button>
-                                    <Button onClick={() => { setUploadType('music'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10">
-                                        <Music className="h-6 w-6 text-primary" />
-                                        <span className="text-[8px] font-black uppercase">Music</span>
-                                    </Button>
+                                    <Button onClick={() => { setUploadType('image'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10"><ImageIcon className="h-6 w-6 text-primary" /><span className="text-[8px] font-black uppercase">Image</span></Button>
+                                    <Button onClick={() => { setUploadType('video'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10"><Film className="h-6 w-6 text-primary" /><span className="text-[8px] font-black uppercase">Video</span></Button>
+                                    <Button onClick={() => { setUploadType('music'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10"><Music className="h-6 w-6 text-primary" /><span className="text-[8px] font-black uppercase">Music</span></Button>
                                 </div>
                             </div>
                         )}
                     </div>
-
                     <input type="file" ref={mediaInputRef} className="hidden" onChange={handleMediaUpload} />
-                    
-                    <footer className="p-8 flex justify-center">
-                        <Button onClick={handleHangUp} variant="destructive" className="rounded-full h-14 px-10 font-black uppercase text-xs tracking-widest shadow-2xl">
-                            <PhoneOff className="mr-2 h-5 w-5" /> Hang Up Call
-                        </Button>
-                    </footer>
+                    <footer className="p-8 flex justify-center"><Button onClick={handleHangUp} variant="destructive" className="rounded-full h-14 px-10 font-black uppercase text-xs tracking-widest shadow-2xl"><PhoneOff className="mr-2 h-5 w-5" /> Hang Up</Button></footer>
                 </div>
             )}
         </div>
