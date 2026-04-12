@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
 import { useToast } from '@/hooks/use-toast';
 
 /**
@@ -34,39 +34,45 @@ export default function EnterMeetingPage() {
         let cleanId = '';
         let isAdmin = false;
 
-        // 1. Try to extract ID using Regex (Look for 20+ char alphanumeric string)
-        const idMatch = rawInput.match(/[a-zA-Z0-9_-]{20,}/);
-        if (idMatch) {
-            cleanId = idMatch[0];
+        // 1. Try to extract ID using URL parser if it looks like a link
+        if (rawInput.includes('/') || rawInput.includes('?')) {
+            try {
+                const urlStr = rawInput.startsWith('http') ? rawInput : `https://${rawInput}`;
+                const url = new URL(urlStr);
+                const pathParts = url.pathname.split('/').filter(Boolean);
+                cleanId = pathParts[pathParts.length - 1] || '';
+                if (url.searchParams.get('role') === 'admin') isAdmin = true;
+            } catch (e) {
+                // Fallback to regex if URL parser fails
+                const idMatch = rawInput.match(/[a-zA-Z0-9_-]{15,}/);
+                cleanId = idMatch ? idMatch[0] : rawInput;
+            }
         } else {
-            // Fallback to simple input if no complex ID found
             cleanId = rawInput;
         }
 
-        // 2. Check for Role in URL params
-        if (rawInput.includes('role=admin')) {
-            isAdmin = true;
-        }
+        if (!cleanId) throw new Error("Could not extract a valid Meeting ID.");
 
         // 3. Force Verification against Database
         const meeting = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, cleanId);
         
-        if (meeting.status === 'ended') {
+        if (meeting.status === 'ended' || meeting.status === 'cancelled') {
             toast({ 
                 variant: 'destructive', 
-                title: 'Session Concluded', 
-                description: 'This meeting was ended by the Chairman and is no longer active.' 
+                title: 'Session Inactive', 
+                description: 'This meeting is no longer active or has been concluded.' 
             });
         } else {
             // SUCCESS: Redirect to Join Page with extracted role
             router.push(`/dashboard/meeting/join/${cleanId}${isAdmin ? '?role=admin' : ''}`);
         }
     } catch (error: any) {
-        console.error("Verification Error:", error);
+        const errorMsg = error.message || "We could not find an active meeting with that ID or Link.";
+        console.error("Verification Error:", errorMsg);
         toast({ 
             variant: 'destructive', 
-            title: 'Invalid Meeting', 
-            description: 'We could not find an active meeting with that ID or Link.' 
+            title: 'Access Denied', 
+            description: errorMsg 
         });
     } finally {
         setIsVerifying(false);

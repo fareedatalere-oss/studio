@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -81,9 +80,9 @@ export function MeetingAlarm() {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
-    // 1. Setup Audio
+    // 1. Setup Audio (Using a reliable public ringing sound)
     if (!audioRef.current) {
-        audioRef.current = new Audio('https://cdn.pixabay.com/audio/2022/03/10/audio_c8c8a73484.mp3'); // Professional Ringtone
+        audioRef.current = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-outgoing-call-signal-2174.mp3');
         audioRef.current.loop = true;
         audioRef.current.preload = 'auto';
     }

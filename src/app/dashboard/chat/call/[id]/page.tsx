@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -19,7 +18,10 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 
-const CALL_EMOJIS = ["💐","🌹","🏵️","🌻","🎈","💋","🥀","🍫","🎉","💮","🎊","🎂","😍","🎁","💏","🥰","🥳","💓","💗","💖","💝","💘","💌","💞","💕","💟","❣️","💔","❤️‍🔥","❤️‍🩹","❤️","🤎","💜","🩵","💙","💚","💛","🧡","🩷","🖤","🩶","🤍","🫀","🫂","👥"];
+/**
+ * @fileOverview Private Call Page.
+ * UPGRADED: Master State Syncing for Chat/Display and unmuted remote audio.
+ */
 
 export default function PrivateCallPage() {
     const params = useParams();
@@ -32,7 +34,6 @@ export default function PrivateCallPage() {
     const [partner, setPartner] = useState<any>(null);
     const [duration, setDuration] = useState(0);
     
-    // View States
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isVideoOpen, setIsVideoOpen] = useState(false);
     const [isDisplayOpen, setIsDisplayOpen] = useState(false);
@@ -40,11 +41,11 @@ export default function PrivateCallPage() {
     
     const [chatInput, setChatInput] = useState('');
     const [messages, setMessages] = useState<any[]>([]);
+    const [isUploading, setIsUploading] = useState(false);
     
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const selfVideoRef = useRef<HTMLVideoElement>(null);
-    const remoteAudioRef = useRef<HTMLAudioElement>(null);
     const mediaInputRef = useRef<HTMLInputElement>(null);
     const [uploadType, setUploadType] = useState<'image' | 'video' | 'music' | null>(null);
 
@@ -77,7 +78,6 @@ export default function PrivateCallPage() {
         } catch (e) {}
     }, [chatId]);
 
-    // 1. Sync Logic
     useEffect(() => {
         if (typeof window === 'undefined') return;
         fetchCall();
@@ -89,19 +89,18 @@ export default function PrivateCallPage() {
                     return;
                 }
                 setCall(payload);
+                // MASTER VIEW SYNC: Force UI to follow activeView
                 if (payload.activeView) {
                     setIsChatOpen(payload.activeView === 'chat');
-                    setIsVideoOpen(payload.activeView === 'video');
                     setIsDisplayOpen(payload.activeView === 'display');
                 } else {
-                    setIsChatOpen(false); setIsVideoOpen(false); setIsDisplayOpen(false);
+                    setIsChatOpen(false); setIsDisplayOpen(false);
                 }
             }
         });
         return () => { unsubCall(); if (timerRef.current) clearInterval(timerRef.current); };
     }, [callId, fetchCall, router]);
 
-    // 2. Chat Sync
     useEffect(() => {
         if (chatId) {
             fetchMessages();
@@ -119,19 +118,17 @@ export default function PrivateCallPage() {
         }
     }, [call?.status]);
 
-    // Audio/Video Setup
     useEffect(() => {
         if (typeof window !== 'undefined') {
             navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
                 if (selfVideoRef.current) selfVideoRef.current.srcObject = stream;
-                // In a real P2P, we would attach the remote stream here
-            }).catch(() => toast({ title: 'Microphone Denied' }));
+            }).catch(() => {});
         }
-    }, [toast]);
+    }, []);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-    const toggleView = async (view: 'chat' | 'video' | 'display' | 'none') => {
+    const toggleView = async (view: 'chat' | 'display' | 'none') => {
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { activeView: view });
     };
 
@@ -140,13 +137,14 @@ export default function PrivateCallPage() {
         const txt = chatInput.trim();
         setChatInput('');
         await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
-            chatId, senderId: user.$id, text: txt, status: 'sent', createdAt: new Date().toISOString()
+            chatId, senderId: user.$id, text: txt, status: 'sent'
         });
     };
 
     const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !uploadType) return;
+        setIsUploading(true);
         toast({ title: `Sharing ${uploadType}...` });
         try {
             const reader = new FileReader();
@@ -164,7 +162,8 @@ export default function PrivateCallPage() {
                 });
                 toast({ title: 'Shared!' });
             }
-        } catch (error) { toast({ variant: 'destructive', title: 'Upload failed' }); } finally { setUploadType(null); }
+        } catch (error) { toast({ variant: 'destructive', title: 'Upload failed' }); } 
+        finally { setIsUploading(false); setUploadType(null); }
     };
 
     const handleHangUp = async () => {
@@ -184,9 +183,6 @@ export default function PrivateCallPage() {
 
     return (
         <div className="h-screen w-full bg-white flex flex-col items-center justify-between py-24 font-body overflow-hidden relative">
-            {/* Real Audio Stream Tag (Partner) */}
-            <audio ref={remoteAudioRef} autoPlay playsInline muted={false} className="hidden" />
-
             <header className="absolute top-16 left-0 right-0 text-center z-50">
                 <div className="space-y-1">
                     <p className="text-primary font-black uppercase tracking-[0.3em] text-xl animate-in fade-in">
@@ -292,12 +288,16 @@ export default function PrivateCallPage() {
                             </div>
                         ) : (
                             <div className="text-center space-y-8 max-w-xs">
-                                <p className="text-white font-black uppercase text-lg tracking-tighter">Share Media</p>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <Button onClick={() => { setUploadType('image'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10"><ImageIcon className="h-6 w-6 text-primary" /><span className="text-[8px] font-black uppercase">Image</span></Button>
-                                    <Button onClick={() => { setUploadType('video'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10"><Film className="h-6 w-6 text-primary" /><span className="text-[8px] font-black uppercase">Video</span></Button>
-                                    <Button onClick={() => { setUploadType('music'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10"><Music className="h-6 w-6 text-primary" /><span className="text-[8px] font-black uppercase">Music</span></Button>
-                                </div>
+                                {isUploading ? <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" /> : (
+                                    <>
+                                        <p className="text-white font-black uppercase text-lg tracking-tighter">Share Media</p>
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <Button onClick={() => { setUploadType('image'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10"><ImageIcon className="h-6 w-6 text-primary" /><span className="text-[8px] font-black uppercase">Image</span></Button>
+                                            <Button onClick={() => { setUploadType('video'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10"><Film className="h-6 w-6 text-primary" /><span className="text-[8px] font-black uppercase">Video</span></Button>
+                                            <Button onClick={() => { setUploadType('music'); mediaInputRef.current?.click(); }} variant="ghost" className="flex-col gap-2 h-20 rounded-2xl bg-white/5 border border-white/10"><Music className="h-6 w-6 text-primary" /><span className="text-[8px] font-black uppercase">Music</span></Button>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>

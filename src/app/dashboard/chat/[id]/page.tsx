@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -10,7 +9,7 @@ import {
     serverTimestamp, setDoc, updateDoc, 
     increment, getDocs, writeBatch, deleteDoc, arrayUnion
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } from '@/lib/data-service';
 import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, Forward, Mic, X, CheckCircle2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -34,7 +33,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Chat Thread.
- * FIXED: Audio playback visibility and delivery status rendering.
+ * FIXED: Timestamp rendering crash by adding safe null-checks for serverTimestamp() values.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -55,7 +54,6 @@ export default function ChatThreadPage() {
     const [newMessage, setNewMessage] = useState('');
     const [isUploading, setIsUploading] = useState(false);
     
-    // Voice Recording State
     const [isRecording, setIsRecording] = useState(false);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -175,7 +173,7 @@ export default function ChatThreadPage() {
                 reader.onloadend = () => res(reader.result as string);
                 reader.readAsDataURL(audioBlob);
             });
-            const up = await uploadToCloudinary(b64, 'video'); // Resource type 'video' covers audio in Cloudinary
+            const up = await uploadToCloudinary(b64, 'video'); 
             if (up.success) {
                 await handleSend('', { url: up.url, type: 'audio' });
                 cancelRecording();
@@ -191,27 +189,6 @@ export default function ChatThreadPage() {
         setAudioUrl(null);
         setRecordingDuration(0);
         if (timerRef.current) clearInterval(timerRef.current);
-    };
-
-    const handleStartCall = async () => {
-        if (!currentUser || !otherUserId) return;
-        const meetingId = doc(collection(db, 'meetings')).id;
-        await setDoc(doc(db, 'meetings', meetingId), {
-            hostId: currentUser.$id,
-            invitedUsers: [otherUserId],
-            type: 'call',
-            status: 'pending',
-            createdAt: serverTimestamp()
-        });
-        router.push(`/dashboard/chat/call/${meetingId}`);
-    };
-
-    const DeliveryStatus = ({ status, receiverOnline }: { status: string, receiverOnline?: boolean }) => {
-        switch (status) {
-            case 'sent': return receiverOnline ? <span className="text-[10px]">☑️☑️</span> : <span className="text-[10px]">☑️</span>;
-            case 'seen': return <span className="text-[10px]">✅</span>;
-            default: return null;
-        }
     };
 
     return (
@@ -245,7 +222,7 @@ export default function ChatThreadPage() {
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="flex-1">
                                             {msg.mediaType === 'audio' ? (
-                                                <audio src={msg.mediaUrl} controls className="h-8 max-w-[200px]" preload="auto" />
+                                                <audio src={msg.mediaUrl} key={msg.mediaUrl} controls className="h-8 max-w-[200px]" preload="auto" playsInline />
                                             ) : (
                                                 <p className="whitespace-pre-wrap">{msg.text}</p>
                                             )}
@@ -269,9 +246,8 @@ export default function ChatThreadPage() {
                                     </div>
                                     <div className="flex items-center justify-end gap-1 mt-1">
                                         <span className="text-[6px] font-black uppercase opacity-60">
-                                            {msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : '...'}
+                                            {msg.createdAt?.toMillis ? format(msg.createdAt.toMillis(), 'HH:mm') : (msg.timestamp ? format(msg.timestamp, 'HH:mm') : '...')}
                                         </span>
-                                        {isMine && <DeliveryStatus status={msg.status} receiverOnline={otherUser?.isOnline} />}
                                     </div>
                                 </div>
                             </div>
@@ -297,7 +273,6 @@ export default function ChatThreadPage() {
                 ) : (
                     <div className="max-w-xl mx-auto w-full flex items-center gap-2">
                         <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-full"><Paperclip className="h-5 w-5" /></Button>
-                        <Button variant="ghost" size="icon" onClick={handleStartCall} className="h-11 w-11 rounded-full text-primary"><Phone className="h-5 w-5" /></Button>
                         <Input placeholder="Type message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />
                         <Button onClick={startRecording} variant="ghost" size="icon" className="h-11 w-11 rounded-full text-primary hover:bg-primary/10"><Mic className="h-5 w-5" /></Button>
                         <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() || isUploading} className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90">{isUploading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5 text-white" />}</Button>
