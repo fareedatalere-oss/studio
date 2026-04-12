@@ -152,10 +152,13 @@ export default function PrivateCallPage() {
                 reader.onloadend = () => res(reader.result as string);
                 reader.readAsDataURL(file);
             });
-            const up = await uploadToCloudinary(b64, uploadType === 'music' ? 'auto' : uploadType);
+            const up = await uploadToCloudinary(b64, uploadType === 'music' ? 'video' : uploadType);
             if (up.success) {
                 await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, {
-                    displayUrl: up.url, displayType: uploadType, displayVisible: true, activeView: 'display'
+                    displayUrl: up.url, 
+                    displayType: uploadType, 
+                    displayVisible: true, 
+                    activeView: 'display' 
                 });
                 toast({ title: 'Shared!' });
             }
@@ -288,8 +291,15 @@ export default function PrivateCallPage() {
                         {call.displayVisible ? (
                             <div className="w-full h-full rounded-[2.5rem] overflow-hidden bg-white/5 border border-white/10 relative flex items-center justify-center shadow-2xl">
                                 {call.displayType === 'image' && <Image src={call.displayUrl} alt="Display" fill className="object-contain" unoptimized />}
-                                {call.displayType === 'video' && <video src={call.displayUrl} controls autoPlay className="w-full h-full" />}
-                                {call.displayType === 'music' && (<div className="flex flex-col items-center gap-8"><div className="h-40 w-40 rounded-full bg-primary/20 flex items-center justify-center border-4 border-primary animate-pulse"><Music className="h-20 w-20 text-primary" /></div><audio src={call.displayUrl} controls autoPlay className="w-full max-w-xs" /></div>)}
+                                {call.displayType === 'video' && <video src={call.displayUrl} controls autoPlay playsInline className="w-full h-full" preload="auto" />}
+                                {call.displayType === 'music' && (
+                                    <div className="flex flex-col items-center gap-8">
+                                        <div className="h-40 w-40 rounded-full bg-primary/20 flex items-center justify-center border-4 border-primary animate-pulse">
+                                            <Music className="h-20 w-20 text-primary" />
+                                        </div>
+                                        <audio src={call.displayUrl} controls autoPlay preload="auto" className="w-full max-w-xs" />
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="text-center space-y-8 max-w-xs">

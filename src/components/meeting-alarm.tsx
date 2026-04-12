@@ -8,11 +8,10 @@ import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query, client } from '@
 import { useUser } from '@/hooks/use-appwrite';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter } from 'next/navigation';
-import { isBefore } from 'date-fns';
 
 /**
  * @fileOverview Master Alarm Engine.
- * SOUND: Updated to a high-fidelity professional smartphone ringtone.
+ * SOUND: High-fidelity professional smartphone ringtone URL.
  */
 
 export function MeetingAlarm() {
@@ -60,11 +59,13 @@ export function MeetingAlarm() {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     if (!audioRef.current) {
+        // High-fidelity ringtone URL
         audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3');
         audioRef.current.loop = true;
+        audioRef.current.preload = 'auto';
     }
     audioRef.current.play().catch(() => {
-        console.log("Audio blocked by browser. Interaction required.");
+        console.log("Audio blocked by browser. User interaction required.");
     });
   };
 

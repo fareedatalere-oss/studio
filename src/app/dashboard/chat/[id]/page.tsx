@@ -34,7 +34,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Chat Thread.
- * HARDENED: Robust null-guards for all rendering and sorting to prevent client-side exception.
+ * FIXED: Audio playback visibility and delivery status rendering.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -175,7 +175,7 @@ export default function ChatThreadPage() {
                 reader.onloadend = () => res(reader.result as string);
                 reader.readAsDataURL(audioBlob);
             });
-            const up = await uploadToCloudinary(b64, 'auto');
+            const up = await uploadToCloudinary(b64, 'video'); // Resource type 'video' covers audio in Cloudinary
             if (up.success) {
                 await handleSend('', { url: up.url, type: 'audio' });
                 cancelRecording();
@@ -195,8 +195,8 @@ export default function ChatThreadPage() {
 
     const handleStartCall = async () => {
         if (!currentUser || !otherUserId) return;
-        const meetingId = doc(collection(db, COLLECTION_ID_MEETINGS)).id;
-        await setDoc(doc(db, COLLECTION_ID_MEETINGS, meetingId), {
+        const meetingId = doc(collection(db, 'meetings')).id;
+        await setDoc(doc(db, 'meetings', meetingId), {
             hostId: currentUser.$id,
             invitedUsers: [otherUserId],
             type: 'call',
@@ -244,7 +244,11 @@ export default function ChatThreadPage() {
                                 <div className={cn("p-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold leading-relaxed", isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="flex-1">
-                                            {msg.mediaType === 'audio' ? <audio src={msg.mediaUrl} controls className="h-8 max-w-[200px]" /> : <p className="whitespace-pre-wrap">{msg.text}</p>}
+                                            {msg.mediaType === 'audio' ? (
+                                                <audio src={msg.mediaUrl} controls className="h-8 max-w-[200px]" preload="auto" />
+                                            ) : (
+                                                <p className="whitespace-pre-wrap">{msg.text}</p>
+                                            )}
                                         </div>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
@@ -281,7 +285,7 @@ export default function ChatThreadPage() {
                 {audioUrl ? (
                     <div className="max-w-xl mx-auto w-full flex items-center gap-3 bg-muted/50 p-2 rounded-2xl animate-in slide-in-from-bottom-2">
                         <Button onClick={cancelRecording} variant="ghost" size="icon" className="h-10 w-10 text-destructive"><X className="h-5 w-5" /></Button>
-                        <audio src={audioUrl} controls className="flex-1 h-8" />
+                        <audio src={audioUrl} controls className="flex-1 h-8" preload="auto" />
                         <Button onClick={handleSendVoice} size="icon" className="h-10 w-10 bg-green-500 hover:bg-green-600 rounded-full" disabled={isUploading}><CheckCircle2 className="h-5 w-5 text-white" /></Button>
                     </div>
                 ) : isRecording ? (

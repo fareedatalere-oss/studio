@@ -30,8 +30,11 @@ export async function uploadToCloudinary(base64Data: string, resourceType: 'imag
   });
 
   try {
+    // Standardize resource type for audio/video
+    const finalResourceType = resourceType === 'music' ? 'video' : resourceType;
+
     const uploadResponse = await cloudinary.uploader.upload(base64Data, {
-      resource_type: resourceType === 'auto' ? 'auto' : resourceType,
+      resource_type: finalResourceType === 'auto' ? 'auto' : (finalResourceType as any),
       folder: 'ipay_chat_media',
     });
 
