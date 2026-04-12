@@ -10,7 +10,7 @@ import { useRouter, usePathname } from 'next/navigation';
 
 /**
  * @fileOverview Unified Master Auth & Data Hook.
- * Removed all Appwrite identities. Consolidates data fetching for profiles and config.
+ * Hardened to prevent premature redirects and ensure profile visibility.
  */
 
 type UserContextType = {
@@ -55,10 +55,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 const prof = await fetchProfile(firebaseUser.uid);
                 
                 if (typeof window !== 'undefined') {
+                    const isAuthPath = pathname.includes('/auth');
+                    const isSignupProfile = pathname.includes('/signup/profile');
                     const isMeetingPath = pathname.includes('/meeting/room/') || pathname.includes('/meeting/join/');
-                    if (!prof && !pathname.includes('/auth') && !pathname.includes('/signup/profile') && !isMeetingPath) {
+
+                    // ONLY REDIRECT IF LOAD IS FINISHED
+                    if (!prof && !isAuthPath && !isSignupProfile && !isMeetingPath) {
                         router.replace('/auth/signup/profile');
-                    } else if (prof && pathname === '/auth/signin') {
+                    } else if (prof && isAuthPath) {
                         router.replace('/dashboard');
                     }
                 }
@@ -67,7 +71,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 setProfile(null);
                 if (typeof window !== 'undefined') {
                     const isMeetingJoin = pathname.includes('/meeting/join/') || pathname.includes('/meeting/room/');
-                    if (pathname.startsWith('/dashboard') && !pathname.includes('/auth') && !isMeetingJoin) {
+                    const isAuthPath = pathname.includes('/auth');
+                    if (pathname.startsWith('/dashboard') && !isAuthPath && !isMeetingJoin) {
                         router.replace('/auth/signin');
                     }
                 }

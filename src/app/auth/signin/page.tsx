@@ -15,9 +15,7 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 /**
  * @fileOverview Sign In Page.
- * Branding: I-pay online world.
- * UPDATED: Reduced Card and Button sizes for a sleeker professional look.
- * Standards: Title Case strictly enforced.
+ * Hardened to verify profile existence before entry.
  */
 
 export default function SignInPage() {
@@ -38,13 +36,20 @@ export default function SignInPage() {
       const userRes: any = await account.get();
       const userId = userRes.$id;
 
+      // Verify profile existence in Firestore
       try {
         await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
         sessionStorage.setItem('ipay_pin_verified', 'true');
         toast({ title: 'Signed In', description: 'Welcome back to I-pay online world.' });
         router.push('/dashboard');
       } catch (profileError: any) {
-        router.push('/auth/signup/profile');
+        // Only redirect to profile completion if the document is missing (404)
+        if (profileError.code === 404) {
+            router.push('/auth/signup/profile');
+        } else {
+            // General error (like permissions), let the useUser hook handle it or show toast
+            router.push('/dashboard');
+        }
       }
 
     } catch (error: any) {

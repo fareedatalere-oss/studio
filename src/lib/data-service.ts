@@ -28,11 +28,11 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Master Firebase Data Service.
- * Consolidated for high performance using Users collection and Cloudinary.
+ * Consolidated for high performance using Profiles collection and Cloudinary.
  */
 
 export const DATABASE_ID = 'default';
-export const COLLECTION_ID_PROFILES = 'users'; // POINTING TO USERS PER BACKEND.JSON
+export const COLLECTION_ID_PROFILES = 'profiles'; 
 export const COLLECTION_ID_APP_CONFIG = 'app_config';
 export const COLLECTION_ID_TRANSACTIONS = 'transactions';
 export const COLLECTION_ID_POSTS = 'posts';
