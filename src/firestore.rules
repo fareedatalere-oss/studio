@@ -9,10 +9,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Rules for the 'users' collection
-    match /users/{userId} {
+    // Rules for the 'profiles' collection (Matches COLLECTION_ID_PROFILES)
+    match /profiles/{userId} {
       allow get: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
       allow delete: if false;
 
       match /notifications/{notificationId} {
@@ -35,7 +35,7 @@ service cloud.firestore {
     match /messages/{messageId} {
       allow create: if isSignedIn();
       allow read: if isSignedIn();
-      allow update, delete: if isSignedIn();
+      allow update, delete: if isSignedIn() && request.auth.uid == resource.data.senderId;
     }
 
     // Rules for Meetings & Calls

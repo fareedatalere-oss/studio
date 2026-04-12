@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -27,8 +28,12 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     useEffect(() => {
         if (!otherUserId) return;
         const fetchOther = async () => {
-            const d = await getDoc(doc(db, COLLECTION_ID_PROFILES, otherUserId));
-            if (d.exists()) setOtherUser(d.data());
+            try {
+                const d = await getDoc(doc(db, COLLECTION_ID_PROFILES, otherUserId));
+                if (d.exists()) setOtherUser({ ...d.data(), $id: d.id });
+            } catch (e) {
+                console.error("Failed to fetch chat participant", e);
+            }
         };
         fetchOther();
     }, [otherUserId]);
@@ -61,20 +66,20 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
                 <div className="relative">
                     <Avatar className="h-12 w-12 border-2 border-primary/5 shadow-sm">
                         <AvatarImage src={otherUser.avatar} className="object-cover" />
-                        <AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                        <AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0).toUpperCase() || '?'}</AvatarFallback>
                     </Avatar>
                     {otherUser.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>}
                 </div>
                 <div className="flex-1 overflow-hidden">
                     <div className="flex justify-between items-center mb-0.5">
-                        <p className="font-bold text-xs">@{otherUser.username}</p>
+                        <p className="font-bold text-xs">@{otherUser.username || 'user'}</p>
                         <p className="text-[7px] font-black uppercase text-muted-foreground">
                             {chat.lastMessageAt?.toMillis ? formatChatDate(new Date(chat.lastMessageAt.toMillis())) : ''}
                         </p>
                     </div>
                     <div className="flex justify-between items-center gap-2">
                         <p className={cn("text-[10px] truncate max-w-[80%]", unreadCount > 0 ? "font-bold text-foreground" : "text-muted-foreground font-medium")}>
-                            {chat.lastMessage}
+                            {chat.lastMessage || 'No messages yet'}
                         </p>
                         {unreadCount > 0 && (
                             <Badge variant="destructive" className="h-5 min-w-5 p-0 px-1 text-[10px] font-black rounded-full border-2 border-white flex items-center justify-center animate-in zoom-in-50">
@@ -138,19 +143,19 @@ export default function ChatPage() {
     const filteredUsers = useMemo(() =>
         allUsers.filter(u =>
             u.$id !== currentUser?.$id &&
-            (u.username?.toLowerCase().includes(searchAll.toLowerCase()))
+            (u.username?.toLowerCase() || '').includes(searchAll.toLowerCase())
         ).sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0)), 
         [allUsers, searchAll, currentUser]
     );
 
     const filteredRecent = useMemo(() =>
         recentChats.filter(c =>
-            c.lastMessage?.toLowerCase().includes(searchRecent.toLowerCase())
+            (c.lastMessage?.toLowerCase() || '').includes(searchRecent.toLowerCase())
         ), [recentChats, searchRecent]
     );
 
     return (
-        <div className="flex flex-col h-full bg-background font-body">
+        <div className="flex flex-col min-h-screen bg-background font-body">
             <header className="p-4 pt-12 max-w-xl mx-auto w-full border-b bg-muted/5">
                 <div className="flex items-center justify-between mb-6">
                     <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-10 w-10 bg-muted/50 rounded-full border shadow-sm">
@@ -206,12 +211,12 @@ export default function ChatPage() {
                                         <div className="relative">
                                             <Avatar className="h-12 w-12 border-2 border-primary/10 shadow-sm">
                                                 <AvatarImage src={user.avatar} className="object-cover" />
-                                                <AvatarFallback className="font-black bg-muted text-foreground/50">{user.username?.charAt(0)}</AvatarFallback>
+                                                <AvatarFallback className="font-black bg-muted text-foreground/50">{user.username?.charAt(0) || '?'}</AvatarFallback>
                                             </Avatar>
                                             {user.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white"></div>}
                                         </div>
                                         <div className="flex-1 overflow-hidden">
-                                            <p className="font-bold text-xs tracking-tight text-foreground/80">@{user.username}</p>
+                                            <p className="font-bold text-xs tracking-tight text-foreground/80">@{user.username || 'user'}</p>
                                             <p className="text-[8px] font-bold uppercase text-primary/60">{user.isOnline ? 'Online Now' : 'Offline'}</p>
                                         </div>
                                     </Link>
