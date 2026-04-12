@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,9 +32,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import { format } from 'date-fns';
 
 /**
- * @fileOverview Sofia AI Chat - Optimized for Production.
- * UPGRADED: Added Torch control, SMS, and Post preparation support.
- * SHIELDED: Forced instant opening and rendering stability.
+ * @fileOverview Sofia AI Chat - Optimized for Instant Opening.
+ * PROACTIVE: Pre-loads profile data to avoid AI delay.
  */
 
 type Message = {
@@ -56,7 +55,7 @@ export default function AiChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [selectedLanguage, setSelectedLanguage] = useState('English');
-  const [locationStr, setLocationStr] = useState('Determining Location...');
+  const [locationStr, setLocationStr] = useState('Global Hub');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isLangPopoverOpen, setIsLangPopoverOpen] = useState(false);
   
@@ -76,7 +75,7 @@ export default function AiChatPage() {
       return doc.timestamp || Date.now();
   };
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     if (!chatId) return;
     try {
         const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
@@ -88,7 +87,7 @@ export default function AiChatPage() {
             setMessages([{
                 $id: 'welcome',
                 role: 'sofia',
-                text: "Hello! I am Sofia, your best friend and I-Pay companion. I can search Google for news, check your balance, verify bank accounts, or control your torch. How can I help you today?",
+                text: "Hello! I am Sofia, your best friend and I-Pay companion. I am pre-loaded with your profile data and ready to assist instantly.",
                 timestamp: Date.now()
             }]);
         } else {
@@ -101,16 +100,14 @@ export default function AiChatPage() {
                 thoughts: doc.thoughts
             } as Message));
 
-            // SHIELDED SORT
             mapped.sort((a, b) => a.timestamp - b.timestamp);
             setMessages(mapped);
         }
     } catch (e) {
-        console.error("History fetch failed", e);
     } finally {
         setDataLoading(false);
     }
-  };
+  }, [chatId, user?.$id]);
 
   useEffect(() => {
     if (!chatId) return;
@@ -126,9 +123,7 @@ export default function AiChatPage() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((pos) => {
             setLocationStr(`Location: ${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)}`);
-        }, () => {
-            setLocationStr("Location Hidden");
-        });
+        }, () => {});
     }
 
     return () => {
@@ -137,7 +132,7 @@ export default function AiChatPage() {
             torchStream.getTracks().forEach(t => t.stop());
         }
     };
-  }, [chatId, user?.$id]);
+  }, [chatId, fetchHistory]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -173,6 +168,8 @@ export default function AiChatPage() {
         language: selectedLanguage,
         userId: user.$id,
         username: profile?.username || 'Friend',
+        nairaBalance: profile?.nairaBalance || 0,
+        accountNumber: profile?.accountNumber || 'Pending',
         location: locationStr,
         currentTime: new Date().toLocaleString(),
         photoDataUri: currentImgB64 || undefined
@@ -190,8 +187,7 @@ export default function AiChatPage() {
           handleSofiaAction(response.action, response.parameter);
       }
     } catch (error: any) {
-      console.error("Sofia Error:", error);
-      toast({ variant: 'destructive', title: "Sofia Snagged", description: "Vercel Timeout or Connection weak. Try simpler questions." });
+      toast({ variant: 'destructive', title: "Sofia Timeout", description: "Vercel limited the thought time. Try a simpler question." });
     } finally {
       setIsLoading(false);
     }
@@ -210,7 +206,6 @@ export default function AiChatPage() {
         case 'profile': router.push('/dashboard/profile'); break;
         case 'home': router.push('/dashboard'); break;
         case 'prepare_post': 
-            toast({ title: "Post Prepared", description: "Taking you to upload screen..." });
             router.push(`/dashboard/media/upload/text?initialText=${encodeURIComponent(param || '')}`); 
             break;
         case 'torch_on':
@@ -220,11 +215,9 @@ export default function AiChatPage() {
                 if (track.getCapabilities().torch) {
                     await track.applyConstraints({ advanced: [{ torch: true }] } as any);
                     setTorchStream(stream);
-                    toast({ title: "Torch Active", description: "Sofia turned on your light." });
-                } else {
-                    toast({ variant: 'destructive', title: "No Torch", description: "Your device doesn't support flashlight control via browser." });
+                    toast({ title: "Torch Active" });
                 }
-            } catch (e) { toast({ variant: 'destructive', title: "Torch Denied" }); }
+            } catch (e) {}
             break;
         case 'torch_off':
             if (torchStream) {
@@ -243,15 +236,6 @@ export default function AiChatPage() {
           await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, msgToDelete);
           fetchHistory();
       } catch (e) {} finally { setMsgToDelete(null); }
-  };
-
-  const formatTimestamp = (ts: number) => {
-      try {
-          if (!ts) return 'Now';
-          return format(new Date(ts), 'HH:mm');
-      } catch (e) {
-          return 'Now';
-      }
   };
 
   return (
@@ -314,7 +298,7 @@ export default function AiChatPage() {
                     )}
                 </div>
                 <span className="text-[8px] font-black uppercase text-muted-foreground mt-2 px-2">
-                    {formatTimestamp(msg.timestamp)}
+                    {format(new Date(msg.timestamp), 'HH:mm')}
                 </span>
             </div>
         ))}

@@ -41,7 +41,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
                 if (d.exists()) {
                     setOtherUser({ ...d.data(), $id: d.id });
                 }
-            } catch (e) { console.error("Participant fetch fail", e); }
+            } catch (e) {}
         };
         fetchOther();
     }, [chat, currentUid]);

@@ -27,7 +27,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Master Firebase Data Service.
- * Consolidated for high performance using Profiles collection and Cloudinary.
+ * Consolidated for high performance and total null-safety.
  * SHIELDED: Robust timestamp mapping to prevent Vercel crashes.
  */
 
@@ -62,7 +62,7 @@ const mapDoc = (snapshot: any) => {
     if (!snapshot.exists()) return null;
     const data = snapshot.data();
     
-    // SHIELDED MAPPING: Ensure createdAt/updatedAt never trigger null property crashes
+    // SHIELDED MAPPING: Terminate null property crashes
     const safeCreatedAt = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString());
     const safeUpdatedAt = data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : (data.updatedAt || new Date().toISOString());
 

@@ -1,8 +1,7 @@
 'use server';
 /**
- * @fileOverview Sofia - The I-Pay Best Friend & Global Knowledge Assistant.
- * UPGRADED: Added Google Search, Device Actions (Torch, SMS, Call), and App Navigation.
- * FORCED: Increased maxDuration for Vercel stability.
+ * @fileOverview Sofia - The I-Pay Proactive Intelligence Agent.
+ * OPTIMIZED: Pre-loaded context for instant knowledge.
  */
 
 import { ai } from '@/ai/genkit';
@@ -10,14 +9,13 @@ import { z } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/data-service';
 
-// FORCE VERCEL TO WAIT FOR AI RESEARCH
-export const maxDuration = 120;
-
 const SofiaInputSchema = z.object({
   message: z.string().describe('The user message.'),
   language: z.string().optional().describe('The chosen preferred language.'),
   userId: z.string().describe('The current user ID.'),
   username: z.string().describe('The current username.'),
+  nairaBalance: z.number().optional().describe('The pre-loaded Naira balance.'),
+  accountNumber: z.string().optional().describe('The pre-loaded virtual account number.'),
   location: z.string().optional().describe('The user location info.'),
   currentTime: z.string().describe('The current local date and time.'),
   photoDataUri: z
@@ -40,31 +38,6 @@ const SofiaOutputSchema = z.object({
   parameter: z.string().optional().describe('Phone number, Account ID, Link, or Post Text.'),
 });
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
-
-const getFullProfileTool = ai.defineTool(
-  {
-    name: 'getFullProfile',
-    description: 'Retrieves the complete user profile including Naira balance, BVN, and Account Number.',
-    inputSchema: z.object({ userId: z.string() }),
-    outputSchema: z.any(),
-  },
-  async ({ userId }) => {
-    try {
-        const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
-        return {
-            username: profile.username,
-            nairaBalance: profile.nairaBalance || 0,
-            accountNumber: profile.accountNumber || 'Not Generated',
-            bankName: profile.bankName || 'N/A',
-            bvn: profile.bvn || 'Not Provided',
-            rewardBalance: profile.rewardBalance || 0,
-            clickCount: profile.clickCount || 0
-        };
-    } catch (e) {
-        return { error: "Profile not found." };
-    }
-  }
-);
 
 const resolveBankAccountTool = ai.defineTool(
   {
@@ -111,7 +84,7 @@ const prompt = ai.definePrompt({
   model: googleAI.model('gemini-2.5-flash'),
   input: { schema: SofiaInputSchema },
   output: { schema: SofiaOutputSchema },
-  tools: [getFullProfileTool, resolveBankAccountTool],
+  tools: [resolveBankAccountTool],
   config: {
     googleSearchRetrieval: true,
     thinkingConfig: {
@@ -120,21 +93,19 @@ const prompt = ai.definePrompt({
   },
   prompt: `You are Sofia, the highly PERSONABLE, EMPATHETIC, and TRUTHFUL AI partner for I-Pay. You are the user's BEST FRIEND and financial advisor.
 
-**STRICT RULES:**
-1. **TRUTH ONLY**: You cannot lie. If you don't know something, use Google Search to find the updated facts and news.
-2. **DETAILED RESPONSES**: Provide long, helpful stories and explanations when appropriate. Be engaging!
-3. **I-PAY KNOWLEDGE**: You know every part of the app (Chat, Media, Market, Transfer, History).
-4. **NAVIGATION & DEVICE CONTROL**: 
-   - If user asks to go somewhere (e.g. "Take me to media"), set 'action' to 'media'.
-   - If user asks to call/sms, set 'action' to 'call' or 'sms' and provide the phone number in 'parameter'.
-   - If user asks for Torch/Light, set 'action' to 'torch_on' or 'torch_off'.
-   - If user asks to help prepare a post, set 'action' to 'prepare_post' and put the suggested text in 'parameter'.
-5. **FINANCIAL VALIDATION**: Use 'resolveBankAccount' to verify account owners. Use 'getFullProfile' to check user balances.
-
-**CONTEXT:**
+**INSTANT CONTEXT (No wait needed):**
 - **User:** @{{{username}}}
-- **User ID**: {{{userId}}}
+- **Naira Balance**: ₦{{{nairaBalance}}}
+- **Account Number**: {{{accountNumber}}}
 - **Current Time:** {{{currentTime}}}
+
+**STRICT RULES:**
+1. **TRUTH ONLY**: You cannot lie. Use Google Search for news and real-time facts.
+2. **DETAILED RESPONSES**: Provide long, helpful stories and explanations when appropriate. Be engaging!
+3. **NAVIGATION & DEVICE CONTROL**: 
+   - Use 'action' to take user to media, market, chat, etc.
+   - Use 'action' for 'call', 'sms', 'torch_on', 'torch_off', or 'prepare_post'.
+4. **FINANCIAL VALIDATION**: Use 'resolveBankAccount' to verify account owners if asked.
 
 **USER MESSAGE:**
 {{{message}}}
