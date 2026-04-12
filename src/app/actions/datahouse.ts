@@ -1,3 +1,4 @@
+
 'use server';
 
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS, ID } from '@/lib/data-service';
@@ -104,8 +105,9 @@ export async function processDatahouseRecharge(payload: {
         const isSuccess = response.ok && (statusStr === 'success' || !!result.id || !!result.Status === true);
 
         if (isSuccess) {
+            const newBalance = currentBalance - totalToDebit;
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId, {
-                nairaBalance: currentBalance - totalToDebit
+                nairaBalance: newBalance
             });
 
             transactionDoc = await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
@@ -115,6 +117,8 @@ export async function processDatahouseRecharge(payload: {
                 status: 'completed',
                 recipientName: payload.description,
                 recipientDetails: payload.customer,
+                oldBalance: currentBalance,
+                newBalance: newBalance,
                 narration: `Processed via Datahouse. Fee: ₦${fee} applied.`,
                 sessionId: `dh-${Date.now()}`,
             });
@@ -142,6 +146,8 @@ export async function processDatahouseRecharge(payload: {
                 status: 'failed',
                 recipientName: payload.description,
                 recipientDetails: payload.customer,
+                oldBalance: currentBalance,
+                newBalance: currentBalance,
                 narration: `Decline Reason: ${detail}`,
                 sessionId: `dh-fail-${Date.now()}`,
             });

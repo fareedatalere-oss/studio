@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -9,7 +10,7 @@ import {
     serverTimestamp, setDoc, updateDoc, 
     increment, getDocs, writeBatch, deleteDoc, arrayUnion
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/data-service';
 import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, Forward, Mic, X, CheckCircle2, Check } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -31,11 +32,6 @@ import {
 } from "@/components/ui/dialog";
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
-/**
- * @fileOverview Private Chat Thread.
- * UPGRADED: Fix client-side exception and sender-only indicators.
- */
-
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
     const sortedIds = [userId1, userId2].sort();
@@ -45,7 +41,7 @@ const getChatId = (userId1?: string, userId2?: string) => {
 export default function ChatThreadPage() {
     const params = useParams();
     const router = useRouter();
-    const { user: currentUser } = useUser();
+    const { user: currentUser, profile: currentProfile } = useUser();
     const { toast } = useToast();
 
     const otherUserId = params.id as string;
@@ -85,6 +81,11 @@ export default function ChatThreadPage() {
                 }
             });
             await batch.commit().catch(() => {});
+            
+            // Reset unread count
+            await updateDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
+                [`unreadCount.${currentUser.$id}`]: 0
+            }).catch(() => {});
         };
         markAsSeen();
 
@@ -110,7 +111,7 @@ export default function ChatThreadPage() {
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
     const handleSend = async (textOverride?: string, mediaData?: any) => {
-        if (!chatId || !currentUser) return;
+        if (!chatId || !currentUser || !currentProfile) return;
         const text = textOverride !== undefined ? textOverride : newMessage.trim();
         if (!text && !mediaData) return;
         if (textOverride === undefined && !mediaData) setNewMessage('');
@@ -127,12 +128,25 @@ export default function ChatThreadPage() {
                 deleteFor: [],
                 ...(mediaData && { mediaUrl: mediaData.url, mediaType: mediaData.type })
             });
+
             await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
                 participants: [currentUser.$id, otherUserId],
                 lastMessage: text ? (text.length > 30 ? text.substring(0,30)+'...' : text) : `Shared a file`,
                 lastMessageAt: serverTimestamp(),
                 [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
+
+            // SEND REAL-TIME PUSH NOTIFICATION
+            await setDoc(doc(collection(db, COLLECTION_ID_NOTIFICATIONS)), {
+                userId: otherUserId,
+                senderId: currentUser.$id,
+                type: 'message',
+                description: text || 'Sent you a file.',
+                isRead: false,
+                link: `/dashboard/chat/${currentUser.$id}`,
+                createdAt: new Date().toISOString()
+            });
+
         } catch (e) { toast({ variant: 'destructive', title: 'Send Error' }); }
     };
 
@@ -272,7 +286,18 @@ export default function ChatThreadPage() {
                                                 : (msg.timestamp ? format(msg.timestamp, 'HH:mm') : '...')}
                                         </span>
                                         {isMine && (
-                                            msg.status === 'seen' ? <CheckCircle2 className="h-2 w-2 text-white" /> : <Check className="h-2 w-2 text-white/50" />
+                                            <div className="flex items-center -mb-0.5">
+                                                {msg.status === 'seen' ? (
+                                                    <CheckCircle2 className="h-2 w-2 text-white" />
+                                                ) : otherUser?.isOnline ? (
+                                                    <div className="flex gap-px">
+                                                        <Check className="h-2 w-2 text-white/80" />
+                                                        <Check className="h-2 w-2 text-white/80 -ml-1" />
+                                                    </div>
+                                                ) : (
+                                                    <Check className="h-2 w-2 text-white/40" />
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 </div>
