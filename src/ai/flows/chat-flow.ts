@@ -1,13 +1,17 @@
+
 'use server';
 /**
  * @fileOverview Sofia - High-Speed Intelligence Agent.
- * OPTIMIZED: Removed thinking config for <5s response time.
- * CONCISE: Priority on speed and truthful context.
+ * MASTER VERCEL CONFIG: Extended maxDuration to prevent timeouts.
+ * CONCISE: Optimized for 5s instant response path.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
+
+// MASTER CONFIG: Force Vercel to allow Sofia up to 2 minutes for complex thought if needed.
+export const maxDuration = 120;
 
 const SofiaInputSchema = z.object({
   message: z.string().describe('The user message.'),
@@ -76,10 +80,10 @@ const prompt = ai.definePrompt({
   prompt: `You are Sofia, the FAST and TRUTHFUL AI partner for I-Pay. 
 
 **RULES:**
-1. **BE CONCISE**: Respond quickly and accurately. Do not tell long stories.
+1. **BE CONCISE**: Respond quickly and accurately. Your goal is a response within 5 seconds.
 2. **USE CONTEXT**: You already know the user's balance (₦{{{nairaBalance}}}) and account ({{{accountNumber}}}).
 3. **VALIDATION**: If asked to verify BVN/NIN/Phone, say you can do it and use 'request_validation' action.
-4. **NO SEARCH**: Do not perform long external searches. Use your internal knowledge.
+4. **NO LONG SEARCH**: Deliver answers based on your internal knowledge and provided context immediately.
 
 **USER:** @{{{username}}}
 **MESSAGE:** {{{message}}}

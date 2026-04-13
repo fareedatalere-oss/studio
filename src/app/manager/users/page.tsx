@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +42,7 @@ import Link from 'next/link';
 /**
  * @fileOverview Manager Users Page.
  * UPGRADED: Added Suspend, Block, and Delete master logic.
+ * FIXED: Badge reference error.
  */
 
 export default function ManagerUsersPage() {

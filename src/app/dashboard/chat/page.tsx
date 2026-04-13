@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -19,8 +20,9 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 /**
- * @fileOverview Chat Center - CRASH PROOF VERSION.
+ * @fileOverview Chat Center - CRASH PROOF & INSTANT LOAD VERSION.
  * SHIELDED: Prevents "client-side exception" by deferring browser-only logic and using extreme null-safety.
+ * FORCED: Layout shows immediately; loading state is confined to content areas.
  */
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
@@ -173,8 +175,8 @@ export default function ChatPage() {
         ), [recentChats, searchRecent]
     );
 
-    if (!isMounted || userLoading) {
-        return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary h-8 w-8" /></div>;
+    if (!isMounted) {
+        return null;
     }
 
     return (
@@ -199,7 +201,7 @@ export default function ChatPage() {
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
                             <Input placeholder="Search recent..." className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none shadow-none font-bold" value={searchRecent} onChange={(e) => setSearchRecent(e.target.value)} />
                         </div>
-                        {loading ? <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary/30" /></div> : filteredRecent.length > 0 ? (
+                        {(loading || userLoading) ? <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary/30" /></div> : filteredRecent.length > 0 ? (
                             <div className="space-y-1">
                                 {filteredRecent.map(chat => <RecentChatItem key={chat?.$id} chat={chat} currentUser={currentUser} />)}
                             </div>
@@ -212,7 +214,7 @@ export default function ChatPage() {
                             <Input placeholder="Search users..." className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none shadow-none font-bold" value={searchAll} onChange={(e) => setSearchAll(e.target.value)} />
                         </div>
                         <div className="grid gap-1">
-                            {filteredUsers.map(u => (
+                            {userLoading ? <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary/30" /></div> : filteredUsers.map(u => (
                                 <Link key={u?.$id} href={`/dashboard/chat/${u?.$id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all active:scale-[0.98]">
                                     <div className="relative">
                                         <Avatar className="h-12 w-12 border-2 border-primary/10 shadow-sm"><AvatarImage src={u.avatar} className="object-cover" /><AvatarFallback className="font-black bg-muted text-foreground/50">{u.username?.charAt(0) || '?'}</AvatarFallback></Avatar>
