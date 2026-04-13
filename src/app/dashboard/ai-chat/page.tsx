@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Languages, Mic, Send, Loader2, Trash2, ImageIcon, X, Search, Globe, BrainCircuit, Lightbulb, ShieldCheck, Fingerprint } from 'lucide-react';
+import { Globe, BrainCircuit, Loader2, ImageIcon, Send, X, Fingerprint, ShieldCheck } from 'lucide-react';
 import { chatSofia } from '@/ai/flows/chat-flow';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/use-user';
@@ -32,9 +32,9 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import { format } from 'date-fns';
 
 /**
- * @fileOverview Sofia AI Chat - Optimized for Instant Opening.
- * PROACTIVE: Pre-loads profile data to avoid AI delay.
- * SECURE: Handles NIN/BVN validation requests from Sofia.
+ * @fileOverview Sofia AI Chat - HIGH SPEED VERSION.
+ * FORCED: Simplified AI brain for <5s response time.
+ * SHIELDED: Deferring navigator APIs to prevent Vercel hydration errors.
  */
 
 type Message = {
@@ -43,7 +43,6 @@ type Message = {
     text: string;
     image?: string;
     timestamp: number;
-    thoughts?: string;
 }
 
 export default function AiChatPage() {
@@ -56,15 +55,12 @@ export default function AiChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [selectedLanguage, setSelectedLanguage] = useState('English');
-  const [locationStr, setLocationStr] = useState('Global Hub');
+  const [locationStr, setLocationStr] = useState('I-Pay Hub');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [isLangPopoverOpen, setIsLangPopoverOpen] = useState(false);
   
   const [validationRequest, setValidationRequest] = useState<string | null>(null);
   const [validationValue, setValidationValue] = useState('');
-  
-  const [msgToDelete, setMsgToDelete] = useState<string | null>(null);
-  const [torchStream, setTorchStream] = useState<MediaStream | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -94,7 +90,7 @@ export default function AiChatPage() {
             setMessages([{
                 $id: 'welcome',
                 role: 'sofia',
-                text: "Hello! I am Sofia, your best friend and I-Pay companion. I am pre-loaded with your profile data and ready to assist instantly.",
+                text: "Hello! I am Sofia. I know your profile details and I'm ready to assist you instantly. How can I help?",
                 timestamp: Date.now()
             }]);
         } else {
@@ -103,8 +99,7 @@ export default function AiChatPage() {
                 role: doc.senderId === user?.$id ? 'user' : 'sofia',
                 text: doc.text || '',
                 image: doc.image,
-                timestamp: safeGetTime(doc),
-                thoughts: doc.thoughts
+                timestamp: safeGetTime(doc)
             } as Message));
 
             mapped.sort((a, b) => a.timestamp - b.timestamp);
@@ -117,6 +112,7 @@ export default function AiChatPage() {
   }, [chatId, user?.$id]);
 
   useEffect(() => {
+    setIsMounted(true);
     if (!chatId) return;
     fetchHistory();
 
@@ -129,16 +125,11 @@ export default function AiChatPage() {
 
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((pos) => {
-            setLocationStr(`Location: ${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)}`);
+            setLocationStr(`Location: ${pos.coords.latitude.toFixed(1)}, ${pos.coords.longitude.toFixed(1)}`);
         }, () => {});
     }
 
-    return () => {
-        unsub();
-        if (torchStream) {
-            torchStream.getTracks().forEach(t => t.stop());
-        }
-    };
+    return () => unsub();
   }, [chatId, fetchHistory]);
 
   useEffect(() => {
@@ -186,21 +177,20 @@ export default function AiChatPage() {
           chatId: chatId,
           senderId: 'sofia_system',
           text: response.text,
-          status: 'sent',
-          thoughts: response.thoughts
+          status: 'sent'
       });
       
       if (response.action && response.action !== 'none') {
           handleSofiaAction(response.action, response.parameter);
       }
     } catch (error: any) {
-      toast({ variant: 'destructive', title: "Sofia Timeout", description: "The research took longer than expected. Try a shorter question." });
+      toast({ variant: 'destructive', title: "Sofia Timeout", description: "Try a shorter question." });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSofiaAction = async (action: string, param?: string) => {
+  const handleSofiaAction = (action: string, param?: string) => {
     switch (action) {
         case 'logout': account.deleteSession('current').then(() => router.push('/auth/signin')); break;
         case 'call': window.location.href = `tel:${param || ''}`; break;
@@ -212,48 +202,13 @@ export default function AiChatPage() {
         case 'chat': router.push('/dashboard/chat'); break;
         case 'profile': router.push('/dashboard/profile'); break;
         case 'home': router.push('/dashboard'); break;
-        case 'request_validation': 
-            setValidationRequest(param || 'BVN/NIN/Phone');
-            break;
-        case 'prepare_post': 
-            router.push(`/dashboard/media/upload/text?initialText=${encodeURIComponent(param || '')}`); 
-            break;
-        case 'torch_on':
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                const track = stream.getVideoTracks()[0];
-                if (track.getCapabilities().torch) {
-                    await track.applyConstraints({ advanced: [{ torch: true }] } as any);
-                    setTorchStream(stream);
-                    toast({ title: "Torch Active" });
-                }
-            } catch (e) {}
-            break;
-        case 'torch_off':
-            if (torchStream) {
-                torchStream.getTracks().forEach(t => t.stop());
-                setTorchStream(null);
-                toast({ title: "Torch Off" });
-            }
-            break;
+        case 'request_validation': setValidationRequest(param || 'BVN/NIN/Phone'); break;
+        case 'prepare_post': router.push(`/dashboard/media/upload/text?initialText=${encodeURIComponent(param || '')}`); break;
         default: break;
     }
   }
 
-  const handleDeleteMessage = async () => {
-      if (!msgToDelete) return;
-      try {
-          await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, msgToDelete);
-          fetchHistory();
-      } catch (e) {} finally { setMsgToDelete(null); }
-  };
-
-  const handleValidationSubmit = () => {
-      if (!validationValue.trim()) return;
-      const msg = `Verify ${validationRequest}: ${validationValue}`;
-      setValidationValue('');
-      handleSend(msg);
-  };
+  if (!isMounted) return null;
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -264,27 +219,24 @@ export default function AiChatPage() {
                 <AvatarFallback className="bg-primary text-white">S</AvatarFallback>
             </Avatar>
             <div>
-                <h2 className="font-black text-xs uppercase tracking-widest text-primary">Sofia Assistant</h2>
+                <h2 className="font-black text-xs uppercase tracking-widest text-primary">Sofia High-Speed</h2>
                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{locationStr}</p>
             </div>
         </div>
-        <div className="flex items-center gap-2">
-            {torchStream && <Lightbulb className="h-4 w-4 text-yellow-500 animate-pulse" />}
-            <Popover open={isLangPopoverOpen} onOpenChange={setIsLangPopoverOpen}>
-                <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 rounded-full font-black uppercase text-[9px] gap-2">
-                        <Globe className="h-3 w-3 text-primary" /> {selectedLanguage}
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-[200px] p-0 rounded-2xl overflow-hidden border-primary/20">
-                    <ScrollArea className="h-[200px]">
-                        {['English', 'Hausa', 'Yoruba', 'Igbo', 'French'].map(l => (
-                            <Button key={l} variant="ghost" className="w-full justify-start text-[10px] font-bold uppercase h-10" onClick={() => { setSelectedLanguage(l); setIsLangPopoverOpen(false); }}>{l}</Button>
-                        ))}
-                    </ScrollArea>
-                </PopoverContent>
-            </Popover>
-        </div>
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 rounded-full font-black uppercase text-[9px] gap-2">
+                    <Globe className="h-3 w-3 text-primary" /> {selectedLanguage}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[200px] p-0 rounded-2xl overflow-hidden">
+                <ScrollArea className="h-[200px]">
+                    {['English', 'Hausa', 'Yoruba', 'Igbo'].map(l => (
+                        <Button key={l} variant="ghost" className="w-full justify-start text-[10px] font-bold uppercase h-10" onClick={() => setSelectedLanguage(l)}>{l}</Button>
+                    ))}
+                </ScrollArea>
+            </PopoverContent>
+        </Popover>
       </header>
 
       <div className="flex-1 p-4 overflow-y-auto space-y-6 pb-40">
@@ -292,27 +244,13 @@ export default function AiChatPage() {
             <div className="flex justify-center p-10"><Loader2 className="animate-spin h-8 w-8 text-primary/30" /></div>
         ) : messages.map((msg) => (
             <div key={msg.$id} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
-                <div 
-                    onClick={() => setMsgToDelete(msg.$id)}
-                    className={cn(
-                        "max-w-[85%] rounded-[1.5rem] p-4 text-sm relative shadow-sm cursor-pointer",
-                        msg.role === 'user' 
-                            ? "bg-primary text-white rounded-tr-none" 
-                            : "bg-muted text-foreground rounded-tl-none border"
-                    )}
-                >
+                <div className={cn("max-w-[85%] rounded-[1.5rem] p-4 text-sm relative shadow-sm", msg.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none border")}>
                     {msg.image && (
                         <div className="mb-3 relative h-48 w-full rounded-xl overflow-hidden">
                             <Image src={msg.image} alt="Upload" fill className="object-cover" unoptimized />
                         </div>
                     )}
                     <p className="font-bold leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                    {msg.role === 'sofia' && msg.thoughts && (
-                        <div className="mt-3 pt-3 border-t border-black/5 flex items-start gap-2 opacity-40 italic text-[10px]">
-                            <BrainCircuit className="h-3 w-3 shrink-0 mt-0.5" />
-                            <p>{msg.thoughts}</p>
-                        </div>
-                    )}
                 </div>
                 <span className="text-[8px] font-black uppercase text-muted-foreground mt-2 px-2">
                     {format(new Date(msg.timestamp), 'HH:mm')}
@@ -327,15 +265,10 @@ export default function AiChatPage() {
                         <Fingerprint className="h-5 w-5" />
                         <p className="font-black uppercase text-xs tracking-tighter">Secure Validation</p>
                     </div>
-                    <p className="text-[10px] font-bold opacity-70">Sofia is ready to investigate. Please provide the {validationRequest} below.</p>
+                    <p className="text-[10px] font-bold opacity-70">Enter {validationRequest} below.</p>
                     <div className="flex gap-2">
-                        <Input 
-                            placeholder={`Enter ${validationRequest}...`}
-                            value={validationValue}
-                            onChange={e => setValidationValue(e.target.value)}
-                            className="bg-white border-none h-10 rounded-xl font-bold shadow-sm"
-                        />
-                        <Button onClick={handleValidationSubmit} size="sm" className="rounded-xl font-black uppercase text-[10px]">Verify</Button>
+                        <Input placeholder={`Enter ${validationRequest}...`} value={validationValue} onChange={e => setValidationValue(e.target.value)} className="bg-white border-none h-10 rounded-xl font-bold shadow-sm" />
+                        <Button onClick={() => { if(!validationValue.trim()) return; const m = `Verify ${validationRequest}: ${validationValue}`; setValidationValue(''); handleSend(m); }} size="sm" className="rounded-xl font-black uppercase text-[10px]">Verify</Button>
                     </div>
                 </div>
             </div>
@@ -345,7 +278,7 @@ export default function AiChatPage() {
             <div className="flex justify-start">
                 <div className="bg-muted border rounded-[1.5rem] p-4 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 animate-pulse">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    Sofia is thinking... 💭
+                    Processing...
                 </div>
             </div>
         )}
@@ -354,12 +287,7 @@ export default function AiChatPage() {
 
       <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t pb-20 z-50">
         <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 max-w-2xl mx-auto px-2">
-          <Input 
-            placeholder={`Ask Sofia anything...`} 
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            className="h-12 bg-muted/50 border-none rounded-[1.2rem] px-6 font-bold shadow-inner"
-          />
+          <Input placeholder={`Ask Sofia...`} value={input} onChange={e => setInput(e.target.value)} className="h-12 bg-muted/50 border-none rounded-[1.2rem] px-6 font-bold shadow-inner" />
           <Button variant="ghost" size="icon" type="button" onClick={() => fileInputRef.current?.click()} className={cn("h-12 w-12 rounded-full", selectedImage && "text-primary bg-primary/10")}>
             <ImageIcon className="h-6 w-6" />
           </Button>
@@ -369,16 +297,6 @@ export default function AiChatPage() {
           </Button>
         </form>
       </footer>
-
-      <AlertDialog open={!!msgToDelete} onOpenChange={(o) => !o && setMsgToDelete(null)}>
-          <AlertDialogContent className="rounded-[2rem]">
-              <AlertDialogHeader><AlertDialogTitle>Delete History?</AlertDialogTitle></AlertDialogHeader>
-              <AlertDialogFooter className="flex-row gap-2">
-                  <AlertDialogCancel className="flex-1 rounded-xl font-black uppercase text-[10px]">Keep</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteMessage} className="flex-1 rounded-xl font-black uppercase text-[10px] bg-destructive text-white">Delete</AlertDialogAction>
-              </AlertDialogFooter>
-          </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
