@@ -46,6 +46,7 @@ export const COLLECTION_ID_UPWORK_PROFILES = 'upworkProfiles';
 export const COLLECTION_ID_POST_COMMENTS = 'postComments';
 export const COLLECTION_ID_MEETINGS = 'meetings';
 export const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
+export const BUCKET_ID_UPLOADS = 'uploads';
 
 const sanitize = (data: any) => {
     if (!data || typeof data !== 'object') return data;
