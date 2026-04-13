@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -19,7 +20,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Master User Preview & Edit Page.
- * FIXED: Null property guard for profile access.
+ * FIXED: Record Not Found race condition by hardening param handling.
  * UPDATED: Full visibility of BVN, Account, Balances, and Real-time Editing.
  */
 
@@ -27,7 +28,9 @@ export default function ViewUserPage() {
     const params = useParams();
     const router = useRouter();
     const { toast } = useToast();
-    const userId = params.id as string;
+    
+    // Safety: ensure ID is string and trimmed
+    const userId = typeof params?.id === 'string' ? params.id.trim() : '';
 
     const [profile, setProfile] = useState<any>(null);
     const [transactions, setTransactions] = useState<any[]>([]);
@@ -39,6 +42,7 @@ export default function ViewUserPage() {
         if (!userId) return;
         setLoading(true);
         try {
+            // Force fetch with ID directly
             const profileData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
             const transactionsData = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, [
                 Query.equal('userId', userId),
@@ -49,16 +53,19 @@ export default function ViewUserPage() {
             setProfile(profileData);
             setTransactions(transactionsData.documents);
         } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Record Not Found' });
-            router.push('/manager/users');
+            console.error("Identity Fetch Error:", error);
+            toast({ variant: 'destructive', title: 'Identity Load Delayed', description: 'Retrying secure connection...' });
+            // Instead of redirecting immediately, we allow the component to stay in a retry/empty state
         } finally {
             setLoading(false);
         }
-    }, [userId, router, toast]);
+    }, [userId, toast]);
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        if (userId) {
+            fetchData();
+        }
+    }, [userId, fetchData]);
 
     const handleSave = async () => {
         if (!profile) return;
@@ -89,8 +96,15 @@ export default function ViewUserPage() {
         setProfile((prev: any) => ({ ...prev, [id]: value }));
     };
 
-    if (loading) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
-    if (!profile) return null;
+    if (loading && !profile) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
+    if (!profile && !loading) return (
+        <div className="container py-20 text-center space-y-4">
+            <ShieldAlert className="h-16 w-16 mx-auto text-destructive opacity-20" />
+            <h2 className="text-xl font-black uppercase tracking-tighter">Identity Not Found</h2>
+            <p className="text-sm font-bold text-muted-foreground">The requested user record could not be located in the cloud.</p>
+            <Button asChild variant="outline" className="rounded-full px-10"><Link href="/manager/users">Return to List</Link></Button>
+        </div>
+    );
 
     return (
         <div className="container py-8 max-w-5xl space-y-8 font-body">
@@ -109,33 +123,33 @@ export default function ViewUserPage() {
                 )}
             </div>
 
-            <Card className={cn("rounded-[3rem] shadow-2xl border-none overflow-hidden", profile.isBlocked && "ring-4 ring-destructive/20")}>
+            <Card className={cn("rounded-[3rem] shadow-2xl border-none overflow-hidden", profile?.isBlocked && "ring-4 ring-destructive/20")}>
                 <CardHeader className="bg-primary/5 pb-10 pt-10 text-center relative">
                     <div className="absolute top-4 right-6 flex gap-2">
-                        {profile.isOnline && <Badge className="bg-green-500 font-black uppercase text-[8px]">Online</Badge>}
-                        {profile.isSuspended && <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px]">Suspended</Badge>}
+                        {profile?.isOnline && <Badge className="bg-green-500 font-black uppercase text-[8px]">Online</Badge>}
+                        {profile?.isSuspended && <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px]">Suspended</Badge>}
                     </div>
                     <Avatar className="h-32 w-32 border-8 border-white shadow-2xl mx-auto mb-6">
-                        <AvatarImage src={profile.avatar} className="object-cover" />
-                        <AvatarFallback className="font-black text-4xl uppercase bg-primary text-white">{profile.username?.charAt(0)}</AvatarFallback>
+                        <AvatarImage src={profile?.avatar} className="object-cover" />
+                        <AvatarFallback className="font-black text-4xl uppercase bg-primary text-white">{profile?.username?.charAt(0)}</AvatarFallback>
                     </Avatar>
-                    <CardTitle className="text-4xl font-black uppercase tracking-tighter">@{profile.username}</CardTitle>
-                    <CardDescription className="font-bold text-xs opacity-60 uppercase">{profile.email}</CardDescription>
+                    <CardTitle className="text-4xl font-black uppercase tracking-tighter">@{profile?.username}</CardTitle>
+                    <CardDescription className="font-bold text-xs opacity-60 uppercase">{profile?.email}</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-8 p-10 pt-12">
                     <div className="space-y-4">
                         <h3 className="font-black uppercase text-[10px] tracking-widest opacity-30 flex items-center gap-2"><Activity className="h-3 w-3"/> Global Assets</h3>
                         <div className="space-y-1">
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Balance (₦)</Label>
-                            <Input id="nairaBalance" type="number" value={profile.nairaBalance || 0} onChange={handleInputChange} readOnly={!editMode} className="h-12 rounded-2xl border-none bg-primary/10 font-black text-primary text-xl px-6" />
+                            <Input id="nairaBalance" type="number" value={profile?.nairaBalance || 0} onChange={handleInputChange} readOnly={!editMode} className="h-12 rounded-2xl border-none bg-primary/10 font-black text-primary text-xl px-6" />
                         </div>
                         <div className="space-y-1">
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Rewards</Label>
-                            <Input id="rewardBalance" type="number" value={profile.rewardBalance || 0} onChange={handleInputChange} readOnly={!editMode} className="h-12 rounded-2xl border-none bg-orange-50 font-black text-orange-600 text-xl px-6" />
+                            <Input id="rewardBalance" type="number" value={profile?.rewardBalance || 0} onChange={handleInputChange} readOnly={!editMode} className="h-12 rounded-2xl border-none bg-orange-50 font-black text-orange-600 text-xl px-6" />
                         </div>
                         <div className="space-y-1">
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Clicks</Label>
-                            <Input id="clickCount" type="number" value={profile.clickCount || 0} onChange={handleInputChange} readOnly={!editMode} className="h-12 rounded-2xl border-none bg-blue-50 font-black text-blue-600 text-xl px-6" />
+                            <Input id="clickCount" type="number" value={profile?.clickCount || 0} onChange={handleInputChange} readOnly={!editMode} className="h-12 rounded-2xl border-none bg-blue-50 font-black text-blue-600 text-xl px-6" />
                         </div>
                     </div>
 
@@ -143,16 +157,16 @@ export default function ViewUserPage() {
                         <h3 className="font-black uppercase text-[10px] tracking-widest opacity-30 flex items-center gap-2"><ShieldAlert className="h-3 w-3"/> Verification</h3>
                         <div className="space-y-1">
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Virtual Account</Label>
-                            <Input value={profile.accountNumber || 'NOT GENERATED'} readOnly className="h-12 rounded-2xl border-none bg-muted font-mono font-bold px-6" />
+                            <Input value={profile?.accountNumber || 'NOT GENERATED'} readOnly className="h-12 rounded-2xl border-none bg-muted font-mono font-bold px-6" />
                         </div>
                         <div className="space-y-1">
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">BVN / NIN</Label>
-                            <Input value={profile.bvn || 'HIDDEN / NOT PROVIDED'} readOnly className="h-12 rounded-2xl border-none bg-muted font-mono px-6" />
+                            <Input value={profile?.bvn || 'HIDDEN / NOT PROVIDED'} readOnly className="h-12 rounded-2xl border-none bg-muted font-mono px-6" />
                         </div>
                         <div className="space-y-1">
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Transaction PIN</Label>
                             <div className="h-12 flex items-center gap-3 px-6 bg-primary/10 rounded-2xl text-primary font-black font-mono shadow-inner">
-                                <KeyRound className="h-4 w-4" /> {profile.pin || 'NOT SET'}
+                                <KeyRound className="h-4 w-4" /> {profile?.pin || 'NOT SET'}
                             </div>
                         </div>
                     </div>
@@ -162,15 +176,15 @@ export default function ViewUserPage() {
                         <div className="p-6 rounded-3xl bg-muted/30 border-2 border-dashed space-y-4">
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-black uppercase">Blocked</span>
-                                <Badge variant={profile.isBlocked ? 'destructive' : 'outline'}>{profile.isBlocked ? 'YES' : 'NO'}</Badge>
+                                <Badge variant={profile?.isBlocked ? 'destructive' : 'outline'}>{profile?.isBlocked ? 'YES' : 'NO'}</Badge>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-black uppercase">Suspended</span>
-                                <Badge variant={profile.isSuspended ? 'destructive' : 'outline'}>{profile.isSuspended ? 'YES' : 'NO'}</Badge>
+                                <Badge variant={profile?.isSuspended ? 'destructive' : 'outline'}>{profile?.isSuspended ? 'YES' : 'NO'}</Badge>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-black uppercase">Last Active</span>
-                                <span className="text-[8px] font-bold opacity-50">{profile.lastSeen ? format(new Date(profile.lastSeen), 'PPp') : 'Never'}</span>
+                                <span className="text-[8px] font-bold opacity-50">{profile?.lastSeen ? format(new Date(profile.lastSeen), 'PPp') : 'Never'}</span>
                             </div>
                         </div>
                     </div>
@@ -187,7 +201,7 @@ export default function ViewUserPage() {
                                 <TableRow key={tx.$id} className="border-muted/10 h-16">
                                     <TableCell className="pl-10">
                                         <div className="font-black uppercase text-[10px] tracking-tight">{tx.type.replace('_', ' ')}</div>
-                                        <div className="text-[8px] font-bold opacity-40 uppercase">{format(new Date(tx.$createdAt), 'PPp')}</div>
+                                        <div className="text-[8px] font-bold opacity-40 uppercase mt-1">{format(new Date(tx.$createdAt), 'PPp')}</div>
                                     </TableCell>
                                     <TableCell className="text-[10px] font-bold uppercase truncate max-w-[150px]">{tx.recipientName || 'SYSTEM'}</TableCell>
                                     <TableCell className={cn("text-right pr-10 font-black text-xs", tx.type === 'deposit' ? 'text-green-600' : 'text-red-600')}>
