@@ -216,7 +216,7 @@ export default function ChatPage() {
                             {userLoading ? <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary/30" /></div> : filteredUsers.map(u => (
                                 <Link key={u?.$id} href={`/dashboard/chat/${u?.$id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all active:scale-[0.98]">
                                     <div className="relative">
-                                        <Avatar className="h-12 w-12 border-2 border-primary/10 shadow-sm"><AvatarImage src={u.avatar} className="object-cover" /><AvatarFallback className="font-black bg-muted text-foreground/50">{u.username?.charAt(0) || '?'}</AvatarFallback></Avatar>
+                                        <Avatar className="h-12 w-12 border-2 border-primary/10 shadow-sm"><AvatarImage src={u.avatar} /><AvatarFallback className="font-black bg-muted text-foreground/50">{u.username?.charAt(0) || '?'}</AvatarFallback></Avatar>
                                         {u.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white"></div>}
                                     </div>
                                     <div className="flex-1 overflow-hidden"><p className="font-bold text-xs tracking-tight text-foreground/80">@{u.username || 'user'}</p><p className="text-[8px] font-bold uppercase text-primary/60">{u.isOnline ? 'Online Now' : 'Offline'}</p></div>

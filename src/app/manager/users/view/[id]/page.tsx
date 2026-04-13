@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -20,6 +19,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Master User Preview & Edit Page.
+ * FIXED: Null property guard for profile access.
  * UPDATED: Full visibility of BVN, Account, Balances, and Real-time Editing.
  */
 
@@ -90,6 +90,7 @@ export default function ViewUserPage() {
     };
 
     if (loading) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
+    if (!profile) return null;
 
     return (
         <div className="container py-8 max-w-5xl space-y-8 font-body">

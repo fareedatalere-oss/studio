@@ -1,4 +1,3 @@
-
 'use server';
 
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS, ID } from '@/lib/data-service';
