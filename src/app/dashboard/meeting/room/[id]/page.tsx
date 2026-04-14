@@ -19,7 +19,8 @@ import Link from 'next/link';
 
 /**
  * @fileOverview Master Meeting Room Page.
- * FORCE Sync: TERMINATED automatic redirects. App stays locked unless Ended by Host.
+ * HARDENED Sync: Checked definitively against DB. NO auto-redirects.
+ * FIXED: One icon per user (no duplicates).
  */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -51,10 +52,13 @@ export default function MeetingRoomPage() {
         try {
             const docData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
             setMeeting(docData);
-        } catch (e) { 
-            // Silent error to prevent flash redirection
-        } finally { setLoading(false); }
-    }, [meetingId]);
+            
+            // CRITICAL: Only redirect if DEFINITELY ended in DB
+            if (docData.status === 'ended' || docData.status === 'cancelled') {
+                router.replace('/dashboard/meeting');
+            }
+        } catch (e) {} finally { setLoading(false); }
+    }, [meetingId, router]);
 
     const fetchAttendees = useCallback(async () => {
         try {
@@ -62,7 +66,13 @@ export default function MeetingRoomPage() {
                 Query.equal('meetingId', meetingId),
                 Query.limit(100)
             ]);
-            setParticipants(res.documents.filter(doc => doc.status === 'approved'));
+            
+            // FORCE: Unique Icons Only
+            const uniqueApproved = Array.from(new Map(
+                res.documents.filter(doc => doc.status === 'approved').map(p => [p.userId, p])
+            ).values());
+
+            setParticipants(uniqueApproved);
             setRequests(res.documents.filter(doc => doc.status === 'waiting'));
         } catch (e) {}
     }, [meetingId]);
@@ -77,7 +87,7 @@ export default function MeetingRoomPage() {
             const payload = response.payload as any;
             if (!payload) return;
 
-            // FORCE: Only exit if the status is definitively 'ended' or 'cancelled'
+            // FORCE: Zero system automatic kickout. Only trigger on explicit status change.
             if (payload.status === 'ended' || payload.status === 'cancelled') {
                 toast({ title: 'Session Ended', description: 'The host has closed this meeting.' });
                 router.replace('/dashboard/meeting');
@@ -116,9 +126,6 @@ export default function MeetingRoomPage() {
 
     return (
         <div className="h-screen w-full bg-black text-white flex flex-col overflow-hidden relative font-body">
-            {/* Audio Force Chime */}
-            <audio ref={audioSyncRef} autoPlay playsInline muted={false} className="hidden" src="https://assets.mixkit.co/sfx/preview/mixkit-silent-fast-thud-2094.mp3" />
-
             <header className="p-4 pt-12 flex justify-between items-center bg-black/50 border-b border-white/5 z-50">
                 <div className="flex-1">
                     <h1 className="font-black uppercase text-xs tracking-widest text-primary truncate">{meeting.name}</h1>

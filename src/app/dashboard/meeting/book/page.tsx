@@ -52,7 +52,7 @@ export default function BookMeetingPage() {
     try {
         const meetingId = doc(collection(db, COLLECTION_ID_MEETINGS)).id;
         
-        // FORCE: Link is for GUESTS ONLY (no role=admin parameter)
+        // FORCE: Link is for GUESTS ONLY
         const generatedGuestLink = `${window.location.origin}/dashboard/meeting/join/${meetingId}`;
         
         const todayStr = format(new Date(), 'yyyy-MM-dd');

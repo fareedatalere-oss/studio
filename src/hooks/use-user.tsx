@@ -7,7 +7,7 @@ import { doc, serverTimestamp, onSnapshot, getDoc, setDoc } from 'firebase/fires
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { toast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Unified Master Auth & Data Hook.
