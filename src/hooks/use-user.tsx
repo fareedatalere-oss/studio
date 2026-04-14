@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Unified Master Auth & Data Hook.
- * FORCE: Zero automatic redirects to profile setup. No hydration crashes.
+ * FORCE: Zero automatic redirects to profile setup for immersive routes.
  * SHIELDED: Background data sync for instant loading.
  */
 
@@ -43,6 +43,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
     
     const router = useRouter();
     const pathname = usePathname();
+
+    const isImmersive = pathname?.includes('/room/') || pathname?.includes('/call/') || pathname?.includes('/join/');
 
     const fetchConfig = useCallback(async () => {
         try {
@@ -113,8 +115,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 if (unsubProfile) unsubProfile();
                 setIsLoading(false);
                 
-                // Auth protection for dashboard routes
-                if (!pathname.includes('/auth') && pathname.startsWith('/dashboard')) {
+                // Auth protection for dashboard routes (unless immersive/link based)
+                if (!pathname.includes('/auth') && pathname.startsWith('/dashboard') && !isImmersive) {
                     router.replace('/auth/signin');
                 }
             }
@@ -124,7 +126,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             unsubAuth(); 
             if(unsubProfile) unsubProfile(); 
         };
-    }, [pathname, router, fetchConfig]);
+    }, [pathname, router, fetchConfig, isImmersive]);
 
     const recheck = async () => {
         // Handled by snapshot sync
@@ -134,7 +136,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     return (
         <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, recheckUser: recheck }}>
-            <div className={cn("min-h-screen transition-opacity duration-500", isLoading ? "opacity-50 pointer-events-none" : "opacity-100")}>
+            <div className={cn("min-h-screen transition-opacity duration-500", isLoading && !isImmersive ? "opacity-50 pointer-events-none" : "opacity-100")}>
                 {children}
             </div>
         </UserContext.Provider>

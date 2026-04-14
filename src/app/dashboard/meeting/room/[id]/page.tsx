@@ -20,6 +20,7 @@ import Link from 'next/link';
 /**
  * @fileOverview Master Meeting Room Page.
  * FORCE Sync: High-visibility Admin approval bar with live previews.
+ * STABILITY: No automatic redirection unless Host explicitly ends meeting.
  */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -38,7 +39,6 @@ export default function MeetingRoomPage() {
     const [loading, setLoading] = useState(true);
     const [participants, setParticipants] = useState<any[]>([]);
     const [requests, setRequests] = useState<any[]>([]);
-    const [isAudioSyncing, setIsAudioSyncing] = useState(false);
     
     const mySetup = useMemo(() => {
         if (typeof window === 'undefined') return null;
@@ -52,7 +52,10 @@ export default function MeetingRoomPage() {
         try {
             const docData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
             setMeeting(docData);
-        } catch (e) { router.replace('/dashboard/meeting'); } finally { setLoading(false); }
+        } catch (e) { 
+            // Only redirect if meeting is actually gone
+            router.replace('/dashboard/meeting'); 
+        } finally { setLoading(false); }
     }, [meetingId, router]);
 
     const fetchAttendees = useCallback(async () => {
@@ -74,7 +77,9 @@ export default function MeetingRoomPage() {
         
         const unsubMeeting = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${meetingId}`], response => {
             const payload = response.payload as any;
+            // FORCE: Only redirect if status is definitively Ended or Cancelled
             if (payload.status === 'ended' || payload.status === 'cancelled') {
+                toast({ title: 'Session Ended', description: 'The host has closed this meeting.' });
                 router.replace('/dashboard/meeting');
                 return;
             }
@@ -93,7 +98,7 @@ export default function MeetingRoomPage() {
         }
 
         return () => { unsubMeeting(); unsubAttendees(); };
-    }, [meetingId, fetchMeeting, fetchAttendees, router, mySetup?.useCamera]);
+    }, [meetingId, fetchMeeting, fetchAttendees, router, mySetup?.useCamera, toast]);
 
     const handleAction = async (requestId: string, status: 'approved' | 'declined') => {
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, requestId, { status });
@@ -101,7 +106,9 @@ export default function MeetingRoomPage() {
     };
 
     const handleEndMeeting = async () => {
-        if (isAdmin) await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'ended' });
+        if (isAdmin) {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'ended' });
+        }
         router.replace('/dashboard/meeting');
     };
 
