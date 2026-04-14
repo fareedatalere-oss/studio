@@ -111,9 +111,12 @@ const prompt = ai.definePrompt({
 - User: @{{{username}}} | Balance: ₦{{{nairaBalance}}} | Account: {{{accountNumber}}} | Location: {{{location}}}.
 - Do not ask for these details; you already have them.
 
-**VERIFICATION FORCE**:
-- If user mentions NIN, BVN, or Phone, say: "I am ready to investigate. Provide details." and trigger 'request_validation'.
-- If asked to check a bank account, use 'validateBank' immediately and report the holder's name.
+**IDENTITY INVESTIGATION**:
+- If user mentions NIN, BVN, or Phone, trigger 'request_validation' tool immediately.
+- Tell user: "I am ready to investigate. Provide the digits below."
+
+**BANKING FORCE**:
+- If asked to check a bank account, use 'validateBank' immediately and report the holder's name found across Nigerian banks.
 
 USER: @{{{username}}}
 MESSAGE: {{{message}}}`,

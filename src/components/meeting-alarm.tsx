@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { PhoneOff, Video, CheckCircle2, Volume2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query, client } from '@/lib/data-service';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query, client, ID } from '@/lib/data-service';
 import { useUser } from '@/hooks/use-user';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter } from 'next/navigation';
@@ -124,10 +124,16 @@ export function MeetingAlarm() {
   };
 
   const handleDecline = async () => {
-    if (activeCall?.$id) {
+    if (activeCall?.$id && user) {
         rungIds.current.add(activeCall.$id);
         if (activeCall.hostId === user.$id) {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'cancelled' });
+        } else {
+            // Log missed call in chat for guest
+            const chatId = [user.$id, activeCall.hostId].sort().join('_');
+            await databases.createDocument(DATABASE_ID, 'messages', ID.unique(), {
+                chatId, senderId: 'system', text: `Missed call from @${activeCall.callerName}`, status: 'sent'
+            });
         }
     }
     stopRinging(); 
