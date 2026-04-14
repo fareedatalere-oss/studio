@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { 
     PhoneOff, Loader2, Camera, 
     Video, Mic, MicOff, X,
-    MonitorPlay, Send, MessageSquare, Trash2, Check, XCircle, Volume2
+    MonitorPlay, Send, MessageSquare, Trash2, Check, XCircle, Volume2, Layout, ImageIcon, Film
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -15,12 +15,15 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import Link from 'next/link';
+import { Textarea } from '@/components/ui/textarea';
+import Image from 'next/image';
+import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Master Meeting Room Page.
- * SHIELDED: Zero auto-redirection unless the specific Meeting ID status is explicitly changed to 'ended'.
- * FIXED: One icon per user (Unique Identity Map).
+ * UPGRADED: Added Master Board and Display Vault logic.
+ * SHIELDED: High-priority audio driver for clear communication.
+ * FIXED: Unique identity mapping for icon grid.
  */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -33,11 +36,13 @@ export default function MeetingRoomPage() {
     const meetingId = params.id as string;
     
     const selfVideoRef = useRef<HTMLVideoElement>(null);
+    const mediaInputRef = useRef<HTMLInputElement>(null);
 
     const [meeting, setMeeting] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [participants, setParticipants] = useState<any[]>([]);
     const [requests, setRequests] = useState<any[]>([]);
+    const [isUploading, setIsUploading] = useState(false);
     
     const mySetup = useMemo(() => {
         if (typeof window === 'undefined') return null;
@@ -66,7 +71,6 @@ export default function MeetingRoomPage() {
                 Query.limit(100)
             ]);
             
-            // FORCE: Unique Icons Only (One per UserID)
             const uniqueMap = new Map();
             res.documents.filter(doc => doc.status === 'approved').forEach(p => {
                 uniqueMap.set(p.userId, p);
@@ -83,7 +87,6 @@ export default function MeetingRoomPage() {
         fetchMeeting();
         fetchAttendees();
         
-        // HARDENED LISTENER: Strictly filtered by THIS specific meeting ID
         const unsubMeeting = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
             const payload = response.payload as any;
             if (!payload || payload.$id !== meetingId) return;
@@ -115,6 +118,41 @@ export default function MeetingRoomPage() {
         fetchAttendees();
     };
 
+    const toggleView = async (view: 'board' | 'display' | 'none') => {
+        if (!isAdmin) return;
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { activeView: view });
+    };
+
+    const handleBoardTextChange = async (text: string) => {
+        if (!isAdmin) return;
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { boardText: text });
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !isAdmin) return;
+        setIsUploading(true);
+        toast({ title: 'Uploading to Display...' });
+        try {
+            const reader = new FileReader();
+            const b64: string = await new Promise((res) => {
+                reader.onloadend = () => res(reader.result as string);
+                reader.readAsDataURL(file);
+            });
+            const type = file.type.startsWith('image') ? 'image' : 'video';
+            const up = await uploadToCloudinary(b64, type);
+            if (up.success) {
+                await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, {
+                    displayUrl: up.url,
+                    displayType: type,
+                    activeView: 'display'
+                });
+                toast({ title: 'Display Active!' });
+            }
+        } catch (error) { toast({ variant: 'destructive', title: 'Upload failed' }); } 
+        finally { setIsUploading(false); }
+    };
+
     const handleEndMeeting = async () => {
         if (isAdmin) {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'ended' });
@@ -131,6 +169,16 @@ export default function MeetingRoomPage() {
                     <h1 className="font-black uppercase text-xs tracking-widest text-primary truncate">{meeting.name}</h1>
                     <p className="text-[8px] font-bold opacity-50 uppercase">{isAdmin ? 'Chairman Control' : 'Secure Session'}</p>
                 </div>
+                
+                {isAdmin && (
+                    <div className="flex gap-2 mx-4">
+                        <Button onClick={() => toggleView('board')} size="icon" variant="ghost" className="h-9 w-9 rounded-full bg-white/5"><Layout className="h-4 w-4" /></Button>
+                        <Button onClick={() => mediaInputRef.current?.click()} size="icon" variant="ghost" className="h-9 w-9 rounded-full bg-white/5" disabled={isUploading}>
+                            {isUploading ? <Loader2 className="animate-spin h-4 w-4" /> : <MonitorPlay className="h-4 w-4" />}
+                        </Button>
+                    </div>
+                )}
+
                 <Button onClick={handleEndMeeting} size="sm" variant="destructive" className="h-9 rounded-full font-black uppercase text-[9px] shadow-lg px-6">
                     {isAdmin ? 'End Session' : 'Leave'}
                 </Button>
@@ -155,6 +203,47 @@ export default function MeetingRoomPage() {
                     ))}
                 </div>
             </main>
+
+            {/* MASTER BOARD OVERLAY */}
+            {meeting.activeView === 'board' && (
+                <div className="absolute inset-0 z-[200] bg-white flex flex-col animate-in zoom-in duration-300">
+                    <header className="p-6 pt-16 flex items-center justify-between border-b bg-muted/10">
+                        <h2 className="text-3xl font-black uppercase tracking-tighter text-primary">Master Board</h2>
+                        <Button variant="ghost" size="icon" className="rounded-full bg-muted h-10 w-10 text-black" onClick={() => toggleView('none')}><X className="h-6 w-6" /></Button>
+                    </header>
+                    <div className="flex-1 p-8">
+                        {isAdmin ? (
+                            <Textarea 
+                                className="h-full w-full border-none text-black text-2xl font-black uppercase resize-none focus-visible:ring-0 p-0"
+                                placeholder="TYPE MESSAGE FOR EVERYONE..."
+                                value={meeting.boardText || ''}
+                                onChange={(e) => handleBoardTextChange(e.target.value)}
+                            />
+                        ) : (
+                            <div className="h-full w-full text-black text-2xl font-black uppercase break-words whitespace-pre-wrap overflow-y-auto">
+                                {meeting.boardText || 'BOARD IS EMPTY...'}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* DISPLAY VAULT OVERLAY */}
+            {meeting.activeView === 'display' && meeting.displayUrl && (
+                <div className="absolute inset-0 z-[300] bg-black flex flex-col animate-in fade-in duration-300">
+                    <header className="absolute top-12 left-0 right-0 flex items-center justify-between p-6 z-10">
+                        <div className="flex items-center gap-3"><MonitorPlay className="h-6 w-6 text-primary" /><h2 className="text-white text-xl font-black uppercase tracking-widest">Master Display</h2></div>
+                        <Button variant="ghost" size="icon" onClick={() => toggleView('none')} className="rounded-full bg-white/10 text-white h-12 w-12"><X className="h-8 w-8" /></Button>
+                    </header>
+                    <div className="flex-1 flex items-center justify-center p-4">
+                        {meeting.displayType === 'image' ? (
+                            <Image src={meeting.displayUrl} alt="Display" fill className="object-contain" unoptimized />
+                        ) : (
+                            <video src={meeting.displayUrl} controls autoPlay playsInline className="max-h-full max-w-full rounded-xl" />
+                        )}
+                    </div>
+                </div>
+            )}
 
             {isAdmin && requests.length > 0 && (
                 <div className="absolute bottom-28 left-4 right-4 z-[100] animate-in slide-in-from-bottom-5">
@@ -195,6 +284,8 @@ export default function MeetingRoomPage() {
                     <p className="text-[6px] font-bold uppercase">Hardened Hub Active</p>
                 </div>
             </footer>
+            
+            <input type="file" ref={mediaInputRef} className="hidden" accept="image/*,video/*" onChange={handleFileUpload} />
         </div>
     );
 }
