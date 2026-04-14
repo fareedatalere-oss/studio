@@ -10,9 +10,6 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 
-// VERCEL CONFIG: Extended maxDuration to ensure deep thinking research completes.
-export const maxDuration = 120;
-
 const SofiaInputSchema = z.object({
   message: z.string().describe('The user message.'),
   language: z.string().optional().describe('The chosen preferred language.'),

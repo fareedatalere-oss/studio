@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -9,17 +10,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Globe, BrainCircuit, Loader2, ImageIcon, Send, X, Fingerprint, ShieldCheck } from 'lucide-react';
+import { Globe, Loader2, ImageIcon, Send, Fingerprint } from 'lucide-react';
 import { chatSofia } from '@/ai/flows/chat-flow';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/use-user';
@@ -33,9 +24,11 @@ import { format } from 'date-fns';
 
 /**
  * @fileOverview Sofia AI Chat - HIGH SPEED VERSION.
- * FORCED: Simplified AI brain for <5s response time.
- * SHIELDED: Deferring navigator APIs to prevent Vercel hydration errors.
+ * FORCED: Layout loads immediately.
+ * HARDENED: Timeout config moved here to resolve build error.
  */
+
+export const maxDuration = 60;
 
 type Message = {
     $id: string;
