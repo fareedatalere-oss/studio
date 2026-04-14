@@ -1,24 +1,22 @@
 'use client';
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Heart, MessageCircle, UserPlus, Store, CreditCard, ShieldCheck, ArrowLeft, Loader2, Trash2 } from "lucide-react";
+import { Bell, Heart, MessageCircle, UserPlus, Store, CreditCard, ShieldCheck, ArrowLeft, Trash2 } from "lucide-react";
 import { useUser } from '@/hooks/use-user';
 import { useEffect, useState, useCallback } from "react";
 import { formatDistanceToNow } from 'date-fns';
-import { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_PROFILES, Query } from "@/lib/appwrite";
+import { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, Query } from "@/lib/data-service";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
-import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 
 /**
- * @fileOverview Alert Center Hub.
- * HARDENED: Instant loading with client-side error shields.
+ * @fileOverview Alert Hub - High Speed.
+ * INSTANT: Fetches notifications immediately on mount.
+ * SHIELDED: Client-side mark-as-read to keep unread counter accurate.
  */
 
 export default function NotificationsPage() {
-    const { user } = useUser();
-    const { toast } = useToast();
+    const { user, loading: userLoading } = useUser();
     const [notifications, setNotifications] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -35,18 +33,15 @@ export default function NotificationsPage() {
                     Query.limit(50)
                 ]
             );
-
             setNotifications(response.documents);
-
-            // Background: Mark as read
+            
+            // Mark all as read in background
             const unread = response.documents.filter(n => !n.isRead);
             if (unread.length > 0) {
-                unread.forEach(n => {
-                    databases.updateDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, n.$id, { isRead: true }).catch(() => {});
-                });
+                unread.forEach(n => databases.updateDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, n.$id, { isRead: true }).catch(() => {}));
             }
-        } catch (error: any) {
-            console.error("Alert Sync Error:", error);
+        } catch (error) {
+            console.error("Alert Sync Error");
         } finally {
             setLoading(false);
         }
@@ -61,9 +56,7 @@ export default function NotificationsPage() {
             case 'system': return <ShieldCheck className="h-5 w-5 text-primary" />;
             case 'like': return <Heart className="h-5 w-5 text-red-500" />;
             case 'comment': return <MessageCircle className="h-5 w-5 text-blue-500" />;
-            case 'message': return <MessageCircle className="h-5 w-5 text-primary" />;
             case 'follow': return <UserPlus className="h-5 w-5 text-green-500" />;
-            case 'market': return <Store className="h-5 w-5 text-orange-500" />;
             case 'payment': return <CreditCard className="h-5 w-5 text-emerald-500" />;
             default: return <Bell className="h-5 w-5" />;
         }
@@ -74,13 +67,13 @@ export default function NotificationsPage() {
             <Link href="/dashboard" className="flex items-center gap-2 mb-6 text-sm font-black uppercase text-muted-foreground hover:text-primary transition-all">
                 <ArrowLeft className="h-4 w-4" /> Hub
             </Link>
-            <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
+            <Card className="rounded-[2rem] shadow-2xl border-none overflow-hidden">
                 <CardHeader className="bg-primary/5 pb-8 pt-10">
                     <CardTitle className="flex items-center gap-3 font-black uppercase text-2xl tracking-tighter">
                         <Bell className="h-7 w-7 text-primary" />
                         Alert Hub
                     </CardTitle>
-                    <CardDescription className="font-bold text-xs opacity-70">Real-time status and activity logging.</CardDescription>
+                    <CardDescription className="font-bold text-xs opacity-70">Real-time status logging.</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-8">
                     {loading ? (
@@ -90,22 +83,12 @@ export default function NotificationsPage() {
                     ) : notifications.length > 0 ? (
                         <div className="space-y-3">
                             {notifications.map(notif => (
-                                <Link 
-                                    key={notif.$id} 
-                                    href={notif.link || '#'} 
-                                    className="block group"
-                                >
+                                <Link key={notif.$id} href={notif.link || '#'} className="block group">
                                     <div className={`flex items-start gap-4 p-5 rounded-[1.8rem] transition-all group-active:scale-95 border border-transparent ${!notif.isRead ? 'bg-primary/5 border-primary/10' : 'bg-muted/30'}`}>
-                                        <div className="mt-1 bg-white p-2 rounded-full shadow-sm">
-                                            <NotificationIcon type={notif.type} />
-                                        </div>
+                                        <div className="mt-1 bg-white p-2 rounded-full shadow-sm"><NotificationIcon type={notif.type} /></div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-[13px] font-bold leading-tight">
-                                                <span className="text-foreground">{notif.description}</span>
-                                            </p>
-                                            <p className="text-[8px] font-black uppercase opacity-40 mt-2 tracking-widest">
-                                                {formatDistanceToNow(new Date(notif.$createdAt), { addSuffix: true })}
-                                            </p>
+                                            <p className="text-[13px] font-bold leading-tight"><span className="text-foreground">{notif.description}</span></p>
+                                            <p className="text-[8px] font-black uppercase opacity-40 mt-2 tracking-widest">{formatDistanceToNow(new Date(notif.$createdAt), { addSuffix: true })}</p>
                                         </div>
                                     </div>
                                 </Link>
@@ -114,7 +97,7 @@ export default function NotificationsPage() {
                     ) : (
                        <div className="text-center py-20 opacity-20 grayscale">
                            <Trash2 className="h-16 w-16 mx-auto mb-4" />
-                           <p className="font-black uppercase text-xs tracking-[0.3em]">Vault is Empty</p>
+                           <p className="font-black uppercase text-xs tracking-widest">Empty Vault</p>
                        </div>
                     )}
                 </CardContent>

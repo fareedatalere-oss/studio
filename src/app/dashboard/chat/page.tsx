@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, MoreVertical, Trash2, ArrowLeft, Loader2, Video } from 'lucide-react';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, doc, getDoc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
+import { collection, query, where, doc, getDoc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
 import { COLLECTION_ID_CHATS, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES } from '@/lib/data-service';
 import { isYesterday, isToday, format } from 'date-fns';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -19,9 +19,9 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 /**
- * @fileOverview Chat Center - FORCE STABILIZED VERSION.
- * SHIELDED: Absolute zero crash rendering with safeDate utility.
- * FORCED: UI shell loads immediately to prevent Vercel execution hooks.
+ * @fileOverview Chat Center - Master High-Speed Edition.
+ * INSTANT: Consumes global pre-loaded data from UserProvider.
+ * SHIELDED: Zero local listeners to prevent hydration crashes.
  */
 
 const safeDate = (ts: any) => {
@@ -36,29 +36,20 @@ const safeDate = (ts: any) => {
 };
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
-    const [otherUser, setOtherUser] = useState<any>(null);
-    const { toast } = useToast();
-    
+    const { allUsers } = useUser();
     const currentUid = currentUser?.$id || currentUser?.uid;
     
-    useEffect(() => {
-        if (!currentUid || !chat?.participants) return;
-        const otherId = Array.isArray(chat.participants) ? chat.participants.find((p: string) => p !== currentUid) : null;
-        if (!otherId) return;
-
-        getDoc(doc(db, COLLECTION_ID_PROFILES, otherId)).then(d => {
-            if (d.exists()) setOtherUser({ ...d.data(), $id: d.id });
-        }).catch(() => {});
-    }, [chat, currentUid]);
+    const otherUser = useMemo(() => {
+        const otherId = chat.participants?.find((p: string) => p !== currentUid);
+        return allUsers.find(u => u.$id === otherId);
+    }, [chat, currentUid, allUsers]);
 
     const formatChatDate = (ts: any) => {
         const date = safeDate(ts);
         if (!date) return '';
-        try {
-            if (isToday(date)) return format(date, 'HH:mm');
-            if (isYesterday(date)) return 'Yesterday';
-            return format(date, 'dd/MM/yy');
-        } catch (e) { return ''; }
+        if (isToday(date)) return format(date, 'HH:mm');
+        if (isYesterday(date)) return 'Yesterday';
+        return format(date, 'dd/MM/yy');
     };
 
     if (!chat || !currentUid) return null;
@@ -85,63 +76,18 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
                     </div>
                 </div>
             </Link>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 opacity-30 group-hover:opacity-100"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 font-black uppercase text-[9px]">
-                    <DropdownMenuItem onClick={async () => {
-                        try {
-                            const q = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', chat.$id));
-                            const snapshot = await getDocs(q);
-                            const batch = writeBatch(db);
-                            snapshot.docs.forEach(d => batch.delete(d.ref));
-                            await batch.commit();
-                            await deleteDoc(doc(db, COLLECTION_ID_CHATS, chat.$id));
-                            toast({ title: 'Chat Cleared' });
-                        } catch (e) {}
-                    }} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" /> Wipe History</DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
         </div>
     );
 };
 
 export default function ChatPage() {
     const router = useRouter();
-    const { user: currentUser } = useUser();
-    
-    const [recentChats, setRecentChats] = useState<any[]>([]);
-    const [allUsers, setAllUsers] = useState<any[]>([]);
+    const { user: currentUser, allUsers, recentChats, loading } = useUser();
     const [searchRecent, setSearchRecent] = useState('');
     const [searchAll, setSearchAll] = useState('');
-    const [loading, setLoading] = useState(true);
-    const [isMounted, setIsMounted] = useState(false);
-
-    useEffect(() => {
-        setIsMounted(true);
-        const currentUid = currentUser?.$id || currentUser?.uid;
-        if (!currentUid) return;
-
-        const q = query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', currentUid));
-        const unsubChats = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
-            data.sort((a: any, b: any) => {
-                const timeA = safeDate(a.lastMessageAt)?.getTime() || 0;
-                const timeB = safeDate(b.lastMessageAt)?.getTime() || 0;
-                return timeB - timeA;
-            });
-            setRecentChats(data);
-            setLoading(false);
-        }, () => setLoading(false));
-
-        const unsubUsers = onSnapshot(collection(db, COLLECTION_ID_PROFILES), (snapshot) => {
-            setAllUsers(snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() })));
-        });
-
-        return () => { unsubChats(); unsubUsers(); };
-    }, [currentUser]);
 
     const filteredUsers = useMemo(() =>
-        allUsers.filter(u => u && u.$id && u.$id !== currentUser?.$id && (u.username || '').toLowerCase().includes(searchAll.toLowerCase())), 
+        allUsers.filter(u => u.$id !== currentUser?.$id && (u.username || '').toLowerCase().includes(searchAll.toLowerCase())), 
         [allUsers, searchAll, currentUser?.$id]
     );
 
@@ -150,19 +96,19 @@ export default function ChatPage() {
         [recentChats, searchRecent]
     );
 
-    if (!isMounted) return null;
+    if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary/30" /></div>;
 
     return (
         <div className="flex flex-col min-h-screen bg-background font-body">
             <header className="p-4 pt-12 max-w-xl mx-auto w-full border-b bg-muted/5">
                 <div className="flex items-center justify-between mb-6">
                     <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-10 w-10 bg-muted/50 rounded-full border shadow-sm"><ArrowLeft className="h-5 w-5" /></Button>
-                    <h1 className="font-black uppercase text-xs tracking-[0.3em] text-primary">Chat Center</h1>
+                    <h1 className="font-black uppercase text-sm tracking-[0.2em] text-primary">Chat Center</h1>
                     <Button asChild variant="ghost" size="icon" className="h-10 w-10 bg-primary/10 text-primary rounded-full"><Link href="/dashboard/meeting"><Video className="h-5 w-5" /></Link></Button>
                 </div>
                 
                 <Tabs defaultValue="recent" className="w-full">
-                    <TabsList className="grid grid-cols-2 bg-muted/50 h-12 rounded-2xl p-1 mb-6 border">
+                    <TabsList className="grid grid-cols-2 bg-muted h-12 rounded-2xl p-1 mb-6 border">
                         <TabsTrigger value="recent" className="rounded-xl font-black uppercase text-[10px]">Recent</TabsTrigger>
                         <TabsTrigger value="all" className="rounded-xl font-black uppercase text-[10px]">All Users</TabsTrigger>
                     </TabsList>
@@ -172,7 +118,7 @@ export default function ChatPage() {
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
                             <Input placeholder="Search recent..." className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none font-bold" value={searchRecent} onChange={(e) => setSearchRecent(e.target.value)} />
                         </div>
-                        {loading ? <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary/30" /></div> : filteredRecent.length > 0 ? (
+                        {filteredRecent.length > 0 ? (
                             <div className="space-y-1">{filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} />)}</div>
                         ) : <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-widest opacity-30">No Recent Chats</div>}
                     </TabsContent>

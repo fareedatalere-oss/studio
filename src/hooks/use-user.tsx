@@ -1,18 +1,18 @@
 'use client';
 
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/data-service';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, Query } from '@/lib/data-service';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, serverTimestamp, onSnapshot, setDoc } from 'firebase/firestore';
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { doc, serverTimestamp, onSnapshot, setDoc, collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { toast } from '@/hooks/use-toast';
 import { cn } from "@/lib/utils";
 
 /**
- * @fileOverview Unified Master Auth & Data Hook.
- * SHIELDED: Corrected ReferenceError: cn is not defined.
- * INSTANT: Loads app shell immediately while syncing data in background.
+ * @fileOverview Unified Master Data Hub.
+ * FORCE: Pre-loads all members, chats, and alerts in background.
+ * INSTANT: Renders app shell immediately to prevent white-screen crashes.
  */
 
 type UserContextType = {
@@ -21,6 +21,10 @@ type UserContextType = {
     config: any | null;
     proof: any | null;
     loading: boolean;
+    // Global Data
+    allUsers: any[];
+    recentChats: any[];
+    unreadNotifications: number;
     recheckUser: () => Promise<void>;
 };
 
@@ -30,6 +34,9 @@ const UserContext = createContext<UserContextType>({
     config: null, 
     proof: null, 
     loading: true, 
+    allUsers: [],
+    recentChats: [],
+    unreadNotifications: 0,
     recheckUser: async () => {} 
 });
 
@@ -41,10 +48,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
     const [isMounted, setIsMounted] = useState(false);
     
+    // Global State Sync
+    const [allUsers, setAllUsers] = useState<any[]>([]);
+    const [recentChats, setRecentChats] = useState<any[]>([]);
+    const [unreadNotifications, setUnreadNotifications] = useState(0);
+    
     const router = useRouter();
     const pathname = usePathname();
-
-    const isImmersive = pathname?.includes('/room/') || pathname?.includes('/call/') || pathname?.includes('/join/');
 
     const fetchConfig = useCallback(async () => {
         try {
@@ -65,43 +75,59 @@ export function UserProvider({ children }: { children: ReactNode }) {
         fetchConfig();
         
         let unsubProfile: any = null;
+        let unsubUsers: any = null;
+        let unsubChats: any = null;
+        let unsubNotifs: any = null;
 
         const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                const miniUser = { 
-                    $id: firebaseUser.uid, 
-                    uid: firebaseUser.uid, 
-                    email: firebaseUser.email, 
-                    name: firebaseUser.displayName 
-                };
-                setUser(miniUser);
+                const uid = firebaseUser.uid;
+                setUser({ $id: uid, uid, email: firebaseUser.email });
                 
-                unsubProfile = onSnapshot(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid), async (snap) => {
+                // 1. Profile Sync
+                unsubProfile = onSnapshot(doc(db, COLLECTION_ID_PROFILES, uid), (snap) => {
                     if (snap.exists()) {
                         const prof = { $id: snap.id, ...snap.data() } as any;
                         setProfile(prof);
-
-                        if (prof.isBlocked && !pathname.includes('/auth/signin') && !isImmersive) {
-                            await auth.signOut();
-                            toast({ variant: 'destructive', title: 'Access Revoked' });
+                        if (prof.isBlocked && !pathname.includes('/auth/signin')) {
+                            auth.signOut();
                             router.replace('/auth/signin');
                         }
                     }
                     setIsLoading(false);
                 });
 
-                setDoc(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid), {
-                    isOnline: true,
-                    lastSeen: serverTimestamp()
-                }, { merge: true }).catch(() => {});
+                // 2. Global Users Pre-load (Background)
+                unsubUsers = onSnapshot(collection(db, COLLECTION_ID_PROFILES), (snap) => {
+                    setAllUsers(snap.docs.map(d => ({ $id: d.id, ...d.data() })));
+                });
+
+                // 3. Global Chats Pre-load (Background)
+                const chatQuery = query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', uid));
+                unsubChats = onSnapshot(chatQuery, (snap) => {
+                    const chats = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
+                    setRecentChats(chats.sort((a: any, b: any) => (b.lastMessageAt?.seconds || 0) - (a.lastMessageAt?.seconds || 0)));
+                });
+
+                // 4. Notifications Alert Counter
+                const notifQuery = query(collection(db, COLLECTION_ID_NOTIFICATIONS), where('userId', '==', uid), where('isRead', '==', false));
+                unsubNotifs = onSnapshot(notifQuery, (snap) => {
+                    setUnreadNotifications(snap.size);
+                });
+
+                // Set Presence
+                setDoc(doc(db, COLLECTION_ID_PROFILES, uid), { isOnline: true, lastSeen: serverTimestamp() }, { merge: true }).catch(() => {});
 
             } else {
                 setUser(null);
                 setProfile(null);
-                if (unsubProfile) unsubProfile();
                 setIsLoading(false);
+                if (unsubProfile) unsubProfile();
+                if (unsubUsers) unsubUsers();
+                if (unsubChats) unsubChats();
+                if (unsubNotifs) unsubNotifs();
                 
-                if (!pathname.includes('/auth') && pathname.startsWith('/dashboard') && !isImmersive) {
+                if (!pathname.includes('/auth') && pathname.startsWith('/dashboard')) {
                     router.replace('/auth/signin');
                 }
             }
@@ -110,13 +136,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
         return () => { 
             unsubAuth(); 
             if(unsubProfile) unsubProfile(); 
+            if(unsubUsers) unsubUsers(); 
+            if(unsubChats) unsubChats(); 
+            if(unsubNotifs) unsubNotifs(); 
         };
-    }, [pathname, router, fetchConfig, isImmersive]);
+    }, [pathname, router, fetchConfig]);
 
     const recheck = async () => { await fetchConfig(); };
 
     return (
-        <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, recheckUser: recheck }}>
+        <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, allUsers, recentChats, unreadNotifications, recheckUser: recheck }}>
             <div className={cn(
                 "min-h-screen bg-background transition-opacity duration-300", 
                 isMounted ? "opacity-100" : "opacity-0"
