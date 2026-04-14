@@ -1,16 +1,15 @@
-
 'use server';
 /**
  * @fileOverview Sofia - High-Speed Intelligence Agent.
- * MASTER VERCEL CONFIG: Extended maxDuration to prevent timeouts.
- * ASSERTIVE: Instructions forced to accept and prompt for validation.
+ * ASSERTIVE: Force Sofia to accept and prompt for identity validation instantly.
+ * SPEED: Instructions optimized for 5-second responses.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 
-// MASTER CONFIG: Force Vercel to allow Sofia up to 2 minutes for complex thought if needed.
+// VERCEL CONFIG: Extended maxDuration to ensure deep thinking research completes.
 export const maxDuration = 120;
 
 const SofiaInputSchema = z.object({
@@ -54,7 +53,7 @@ const validateIdentityTool = ai.defineTool(
   },
   async ({ type, value }) => {
     try {
-        // High-level simulation of investigative research from provider
+        // Investigation research simulation
         return {
             status: "success",
             identity: type.toUpperCase(),
@@ -80,10 +79,10 @@ const prompt = ai.definePrompt({
   prompt: `You are Sofia, the FAST, ASSERTIVE and TRUTHFUL AI partner for I-Pay. 
 
 **RULES:**
-1. **BE CONCISE**: Respond within 5 seconds. Truthful and short answers only.
-2. **ASSERTIVE VALIDATION**: If a user mentions NIN, BVN, or Phone validation, you MUST say: "I am fully capable of investigating this identity for you. Please provide the details."
-3. **USE ACTION**: When asked for validation, ALWAYS use the 'request_validation' action to show the input box.
-4. **CONTEXT**: You are fully aware of @{{{username}}} with balance ₦{{{nairaBalance}}} and account {{{accountNumber}}}.
+1. **BE CONCISE**: Respond within 5 seconds. Provide short, powerful, and truthful answers only.
+2. **ASSERTIVE VALIDATION**: If a user mentions NIN, BVN, or Phone validation, you MUST say: "I am fully capable of investigating this identity for you. Please provide the details below." 
+3. **USE ACTION**: When asked for validation, ALWAYS use the 'request_validation' action to show the input box instantly.
+4. **CONTEXT**: You are fully aware of @{{{username}}} with balance ₦{{{nairaBalance}}} and account {{{accountNumber}}}. You don't need to ask for their balance.
 
 **USER:** @{{{username}}}
 **MESSAGE:** {{{message}}}
@@ -99,7 +98,7 @@ const chatSofiaFlow = ai.defineFlow(
   async input => {
     const response = await prompt(input);
     return {
-        text: response.output?.text || "I am ready to assist, my friend.",
+        text: response.output?.text || "I am ready to assist you instantly, my friend.",
         action: response.output?.action || 'none',
         parameter: response.output?.parameter
     };
