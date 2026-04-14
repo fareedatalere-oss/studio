@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
@@ -8,6 +9,7 @@ import { cn } from "@/lib/utils"
  * @fileOverview Standardized Master Button.
  * SIZE: Medium professional height (h-11).
  * SYNCED: All buttons use sleek tracking and uppercase text.
+ * FIXED: Prop spreading syntax.
  */
 
 const buttonVariants = cva(
@@ -28,7 +30,7 @@ const buttonVariants = cva(
       size: {
         default: "h-11 px-6",
         sm: "h-9 rounded-lg px-3 text-[10px]",
-        lg: "h-14 rounded-2xl px-10 text-base",
+        lg: "h-12 rounded-2xl px-10 text-base",
         icon: "h-10 w-10",
       },
     },

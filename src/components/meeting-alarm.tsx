@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -11,7 +12,7 @@ import { parseISO, isBefore } from 'date-fns';
 
 /**
  * @fileOverview Master Alarm Engine.
- * FORCE: Persistent continuous ringing for Chairman sessions until limit reached.
+ * FORCE: Persistent continuous ringing for Chairman sessions until action taken.
  * NATIVE: Uses system notification and intense vibration loop.
  * SHIELDED: Strictly filtered by User ID to prevent global session leaks.
  */
@@ -40,7 +41,7 @@ export function MeetingAlarm() {
 
     const checkMeetings = async () => {
       try {
-        // Master Logic: Specifically fetch pending meetings relevant to THIS user
+        // Master Logic: Specifically fetch pending meetings ONLY for THIS user
         const hostRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
           Query.equal('status', 'pending'),
           Query.equal('hostId', user.$id),
@@ -92,11 +93,11 @@ export function MeetingAlarm() {
 
     const interval = setInterval(checkMeetings, 4000); 
     
+    // Hardened listener: only react to current active call changes
     const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
         const payload = response.payload as any;
         if (!payload || !activeCall) return;
         
-        // ONLY stop if the specific active call is modified
         if (payload.$id === activeCall.$id) {
             if (payload.status === 'ended' || payload.status === 'cancelled' || payload.status === 'connected') {
                 stopRinging(); 
@@ -151,12 +152,8 @@ export function MeetingAlarm() {
   const handleAccept = async () => {
     if (activeCall?.$id) {
         rungIds.current.add(activeCall.$id);
-        if (activeCall.isHostAlert) {
-            router.push(`/dashboard/meeting/join/${activeCall.$id}?role=admin`);
-        } else {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'connected' });
-            router.push(`/dashboard/chat/call/${activeCall.$id}`);
-        }
+        // FORCE: Setup identity first
+        router.push(`/dashboard/meeting/join/${activeCall.$id}${activeCall.isHostAlert ? '?role=admin' : ''}`);
     }
     stopRinging(); 
     setActiveCall(null);

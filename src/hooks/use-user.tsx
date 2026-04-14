@@ -1,3 +1,4 @@
+
 'use client';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/data-service';
@@ -11,9 +12,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Unified Master Auth & Data Hook.
- * HARDENED: Strictly terminated all auto-redirect loops for existing users.
  * FIXED: cn utility reference.
- * SHIELDED: Extreme hydration protection.
+ * SHIELDED: Extreme hydration protection with immediate children rendering.
  */
 
 type UserContextType = {
@@ -77,15 +77,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 };
                 setUser(miniUser);
                 
-                // 1. Instant Background Fetch
-                try {
-                    const pDoc = await getDoc(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid));
-                    if (pDoc.exists()) {
-                        setProfile({ $id: pDoc.id, ...pDoc.data() });
-                    }
-                } catch (e) {}
-
-                // 2. Real-time Reactive Sync
+                // Real-time Reactive Sync
                 unsubProfile = onSnapshot(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid), async (snap) => {
                     if (snap.exists()) {
                         const prof = { $id: snap.id, ...snap.data() } as any;
@@ -129,7 +121,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     const recheck = async () => { };
 
-    if (!isMounted) return null;
+    if (!isMounted) return <div className="min-h-screen bg-background" />;
 
     return (
         <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, recheckUser: recheck }}>
