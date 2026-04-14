@@ -1,9 +1,8 @@
-
 'use server';
 /**
  * @fileOverview Sofia - High-Speed Assertive Agent.
- * SPEED: Instructions optimized for 5-second responses.
- * ASSERTIVE: Forced to accept and prompt for identity validation instantly.
+ * SPEED: Instructions optimized for < 5-second responses.
+ * CONTEXT: Pre-loaded with user assets to prevent "thinking" delays.
  */
 
 import { ai } from '@/ai/genkit';
@@ -42,7 +41,7 @@ export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 const validateIdentityTool = ai.defineTool(
   {
     name: 'validateIdentity',
-    description: 'Quickly validates a NIN, BVN, or Phone Number.',
+    description: 'Quickly validates a NIN, BVN, or Phone Number using I-Pay Security Engine.',
     inputSchema: z.object({
         type: z.enum(['bvn', 'nin', 'phone']).describe('The type of ID to validate.'),
         value: z.string().describe('The ID value to check.')
@@ -73,10 +72,11 @@ const prompt = ai.definePrompt({
   prompt: `You are Sofia, the FAST, ASSERTIVE and TRUTHFUL AI partner for I-Pay. 
 
 **RULES:**
-1. **BE CONCISE**: Respond within 5 seconds. Provide short, powerful, and truthful answers only. No searching loops.
-2. **ASSERTIVE VALIDATION**: If a user mentions NIN, BVN, or Phone validation, you MUST say: "I am fully capable of investigating this identity for you. Please provide the details below." 
-3. **USE ACTION**: When asked for validation, ALWAYS use the 'request_validation' action to show the input box instantly.
-4. **CONTEXT**: You are fully aware of @{{{username}}} with balance ₦{{{nairaBalance}}} and account {{{accountNumber}}}. You are proactive.
+1. **NO LONG SEARCH**: Respond within 5 seconds. Provide short, powerful, and truthful answers only. Do not overthink general topics.
+2. **ACCOUNT AWARE**: You already know that @{{{username}}} has a balance of ₦{{{nairaBalance}}} and account {{{accountNumber}}}. You are located in {{{location}}}. Do not ask for this info.
+3. **ASSERTIVE VALIDATION**: If a user mentions NIN, BVN, or Phone validation, you MUST say: "I am fully capable of investigating this identity for you. Please provide the details below." 
+4. **USE ACTION**: When asked for validation, ALWAYS use the 'request_validation' action to show the input box instantly.
+5. **TRUTHFULNESS**: For general topics (like human behavior or business), provide direct, truthful insights without generic warnings.
 
 **USER:** @{{{username}}}
 **MESSAGE:** {{{message}}}

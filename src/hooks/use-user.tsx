@@ -1,4 +1,3 @@
-
 'use client';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/data-service';
@@ -11,7 +10,8 @@ import { toast } from '@/hooks/use-toast';
 
 /**
  * @fileOverview Unified Master Auth & Data Hook.
- * MASTER UPDATE: Real-time Profile Listener for Admin changes.
+ * SHIELDED: Universal null-guards to prevent "Client-side exception".
+ * FORCED: Background sync for instant page loads.
  */
 
 type UserContextType = {
@@ -42,13 +42,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
             if (firebaseUser) {
                 setUser({ $id: firebaseUser.uid, uid: firebaseUser.uid, email: firebaseUser.email, name: firebaseUser.displayName });
                 
-                // FORCE: Real-time Profile Sync
+                // FORCE: Real-time Profile Sync with Null-Safety
                 unsubProfile = onSnapshot(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid), async (snap) => {
                     if (snap.exists()) {
                         const prof = { $id: snap.id, ...snap.data() } as any;
                         setProfile(prof);
 
-                        // BLOCK CHECK
+                        // BLOCK CHECK: Prevent access if banned
                         if (prof.isBlocked && !pathname.includes('/auth/signin')) {
                             await auth.signOut();
                             toast({ variant: 'destructive', title: 'Access Revoked', description: 'you are blocked by I-pay team contact them for further assistance.' });
@@ -56,12 +56,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
                         }
                     } else {
                         setProfile(null);
-                        if (!pathname.includes('/auth') && !pathname.includes('/signup/profile')) {
+                        // Redirect to profile setup if not already in auth flow
+                        if (!pathname.includes('/auth')) {
                             router.replace('/auth/signup/profile');
                         }
                     }
                 });
 
+                // Update Online Status
                 if (typeof window !== 'undefined') {
                     await updateDoc(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid), {
                         isOnline: true,
@@ -72,6 +74,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 setUser(null);
                 setProfile(null);
                 if (unsubProfile) unsubProfile();
+                // Redirect to signin if accessing restricted dashboard areas
                 if (typeof window !== 'undefined' && !pathname.includes('/auth') && pathname.startsWith('/dashboard')) {
                     router.replace('/auth/signin');
                 }
@@ -79,6 +82,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             setIsLoading(false);
         });
 
+        // Background Config Sync for Instant Tab Previews
         const fetchConfig = async () => {
             try {
                 const [pDoc, cDoc] = await Promise.all([
@@ -92,11 +96,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
             } catch (e) {}
         };
         fetchConfig();
-        return () => { unsubAuth(); if(unsubProfile) unsubProfile(); };
+
+        return () => { 
+            unsubAuth(); 
+            if(unsubProfile) unsubProfile(); 
+        };
     }, [pathname, router]);
 
     const recheck = async () => {
-        // Logic handled by onSnapshot
+        // Real-time snapshot handles this automatically
     };
 
     return (

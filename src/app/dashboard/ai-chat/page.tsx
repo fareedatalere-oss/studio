@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -24,11 +23,11 @@ import { format } from 'date-fns';
 
 /**
  * @fileOverview Sofia AI Chat - Master High-Speed Version.
- * VERCEL CONFIG: limit set to 10s for Hobby compliance.
+ * SHIELDED: Zero loading screen architecture. Page shell opens instantly.
+ * VERCEL CONFIG: maxDuration set at page level.
  */
 
-// Moving Vercel config here to resolve Build Error
-export const maxDuration = 10;
+export const maxDuration = 120;
 
 type Message = {
     $id: string;
@@ -116,6 +115,7 @@ export default function AiChatPage() {
         }
     });
 
+    // Background Geolocation - No block
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((pos) => {
             setLocationStr(`Location: ${pos.coords.latitude.toFixed(1)}, ${pos.coords.longitude.toFixed(1)}`);
@@ -146,6 +146,7 @@ export default function AiChatPage() {
           if (uploadRes.success) finalImgUrl = uploadRes.url;
       }
 
+      // 1. Optimistic User UI log
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
           chatId: chatId,
           senderId: user.$id,
@@ -154,11 +155,12 @@ export default function AiChatPage() {
           image: finalImgUrl || undefined
       });
 
+      // 2. High-Speed AI Trigger
       const response = await chatSofia({
         message: userMsg,
         language: selectedLanguage,
         userId: user.$id,
-        username: profile?.username || 'Friend',
+        username: profile?.username || 'User',
         nairaBalance: profile?.nairaBalance || 0,
         accountNumber: profile?.accountNumber || 'Pending',
         location: locationStr,
@@ -166,6 +168,7 @@ export default function AiChatPage() {
         photoDataUri: currentImgB64 || undefined
       });
 
+      // 3. Log Sofia's Answer
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
           chatId: chatId,
           senderId: 'sofia_system',
@@ -177,7 +180,7 @@ export default function AiChatPage() {
           handleSofiaAction(response.action, response.parameter);
       }
     } catch (error: any) {
-      toast({ variant: 'destructive', title: "Sofia Timeout", description: "Vercel limit reached. Keep requests short." });
+      toast({ variant: 'destructive', title: "Sofia Timeout", description: "Vercel limit reached. Responses are being optimized." });
     } finally {
       setIsLoading(false);
     }

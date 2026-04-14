@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -30,8 +29,8 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Admin Transactions Ledger.
- * FORCE FIX: Removed server-side ordering to bypass Firebase Index requirements.
- * SHIELDED: Implements client-side sorting for instant loading.
+ * FORCE FIX: Client-side sorting to bypass Firebase Index errors.
+ * SHIELDED: Atomic null-guards for zero-crash rendering.
  */
 
 const safeDate = (val: any) => {
@@ -49,19 +48,21 @@ const TransactionDetails = ({ tx }: { tx: any }) => {
     const [user, setUser] = useState<any>(null);
 
     useEffect(() => {
-        if (tx.userId) {
+        if (tx?.userId) {
             databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, tx.userId)
                 .then(setUser)
                 .catch(() => setUser({ username: 'Unknown', email: 'N/A' }));
         }
-    }, [tx.userId]);
+    }, [tx?.userId]);
+
+    if (!tx) return null;
 
     return (
         <div className="space-y-6 py-4">
             <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-2xl">
                 <Avatar className="h-12 w-12 border-2 border-primary/20">
                     <AvatarImage src={user?.avatar} />
-                    <AvatarFallback className="font-black">{user?.username?.charAt(0)}</AvatarFallback>
+                    <AvatarFallback className="font-black">{user?.username?.charAt(0) || '?'}</AvatarFallback>
                 </Avatar>
                 <div>
                     <p className="font-black uppercase text-xs">@{user?.username || 'Loading...'}</p>
@@ -89,21 +90,13 @@ const TransactionDetails = ({ tx }: { tx: any }) => {
             <div className="space-y-3">
                 <p className="text-[9px] font-black uppercase opacity-40">Service Metadata</p>
                 <div className="p-4 border-2 border-dashed rounded-2xl space-y-2">
-                    {tx.type === 'electricity' && (
-                        <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-bold uppercase">Meter Number</span>
-                            <span className="text-sm font-black font-mono text-primary">{tx.recipientDetails}</span>
-                        </div>
-                    )}
-                    {tx.type === 'data' && (
-                        <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-bold uppercase">Network/Plan</span>
-                            <span className="text-sm font-black text-primary">{tx.recipientName}</span>
-                        </div>
-                    )}
+                    <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold uppercase">Details</span>
+                        <span className="text-sm font-black font-mono text-primary">{tx.recipientDetails || 'System'}</span>
+                    </div>
                     <div className="flex justify-between items-center">
                         <span className="text-[10px] font-bold uppercase">Value</span>
-                        <span className="text-sm font-black">₦{tx.amount?.toLocaleString()}</span>
+                        <span className="text-sm font-black">₦{tx.amount?.toLocaleString() || '0'}</span>
                     </div>
                     <div className="flex justify-between items-center">
                         <span className="text-[10px] font-bold uppercase">Status</span>
@@ -123,14 +116,13 @@ export default function ManagerTransactionsPage() {
     const fetchTransactions = useCallback(async () => {
         setLoading(true);
         try {
-            // FORCE BYPASS INDEX: Fetch without sorting, then sort in memory
+            // FORCE: Client-side sorting bypasses index requirement
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_ID_TRANSACTIONS,
                 [Query.limit(200)] 
             );
             
-            // Sort in memory to avoid Firebase Index Requirement
             const sorted = response.documents.sort((a, b) => {
                 return safeDate(b.$createdAt).getTime() - safeDate(a.$createdAt).getTime();
             });
@@ -151,10 +143,9 @@ export default function ManagerTransactionsPage() {
         const q = search.toLowerCase();
         return transactions.filter(tx => 
             tx.$id.toLowerCase().includes(q) || 
-            tx.type.toLowerCase().includes(q) || 
+            tx.type?.toLowerCase().includes(q) || 
             tx.recipientDetails?.toLowerCase().includes(q) ||
-            tx.userId?.toLowerCase().includes(q) ||
-            tx.recipientName?.toLowerCase().includes(q)
+            tx.userId?.toLowerCase().includes(q)
         );
     }, [search, transactions]);
 
@@ -169,7 +160,7 @@ export default function ManagerTransactionsPage() {
             <div className="relative mb-6">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input 
-                    placeholder="Search by ID, Account, Meter, or Type..." 
+                    placeholder="Search by ID, Account, or Type..." 
                     className="pl-11 h-12 rounded-2xl bg-muted border-none font-bold text-sm shadow-inner"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
@@ -197,20 +188,20 @@ export default function ManagerTransactionsPage() {
                         <TableCell>
                             <div className="text-[9px] font-black font-mono uppercase tracking-tighter truncate max-w-[100px]">{tx.$id}</div>
                             <div className="text-[8px] font-bold opacity-50 uppercase mt-1">
-                                {format(safeDate(tx.$createdAt), 'PPpp')}
+                                {format(safeDate(tx.$createdAt), 'HH:mm')}
                             </div>
                         </TableCell>
                         <TableCell>
                             <Badge variant="outline" className={cn("text-[8px] font-black uppercase h-5 px-2 border-primary/20", tx.status === 'failed' ? 'text-red-500 bg-red-50' : 'text-primary bg-primary/5')}>
-                                {tx.type.replace('_', ' ')}
+                                {tx.type?.replace('_', ' ') || 'SYSTEM'}
                             </Badge>
                         </TableCell>
                         <TableCell>
                             <div className="text-[10px] font-bold truncate max-w-[120px]">{tx.recipientName || 'SYSTEM'}</div>
                             <div className="text-[8px] font-mono opacity-50">{tx.recipientDetails || tx.userId?.substring(0, 8)}</div>
                         </TableCell>
-                         <TableCell className={cn("text-right font-black text-xs", tx.type === 'deposit' || tx.type === 'product_sale' ? 'text-green-600' : 'text-red-600')}>
-                            {tx.type === 'deposit' || tx.type === 'product_sale' ? '+' : '-'} ₦{Number(tx.amount || 0).toLocaleString()}
+                         <TableCell className={cn("text-right font-black text-xs", (tx.type === 'deposit' || tx.type === 'product_sale') ? 'text-green-600' : 'text-red-600')}>
+                            {(tx.type === 'deposit' || tx.type === 'product_sale') ? '+' : '-'} ₦{Number(tx.amount || 0).toLocaleString()}
                         </TableCell>
                         <TableCell>
                             <Dialog>
