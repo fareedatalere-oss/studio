@@ -63,7 +63,6 @@ const mapDoc = (snapshot: any) => {
     if (!snapshot.exists()) return null;
     const data = snapshot.data();
     
-    // SHIELDED MAPPING: Terminate null property crashes by providing safe fallbacks
     const createdAtRaw = data.createdAt || data.timestamp || data.$createdAt;
     let safeCreatedAt = new Date().toISOString();
     if (createdAtRaw) {
@@ -126,6 +125,13 @@ export const databases = {
         const d = { ...clean, updatedAt: serverTimestamp() };
         await updateDoc(doc(db, collId, docId), d);
         return { $id: docId };
+    },
+    setDocument: async (dbId: string, collId: string, docId: string, data: any) => {
+        const id = docId === 'unique()' || docId === 'unique' ? doc(collection(db, collId)).id : docId;
+        const clean = sanitize(data);
+        const d = { ...clean, updatedAt: serverTimestamp() };
+        await setDoc(doc(db, collId, id), d, { merge: true });
+        return { $id: id };
     },
     deleteDocument: async (dbId: string, collId: string, docId: string) => {
         await deleteDoc(doc(db, collId, docId));

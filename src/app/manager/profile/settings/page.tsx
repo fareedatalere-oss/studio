@@ -58,19 +58,11 @@ export default function AdminSettingsPage() {
   const handleUpdateSupportInfo = async () => {
     setIsLoading(true);
     try {
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG, supportInfo);
+        // FORCE: Use setDocument to handle missing main config correctly
+        await databases.setDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG, supportInfo);
         toast({ title: 'Success', description: 'Updated successfully.' });
     } catch (error: any) {
-        if (error.code === 404) {
-            try {
-                await databases.createDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG, supportInfo);
-                toast({ title: 'Created successfully.' });
-            } catch (createError: any) {
-                toast({ title: 'Error', description: createError.message, variant: 'destructive' });
-            }
-        } else {
-             toast({ title: 'Error', description: error.message, variant: 'destructive' });
-        }
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
         setIsLoading(false);
     }

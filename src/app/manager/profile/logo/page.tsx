@@ -62,22 +62,10 @@ export default function EditLogoPage() {
       const upload = await storage.createFile(BUCKET_ID_UPLOADS, ID.unique(), logoFile);
       const newLogoUrl = upload.url;
 
-      try {
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG, {
-          logoUrl: newLogoUrl
-        });
-      } catch (error: any) {
-        if (error.code === 404) {
-            await databases.createDocument(
-                DATABASE_ID,
-                COLLECTION_ID_APP_CONFIG,
-                DOCUMENT_ID_MAIN_CONFIG,
-                { logoUrl: newLogoUrl }
-            );
-        } else {
-            throw error;
-        }
-      }
+      // FORCE: Use setDocument to ensure the record exists even if never created before
+      await databases.setDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, DOCUMENT_ID_MAIN_CONFIG, {
+        logoUrl: newLogoUrl
+      });
       
       toast({ title: 'Logo updated!' });
       setCurrentLogo(newLogoUrl);
