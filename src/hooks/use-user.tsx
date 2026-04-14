@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
  * @fileOverview Unified Master Auth & Data Hook.
  * SHIELDED: Terminated ReferenceError: cn is not defined.
  * INSTANT: Removed loading overlays to ensure zero-delay app opening.
+ * FORCE: Shell loads immediately to stop white-screen "Application error".
  */
 
 type UserContextType = {
@@ -124,7 +125,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     return (
         <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, recheckUser: recheck }}>
-            <div className="min-h-screen bg-background">
+            <div className={cn("min-h-screen bg-background transition-opacity duration-300", isLoading && !user ? "opacity-50" : "opacity-100")}>
                 {children}
             </div>
         </UserContext.Provider>
