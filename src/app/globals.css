@@ -59,7 +59,7 @@ body {
   border-radius: 10px;
 }
 
-/* Force specific "Medium" sizing for global consistency */
+/* Force professional "Medium" sizing for global consistency */
 .btn-medium {
   @apply h-11 px-6 rounded-2xl font-black uppercase text-[10px] tracking-widest;
 }

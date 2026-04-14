@@ -23,7 +23,7 @@ import { format } from 'date-fns';
 
 /**
  * @fileOverview Sofia AI Chat - Master High-Speed Version.
- * SHIELDED: Zero loading screen architecture. Page shell opens instantly.
+ * SHIELDED: Extreme Hydration safety guards.
  * VERCEL CONFIG: maxDuration set at page level.
  */
 
@@ -115,7 +115,7 @@ export default function AiChatPage() {
     });
 
     // Background Geolocation - No block
-    if (navigator.geolocation) {
+    if (typeof window !== 'undefined' && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((pos) => {
             setLocationStr(`Location: ${pos.coords.latitude.toFixed(1)}, ${pos.coords.longitude.toFixed(1)}`);
         }, () => {});
@@ -125,7 +125,9 @@ export default function AiChatPage() {
   }, [chatId, fetchHistory]);
 
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (scrollRef.current) {
+        scrollRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   const handleSend = async (messageOverride?: string) => {
@@ -186,6 +188,7 @@ export default function AiChatPage() {
   };
 
   const handleSofiaAction = (action: string, param?: string) => {
+    if (typeof window === 'undefined') return;
     switch (action) {
         case 'logout': account.deleteSession('current').then(() => router.push('/auth/signin')); break;
         case 'call': window.location.href = `tel:${param || ''}`; break;
@@ -206,12 +209,12 @@ export default function AiChatPage() {
   if (!isMounted) return null;
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-screen bg-background scrollbar-hide overflow-hidden">
       <header className="sticky top-0 bg-background/80 backdrop-blur-md border-b flex items-center justify-between p-3 pt-12 z-50">
         <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10 border-2 border-primary shadow-sm">
                 <AvatarImage src="https://picsum.photos/seed/sofia/100/100" />
-                <AvatarFallback className="bg-primary text-white">S</AvatarFallback>
+                <AvatarFallback className="bg-primary text-white font-black">S</AvatarFallback>
             </Avatar>
             <div>
                 <h2 className="font-black text-xs uppercase tracking-widest text-primary">Sofia Master</h2>
@@ -224,7 +227,7 @@ export default function AiChatPage() {
                     <Globe className="h-3 w-3 text-primary" /> {selectedLanguage}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[200px] p-0 rounded-2xl overflow-hidden">
+            <PopoverContent align="end" className="w-[200px] p-0 rounded-2xl overflow-hidden shadow-2xl">
                 <ScrollArea className="h-[200px]">
                     {['English', 'Hausa', 'Yoruba', 'Igbo'].map(l => (
                         <Button key={l} variant="ghost" className="w-full justify-start text-[10px] font-bold uppercase h-10" onClick={() => setSelectedLanguage(l)}>{l}</Button>
@@ -234,12 +237,12 @@ export default function AiChatPage() {
         </Popover>
       </header>
 
-      <div className="flex-1 p-4 overflow-y-auto space-y-6 pb-40">
+      <div className="flex-1 p-4 overflow-y-auto space-y-6 pb-40 scroll-smooth">
         {dataLoading ? (
             <div className="flex justify-center p-10"><Loader2 className="animate-spin h-8 w-8 text-primary/30" /></div>
         ) : messages.map((msg) => (
-            <div key={msg.$id} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
-                <div className={cn("max-w-[85%] rounded-[1.5rem] p-4 text-sm relative shadow-sm", msg.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none border")}>
+            <div key={msg.$id} className={cn("flex flex-col animate-in fade-in slide-in-from-bottom-2", msg.role === 'user' ? "items-end" : "items-start")}>
+                <div className={cn("max-w-[85%] rounded-[1.5rem] p-4 text-xs relative shadow-sm", msg.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none border")}>
                     {msg.image && (
                         <div className="mb-3 relative h-48 w-full rounded-xl overflow-hidden">
                             <Image src={msg.image} alt="Upload" fill className="object-cover" unoptimized />
