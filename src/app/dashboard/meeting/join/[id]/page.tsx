@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, Suspense } from 'react';
@@ -16,7 +17,7 @@ import { format, isBefore } from 'date-fns';
 
 /**
  * @fileOverview Universal Identity Gate for Meetings.
- * FORCE: All participants (members & guests) must setup identity and wait for approval.
+ * FORCE: Admin/Chairman must also enter name and icon before joining instantly.
  */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -152,6 +153,7 @@ function MeetingJoinContent() {
                 }));
             }
 
+            // FORCE: Host lands in room instantly after setup
             if (isActuallyHost) {
                 router.replace(`/dashboard/meeting/room/${meetingId}`);
             } else {
@@ -175,7 +177,7 @@ function MeetingJoinContent() {
         }
     };
 
-    if (loadingMeeting) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
+    if (loadingMeeting) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
 
     if (step === 'not_yet') {
         return (
@@ -184,7 +186,7 @@ function MeetingJoinContent() {
                     <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><Clock className="h-10 w-10 text-primary" /></div>
                     <h2 className="text-2xl font-black uppercase tracking-tighter">Not Yet Live</h2>
                     <p className="text-muted-foreground font-bold text-xs mt-4 uppercase tracking-widest">Scheduled: {format(new Date(meeting.scheduledAt), 'PPp')}</p>
-                    <Button asChild variant="outline" className="w-full mt-8"><Link href="/dashboard/meeting">Hub</Link></Button>
+                    <Button asChild variant="outline" className="w-full mt-8"><Link href="/dashboard/meeting">Return to Hub</Link></Button>
                 </Card>
             </div>
         );
@@ -196,7 +198,8 @@ function MeetingJoinContent() {
                 <Card className="max-w-md w-full rounded-[2.5rem] shadow-2xl border-none p-10">
                     <div className="bg-destructive/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><XCircle className="h-10 w-10 text-destructive" /></div>
                     <h2 className="text-2xl font-black uppercase tracking-tighter">{meeting?.status === 'cancelled' ? 'Cancelled' : 'Expired'}</h2>
-                    <Button asChild className="w-full mt-8"><Link href="/dashboard/meeting">Hub</Link></Button>
+                    <p className="text-muted-foreground font-bold text-xs mt-4 uppercase tracking-widest">This session has concluded.</p>
+                    <Button asChild className="w-full mt-8"><Link href="/dashboard/meeting">Return to Hub</Link></Button>
                 </Card>
             </div>
         );
@@ -213,8 +216,8 @@ function MeetingJoinContent() {
                         </div>
                     </div>
                 </div>
-                <h2 className="text-white text-3xl font-black tracking-tighter uppercase">Verifying...</h2>
-                <p className="text-primary font-black text-xs uppercase mt-2 animate-pulse tracking-[0.2em]">Waiting for Chairman to Accept</p>
+                <h2 className="text-white text-3xl font-black tracking-tighter uppercase leading-none">Verifying...</h2>
+                <p className="text-primary font-black text-xs uppercase mt-4 animate-pulse tracking-[0.2em]">Waiting for Chairman to Accept</p>
             </div>
         );
     }
@@ -222,20 +225,20 @@ function MeetingJoinContent() {
     return (
         <div className="min-h-screen bg-background flex flex-col p-6 overflow-y-auto">
             <header className="pt-10 mb-6 flex justify-between items-center">
-                <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/meeting')} className="font-black uppercase text-[10px] gap-2"><ArrowLeft className="h-4 w-4" /> Hub</Button>
+                <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/meeting')} className="font-black uppercase text-[10px] gap-2 active:scale-90 transition-transform"><ArrowLeft className="h-4 w-4" /> Hub</Button>
             </header>
             <Card className="max-w-md w-full mx-auto rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
                 <CardHeader className="bg-primary text-white p-10 text-center">
                     <CardTitle className="text-xl font-black uppercase tracking-widest leading-none">Meeting Identity</CardTitle>
-                    <CardDescription className="text-white/70 font-bold mt-2 uppercase text-[10px]">Confirmed setup for all users</CardDescription>
+                    <CardDescription className="text-white/70 font-bold mt-2 uppercase text-[10px]">Chairman & Guest mandatory setup</CardDescription>
                 </CardHeader>
                 <CardContent className="p-8 space-y-6">
                     <div className="space-y-2">
-                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest">Display Name</Label>
+                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest pl-2">Display Name</Label>
                         <Input placeholder="Enter display name..." className="h-12 rounded-2xl bg-muted border-none px-6 font-bold" value={name} onChange={e => setName(e.target.value)} />
                     </div>
                     <div className="space-y-4">
-                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest">Media Verification</Label>
+                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest pl-2">Media Verification</Label>
                         <div className="relative aspect-video bg-black rounded-[2rem] overflow-hidden border-4 border-white shadow-2xl">
                             {avatar ? <img src={avatar} className="h-full w-full object-cover" alt="Preview" /> : <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />}
                             <canvas ref={canvasRef} className="hidden" />
@@ -248,8 +251,8 @@ function MeetingJoinContent() {
                     </div>
                 </CardContent>
                 <CardFooter className="p-8 pt-0">
-                    <Button onClick={handleRequestJoin} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-2xl" disabled={isSubmitting || !name || !avatar}>
-                        {isSubmitting ? <Loader2 className="animate-spin" /> : 'Join Session'}
+                    <Button onClick={handleRequestJoin} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-2xl active:scale-95 transition-transform" disabled={isSubmitting || !name || !avatar}>
+                        {isSubmitting ? <Loader2 className="animate-spin" /> : isAdminLink || authUser?.$id === meeting?.hostId ? 'Join Session' : 'Request Entry'}
                     </Button>
                 </CardFooter>
             </Card>

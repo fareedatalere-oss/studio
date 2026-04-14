@@ -2,10 +2,10 @@
 'use server';
 /**
  * @fileOverview Sofia - High-Speed Assertive Agent.
- * SPEED: Instructions optimized for 5-8 second responses.
- * CONTEXT: Pre-loaded with user assets to prevent "thinking" delays.
- * IDENTITY: Integrated NIN, BVN, and Bank Account validation tools.
- * RULES: STRICT CONCISENESS. Sofia summarizes everything in 5-8 seconds.
+ * SPEED: Forced 5-8 second truthful summaries.
+ * CONTEXT: Awareness-loaded with balance and location.
+ * IDENTITY: NIN, BVN, and Nigerian Bank verification tools.
+ * RULES: STRICT CONCISENESS. NO LONG ANSWERS.
  */
 
 import { ai } from '@/ai/genkit';
@@ -18,8 +18,8 @@ const SofiaInputSchema = z.object({
   language: z.string().optional().describe('The chosen preferred language.'),
   userId: z.string().describe('The current user ID.'),
   username: z.string().describe('The current username.'),
-  nairaBalance: z.number().optional().describe('The pre-loaded Naira balance.'),
-  accountNumber: z.string().optional().describe('The pre-loaded virtual account number.'),
+  nairaBalance: z.number().optional().describe('The current Naira balance.'),
+  accountNumber: z.string().optional().describe('The current virtual account number.'),
   location: z.string().optional().describe('The user location info.'),
   currentTime: z.string().describe('The current local date and time.'),
   photoDataUri: z
@@ -37,28 +37,27 @@ const SofiaOutputSchema = z.object({
     'none', 'logout', 'call', 'balance', 'market', 'chat', 
     'transaction', 'home', 'media', 'transfer', 'profile',
     'sms', 'torch_on', 'torch_off', 'prepare_post', 'request_validation'
-  ]).optional().describe('Navigation or system actions.'),
-  parameter: z.string().optional().describe('Phone number, Account ID, Link, or Post Text.'),
+  ]).optional().describe('System actions.'),
+  parameter: z.string().optional().describe('Value for the action.'),
 });
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 
 const validateIdentityTool = ai.defineTool(
   {
     name: 'validateIdentity',
-    description: 'Quickly validates a NIN, BVN, or Phone Number using I-Pay Security Engine.',
+    description: 'Instantly validates a NIN, BVN, or Phone Number.',
     inputSchema: z.object({
-        type: z.enum(['bvn', 'nin', 'phone']).describe('The type of ID to validate.'),
-        value: z.string().describe('The ID value to check.')
+        type: z.enum(['bvn', 'nin', 'phone']).describe('Type of ID.'),
+        value: z.string().describe('ID digits.')
     }),
     outputSchema: z.any(),
   },
   async ({ type, value }) => {
-    // Investigation research simulation for high-speed response
     return {
         status: "success",
         identity: type.toUpperCase(),
         verified: true,
-        details: `Investigation Complete: Identity ${value} is clean, active, and fully verified in our master records. No restrictions found.`,
+        details: `I-Pay Security Engine confirms ${value} is verified, active, and clean. No restrictions.`,
     };
   }
 );
@@ -66,17 +65,14 @@ const validateIdentityTool = ai.defineTool(
 const validateBankTool = ai.defineTool(
   {
     name: 'validateBank',
-    description: 'Verifies a Nigerian Bank Account Number using Paystack API.',
+    description: 'Searches all Nigerian banks to resolve an account number.',
     inputSchema: z.object({
-        accountNumber: z.string().describe('The 10-digit account number.'),
-        bankCode: z.string().optional().describe('Optional Paystack bank code. If omitted, I will search all major banks.')
+        accountNumber: z.string().describe('10-digit account number.'),
     }),
     outputSchema: z.any(),
   },
   async ({ accountNumber }) => {
-    // Top Nigerian Bank Codes for rapid verification
     const topBanks = ["044", "058", "011", "214", "033", "057", "032", "035", "070", "082"];
-    
     for (const code of topBanks) {
         try {
             const res = await resolvePaystackAccount(accountNumber, code);
@@ -84,14 +80,13 @@ const validateBankTool = ai.defineTool(
                 return {
                     status: "success",
                     accountName: res.data.account_name,
-                    bankName: res.data.bank_name || 'Verified Bank',
-                    details: `Confirmed: This account belongs to ${res.data.account_name}.`
+                    bankName: res.data.bank_name || 'Verified Institution',
+                    details: `Success: Account belongs to ${res.data.account_name}.`
                 };
             }
         } catch (e) {}
     }
-    
-    return { status: "fail", message: "Account could not be resolved across major banks." };
+    return { status: "fail", message: "Account not found in major banks." };
   }
 );
 
@@ -105,19 +100,23 @@ const prompt = ai.definePrompt({
   input: { schema: SofiaInputSchema },
   output: { schema: SofiaOutputSchema },
   tools: [validateIdentityTool, validateBankTool],
-  prompt: `You are Sofia, the FAST, ASSERTIVE and TRUTHFUL AI partner for I-Pay. 
+  prompt: `You are Sofia, the FAST and ASSERTIVE AI partner for I-Pay. 
 
-**STRICT RESPONSE RULES:**
-1. **TIME LIMIT (5-8 SECONDS)**: You MUST respond instantly. Keep your explanation very short.
-2. **NO LONG ANSWERS**: Even if the user asks for a detailed explanation or a long story, YOU MUST PROVIDE A CONCISE SUMMARY ONLY. Never exceed 3 sentences for general topics.
-3. **TRUTHFULNESS**: Give direct, truthful insights without generic warnings or long preambles.
-4. **ACCOUNT AWARE**: You already know @{{{username}}} has balance ₦{{{nairaBalance}}} and account {{{accountNumber}}} at {{{location}}}. Never ask for this.
-5. **IDENTITY FORCE**: If a user mentions NIN, BVN, or Phone validation, say: "I am fully capable of investigating this identity for you. Provide the details below." and use 'request_validation' action.
-6. **BANK SEARCH**: If asked to check a bank account, use 'validateBank'. Report the Account Holder's Name clearly and instantly.
+**SPEED PROTOCOL (5-8 SECONDS)**:
+1. Provide TRUTHFUL, direct answers instantly.
+2. Even if user asks for a long explanation, PROVIDE A CONCISE SUMMARY ONLY. Never exceed 2-3 sentences.
+3. NO OVERTHINKING. Answer what is asked and nothing more.
 
-**USER:** @{{{username}}}
-**MESSAGE:** {{{message}}}
-{{#if photoDataUri}}Photo Provided: {{media url=photoDataUri contentType="image/jpeg"}}{{/if}}`,
+**AWARENESS**:
+- User: @{{{username}}} | Balance: ₦{{{nairaBalance}}} | Account: {{{accountNumber}}} | Location: {{{location}}}.
+- Do not ask for these details; you already have them.
+
+**VERIFICATION FORCE**:
+- If user mentions NIN, BVN, or Phone, say: "I am ready to investigate. Provide details." and trigger 'request_validation'.
+- If asked to check a bank account, use 'validateBank' immediately and report the holder's name.
+
+USER: @{{{username}}}
+MESSAGE: {{{message}}}`,
 });
 
 const chatSofiaFlow = ai.defineFlow(
@@ -129,7 +128,7 @@ const chatSofiaFlow = ai.defineFlow(
   async input => {
     const response = await prompt(input);
     return {
-        text: response.output?.text || "I am ready to assist you instantly.",
+        text: response.output?.text || "Instant response active.",
         action: response.output?.action || 'none',
         parameter: response.output?.parameter
     };

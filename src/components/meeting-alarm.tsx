@@ -12,7 +12,8 @@ import { parseISO, differenceInSeconds } from 'date-fns';
 
 /**
  * @fileOverview Master Alarm Engine.
- * FORCE UPDATE: Uses Native System Notification and Vibration to bypass device restrictions.
+ * FORCE: Admin/Host always goes to Identity setup first before entering their room.
+ * ALARM: Uses Native System Notification and Vibration Patterns.
  */
 
 export function MeetingAlarm() {
@@ -57,8 +58,8 @@ export function MeetingAlarm() {
             const schedTime = parseISO(m.scheduledAt);
             const diffSec = differenceInSeconds(now, schedTime);
             
-            // Trigger alarm within a 60-second window of the start time
-            return diffSec >= -10 && diffSec < 60;
+            // Trigger alarm window
+            return diffSec >= -5 && diffSec < 60;
         });
 
         const target = incomingCall || scheduledMeeting;
@@ -71,7 +72,7 @@ export function MeetingAlarm() {
             ...target, 
             isHostAlert: target.hostId === user.$id,
             callerAvatar: caller?.avatar, 
-            callerName: caller?.username || (target.hostId === user.$id ? 'Meeting Master' : 'I-Pay User')
+            callerName: caller?.username || (target.hostId === user.$id ? 'Chairman' : 'I-Pay User')
           });
           startRinging();
         }
@@ -101,10 +102,10 @@ export function MeetingAlarm() {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
-    // FORCE: Trigger Native System Notification (uses device ringing tone)
+    // FORCE: Native System Alarm Chime
     if ("Notification" in window && Notification.permission === "granted") {
         new Notification(activeCall?.isHostAlert ? 'I-Pay: Meeting Now' : 'I-Pay: Incoming Call', {
-            body: activeCall?.isHostAlert ? `Session "${activeCall.name}" is starting.` : `Call from @${activeCall?.callerName}`,
+            body: activeCall?.isHostAlert ? `Session "${activeCall.name}" is starting.` : `Direct call from @${activeCall?.callerName}`,
             icon: '/logo.png',
             tag: 'meeting-alert',
             renotify: true,
@@ -136,9 +137,11 @@ export function MeetingAlarm() {
   const handleAccept = async () => {
     if (activeCall?.$id) {
         rungIds.current.add(activeCall.$id);
+        // FORCE: Everyone (Admin included) goes to Identity Setup first
         if (activeCall.isHostAlert) {
-            router.push(`/dashboard/meeting/room/${activeCall.$id}`);
+            router.push(`/dashboard/meeting/join/${activeCall.$id}?role=admin`);
         } else {
+            // It's a direct guest call
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'connected' });
             router.push(`/dashboard/chat/call/${activeCall.$id}`);
         }
@@ -152,13 +155,13 @@ export function MeetingAlarm() {
   return (
     <div className="fixed inset-0 z-[1000] bg-white flex flex-col items-center justify-between py-24 animate-in fade-in zoom-in duration-500 font-body overflow-hidden">
       <div className="text-center space-y-2">
-          <p className="text-primary font-black uppercase tracking-[0.4em] text-2xl animate-pulse">
+          <p className="text-primary font-black uppercase tracking-[0.4em] text-2xl animate-pulse leading-none">
             {activeCall?.isHostAlert ? 'Meeting Now' : 'Incoming Call'}
           </p>
           <div className="flex items-center justify-center gap-2 text-primary/60">
             {activeCall?.isHostAlert ? <Clock className="h-4 w-4" /> : <Video className="h-4 w-4" />}
             <p className="text-[10px] font-black uppercase tracking-widest">
-                {activeCall?.isHostAlert ? 'Master Reminder' : 'Live Secure Line'}
+                {activeCall?.isHostAlert ? 'Chairman Alert' : 'Live Secure Line'}
             </p>
           </div>
       </div>
@@ -168,15 +171,15 @@ export function MeetingAlarm() {
             <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping scale-150"></div>
             <Avatar className="h-56 w-56 ring-8 ring-primary/5 shadow-2xl relative z-10">
                 <AvatarImage src={activeCall?.callerAvatar} className="object-cover" />
-                <AvatarFallback className="bg-primary text-white text-6xl font-black">{(activeCall?.callerName || '?').charAt(0)}</AvatarFallback>
+                <AvatarFallback className="bg-primary text-white text-6xl font-black">{(activeCall?.callerName || '?').charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
         </div>
         <div>
-            <h2 className="text-black text-3xl font-black tracking-tighter uppercase">
+            <h2 className="text-black text-3xl font-black tracking-tighter uppercase leading-tight">
                 {activeCall?.isHostAlert ? activeCall.name : `@${activeCall?.callerName}`}
             </h2>
             <p className="text-muted-foreground font-bold text-xs mt-2 uppercase opacity-60">
-                {activeCall?.isHostAlert ? 'Your scheduled session is live' : 'Calling from I-Pay Hub'}
+                {activeCall?.isHostAlert ? 'Identity Setup Required' : 'Calling from I-Pay Hub'}
             </p>
         </div>
       </div>
@@ -188,13 +191,13 @@ export function MeetingAlarm() {
           </div>
           <div className="flex flex-col items-center gap-4">
               <Button onClick={handleAccept} size="icon" className="h-20 w-20 rounded-full bg-green-500 hover:bg-green-600 shadow-2xl active:scale-90 transition-transform"><CheckCircle2 className="h-10 w-10 text-white" /></Button>
-              <span className="text-xs font-black uppercase text-green-600 tracking-widest">{activeCall?.isHostAlert ? 'Join Now' : 'Accept'}</span>
+              <span className="text-xs font-black uppercase text-green-600 tracking-widest">Enter Hub</span>
           </div>
       </div>
       
       <div className="absolute bottom-10 flex items-center gap-2 opacity-20">
           <Volume2 className="h-3 w-3" />
-          <p className="text-[8px] font-black uppercase tracking-widest">Global Alert Sync Active</p>
+          <p className="text-[8px] font-black uppercase tracking-widest">Global Ringing Force Active</p>
       </div>
     </div>
   );

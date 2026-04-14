@@ -11,9 +11,8 @@ import { toast } from '@/hooks/use-toast';
 
 /**
  * @fileOverview Unified Master Auth & Data Hook.
- * SHIELDED: Extreme Hydration Guarding to prevent "Client-side exception".
- * FORCED: Background sync for instant page loads.
- * REDIRECT FIX: Removed automatic profile setup redirects to prevent loops.
+ * FORCE: Zero automatic redirects to profile setup. No hydration crashes.
+ * SHIELDED: Background data sync for instant loading.
  */
 
 type UserContextType = {
@@ -44,7 +43,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     
     const router = useRouter();
     const pathname = usePathname();
-    const initialized = useRef(false);
 
     const fetchConfig = useCallback(async () => {
         try {
@@ -76,7 +74,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 };
                 setUser(miniUser);
                 
-                // 1. Initial Quick Fetch for instant UI load
+                // 1. Instant Background Fetch
                 try {
                     const pDoc = await getDoc(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid));
                     if (pDoc.exists()) {
@@ -84,7 +82,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     }
                 } catch (e) {}
 
-                // 2. Persistent Real-time Sync
+                // 2. Real-time Reactive Sync
                 unsubProfile = onSnapshot(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid), async (snap) => {
                     if (snap.exists()) {
                         const prof = { $id: snap.id, ...snap.data() } as any;
@@ -97,15 +95,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
                             router.replace('/auth/signin');
                         }
                     }
-                    // NEVER automatically redirect to profile setup here.
-                    // Redirection is now handled strictly in Sign In/Sign Up actions.
+                    // MASTER FORCE: Zero automatic redirection here to prevent loops.
                     setIsLoading(false);
                 }, (error) => {
                     console.error("Profile sync error:", error);
                     setIsLoading(false);
                 });
 
-                // Background Activity Pulse
+                // Background Pulse
                 setDoc(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid), {
                     isOnline: true,
                     lastSeen: serverTimestamp()
@@ -117,6 +114,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 if (unsubProfile) unsubProfile();
                 setIsLoading(false);
                 
+                // Auth protection for dashboard routes
                 if (!pathname.includes('/auth') && pathname.startsWith('/dashboard')) {
                     router.replace('/auth/signin');
                 }
@@ -130,15 +128,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }, [pathname, router, fetchConfig]);
 
     const recheck = async () => {
-        // Real-time snapshot handles updates automatically
+        // Handled by snapshot sync
     };
 
-    // Hydration Guard: Prevents "Client-side exception" by not rendering until mounted
     if (!isMounted) return null;
 
     return (
         <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, recheckUser: recheck }}>
-            {children}
+            <div className={cn("min-h-screen transition-opacity duration-500", isLoading ? "opacity-50 pointer-events-none" : "opacity-100")}>
+                {children}
+            </div>
         </UserContext.Provider>
     );
 };
