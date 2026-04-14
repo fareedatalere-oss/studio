@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -15,6 +16,7 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 /**
  * @fileOverview Sign In Page.
  * TRAPDOOR: altinemohd@gmail.com bypass logic implemented with login counter lock.
+ * REDIRECT: Hardened to prevent setup redirect loops.
  */
 
 const ADMIN_EMAIL = 'ipatmanager17@gmail.com';
@@ -70,7 +72,7 @@ export default function SignInPage() {
             toast({ 
                 variant: 'destructive', 
                 title: 'Access Denied', 
-                description: 'you are blocked by I-pay team contact them for further assistance.',
+                description: 'You are blocked by I-Pay team. Contact them for further assistance.',
                 duration: 10000
             });
             setIsLoading(false);
@@ -86,10 +88,11 @@ export default function SignInPage() {
         }
 
         sessionStorage.setItem('ipay_pin_verified', 'true');
-        toast({ title: 'Signed In', description: 'Welcome back to I-pay online world.' });
+        toast({ title: 'Signed In', description: 'Welcome back to I-Pay online world.' });
         router.push('/dashboard');
       } catch (profileError: any) {
         if (profileError.code === 404) {
+            // ONLY redirect if the document strictly does not exist
             router.push('/auth/signup/profile');
         } else {
             router.push('/dashboard');

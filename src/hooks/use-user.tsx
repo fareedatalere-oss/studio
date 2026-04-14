@@ -1,10 +1,11 @@
+
 'use client';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/data-service';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, updateDoc, serverTimestamp, onSnapshot, getDoc } from 'firebase/firestore';
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { doc, serverTimestamp, onSnapshot, getDoc, setDoc } from 'firebase/firestore';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { toast } from '@/hooks/use-toast';
 
@@ -12,6 +13,7 @@ import { toast } from '@/hooks/use-toast';
  * @fileOverview Unified Master Auth & Data Hook.
  * SHIELDED: Extreme Hydration Guarding to prevent "Client-side exception".
  * FORCED: Background sync for instant page loads.
+ * REDIRECT FIX: Removed automatic profile setup redirects to prevent loops.
  */
 
 type UserContextType = {
@@ -23,7 +25,14 @@ type UserContextType = {
     recheckUser: () => Promise<void>;
 };
 
-const UserContext = createContext<UserContextType>({ user: null, profile: null, config: null, proof: null, loading: true, recheckUser: async () => {} });
+const UserContext = createContext<UserContextType>({ 
+    user: null, 
+    profile: null, 
+    config: null, 
+    proof: null, 
+    loading: true, 
+    recheckUser: async () => {} 
+});
 
 export function UserProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<any | null>(null);
@@ -35,6 +44,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     
     const router = useRouter();
     const pathname = usePathname();
+    const initialized = useRef(false);
 
     const fetchConfig = useCallback(async () => {
         try {
@@ -43,7 +53,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main').catch(() => null)
             ]);
             if (pDoc && pDoc.data) {
-                setProof(typeof pDoc.data === 'string' ? JSON.parse(pDoc.data) : pDoc.data);
+                const parsedProof = typeof pDoc.data === 'string' ? JSON.parse(pDoc.data) : pDoc.data;
+                setProof(parsedProof);
             }
             if (cDoc) setConfig(cDoc);
         } catch (e) {}
@@ -57,14 +68,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
         const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                const miniUser = { $id: firebaseUser.uid, uid: firebaseUser.uid, email: firebaseUser.email, name: firebaseUser.displayName };
+                const miniUser = { 
+                    $id: firebaseUser.uid, 
+                    uid: firebaseUser.uid, 
+                    email: firebaseUser.email, 
+                    name: firebaseUser.displayName 
+                };
                 setUser(miniUser);
                 
                 // 1. Initial Quick Fetch for instant UI load
-                const pDoc = await getDoc(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid));
-                if (pDoc.exists()) {
-                    setProfile({ $id: pDoc.id, ...pDoc.data() });
-                }
+                try {
+                    const pDoc = await getDoc(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid));
+                    if (pDoc.exists()) {
+                        setProfile({ $id: pDoc.id, ...pDoc.data() });
+                    }
+                } catch (e) {}
 
                 // 2. Persistent Real-time Sync
                 unsubProfile = onSnapshot(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid), async (snap) => {
@@ -78,20 +96,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
                             toast({ variant: 'destructive', title: 'Access Revoked', description: 'Account restricted by I-Pay Security.' });
                             router.replace('/auth/signin');
                         }
-                    } else {
-                        // Only redirect to profile setup if we are SURE it's missing after initial check
-                        if (!pathname.includes('/auth') && !pathname.startsWith('/dashboard/meeting/join')) {
-                            router.replace('/auth/signup/profile');
-                        }
                     }
+                    // NEVER automatically redirect to profile setup here.
+                    // Redirection is now handled strictly in Sign In/Sign Up actions.
+                    setIsLoading(false);
+                }, (error) => {
+                    console.error("Profile sync error:", error);
                     setIsLoading(false);
                 });
 
                 // Background Activity Pulse
-                updateDoc(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid), {
+                setDoc(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid), {
                     isOnline: true,
                     lastSeen: serverTimestamp()
-                }).catch(() => {});
+                }, { merge: true }).catch(() => {});
+
             } else {
                 setUser(null);
                 setProfile(null);
@@ -114,6 +133,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         // Real-time snapshot handles updates automatically
     };
 
+    // Hydration Guard: Prevents "Client-side exception" by not rendering until mounted
     if (!isMounted) return null;
 
     return (
