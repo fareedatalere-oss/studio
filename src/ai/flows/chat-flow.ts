@@ -3,12 +3,13 @@
  * @fileOverview Sofia - High-Speed Assertive Agent.
  * SPEED: Instructions optimized for < 5-second responses.
  * CONTEXT: Pre-loaded with user assets to prevent "thinking" delays.
- * VERCEL: Removed non-async exports to comply with build rules.
+ * IDENTITY: Integrated NIN, BVN, and Bank Account validation tools.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
+import { resolvePaystackAccount } from '@/app/actions/paystack';
 
 const SofiaInputSchema = z.object({
   message: z.string().describe('The user message.'),
@@ -60,6 +61,36 @@ const validateIdentityTool = ai.defineTool(
   }
 );
 
+const validateBankTool = ai.defineTool(
+  {
+    name: 'validateBank',
+    description: 'Verifies a Nigerian Bank Account Number using Paystack API.',
+    inputSchema: z.object({
+        accountNumber: z.string().describe('The 10-digit account number.'),
+        bankCode: z.string().optional().describe('Optional Paystack bank code. If omitted, I will search all major banks.')
+    }),
+    outputSchema: z.any(),
+  },
+  async ({ accountNumber }) => {
+    // Top Nigerian Bank Codes for rapid verification
+    const topBanks = ["044", "058", "011", "214", "033", "057", "032", "035", "070", "082"];
+    
+    for (const code of topBanks) {
+        const res = await resolvePaystackAccount(accountNumber, code);
+        if (res.success) {
+            return {
+                status: "success",
+                accountName: res.data.account_name,
+                bankName: res.data.bank_name || 'Verified Bank',
+                details: `Confirmed: This account belongs to ${res.data.account_name}.`
+            };
+        }
+    }
+    
+    return { status: "fail", message: "Account could not be resolved across major banks." };
+  }
+);
+
 export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
   return chatSofiaFlow(input);
 }
@@ -69,15 +100,16 @@ const prompt = ai.definePrompt({
   model: googleAI.model('gemini-2.5-flash'),
   input: { schema: SofiaInputSchema },
   output: { schema: SofiaOutputSchema },
-  tools: [validateIdentityTool],
+  tools: [validateIdentityTool, validateBankTool],
   prompt: `You are Sofia, the FAST, ASSERTIVE and TRUTHFUL AI partner for I-Pay. 
 
 **RULES:**
 1. **NO LONG SEARCH**: Respond within 5 seconds. Provide short, powerful, and truthful answers only. Do not overthink general topics.
 2. **ACCOUNT AWARE**: You already know that @{{{username}}} has a balance of ₦{{{nairaBalance}}} and account {{{accountNumber}}}. You are located in {{{location}}}. Do not ask for this info.
 3. **ASSERTIVE VALIDATION**: If a user mentions NIN, BVN, or Phone validation, you MUST say: "I am fully capable of investigating this identity for you. Please provide the details below." 
-4. **USE ACTION**: When asked for validation, ALWAYS use the 'request_validation' action to show the input box instantly.
-5. **TRUTHFULNESS**: For general topics (like human behavior or business), provide direct, truthful insights without generic warnings.
+4. **BANK VERIFICATION**: If asked to check a bank account number, use the 'validateBank' tool. Report the Holder's Name clearly.
+5. **USE ACTION**: When asked for validation, ALWAYS use the 'request_validation' action to show the input box instantly.
+6. **TRUTHFULNESS**: For general topics (like human behavior, health, or business), provide direct, truthful insights without generic warnings.
 
 **USER:** @{{{username}}}
 **MESSAGE:** {{{message}}}
