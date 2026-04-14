@@ -2,7 +2,8 @@
 import { MetadataRoute } from 'next'
 
 /**
- * @fileOverview Master PWA Manifest.
+ * @fileOverview Dynamic PWA Manifest.
+ * FORCE: Uses Admin logo if available.
  */
 
 export default function manifest(): MetadataRoute.Manifest {

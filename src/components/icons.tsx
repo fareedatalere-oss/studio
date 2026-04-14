@@ -3,12 +3,12 @@
 
 import type { SVGProps } from "react";
 import Image from "next/image";
-import { useUser } from "@/hooks/use-appwrite";
+import { useUser } from "@/hooks/use-user";
 import { Skeleton } from "./ui/skeleton";
 
 /**
  * @fileOverview I-Pay Master Logo Component.
- * Visual implementation of the rainbow gradient square branding.
+ * SYNCED: Uses Admin defined logo from database globally.
  */
 
 export function IPayLogo(props: SVGProps<SVGSVGElement>) {
@@ -27,7 +27,7 @@ export function IPayLogo(props: SVGProps<SVGSVGElement>) {
         alt="I-Pay Logo"
         width={Number(width)}
         height={Number(height)}
-        className={props.className?.toString() || "rounded-xl shadow-md"}
+        className={props.className?.toString() || "rounded-xl shadow-md object-contain bg-white p-1"}
         unoptimized 
       />
     );

