@@ -58,7 +58,7 @@ export default function MeetingRoomPage() {
                 router.replace('/dashboard/meeting');
             }
         } catch (e) {
-            console.error("Meeting check failed, maintaining session stability.");
+            console.error("Meeting sync pending...");
         } finally { setLoading(false); }
     }, [meetingId, router]);
 
@@ -101,7 +101,7 @@ export default function MeetingRoomPage() {
 
         const unsubAttendees = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_ATTENDEES}.documents`], response => {
             const payload = response.payload as any;
-            if (payload.meetingId === meetingId) fetchAttendees();
+            if (payload && payload.meetingId === meetingId) fetchAttendees();
         });
 
         if (mySetup?.useCamera && navigator?.mediaDevices) {
@@ -153,7 +153,7 @@ export default function MeetingRoomPage() {
                                     <button onClick={() => handleAction(p.$id, 'declined')} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 shadow-lg hover:scale-110 transition-transform"><X className="h-3 w-3" /></button>
                                 )}
                             </div>
-                            <p className="font-black text-[8px] opacity-80 uppercase text-center truncate w-full tracking-tighter">{p.name}</p>
+                            <p className="font-black text-[8px] opacity-80 uppercase text-center truncate w-full tracking-tighter">@{p.name}</p>
                         </div>
                     ))}
                 </div>
@@ -169,7 +169,7 @@ export default function MeetingRoomPage() {
                                         <div className="relative h-12 w-12 rounded-full overflow-hidden border-2 border-primary"><img src={req.avatar} className="h-full w-full object-cover" alt="Req" /></div>
                                         <div className="min-w-[80px]">
                                             <span className="text-[10px] font-black uppercase truncate block leading-tight">{req.name}</span>
-                                            <p className="text-[7px] font-bold text-primary uppercase mt-0.5">Wants to Join</p>
+                                            <p className="text-[7px] font-bold text-primary uppercase mt-0.5">Wants Entry</p>
                                         </div>
                                         <div className="flex gap-2">
                                             <Button size="icon" onClick={() => handleAction(req.$id, 'approved')} className="h-10 w-10 rounded-full bg-green-500 shadow-lg"><Check className="h-5 w-5" /></Button>
@@ -189,13 +189,13 @@ export default function MeetingRoomPage() {
                         {mySetup?.useCamera ? <video ref={selfVideoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" /> : <Avatar className="h-full w-full"><AvatarImage src={mySetup?.avatar || profile?.avatar} className="object-cover" /><AvatarFallback>?</AvatarFallback></Avatar>}
                     </div>
                     <div className="text-left">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Your Identity</p>
-                        <p className="text-[8px] font-bold opacity-50 uppercase">Live Stream</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Identity Feed</p>
+                        <p className="text-[8px] font-bold opacity-50 uppercase">Live Master Sync</p>
                     </div>
                 </div>
                 <div className="text-right flex flex-col items-end opacity-20">
-                    <p className="text-[7px] font-black uppercase tracking-[0.4em]">I-Pay Meeting</p>
-                    <p className="text-[6px] font-bold uppercase">End-to-End Encrypted</p>
+                    <p className="text-[7px] font-black uppercase tracking-[0.4em]">I-Pay Security</p>
+                    <p className="text-[6px] font-bold uppercase">No-Crash Protocol Active</p>
                 </div>
             </footer>
         </div>

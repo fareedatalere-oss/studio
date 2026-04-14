@@ -13,6 +13,7 @@ import { parseISO, isBefore } from 'date-fns';
  * @fileOverview Master Alarm Engine.
  * FORCE: Persistent continuous ringing for Chairman sessions until limit reached.
  * NATIVE: Uses system notification and intense vibration loop.
+ * SHIELDED: Strictly filtered by User ID to prevent global session leaks.
  */
 
 export function MeetingAlarm() {
@@ -39,53 +40,65 @@ export function MeetingAlarm() {
 
     const checkMeetings = async () => {
       try {
-        const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
+        // Master Logic: Specifically fetch pending meetings relevant to THIS user
+        const hostRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
           Query.equal('status', 'pending'),
-          Query.limit(10)
+          Query.equal('hostId', user.$id),
+          Query.limit(5)
         ]);
 
+        const inviteRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
+          Query.equal('status', 'pending'),
+          Query.contains('invitedUsers', user.$id),
+          Query.limit(5)
+        ]);
+
+        const allDocs = [...hostRes.documents, ...inviteRes.documents];
         const now = new Date();
 
-        // 1. Incoming Call Detection (Direct invite)
-        const incomingCall = res.documents.find(m => m.type === 'call' && m.invitedUsers?.includes(user.$id));
-        
-        // 2. Scheduled Meeting Alarm (Chairman Persistence)
-        const scheduledMeeting = res.documents.find(m => {
-            if (m.hostId !== user.$id || rungIds.current.has(m.$id)) return false;
-            if (!m.scheduledAt || !m.expiresAt) return false;
+        // 1. Scheduled Meeting Alarm (Chairman Persistence)
+        const target = allDocs.find(m => {
+            if (rungIds.current.has(m.$id)) return false;
             
-            const schedTime = parseISO(m.scheduledAt);
-            const expiryTime = parseISO(m.expiresAt);
+            // If user is host, it's a Chairman alarm
+            if (m.hostId === user.$id) {
+                if (!m.scheduledAt || !m.expiresAt) return true; // Instant if no schedule
+                const schedTime = parseISO(m.scheduledAt);
+                const expiryTime = parseISO(m.expiresAt);
+                return isBefore(schedTime, now) && isBefore(now, expiryTime);
+            }
             
-            // Continuous trigger if we are within the meeting duration and still pending
-            return isBefore(schedTime, now) && isBefore(now, expiryTime);
+            // If user is invited, it's an incoming call
+            if (m.type === 'call' && m.invitedUsers?.includes(user.$id)) return true;
+            
+            return false;
         });
-
-        const target = incomingCall || scheduledMeeting;
         
         if (target && !isRinging && !rungIds.current.has(target.$id)) {
-          const callerId = target.hostId === user.$id ? user.$id : target.hostId;
+          const isHostAlert = target.hostId === user.$id;
+          const callerId = isHostAlert ? user.$id : target.hostId;
           const caller = await databases.getDocument(DATABASE_ID, 'profiles', callerId).catch(() => null);
           
           setActiveCall({ 
             ...target, 
-            isHostAlert: target.hostId === user.$id,
+            isHostAlert,
             callerAvatar: caller?.avatar, 
-            callerName: caller?.username || (target.hostId === user.$id ? 'Chairman' : 'I-Pay User')
+            callerName: caller?.username || (isHostAlert ? 'Chairman' : 'I-Pay User')
           });
           startRinging();
         }
       } catch (e) {}
     };
 
-    const interval = setInterval(checkMeetings, 3000); 
+    const interval = setInterval(checkMeetings, 4000); 
     
     const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
         const payload = response.payload as any;
-        if (!payload) return;
+        if (!payload || !activeCall) return;
         
-        if (payload.status === 'ended' || payload.status === 'cancelled' || payload.status === 'connected') {
-            if (payload.$id === activeCall?.$id) {
+        // ONLY stop if the specific active call is modified
+        if (payload.$id === activeCall.$id) {
+            if (payload.status === 'ended' || payload.status === 'cancelled' || payload.status === 'connected') {
                 stopRinging(); 
                 setActiveCall(null);
             }
@@ -97,7 +110,7 @@ export function MeetingAlarm() {
         unsub(); 
         if (vibrationInterval.current) clearInterval(vibrationInterval.current);
     };
-  }, [user, isRinging, activeCall?.$id]);
+  }, [user, isRinging, activeCall]);
 
   const startRinging = () => {
     if (typeof window === 'undefined') return;
@@ -105,8 +118,8 @@ export function MeetingAlarm() {
     
     // FORCE: Native System Alarm Push
     if ("Notification" in window && Notification.permission === "granted") {
-        new Notification(activeCall?.isHostAlert ? 'I-Pay Hub: Meeting Active' : 'I-Pay: Incoming Call', {
-            body: activeCall?.isHostAlert ? `Session "${activeCall.name}" is waiting for you to start.` : `Direct call from @${activeCall?.callerName}`,
+        new Notification(activeCall?.isHostAlert ? 'Chairman: Session Active' : 'I-Pay: Incoming Hub', {
+            body: activeCall?.isHostAlert ? `Room "${activeCall.name}" is waiting.` : `Invited by @${activeCall?.callerName}`,
             icon: '/logo.png',
             tag: 'meeting-alert',
             renotify: true,
@@ -128,13 +141,7 @@ export function MeetingAlarm() {
     if (activeCall?.$id && user) {
         rungIds.current.add(activeCall.$id);
         if (activeCall.hostId === user.$id) {
-            // Chairman can cancel the session if they dismiss the alarm
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'cancelled' });
-        } else {
-            const chatId = [user.$id, activeCall.hostId].sort().join('_');
-            await databases.createDocument(DATABASE_ID, 'messages', ID.unique(), {
-                chatId, senderId: 'system', text: `Missed call from @${activeCall.callerName}`, status: 'sent'
-            });
         }
     }
     stopRinging(); 
@@ -161,12 +168,12 @@ export function MeetingAlarm() {
     <div className="fixed inset-0 z-[1000] bg-white flex flex-col items-center justify-between py-24 animate-in fade-in zoom-in duration-500 font-body overflow-hidden">
       <div className="text-center space-y-2">
           <p className="text-primary font-black uppercase tracking-[0.4em] text-2xl animate-pulse leading-none">
-            {activeCall?.isHostAlert ? 'Meeting Hub' : 'Incoming Call'}
+            {activeCall?.isHostAlert ? 'Chairman Alert' : 'Incoming Hub'}
           </p>
           <div className="flex items-center justify-center gap-2 text-primary/60">
             {activeCall?.isHostAlert ? <Clock className="h-4 w-4" /> : <Video className="h-4 w-4" />}
             <p className="text-[10px] font-black uppercase tracking-widest">
-                {activeCall?.isHostAlert ? 'Chairman Active Alarm' : 'Live Secure Line'}
+                {activeCall?.isHostAlert ? 'Your Session is Ready' : 'Live Secure Line'}
             </p>
           </div>
       </div>
@@ -184,7 +191,7 @@ export function MeetingAlarm() {
                 {activeCall?.isHostAlert ? activeCall.name : `@${activeCall?.callerName}`}
             </h2>
             <p className="text-muted-foreground font-bold text-xs mt-2 uppercase opacity-60">
-                {activeCall?.isHostAlert ? 'Chairman identity Required' : 'Calling from I-Pay Hub'}
+                {activeCall?.isHostAlert ? 'Identity Verification Required' : 'Invitation from I-Pay Hub'}
             </p>
         </div>
       </div>
@@ -196,13 +203,13 @@ export function MeetingAlarm() {
           </div>
           <div className="flex flex-col items-center gap-4">
               <Button onClick={handleAccept} size="icon" className="h-20 w-20 rounded-full bg-green-500 hover:bg-green-600 shadow-2xl active:scale-90 transition-transform"><CheckCircle2 className="h-10 w-10 text-white" /></Button>
-              <span className="text-[10px] font-black uppercase text-green-600 tracking-widest">Join Hub</span>
+              <span className="text-[10px] font-black uppercase text-green-600 tracking-widest">Enter Hub</span>
           </div>
       </div>
       
       <div className="absolute bottom-10 flex items-center gap-2 opacity-20">
           <Volume2 className="h-3 w-3" />
-          <p className="text-[8px] font-black uppercase tracking-widest">Global Persistent Alarm Active</p>
+          <p className="text-[8px] font-black uppercase tracking-widest">Global Identity Engine Active</p>
       </div>
     </div>
   );
