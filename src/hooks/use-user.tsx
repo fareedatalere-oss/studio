@@ -11,9 +11,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Unified Master Auth & Data Hook.
- * SHIELDED: Resolved ReferenceError: cn is not defined.
- * HYDRATION: Removed null-return to ensure NextJS hydration stability.
- * INSTANT: Renders shell immediately while syncing data in background.
+ * SHIELDED: Corrected ReferenceError: cn is not defined.
+ * INSTANT: Loads app shell immediately while syncing data in background.
  */
 
 type UserContextType = {
@@ -77,13 +76,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 };
                 setUser(miniUser);
                 
-                // Real-time Reactive Sync
                 unsubProfile = onSnapshot(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid), async (snap) => {
                     if (snap.exists()) {
                         const prof = { $id: snap.id, ...snap.data() } as any;
                         setProfile(prof);
 
-                        // BLOCK CHECK: Only if not immersive and not on signin
                         if (prof.isBlocked && !pathname.includes('/auth/signin') && !isImmersive) {
                             await auth.signOut();
                             toast({ variant: 'destructive', title: 'Access Revoked' });
@@ -91,11 +88,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
                         }
                     }
                     setIsLoading(false);
-                }, (error) => {
-                    setIsLoading(false);
                 });
 
-                // Background Pulse
                 setDoc(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid), {
                     isOnline: true,
                     lastSeen: serverTimestamp()
@@ -119,14 +113,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
         };
     }, [pathname, router, fetchConfig, isImmersive]);
 
-    const recheck = async () => { };
+    const recheck = async () => { await fetchConfig(); };
 
-    // FORCE: Always render children to maintain hydration sync with server
     return (
         <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, recheckUser: recheck }}>
             <div className={cn(
                 "min-h-screen bg-background transition-opacity duration-300", 
-                isMounted ? (isLoading && !user ? "opacity-50" : "opacity-100") : "opacity-0"
+                isMounted ? "opacity-100" : "opacity-0"
             )}>
                 {children}
             </div>

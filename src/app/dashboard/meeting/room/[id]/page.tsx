@@ -19,9 +19,8 @@ import Link from 'next/link';
 
 /**
  * @fileOverview Master Meeting Room Page.
- * HARDENED Sync: Strictly filtered by Meeting ID to prevent global state leaks.
- * FIXED: One icon per user (Unique UID Map).
- * SHIELDED: Zero auto-redirection unless manual Chairman action.
+ * SHIELDED: Zero auto-redirection unless the specific Meeting ID status is manually 'ended'.
+ * FIXED: One icon per user (Unique Identity Map).
  */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -52,8 +51,6 @@ export default function MeetingRoomPage() {
         try {
             const docData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
             setMeeting(docData);
-            
-            // ONLY redirect if the database definitively says THIS meeting is ended
             if (docData.status === 'ended' || docData.status === 'cancelled') {
                 router.replace('/dashboard/meeting');
             }
@@ -69,7 +66,7 @@ export default function MeetingRoomPage() {
                 Query.limit(100)
             ]);
             
-            // FORCE: Unique Icons Only using UserID Map
+            // FORCE: Unique Icons Only
             const uniqueMap = new Map();
             res.documents.filter(doc => doc.status === 'approved').forEach(p => {
                 uniqueMap.set(p.userId, p);
@@ -86,13 +83,13 @@ export default function MeetingRoomPage() {
         fetchMeeting();
         fetchAttendees();
         
-        // HARDENED LISTENER: Strictly check payload ID to prevent global closures
+        // HARDENED LISTENER: Strictly filtered by THIS meeting ID
         const unsubMeeting = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
             const payload = response.payload as any;
             if (!payload || payload.$id !== meetingId) return;
 
             if (payload.status === 'ended' || payload.status === 'cancelled') {
-                toast({ title: 'Session Ended', description: 'The host has closed this meeting.' });
+                toast({ title: 'Session Ended' });
                 router.replace('/dashboard/meeting');
                 return;
             }
@@ -169,7 +166,7 @@ export default function MeetingRoomPage() {
                                         <div className="relative h-12 w-12 rounded-full overflow-hidden border-2 border-primary"><img src={req.avatar} className="h-full w-full object-cover" alt="Req" /></div>
                                         <div className="min-w-[80px]">
                                             <span className="text-[10px] font-black uppercase truncate block leading-tight">{req.name}</span>
-                                            <p className="text-[7px] font-bold text-primary uppercase mt-0.5">Wants Entry</p>
+                                            <p className="text-[7px] font-bold text-primary uppercase mt-0.5">Entry Request</p>
                                         </div>
                                         <div className="flex gap-2">
                                             <Button size="icon" onClick={() => handleAction(req.$id, 'approved')} className="h-10 w-10 rounded-full bg-green-500 shadow-lg"><Check className="h-5 w-5" /></Button>
@@ -195,7 +192,7 @@ export default function MeetingRoomPage() {
                 </div>
                 <div className="text-right flex flex-col items-end opacity-20">
                     <p className="text-[7px] font-black uppercase tracking-[0.4em]">I-Pay Security</p>
-                    <p className="text-[6px] font-bold uppercase">No-Crash Protocol Active</p>
+                    <p className="text-[6px] font-bold uppercase">Hardened Hub Active</p>
                 </div>
             </footer>
         </div>

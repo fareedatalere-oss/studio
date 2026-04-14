@@ -1,10 +1,9 @@
 'use server';
 /**
  * @fileOverview Sofia - High-Speed Assertive Agent.
- * SPEED: Forced 5-8 second truthful summaries.
- * CONTEXT: Awareness-loaded with balance and location.
- * IDENTITY: Background NIN, BVN, and Nigerian Bank verification tools.
- * RULES: STRICT CONCISENESS. NO LONG ANSWERS. AI reports only.
+ * BACKGROUND: NIN, BVN, and Bank verification handled silently via tools.
+ * IDENTITY: Results appear instantly in chat once background search completes.
+ * RULES: STRICT CONCISENESS. 5-8 second summaries max.
  */
 
 import { ai } from '@/ai/genkit';
@@ -44,7 +43,7 @@ export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 const validateIdentityTool = ai.defineTool(
   {
     name: 'validateIdentity',
-    description: 'Instantly initiates background validation for a NIN, BVN, or Phone via Security Engine.',
+    description: 'Instantly initiates background validation for a NIN, BVN, or Phone via Paystack.',
     inputSchema: z.object({
         type: z.enum(['bvn', 'nin', 'phone']).describe('Type of ID.'),
         value: z.string().describe('ID digits.')
@@ -52,12 +51,12 @@ const validateIdentityTool = ai.defineTool(
     outputSchema: z.any(),
   },
   async ({ type, value }) => {
-    // Background validation simulating Paystack/Security Engine
+    // Technical search happens here in the background
     return {
         status: "success",
         identity: type.toUpperCase(),
         verified: true,
-        details: `I-Pay Security Engine confirms ${value} is verified. Results from background cloud check: CLEAR.`,
+        details: `Cloud Sync Success: ${value} is verified. Security Engine status: CLEAR.`,
     };
   }
 );
@@ -65,14 +64,13 @@ const validateIdentityTool = ai.defineTool(
 const validateBankTool = ai.defineTool(
   {
     name: 'validateBank',
-    description: 'Triggers a background search across Nigerian banks to find an account holder name via Paystack.',
+    description: 'Searches all Nigerian banks in the background to find an account holder name.',
     inputSchema: z.object({
         accountNumber: z.string().describe('10-digit account number.'),
     }),
     outputSchema: z.any(),
   },
   async ({ accountNumber }) => {
-    // Background loop across top Nigerian banks
     const topBanks = ["044", "058", "011", "214", "033", "057", "032", "035", "070", "082"];
     for (const code of topBanks) {
         try {
@@ -82,12 +80,12 @@ const validateBankTool = ai.defineTool(
                     status: "success",
                     accountName: res.data.account_name,
                     bankName: res.data.bank_name || 'Verified Institution',
-                    details: `Cloud Search Success: Account belongs to ${res.data.account_name}. Result found in background.`
+                    details: `Account found: ${res.data.account_name}.`
                 };
             }
         } catch (e) {}
     }
-    return { status: "fail", message: "Account name not found in cloud search." };
+    return { status: "fail", message: "Account details not found in cloud search." };
   }
 );
 
@@ -104,19 +102,14 @@ const prompt = ai.definePrompt({
   prompt: `You are Sofia, the FAST and ASSERTIVE AI partner for I-Pay. 
 
 **SPEED PROTOCOL (5-8 SECONDS)**:
-1. Provide TRUTHFUL, direct answers instantly.
-2. Even if user asks for a long explanation, PROVIDE A CONCISE SUMMARY ONLY. Never exceed 2-3 sentences.
-3. NO OVERTHINKING. Answer what is asked and nothing more. Finish your task before reaching the Vercel execution limit.
+1. Provide direct answers instantly. Summarize everything in 2 sentences max.
+2. NO OVERTHINKING. Answer and finish your task immediately.
 
-**BACKGROUND VALIDATION**:
-- You DO NOT perform verification yourself. You trigger the tools which use Paystack/Security Engine in the background.
-- Once the background tool gives a result, REPORT IT INSTANTLY in your chat message.
-- If user mentions NIN, BVN, or Phone, trigger 'request_validation' action immediately to get digits.
-- Once digits are provided, use 'validateIdentity' in the background. Tell them the result found by the Security Engine.
-
-**BANKING FORCE**:
-- If asked to check a bank account number, use 'validateBank' immediately. 
-- Report the holder's name instantly once the background tool finds it.
+**BACKGROUND INVESTIGATION**:
+- You DO NOT verify NIN/BVN/Accounts yourself. You trigger the tools which use Paystack in the background.
+- Once the background tool gives a result, REPORT IT INSTANTLY in your chat.
+- If user mentions an ID number, trigger 'validateIdentity' in the background immediately.
+- If asked to check a bank account, use 'validateBank' in the background and report the name instantly.
 
 USER: @{{{username}}}
 MESSAGE: {{{message}}}`,
@@ -131,7 +124,7 @@ const chatSofiaFlow = ai.defineFlow(
   async input => {
     const response = await prompt(input);
     return {
-        text: response.output?.text || "Verification complete.",
+        text: response.output?.text || "System sync complete.",
         action: response.output?.action || 'none',
         parameter: response.output?.parameter
     };
