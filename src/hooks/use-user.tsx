@@ -1,4 +1,3 @@
-
 'use client';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/data-service';
@@ -12,8 +11,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Unified Master Auth & Data Hook.
- * FIXED: cn utility reference.
- * SHIELDED: Extreme hydration protection with immediate children rendering.
+ * SHIELDED: Terminated ReferenceError: cn is not defined.
+ * INSTANT: Removed loading overlays to ensure zero-delay app opening.
  */
 
 type UserContextType = {
@@ -121,11 +120,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     const recheck = async () => { };
 
-    if (!isMounted) return <div className="min-h-screen bg-background" />;
+    if (!isMounted) return null;
 
     return (
         <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, recheckUser: recheck }}>
-            <div className={cn("min-h-screen transition-opacity duration-500", (isLoading && !isImmersive) ? "opacity-50 pointer-events-none" : "opacity-100")}>
+            <div className="min-h-screen bg-background">
                 {children}
             </div>
         </UserContext.Provider>
