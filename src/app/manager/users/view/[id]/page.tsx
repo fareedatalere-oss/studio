@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Edit, Save, Loader2, KeyRound, Wallet, MousePointer2, Gift, ShieldAlert, UserX, Activity, Info, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Edit, Save, Loader2, KeyRound, Activity, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS, Query } from '@/lib/data-service';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,7 +20,6 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Master User Preview & Edit Page.
- * FORCE REPAIR: Decoupled profile fetch from transactions to bypass Index Errors.
  * SHIELDED: Identity loads instantly even if transaction sync is pending.
  * FIXED: RangeError by using a robust safeDate utility.
  */
@@ -30,7 +29,6 @@ export default function ViewUserPage() {
     const router = useRouter();
     const { toast } = useToast();
     
-    // Force ID extraction to prevent race conditions
     const userId = typeof params?.id === 'string' ? params.id : '';
 
     const [profile, setProfile] = useState<any>(null);
@@ -59,7 +57,7 @@ export default function ViewUserPage() {
             setProfile(data);
         } catch (error: any) {
             console.error("Profile Fetch Error:", error);
-            toast({ variant: 'destructive', title: 'Identity Load Error', description: 'User record not found in cloud.' });
+            toast({ variant: 'destructive', title: 'Identity Load Error', description: 'User record not found.' });
         } finally {
             setLoadingProfile(false);
         }
@@ -69,13 +67,11 @@ export default function ViewUserPage() {
         if (!userId) return;
         setLoadingTx(true);
         try {
-            // Fetch without orderDesc to bypass potential index errors during bootstrap
             const data = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_TRANSACTIONS, [
                 Query.equal('userId', userId),
                 Query.limit(20)
             ]);
             
-            // Sort in memory
             const sorted = data.documents.sort((a, b) => {
                 const dateA = safeDate(a.$createdAt)?.getTime() || 0;
                 const dateB = safeDate(b.$createdAt)?.getTime() || 0;
@@ -128,15 +124,7 @@ export default function ViewUserPage() {
         return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
     }
     
-    if (!profile) {
-        return (
-            <div className="container py-20 text-center space-y-4">
-                <ShieldAlert className="h-16 w-16 mx-auto text-destructive opacity-20" />
-                <h2 className="text-xl font-black uppercase tracking-tighter">Identity Missing</h2>
-                <Button asChild variant="outline" className="rounded-full px-10"><Link href="/manager/users">Return to List</Link></Button>
-            </div>
-        );
-    }
+    if (!profile) return null;
 
     return (
         <div className="container py-8 max-w-5xl space-y-8 font-body">
@@ -146,7 +134,7 @@ export default function ViewUserPage() {
                 </Button>
                 {editMode ? (
                     <Button onClick={handleSave} disabled={isSaving} className="h-12 rounded-full font-black uppercase text-[10px] tracking-widest shadow-xl px-10">
-                        {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-4 w-4" />} Save Master Changes
+                        {isSaving ? <Loader2 className="animate-spin mr-2 h-5 w-5" /> : <Save className="mr-2 h-4 w-4" />} Save Master Changes
                     </Button>
                 ) : (
                     <Button onClick={() => setEditMode(true)} variant="outline" className="h-12 rounded-full font-black uppercase text-[10px] tracking-widest shadow-lg px-10 border-2">
@@ -157,10 +145,6 @@ export default function ViewUserPage() {
 
             <Card className={cn("rounded-[3rem] shadow-2xl border-none overflow-hidden", profile.isBlocked && "ring-4 ring-destructive/20")}>
                 <CardHeader className="bg-primary/5 pb-10 pt-10 text-center relative">
-                    <div className="absolute top-4 right-6 flex gap-2">
-                        {profile.isOnline && <Badge className="bg-green-500 font-black uppercase text-[8px]">Online</Badge>}
-                        {profile.isSuspended && <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px]">Suspended</Badge>}
-                    </div>
                     <Avatar className="h-32 w-32 border-8 border-white shadow-2xl mx-auto mb-6">
                         <AvatarImage src={profile.avatar} className="object-cover" />
                         <AvatarFallback className="font-black text-4xl uppercase bg-primary text-white">{profile.username?.charAt(0)}</AvatarFallback>
@@ -179,10 +163,6 @@ export default function ViewUserPage() {
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Rewards</Label>
                             <Input id="rewardBalance" type="number" value={profile.rewardBalance || 0} onChange={handleInputChange} readOnly={!editMode} className="h-12 rounded-2xl border-none bg-orange-50 font-black text-orange-600 text-xl px-6" />
                         </div>
-                        <div className="space-y-1">
-                            <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Clicks</Label>
-                            <Input id="clickCount" type="number" value={profile.clickCount || 0} onChange={handleInputChange} readOnly={!editMode} className="h-12 rounded-2xl border-none bg-blue-50 font-black text-blue-600 text-xl px-6" />
-                        </div>
                     </div>
 
                     <div className="space-y-4">
@@ -190,10 +170,6 @@ export default function ViewUserPage() {
                         <div className="space-y-1">
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Virtual Account</Label>
                             <Input value={profile.accountNumber || 'NOT GENERATED'} readOnly className="h-12 rounded-2xl border-none bg-muted font-mono font-bold px-6" />
-                        </div>
-                        <div className="space-y-1">
-                            <Label className="text-[9px] font-black uppercase opacity-50 pl-1">BVN / NIN</Label>
-                            <Input value={profile.bvn || 'HIDDEN'} readOnly className="h-12 rounded-2xl border-none bg-muted font-mono px-6" />
                         </div>
                         <div className="space-y-1">
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Transaction PIN</Label>
@@ -211,10 +187,6 @@ export default function ViewUserPage() {
                                 <Badge variant={profile.isBlocked ? 'destructive' : 'outline'}>{profile.isBlocked ? 'YES' : 'NO'}</Badge>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black uppercase">Suspended</span>
-                                <Badge variant={profile.isSuspended ? 'destructive' : 'outline'}>{profile.isSuspended ? 'YES' : 'NO'}</Badge>
-                            </div>
-                            <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-black uppercase">Last Active</span>
                                 <span className="text-[8px] font-bold opacity-50 truncate max-w-[80px]">
                                     {(() => {
@@ -225,40 +197,6 @@ export default function ViewUserPage() {
                             </div>
                         </div>
                     </div>
-                </CardContent>
-            </Card>
-
-            <Card className="rounded-[2.5rem] shadow-xl border-none overflow-hidden">
-                <CardHeader className="bg-muted/20 border-b flex flex-row items-center justify-between">
-                    <CardTitle className="font-black uppercase text-sm tracking-widest opacity-40">Recent Activity Ledger</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <Table>
-                        <TableHeader><TableRow className="border-none hover:bg-transparent"><TableHead className="font-black uppercase text-[10px] pl-10">Event</TableHead><TableHead className="font-black uppercase text-[10px]">Recipient</TableHead><TableHead className="text-right font-black uppercase text-[10px] pr-10">Value</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                            {loadingTx ? (
-                                <TableRow><TableCell colSpan={3} className="text-center h-24"><Loader2 className="animate-spin h-5 w-5 mx-auto opacity-20" /></TableCell></TableRow>
-                            ) : transactions.length > 0 ? transactions.map(tx => (
-                                <TableRow key={tx.$id} className="border-muted/10 h-16">
-                                    <TableCell className="pl-10">
-                                        <div className="font-black uppercase text-[10px] tracking-tight">{tx.type.replace('_', ' ')}</div>
-                                        <div className="text-[8px] font-bold opacity-40 uppercase mt-1">
-                                            {(() => {
-                                                const d = safeDate(tx.$createdAt);
-                                                return d ? format(d, 'PPp') : '...';
-                                            })()}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-[10px] font-bold uppercase truncate max-w-[150px]">{tx.recipientName || 'SYSTEM'}</TableCell>
-                                    <TableCell className={cn("text-right pr-10 font-black text-xs", tx.type === 'deposit' ? 'text-green-600' : 'text-red-600')}>
-                                        {tx.type === 'deposit' ? '+' : '-'} ₦{tx.amount?.toLocaleString()}
-                                    </TableCell>
-                                </TableRow>
-                            )) : (
-                                <TableRow><TableCell colSpan={3} className="text-center h-24 text-[10px] font-black uppercase opacity-20 tracking-widest">No Activity Logged</TableCell></TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
                 </CardContent>
             </Card>
         </div>

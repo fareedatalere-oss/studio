@@ -23,12 +23,12 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import { format } from 'date-fns';
 
 /**
- * @fileOverview Sofia AI Chat - HIGH SPEED VERSION.
- * FORCED: Layout loads immediately.
- * HARDENED: Timeout config moved here to resolve build error.
+ * @fileOverview Sofia AI Chat - Master High-Speed Version.
+ * VERCEL CONFIG: limit set to 10s for Hobby compliance.
  */
 
-export const maxDuration = 60;
+// Moving Vercel config here to resolve Build Error
+export const maxDuration = 10;
 
 type Message = {
     $id: string;
@@ -83,7 +83,7 @@ export default function AiChatPage() {
             setMessages([{
                 $id: 'welcome',
                 role: 'sofia',
-                text: "Hello! I am Sofia. I know your profile details and I'm ready to assist you instantly. How can I help?",
+                text: "Hello! I am Sofia. I'm ready to assist you instantly with transactions or identity validation. How can I help?",
                 timestamp: Date.now()
             }]);
         } else {
@@ -177,7 +177,7 @@ export default function AiChatPage() {
           handleSofiaAction(response.action, response.parameter);
       }
     } catch (error: any) {
-      toast({ variant: 'destructive', title: "Sofia Timeout", description: "Try a shorter question." });
+      toast({ variant: 'destructive', title: "Sofia Timeout", description: "Vercel limit reached. Keep requests short." });
     } finally {
       setIsLoading(false);
     }
@@ -212,7 +212,7 @@ export default function AiChatPage() {
                 <AvatarFallback className="bg-primary text-white">S</AvatarFallback>
             </Avatar>
             <div>
-                <h2 className="font-black text-xs uppercase tracking-widest text-primary">Sofia High-Speed</h2>
+                <h2 className="font-black text-xs uppercase tracking-widest text-primary">Sofia Master</h2>
                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{locationStr}</p>
             </div>
         </div>
@@ -256,12 +256,12 @@ export default function AiChatPage() {
                 <div className="bg-primary/5 border border-primary/20 rounded-[1.5rem] p-6 w-full max-w-[85%] space-y-4">
                     <div className="flex items-center gap-2 text-primary">
                         <Fingerprint className="h-5 w-5" />
-                        <p className="font-black uppercase text-xs tracking-tighter">Secure Validation</p>
+                        <p className="font-black uppercase text-xs tracking-tighter">Identity Investigation</p>
                     </div>
-                    <p className="text-[10px] font-bold opacity-70">Enter {validationRequest} below.</p>
+                    <p className="text-[10px] font-bold opacity-70">Enter {validationRequest} for truthful research.</p>
                     <div className="flex gap-2">
                         <Input placeholder={`Enter ${validationRequest}...`} value={validationValue} onChange={e => setValidationValue(e.target.value)} className="bg-white border-none h-10 rounded-xl font-bold shadow-sm" />
-                        <Button onClick={() => { if(!validationValue.trim()) return; const m = `Verify ${validationRequest}: ${validationValue}`; setValidationValue(''); handleSend(m); }} size="sm" className="rounded-xl font-black uppercase text-[10px]">Verify</Button>
+                        <Button onClick={() => { if(!validationValue.trim()) return; const m = `Investigate ${validationRequest}: ${validationValue}`; setValidationValue(''); handleSend(m); }} size="sm" className="rounded-xl font-black uppercase text-[10px]">Verify</Button>
                     </div>
                 </div>
             </div>
@@ -271,7 +271,7 @@ export default function AiChatPage() {
             <div className="flex justify-start">
                 <div className="bg-muted border rounded-[1.5rem] p-4 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 animate-pulse">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    Processing...
+                    Investigating...
                 </div>
             </div>
         )}

