@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { 
     PhoneOff, Loader2, Camera, 
     Video, Mic, MicOff, X,
-    MonitorPlay, Send, MessageSquare, Trash2, Check, XCircle, Volume2, Layout, ImageIcon, Film
+    MonitorPlay, Send, MessageSquare, Trash2, Check, XCircle, Volume2, Layout, ImageIcon, Film, AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -18,6 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 /**
  * @fileOverview Master Meeting Room Page.
@@ -37,12 +38,14 @@ export default function MeetingRoomPage() {
     
     const selfVideoRef = useRef<HTMLVideoElement>(null);
     const mediaInputRef = useRef<HTMLInputElement>(null);
+    const audioContextRef = useRef<AudioContext | null>(null);
 
     const [meeting, setMeeting] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [participants, setParticipants] = useState<any[]>([]);
     const [requests, setRequests] = useState<any[]>([]);
     const [isUploading, setIsUploading] = useState(false);
+    const [permissionError, setPermissionError] = useState(false);
     
     const mySetup = useMemo(() => {
         if (typeof window === 'undefined') return null;
@@ -81,11 +84,26 @@ export default function MeetingRoomPage() {
         } catch (e) {}
     }, [meetingId]);
 
+    const initializeAudio = useCallback(async () => {
+        if (typeof window === 'undefined') return;
+        try {
+            if (!audioContextRef.current) {
+                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+            }
+            if (audioContextRef.current.state === 'suspended') {
+                await audioContextRef.current.resume();
+            }
+        } catch (e) {
+            console.error("Audio Context Init Failed", e);
+        }
+    }, []);
+
     useEffect(() => {
         if (typeof window === 'undefined') return;
         
         fetchMeeting();
         fetchAttendees();
+        initializeAudio();
         
         const unsubMeeting = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
             const payload = response.payload as any;
@@ -107,11 +125,14 @@ export default function MeetingRoomPage() {
         if (mySetup?.useCamera && navigator?.mediaDevices) {
             navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
                 if (selfVideoRef.current) selfVideoRef.current.srcObject = stream;
-            }).catch(() => {});
+                setPermissionError(false);
+            }).catch(() => {
+                setPermissionError(true);
+            });
         }
 
         return () => { unsubMeeting(); unsubAttendees(); };
-    }, [meetingId, fetchMeeting, fetchAttendees, router, mySetup?.useCamera, toast]);
+    }, [meetingId, fetchMeeting, fetchAttendees, router, mySetup?.useCamera, toast, initializeAudio]);
 
     const handleAction = async (requestId: string, status: 'approved' | 'declined') => {
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, requestId, { status });
@@ -163,7 +184,7 @@ export default function MeetingRoomPage() {
     if (loading || !meeting) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
 
     return (
-        <div className="h-screen w-full bg-black text-white flex flex-col overflow-hidden relative font-body">
+        <div className="h-screen w-full bg-black text-white flex flex-col overflow-hidden relative font-body" onClick={initializeAudio}>
             <header className="p-4 pt-12 flex justify-between items-center bg-black/50 border-b border-white/5 z-50">
                 <div className="flex-1">
                     <h1 className="font-black uppercase text-xs tracking-widest text-primary truncate">{meeting.name}</h1>
@@ -185,10 +206,22 @@ export default function MeetingRoomPage() {
             </header>
 
             <main className="flex-1 overflow-y-auto p-6 scrollbar-visible">
+                {permissionError && (
+                    <div className="max-w-md mx-auto mb-6">
+                        <Alert variant="destructive" className="rounded-3xl border-none shadow-2xl bg-red-500/20 text-white backdrop-blur-xl">
+                            <AlertCircle className="h-5 w-5 text-white" />
+                            <AlertTitle className="font-black uppercase text-xs">Audio Locked</AlertTitle>
+                            <AlertDescription className="text-[10px] font-bold opacity-90">Microphone access is required to speak and hear.</AlertDescription>
+                            <Button size="sm" className="mt-4 w-full rounded-full font-black uppercase text-[10px] bg-white text-red-600 hover:bg-white/90" onClick={() => window.location.reload()}>Enable Permission</Button>
+                        </Alert>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-6 max-w-6xl mx-auto py-10">
                     {participants.map(p => (
                         <div key={p.$id} className="flex flex-col items-center gap-2 group relative">
                             <div className={cn("relative rounded-full border-2 p-0.5 h-20 w-20 transition-all", p.isHost ? "border-yellow-500" : "border-primary/40")}>
+                                {/* Master Audio Driver for every participant */}
                                 <audio autoPlay playsInline muted={p.userId === user?.$id} className="hidden" />
                                 <Avatar className="h-full w-full shadow-xl">
                                     <AvatarImage src={p.avatar} className="object-cover" />
@@ -204,43 +237,49 @@ export default function MeetingRoomPage() {
                 </div>
             </main>
 
-            {/* MASTER BOARD OVERLAY */}
+            {/* MASTER BOARD OVERLAY - Fixed size and capitalization */}
             {meeting.activeView === 'board' && (
-                <div className="absolute inset-0 z-[200] bg-white flex flex-col animate-in zoom-in duration-300">
-                    <header className="p-6 pt-16 flex items-center justify-between border-b bg-muted/10">
-                        <h2 className="text-3xl font-black uppercase tracking-tighter text-primary">Master Board</h2>
-                        <Button variant="ghost" size="icon" className="rounded-full bg-muted h-10 w-10 text-black" onClick={() => toggleView('none')}><X className="h-6 w-6" /></Button>
-                    </header>
-                    <div className="flex-1 p-8">
-                        {isAdmin ? (
-                            <Textarea 
-                                className="h-full w-full border-none text-black text-2xl font-black uppercase resize-none focus-visible:ring-0 p-0"
-                                placeholder="TYPE MESSAGE FOR EVERYONE..."
-                                value={meeting.boardText || ''}
-                                onChange={(e) => handleBoardTextChange(e.target.value)}
-                            />
-                        ) : (
-                            <div className="h-full w-full text-black text-2xl font-black uppercase break-words whitespace-pre-wrap overflow-y-auto">
-                                {meeting.boardText || 'BOARD IS EMPTY...'}
-                            </div>
-                        )}
-                    </div>
+                <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in zoom-in duration-300 p-6">
+                    <Card className="w-full max-w-2xl h-[70vh] flex flex-col rounded-[2.5rem] overflow-hidden border-none shadow-2xl">
+                        <header className="p-6 flex items-center justify-between border-b bg-muted/10">
+                            <h2 className="text-xl font-black uppercase tracking-tighter text-primary">Board Hub</h2>
+                            <Button variant="ghost" size="icon" className="rounded-full bg-muted h-10 w-10 text-black" onClick={() => toggleView('none')}><X className="h-6 w-6" /></Button>
+                        </header>
+                        <div className="flex-1 p-8 bg-white">
+                            {isAdmin ? (
+                                <Textarea 
+                                    className="h-full w-full border-none text-black text-xl font-bold resize-none focus-visible:ring-0 p-0 shadow-none bg-transparent"
+                                    placeholder="Write something for the room..."
+                                    value={meeting.boardText || ''}
+                                    onChange={(e) => handleBoardTextChange(e.target.value)}
+                                    autoFocus
+                                    spellCheck={false}
+                                />
+                            ) : (
+                                <div className="h-full w-full text-black text-xl font-bold break-words whitespace-pre-wrap overflow-y-auto">
+                                    {meeting.boardText || 'Board is waiting for input...'}
+                                </div>
+                            )}
+                        </div>
+                    </Card>
                 </div>
             )}
 
             {/* DISPLAY VAULT OVERLAY */}
             {meeting.activeView === 'display' && meeting.displayUrl && (
-                <div className="absolute inset-0 z-[300] bg-black flex flex-col animate-in fade-in duration-300">
+                <div className="absolute inset-0 z-[300] bg-black/90 backdrop-blur-xl flex flex-col animate-in fade-in duration-300">
                     <header className="absolute top-12 left-0 right-0 flex items-center justify-between p-6 z-10">
-                        <div className="flex items-center gap-3"><MonitorPlay className="h-6 w-6 text-primary" /><h2 className="text-white text-xl font-black uppercase tracking-widest">Master Display</h2></div>
+                        <div className="flex items-center gap-3"><MonitorPlay className="h-6 w-6 text-primary" /><h2 className="text-white text-xl font-black uppercase tracking-widest">Live Display</h2></div>
                         <Button variant="ghost" size="icon" onClick={() => toggleView('none')} className="rounded-full bg-white/10 text-white h-12 w-12"><X className="h-8 w-8" /></Button>
                     </header>
                     <div className="flex-1 flex items-center justify-center p-4">
-                        {meeting.displayType === 'image' ? (
-                            <Image src={meeting.displayUrl} alt="Display" fill className="object-contain" unoptimized />
-                        ) : (
-                            <video src={meeting.displayUrl} controls autoPlay playsInline className="max-h-full max-w-full rounded-xl" />
-                        )}
+                        <div className="relative w-full max-w-4xl aspect-video rounded-3xl overflow-hidden border-4 border-white/10 shadow-2xl bg-black">
+                            {meeting.displayType === 'image' ? (
+                                <Image src={meeting.displayUrl} alt="Display" fill className="object-contain" unoptimized />
+                            ) : (
+                                <video src={meeting.displayUrl} controls autoPlay playsInline className="w-full h-full" />
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
