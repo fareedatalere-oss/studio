@@ -70,6 +70,7 @@ const mapDoc = (snapshot: any) => {
         if (typeof createdAtRaw.toDate === 'function') safeCreatedAt = createdAtRaw.toDate().toISOString();
         else if (typeof createdAtRaw === 'string') safeCreatedAt = createdAtRaw;
         else if (typeof createdAtRaw === 'number') safeCreatedAt = new Date(createdAtRaw).toISOString();
+        else if (createdAtRaw.seconds !== undefined) safeCreatedAt = new Date(createdAtRaw.seconds * 1000).toISOString();
     }
     
     const updatedAtRaw = data.updatedAt || data.$updatedAt;
@@ -77,6 +78,7 @@ const mapDoc = (snapshot: any) => {
     if (updatedAtRaw) {
         if (typeof updatedAtRaw.toDate === 'function') safeUpdatedAt = updatedAtRaw.toDate().toISOString();
         else if (typeof updatedAtRaw === 'string') safeUpdatedAt = updatedAtRaw;
+        else if (updatedAtRaw.seconds !== undefined) safeUpdatedAt = new Date(updatedAtRaw.seconds * 1000).toISOString();
     }
 
     return {

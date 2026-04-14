@@ -20,9 +20,20 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center - FORCE STABILIZED VERSION.
- * SHIELDED: Absolute zero crash rendering.
+ * SHIELDED: Absolute zero crash rendering with safeDate utility.
  * FORCED: UI shell loads immediately to prevent Vercel execution hooks.
  */
+
+const safeDate = (ts: any) => {
+    if (!ts) return null;
+    try {
+        if (ts?.toDate) return ts.toDate();
+        if (ts?.toMillis) return new Date(ts.toMillis());
+        if (ts?.seconds !== undefined) return new Date(ts.seconds * 1000);
+        const d = new Date(ts);
+        return isNaN(d.getTime()) ? null : d;
+    } catch (e) { return null; }
+};
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
     const [otherUser, setOtherUser] = useState<any>(null);
@@ -41,10 +52,9 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     }, [chat, currentUid]);
 
     const formatChatDate = (ts: any) => {
-        if (!ts) return '';
+        const date = safeDate(ts);
+        if (!date) return '';
         try {
-            const date = ts?.toDate ? ts.toDate() : (ts?.toMillis ? new Date(ts.toMillis()) : new Date(ts));
-            if (!date || isNaN(date.getTime())) return '';
             if (isToday(date)) return format(date, 'HH:mm');
             if (isYesterday(date)) return 'Yesterday';
             return format(date, 'dd/MM/yy');
@@ -97,7 +107,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
 
 export default function ChatPage() {
     const router = useRouter();
-    const { user: currentUser, loading: userLoading } = useUser();
+    const { user: currentUser } = useUser();
     
     const [recentChats, setRecentChats] = useState<any[]>([]);
     const [allUsers, setAllUsers] = useState<any[]>([]);
@@ -115,8 +125,8 @@ export default function ChatPage() {
         const unsubChats = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ $id: doc.id, ...doc.data() }));
             data.sort((a: any, b: any) => {
-                const timeA = a.lastMessageAt?.toMillis ? a.lastMessageAt.toMillis() : 0;
-                const timeB = b.lastMessageAt?.toMillis ? b.lastMessageAt.toMillis() : 0;
+                const timeA = safeDate(a.lastMessageAt)?.getTime() || 0;
+                const timeB = safeDate(b.lastMessageAt)?.getTime() || 0;
                 return timeB - timeA;
             });
             setRecentChats(data);

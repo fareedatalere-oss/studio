@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
  * @fileOverview Master User Preview & Edit Page.
  * FORCE REPAIR: Decoupled profile fetch from transactions to bypass Index Errors.
  * SHIELDED: Identity loads instantly even if transaction sync is pending.
+ * FIXED: RangeError by using a robust safeDate utility.
  */
 
 export default function ViewUserPage() {
@@ -39,6 +40,17 @@ export default function ViewUserPage() {
     const [editMode, setEditMode] = useState(false);
     const [txError, setTxError] = useState<string | null>(null);
     
+    const safeDate = (val: any) => {
+        if (!val) return null;
+        try {
+            if (typeof val.toDate === 'function') return val.toDate();
+            if (typeof val.toMillis === 'function') return new Date(val.toMillis());
+            if (val.seconds !== undefined) return new Date(val.seconds * 1000);
+            const d = new Date(val);
+            return isNaN(d.getTime()) ? null : d;
+        } catch (e) { return null; }
+    };
+
     const fetchProfile = useCallback(async () => {
         if (!userId) return;
         setLoadingProfile(true);
@@ -47,7 +59,6 @@ export default function ViewUserPage() {
             setProfile(data);
         } catch (error: any) {
             console.error("Profile Fetch Error:", error);
-            // Don't show generic error if it's just a timing issue
             if (error.code !== 404) {
                 toast({ variant: 'destructive', title: 'Identity Load Error', description: 'User record not found in cloud.' });
             }
@@ -69,11 +80,10 @@ export default function ViewUserPage() {
             setTransactions(data.documents);
         } catch (error: any) {
             console.error("Tx Fetch Error:", error);
-            // Handle Missing Index Error gracefully to keep the Identity View working
             if (error.message?.includes('index') || error.message?.includes('FAILED_PRECONDITION')) {
-                setTxError("Index required. Create it via the link in your Firebase Console.");
+                setTxError("Index required. Create it in Firebase Console.");
             } else {
-                setTxError("Could not load recent history.");
+                setTxError("History sync pending.");
             }
         } finally {
             setLoadingTx(false);
@@ -91,7 +101,6 @@ export default function ViewUserPage() {
         if (!profile) return;
         setIsSaving(true);
         try {
-            // Clean internal properties before update
             const { $id, uid, $createdAt, $updatedAt, email, ...updateData } = profile;
             const finalData = {
                 ...updateData,
@@ -124,7 +133,6 @@ export default function ViewUserPage() {
             <div className="container py-20 text-center space-y-4">
                 <ShieldAlert className="h-16 w-16 mx-auto text-destructive opacity-20" />
                 <h2 className="text-xl font-black uppercase tracking-tighter">Identity Missing</h2>
-                <p className="text-sm font-bold text-muted-foreground">The requested user record could not be found.</p>
                 <Button asChild variant="outline" className="rounded-full px-10"><Link href="/manager/users">Return to List</Link></Button>
             </div>
         );
@@ -209,7 +217,10 @@ export default function ViewUserPage() {
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-black uppercase">Last Active</span>
                                 <span className="text-[8px] font-bold opacity-50 truncate max-w-[80px]">
-                                    {profile?.lastSeen ? format(new Date(profile.lastSeen), 'HH:mm') : 'Never'}
+                                    {(() => {
+                                        const d = safeDate(profile?.lastSeen);
+                                        return d ? format(d, 'HH:mm') : 'Never';
+                                    })()}
                                 </span>
                             </div>
                         </div>
@@ -232,7 +243,12 @@ export default function ViewUserPage() {
                                 <TableRow key={tx.$id} className="border-muted/10 h-16">
                                     <TableCell className="pl-10">
                                         <div className="font-black uppercase text-[10px] tracking-tight">{tx.type.replace('_', ' ')}</div>
-                                        <div className="text-[8px] font-bold opacity-40 uppercase mt-1">{format(new Date(tx.$createdAt), 'PPp')}</div>
+                                        <div className="text-[8px] font-bold opacity-40 uppercase mt-1">
+                                            {(() => {
+                                                const d = safeDate(tx.$createdAt);
+                                                return d ? format(d, 'PPp') : '...';
+                                            })()}
+                                        </div>
                                     </TableCell>
                                     <TableCell className="text-[10px] font-bold uppercase truncate max-w-[150px]">{tx.recipientName || 'SYSTEM'}</TableCell>
                                     <TableCell className={cn("text-right pr-10 font-black text-xs", tx.type === 'deposit' ? 'text-green-600' : 'text-red-600')}>
