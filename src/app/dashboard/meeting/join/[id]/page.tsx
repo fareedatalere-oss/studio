@@ -16,7 +16,8 @@ import { format, isBefore } from 'date-fns';
 
 /**
  * @fileOverview Universal Identity Gate for Meetings.
- * HARDENED: Forbidden from showing "Host Ended" unless definitively status='ended'.
+ * HARDENED: Strictly filtered by Meeting ID.
+ * NO auto-redirection unless the specific session is marked 'ended' or 'cancelled'.
  */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -52,7 +53,7 @@ function MeetingJoinContent() {
                 const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
                 setMeeting(doc);
                 
-                // FORCE: Only show expired if definitively ended/cancelled
+                // ONLY show expired if definitively ended/cancelled in THIS doc
                 if (doc.status === 'ended' || doc.status === 'cancelled') {
                     setStep('expired');
                 }

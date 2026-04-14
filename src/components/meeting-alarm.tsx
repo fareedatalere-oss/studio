@@ -12,6 +12,7 @@ import { parseISO, isBefore } from 'date-fns';
 /**
  * @fileOverview Master Alarm Engine.
  * FORCE: Persistent continuous ringing for Chairman sessions until limit reached.
+ * NATIVE: Uses system notification and intense vibration loop.
  */
 
 export function MeetingAlarm() {
@@ -81,6 +82,8 @@ export function MeetingAlarm() {
     
     const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
         const payload = response.payload as any;
+        if (!payload) return;
+        
         if (payload.status === 'ended' || payload.status === 'cancelled' || payload.status === 'connected') {
             if (payload.$id === activeCall?.$id) {
                 stopRinging(); 
@@ -111,7 +114,7 @@ export function MeetingAlarm() {
         });
     }
 
-    // FORCE: Intense Native Vibration Pattern
+    // FORCE: Intense Native Vibration Pattern [Ring 2s, Pause 0.5s]
     if (navigator.vibrate) {
         const ringPattern = [2000, 500, 2000, 500, 2000, 1000];
         navigator.vibrate(ringPattern);

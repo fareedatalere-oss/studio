@@ -11,8 +11,9 @@ import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Unified Master Auth & Data Hook.
- * HARDENED: Terminated all auto-redirects for immersive routes.
- * FIXED: Added missing 'cn' import.
+ * HARDENED: Strictly terminated all auto-redirect loops for existing users.
+ * FIXED: cn utility reference.
+ * SHIELDED: Extreme hydration protection.
  */
 
 type UserContextType = {

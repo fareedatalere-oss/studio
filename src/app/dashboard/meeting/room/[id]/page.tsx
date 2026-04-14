@@ -19,8 +19,9 @@ import Link from 'next/link';
 
 /**
  * @fileOverview Master Meeting Room Page.
- * HARDENED Sync: Checked definitively against DB. NO auto-redirects.
- * FIXED: One icon per user (no duplicates).
+ * HARDENED Sync: Strictly filtered by Meeting ID to prevent global state leaks.
+ * FIXED: One icon per user (Unique UID Map).
+ * SHIELDED: Zero auto-redirection unless manual Chairman action.
  */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -33,7 +34,6 @@ export default function MeetingRoomPage() {
     const meetingId = params.id as string;
     
     const selfVideoRef = useRef<HTMLVideoElement>(null);
-    const audioSyncRef = useRef<HTMLAudioElement>(null);
 
     const [meeting, setMeeting] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -53,11 +53,13 @@ export default function MeetingRoomPage() {
             const docData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
             setMeeting(docData);
             
-            // CRITICAL: Only redirect if DEFINITELY ended in DB
+            // ONLY redirect if the database definitively says THIS meeting is ended
             if (docData.status === 'ended' || docData.status === 'cancelled') {
                 router.replace('/dashboard/meeting');
             }
-        } catch (e) {} finally { setLoading(false); }
+        } catch (e) {
+            console.error("Meeting check failed, maintaining session stability.");
+        } finally { setLoading(false); }
     }, [meetingId, router]);
 
     const fetchAttendees = useCallback(async () => {
@@ -67,12 +69,13 @@ export default function MeetingRoomPage() {
                 Query.limit(100)
             ]);
             
-            // FORCE: Unique Icons Only
-            const uniqueApproved = Array.from(new Map(
-                res.documents.filter(doc => doc.status === 'approved').map(p => [p.userId, p])
-            ).values());
+            // FORCE: Unique Icons Only using UserID Map
+            const uniqueMap = new Map();
+            res.documents.filter(doc => doc.status === 'approved').forEach(p => {
+                uniqueMap.set(p.userId, p);
+            });
 
-            setParticipants(uniqueApproved);
+            setParticipants(Array.from(uniqueMap.values()));
             setRequests(res.documents.filter(doc => doc.status === 'waiting'));
         } catch (e) {}
     }, [meetingId]);
@@ -83,11 +86,11 @@ export default function MeetingRoomPage() {
         fetchMeeting();
         fetchAttendees();
         
-        const unsubMeeting = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${meetingId}`], response => {
+        // HARDENED LISTENER: Strictly check payload ID to prevent global closures
+        const unsubMeeting = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
             const payload = response.payload as any;
-            if (!payload) return;
+            if (!payload || payload.$id !== meetingId) return;
 
-            // FORCE: Zero system automatic kickout. Only trigger on explicit status change.
             if (payload.status === 'ended' || payload.status === 'cancelled') {
                 toast({ title: 'Session Ended', description: 'The host has closed this meeting.' });
                 router.replace('/dashboard/meeting');
