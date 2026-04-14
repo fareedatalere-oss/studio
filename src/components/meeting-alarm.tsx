@@ -7,11 +7,11 @@ import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query, client, ID } fro
 import { useUser } from '@/hooks/use-user';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter } from 'next/navigation';
-import { parseISO, differenceInSeconds } from 'date-fns';
+import { parseISO, isBefore } from 'date-fns';
 
 /**
  * @fileOverview Master Alarm Engine.
- * FORCE: Enhanced Vibration Loop & Native Push Handshake.
+ * FORCE: Persistent continuous ringing for Chairman sessions until limit reached.
  */
 
 export function MeetingAlarm() {
@@ -45,19 +45,19 @@ export function MeetingAlarm() {
 
         const now = new Date();
 
-        // 1. Incoming Call Detection
+        // 1. Incoming Call Detection (Direct invite)
         const incomingCall = res.documents.find(m => m.type === 'call' && m.invitedUsers?.includes(user.$id));
         
-        // 2. Scheduled Meeting Alarm
+        // 2. Scheduled Meeting Alarm (Chairman Persistence)
         const scheduledMeeting = res.documents.find(m => {
             if (m.hostId !== user.$id || rungIds.current.has(m.$id)) return false;
-            if (!m.scheduledAt) return false;
+            if (!m.scheduledAt || !m.expiresAt) return false;
             
             const schedTime = parseISO(m.scheduledAt);
-            const diffSec = differenceInSeconds(now, schedTime);
+            const expiryTime = parseISO(m.expiresAt);
             
-            // Trigger alarm window
-            return diffSec >= -5 && diffSec < 60;
+            // Continuous trigger if we are within the meeting duration and still pending
+            return isBefore(schedTime, now) && isBefore(now, expiryTime);
         });
 
         const target = incomingCall || scheduledMeeting;
@@ -102,8 +102,8 @@ export function MeetingAlarm() {
     
     // FORCE: Native System Alarm Push
     if ("Notification" in window && Notification.permission === "granted") {
-        new Notification(activeCall?.isHostAlert ? 'I-Pay: Meeting Now' : 'I-Pay: Incoming Call', {
-            body: activeCall?.isHostAlert ? `Session "${activeCall.name}" is starting.` : `Direct call from @${activeCall?.callerName}`,
+        new Notification(activeCall?.isHostAlert ? 'I-Pay Hub: Meeting Active' : 'I-Pay: Incoming Call', {
+            body: activeCall?.isHostAlert ? `Session "${activeCall.name}" is waiting for you to start.` : `Direct call from @${activeCall?.callerName}`,
             icon: '/logo.png',
             tag: 'meeting-alert',
             renotify: true,
@@ -125,6 +125,7 @@ export function MeetingAlarm() {
     if (activeCall?.$id && user) {
         rungIds.current.add(activeCall.$id);
         if (activeCall.hostId === user.$id) {
+            // Chairman can cancel the session if they dismiss the alarm
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'cancelled' });
         } else {
             const chatId = [user.$id, activeCall.hostId].sort().join('_');
@@ -157,12 +158,12 @@ export function MeetingAlarm() {
     <div className="fixed inset-0 z-[1000] bg-white flex flex-col items-center justify-between py-24 animate-in fade-in zoom-in duration-500 font-body overflow-hidden">
       <div className="text-center space-y-2">
           <p className="text-primary font-black uppercase tracking-[0.4em] text-2xl animate-pulse leading-none">
-            {activeCall?.isHostAlert ? 'Meeting Now' : 'Incoming Call'}
+            {activeCall?.isHostAlert ? 'Meeting Hub' : 'Incoming Call'}
           </p>
           <div className="flex items-center justify-center gap-2 text-primary/60">
             {activeCall?.isHostAlert ? <Clock className="h-4 w-4" /> : <Video className="h-4 w-4" />}
             <p className="text-[10px] font-black uppercase tracking-widest">
-                {activeCall?.isHostAlert ? 'Chairman Alert' : 'Live Secure Line'}
+                {activeCall?.isHostAlert ? 'Chairman Active Alarm' : 'Live Secure Line'}
             </p>
           </div>
       </div>
@@ -180,7 +181,7 @@ export function MeetingAlarm() {
                 {activeCall?.isHostAlert ? activeCall.name : `@${activeCall?.callerName}`}
             </h2>
             <p className="text-muted-foreground font-bold text-xs mt-2 uppercase opacity-60">
-                {activeCall?.isHostAlert ? 'Identity Setup Required' : 'Calling from I-Pay Hub'}
+                {activeCall?.isHostAlert ? 'Chairman identity Required' : 'Calling from I-Pay Hub'}
             </p>
         </div>
       </div>
@@ -188,17 +189,17 @@ export function MeetingAlarm() {
       <div className="flex items-center justify-center gap-16 w-full max-w-sm px-10">
           <div className="flex flex-col items-center gap-4">
               <Button onClick={handleDecline} size="icon" variant="destructive" className="h-20 w-20 rounded-full shadow-2xl bg-red-500 hover:bg-red-600 active:scale-90 transition-transform"><PhoneOff className="h-10 w-10 text-white" /></Button>
-              <span className="text-[10px] font-black uppercase text-red-600 tracking-widest">{activeCall?.isHostAlert ? 'Dismiss' : 'Decline'}</span>
+              <span className="text-[10px] font-black uppercase text-red-600 tracking-widest">{activeCall?.isHostAlert ? 'Cancel' : 'Decline'}</span>
           </div>
           <div className="flex flex-col items-center gap-4">
               <Button onClick={handleAccept} size="icon" className="h-20 w-20 rounded-full bg-green-500 hover:bg-green-600 shadow-2xl active:scale-90 transition-transform"><CheckCircle2 className="h-10 w-10 text-white" /></Button>
-              <span className="text-[10px] font-black uppercase text-green-600 tracking-widest">Enter Hub</span>
+              <span className="text-[10px] font-black uppercase text-green-600 tracking-widest">Join Hub</span>
           </div>
       </div>
       
       <div className="absolute bottom-10 flex items-center gap-2 opacity-20">
           <Volume2 className="h-3 w-3" />
-          <p className="text-[8px] font-black uppercase tracking-widest">Global Ringing Engine Active</p>
+          <p className="text-[8px] font-black uppercase tracking-widest">Global Persistent Alarm Active</p>
       </div>
     </div>
   );

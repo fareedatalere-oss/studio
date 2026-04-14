@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 /**
  * @fileOverview Unified Master Auth & Data Hook.
  * HARDENED: Terminated all auto-redirects for immersive routes.
+ * FIXED: Added missing 'cn' import.
  */
 
 type UserContextType = {
