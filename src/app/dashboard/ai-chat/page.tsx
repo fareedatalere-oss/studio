@@ -74,8 +74,7 @@ export default function AiChatPage() {
     try {
         const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
             Query.equal('chatId', chatId),
-            Query.limit(50),
-            Query.orderDesc('$createdAt')
+            Query.limit(50)
         ]);
         
         if (res.total === 0) {

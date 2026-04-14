@@ -14,8 +14,19 @@ import { Button } from "@/components/ui/button";
 
 /**
  * @fileOverview User Transaction History.
- * SHIELDED: gracefully handles missing indexes by notifying user instead of crashing.
+ * SHIELDED: Client-side sorting to bypass Firebase index errors.
  */
+
+const safeDate = (val: any) => {
+    if (!val) return new Date(0);
+    try {
+        if (typeof val.toDate === 'function') return val.toDate();
+        if (typeof val.toMillis === 'function') return new Date(val.toMillis());
+        if (val.seconds !== undefined) return new Date(val.seconds * 1000);
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? new Date(0) : d;
+    } catch (e) { return new Date(0); }
+};
 
 export default function HistoryPage() {
     const { user, loading: userLoading } = useUser();
@@ -28,23 +39,23 @@ export default function HistoryPage() {
         setLoading(true);
         setError(null);
         try {
+            // FORCE: Use raw fetch and client-side sort to bypass missing indexes
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_ID_TRANSACTIONS,
                 [
                     Query.equal('userId', user.$id),
-                    Query.orderDesc('$createdAt'),
                     Query.limit(100)
                 ]
             );
-            setTransactions(response.documents);
+            
+            const sorted = response.documents.sort((a, b) => {
+                return safeDate(b.$createdAt).getTime() - safeDate(a.$createdAt).getTime();
+            });
+
+            setTransactions(sorted);
         } catch (err: any) {
-            console.error("Failed to fetch transactions:", err);
-            if (err.message?.includes('index') || err.message?.includes('FAILED_PRECONDITION')) {
-                setError("Your history sync is currently pending an index creation. This usually takes 5 minutes to activate.");
-            } else {
-                setError("We encountered an error loading your history. Please try again.");
-            }
+            setError("We encountered an error loading your history. Please retry.");
         } finally {
             setLoading(false);
         }
@@ -122,10 +133,10 @@ export default function HistoryPage() {
                                         <TableRow key={tx.$id} className="hover:bg-muted/30 border-muted/20">
                                             <TableCell>
                                                 <div className="text-[10px] font-black text-foreground uppercase tracking-tighter leading-none">
-                                                    {tx.$createdAt ? format(new Date(tx.$createdAt), 'PP') : '...'}
+                                                    {format(safeDate(tx.$createdAt), 'PP')}
                                                 </div>
                                                 <div className="text-[8px] font-bold text-muted-foreground uppercase mt-1">
-                                                    {tx.$createdAt ? format(new Date(tx.$createdAt), 'HH:mm') : '...'}
+                                                    {format(safeDate(tx.$createdAt), 'HH:mm')}
                                                 </div>
                                             </TableCell>
                                             <TableCell>

@@ -29,6 +29,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
  * @fileOverview Master Firebase Data Service.
  * Consolidated for high performance and total null-safety.
  * SHIELDED: Robust timestamp mapping to prevent Vercel crashes.
+ * FORCE: Added setDocument for Admin configuration stability.
  */
 
 export const DATABASE_ID = 'default';

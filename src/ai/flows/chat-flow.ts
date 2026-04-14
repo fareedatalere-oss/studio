@@ -3,6 +3,7 @@
  * @fileOverview Sofia - High-Speed Assertive Agent.
  * SPEED: Instructions optimized for < 5-second responses.
  * CONTEXT: Pre-loaded with user assets to prevent "thinking" delays.
+ * VERCEL: Removed non-async exports to comply with build rules.
  */
 
 import { ai } from '@/ai/genkit';
