@@ -11,8 +11,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Unified Master Auth & Data Hook.
- * FORCE: Zero automatic redirects to profile setup for immersive routes.
- * SHIELDED: Background data sync for instant loading.
+ * HARDENED: Terminated all auto-redirects for immersive routes.
  */
 
 type UserContextType = {
@@ -90,16 +89,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
                         const prof = { $id: snap.id, ...snap.data() } as any;
                         setProfile(prof);
 
-                        // BLOCK CHECK
-                        if (prof.isBlocked && !pathname.includes('/auth/signin')) {
+                        // BLOCK CHECK: Only if not immersive
+                        if (prof.isBlocked && !pathname.includes('/auth/signin') && !isImmersive) {
                             await auth.signOut();
-                            toast({ variant: 'destructive', title: 'Access Revoked', description: 'Account restricted by I-Pay Security.' });
+                            toast({ variant: 'destructive', title: 'Access Revoked' });
                             router.replace('/auth/signin');
                         }
                     }
                     setIsLoading(false);
                 }, (error) => {
-                    console.error("Profile sync error:", error);
                     setIsLoading(false);
                 });
 
@@ -115,7 +113,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 if (unsubProfile) unsubProfile();
                 setIsLoading(false);
                 
-                // Auth protection for dashboard routes (unless immersive/link based)
                 if (!pathname.includes('/auth') && pathname.startsWith('/dashboard') && !isImmersive) {
                     router.replace('/auth/signin');
                 }
@@ -128,15 +125,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
         };
     }, [pathname, router, fetchConfig, isImmersive]);
 
-    const recheck = async () => {
-        // Handled by snapshot sync
-    };
+    const recheck = async () => { };
 
     if (!isMounted) return null;
 
     return (
         <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, recheckUser: recheck }}>
-            <div className={cn("min-h-screen transition-opacity duration-500", isLoading && !isImmersive ? "opacity-50 pointer-events-none" : "opacity-100")}>
+            <div className={cn("min-h-screen transition-opacity duration-500", (isLoading && !isImmersive) ? "opacity-50 pointer-events-none" : "opacity-100")}>
                 {children}
             </div>
         </UserContext.Provider>

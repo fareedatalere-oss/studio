@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { PhoneOff, Video, CheckCircle2, Volume2, Clock } from 'lucide-react';
+import { PhoneOff, Video, CheckCircle2, Volume2, Clock, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query, client, ID } from '@/lib/data-service';
 import { useUser } from '@/hooks/use-user';
@@ -11,8 +11,7 @@ import { parseISO, differenceInSeconds } from 'date-fns';
 
 /**
  * @fileOverview Master Alarm Engine.
- * FORCE: Admin/Host always goes to Identity setup first before entering their room.
- * ALARM: Uses Native System Notification and Vibration Patterns.
+ * FORCE: Enhanced Vibration Loop & Native Push Handshake.
  */
 
 export function MeetingAlarm() {
@@ -101,7 +100,7 @@ export function MeetingAlarm() {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
-    // FORCE: Native System Alarm Chime
+    // FORCE: Native System Alarm Push
     if ("Notification" in window && Notification.permission === "granted") {
         new Notification(activeCall?.isHostAlert ? 'I-Pay: Meeting Now' : 'I-Pay: Incoming Call', {
             body: activeCall?.isHostAlert ? `Session "${activeCall.name}" is starting.` : `Direct call from @${activeCall?.callerName}`,
@@ -112,13 +111,13 @@ export function MeetingAlarm() {
         });
     }
 
-    // FORCE: Native Vibration Logic
+    // FORCE: Intense Native Vibration Pattern
     if (navigator.vibrate) {
-        const ringPattern = [1000, 500, 1000, 500, 1000];
+        const ringPattern = [2000, 500, 2000, 500, 2000, 1000];
         navigator.vibrate(ringPattern);
         vibrationInterval.current = setInterval(() => {
             navigator.vibrate(ringPattern);
-        }, 3500);
+        }, 8000);
     }
   };
 
@@ -128,7 +127,6 @@ export function MeetingAlarm() {
         if (activeCall.hostId === user.$id) {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'cancelled' });
         } else {
-            // Log missed call in chat for guest
             const chatId = [user.$id, activeCall.hostId].sort().join('_');
             await databases.createDocument(DATABASE_ID, 'messages', ID.unique(), {
                 chatId, senderId: 'system', text: `Missed call from @${activeCall.callerName}`, status: 'sent'
@@ -142,11 +140,9 @@ export function MeetingAlarm() {
   const handleAccept = async () => {
     if (activeCall?.$id) {
         rungIds.current.add(activeCall.$id);
-        // FORCE: Everyone (Admin included) goes to Identity Setup first
         if (activeCall.isHostAlert) {
             router.push(`/dashboard/meeting/join/${activeCall.$id}?role=admin`);
         } else {
-            // It's a direct guest call
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'connected' });
             router.push(`/dashboard/chat/call/${activeCall.$id}`);
         }
@@ -192,17 +188,17 @@ export function MeetingAlarm() {
       <div className="flex items-center justify-center gap-16 w-full max-w-sm px-10">
           <div className="flex flex-col items-center gap-4">
               <Button onClick={handleDecline} size="icon" variant="destructive" className="h-20 w-20 rounded-full shadow-2xl bg-red-500 hover:bg-red-600 active:scale-90 transition-transform"><PhoneOff className="h-10 w-10 text-white" /></Button>
-              <span className="text-xs font-black uppercase text-red-600 tracking-widest">{activeCall?.isHostAlert ? 'Dismiss' : 'Decline'}</span>
+              <span className="text-[10px] font-black uppercase text-red-600 tracking-widest">{activeCall?.isHostAlert ? 'Dismiss' : 'Decline'}</span>
           </div>
           <div className="flex flex-col items-center gap-4">
               <Button onClick={handleAccept} size="icon" className="h-20 w-20 rounded-full bg-green-500 hover:bg-green-600 shadow-2xl active:scale-90 transition-transform"><CheckCircle2 className="h-10 w-10 text-white" /></Button>
-              <span className="text-xs font-black uppercase text-green-600 tracking-widest">Enter Hub</span>
+              <span className="text-[10px] font-black uppercase text-green-600 tracking-widest">Enter Hub</span>
           </div>
       </div>
       
       <div className="absolute bottom-10 flex items-center gap-2 opacity-20">
           <Volume2 className="h-3 w-3" />
-          <p className="text-[8px] font-black uppercase tracking-widest">Global Ringing Force Active</p>
+          <p className="text-[8px] font-black uppercase tracking-widest">Global Ringing Engine Active</p>
       </div>
     </div>
   );

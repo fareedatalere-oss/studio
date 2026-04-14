@@ -19,8 +19,7 @@ import Link from 'next/link';
 
 /**
  * @fileOverview Master Meeting Room Page.
- * FORCE Sync: High-visibility Admin approval bar with live previews.
- * STABILITY: No automatic redirection unless Host explicitly ends meeting.
+ * FORCE Sync: TERMINATED automatic redirects. App stays locked unless Ended by Host.
  */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -53,10 +52,9 @@ export default function MeetingRoomPage() {
             const docData = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
             setMeeting(docData);
         } catch (e) { 
-            // Only redirect if meeting is actually gone
-            router.replace('/dashboard/meeting'); 
+            // Silent error to prevent flash redirection
         } finally { setLoading(false); }
-    }, [meetingId, router]);
+    }, [meetingId]);
 
     const fetchAttendees = useCallback(async () => {
         try {
@@ -77,7 +75,9 @@ export default function MeetingRoomPage() {
         
         const unsubMeeting = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${meetingId}`], response => {
             const payload = response.payload as any;
-            // FORCE: Only redirect if status is definitively Ended or Cancelled
+            if (!payload) return;
+
+            // FORCE: Only exit if the status is definitively 'ended' or 'cancelled'
             if (payload.status === 'ended' || payload.status === 'cancelled') {
                 toast({ title: 'Session Ended', description: 'The host has closed this meeting.' });
                 router.replace('/dashboard/meeting');
@@ -116,6 +116,7 @@ export default function MeetingRoomPage() {
 
     return (
         <div className="h-screen w-full bg-black text-white flex flex-col overflow-hidden relative font-body">
+            {/* Audio Force Chime */}
             <audio ref={audioSyncRef} autoPlay playsInline muted={false} className="hidden" src="https://assets.mixkit.co/sfx/preview/mixkit-silent-fast-thud-2094.mp3" />
 
             <header className="p-4 pt-12 flex justify-between items-center bg-black/50 border-b border-white/5 z-50">
@@ -139,7 +140,7 @@ export default function MeetingRoomPage() {
                                     <AvatarFallback className="font-black bg-muted text-[10px]">{p.name?.charAt(0)}</AvatarFallback>
                                 </Avatar>
                                 {isAdmin && !p.isHost && (
-                                    <button onClick={() => handleAction(p.$id, 'declined')} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 shadow-lg hover:scale-110"><X className="h-3 w-3" /></button>
+                                    <button onClick={() => handleAction(p.$id, 'declined')} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 shadow-lg hover:scale-110 transition-transform"><X className="h-3 w-3" /></button>
                                 )}
                             </div>
                             <p className="font-black text-[8px] opacity-80 uppercase text-center truncate w-full tracking-tighter">{p.name}</p>
@@ -158,7 +159,7 @@ export default function MeetingRoomPage() {
                                         <div className="relative h-12 w-12 rounded-full overflow-hidden border-2 border-primary"><img src={req.avatar} className="h-full w-full object-cover" alt="Req" /></div>
                                         <div className="min-w-[80px]">
                                             <span className="text-[10px] font-black uppercase truncate block leading-tight">{req.name}</span>
-                                            <p className="text-[7px] font-bold text-primary uppercase mt-0.5">Member Waiting</p>
+                                            <p className="text-[7px] font-bold text-primary uppercase mt-0.5">Wants to Join</p>
                                         </div>
                                         <div className="flex gap-2">
                                             <Button size="icon" onClick={() => handleAction(req.$id, 'approved')} className="h-10 w-10 rounded-full bg-green-500 shadow-lg"><Check className="h-5 w-5" /></Button>
@@ -179,12 +180,12 @@ export default function MeetingRoomPage() {
                     </div>
                     <div className="text-left">
                         <p className="text-[10px] font-black uppercase tracking-widest text-primary">Your Identity</p>
-                        <p className="text-[8px] font-bold opacity-50 uppercase">Active Stream</p>
+                        <p className="text-[8px] font-bold opacity-50 uppercase">Live Stream</p>
                     </div>
                 </div>
                 <div className="text-right flex flex-col items-end opacity-20">
                     <p className="text-[7px] font-black uppercase tracking-[0.4em]">I-Pay Meeting</p>
-                    <p className="text-[6px] font-bold uppercase">Encrypted Session</p>
+                    <p className="text-[6px] font-bold uppercase">End-to-End Encrypted</p>
                 </div>
             </footer>
         </div>
