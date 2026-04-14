@@ -3,7 +3,7 @@
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/data-service';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, onSnapshot, getDoc } from 'firebase/firestore';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { toast } from '@/hooks/use-toast';
@@ -11,7 +11,7 @@ import { toast } from '@/hooks/use-toast';
 /**
  * @fileOverview Unified Master Auth & Data Hook.
  * SHIELDED: Extreme Hydration Guarding to prevent "Client-side exception".
- * FORCED: Background sync for instant page loads without redirect loops.
+ * FORCED: Background sync for instant page loads.
  */
 
 type UserContextType = {
@@ -36,15 +36,37 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
 
+    const fetchConfig = useCallback(async () => {
+        try {
+            const [pDoc, cDoc] = await Promise.all([
+                databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'proof').catch(() => null),
+                databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main').catch(() => null)
+            ]);
+            if (pDoc && pDoc.data) {
+                setProof(typeof pDoc.data === 'string' ? JSON.parse(pDoc.data) : pDoc.data);
+            }
+            if (cDoc) setConfig(cDoc);
+        } catch (e) {}
+    }, []);
+
     useEffect(() => {
         setIsMounted(true);
+        fetchConfig();
+        
         let unsubProfile: any = null;
 
         const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                setUser({ $id: firebaseUser.uid, uid: firebaseUser.uid, email: firebaseUser.email, name: firebaseUser.displayName });
+                const miniUser = { $id: firebaseUser.uid, uid: firebaseUser.uid, email: firebaseUser.email, name: firebaseUser.displayName };
+                setUser(miniUser);
                 
-                // FORCE: Real-time Profile Sync with Extreme Null-Safety
+                // 1. Initial Quick Fetch for instant UI load
+                const pDoc = await getDoc(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid));
+                if (pDoc.exists()) {
+                    setProfile({ $id: pDoc.id, ...pDoc.data() });
+                }
+
+                // 2. Persistent Real-time Sync
                 unsubProfile = onSnapshot(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid), async (snap) => {
                     if (snap.exists()) {
                         const prof = { $id: snap.id, ...snap.data() } as any;
@@ -57,19 +79,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
                             router.replace('/auth/signin');
                         }
                     } else {
-                        setProfile(null);
-                        // Only redirect if we are SURE we aren't in the auth flow already
+                        // Only redirect to profile setup if we are SURE it's missing after initial check
                         if (!pathname.includes('/auth') && !pathname.startsWith('/dashboard/meeting/join')) {
                             router.replace('/auth/signup/profile');
                         }
                     }
                     setIsLoading(false);
-                }, (err) => {
-                    console.error("Profile listen error:", err);
-                    setIsLoading(false);
                 });
 
-                // Update Online Status
+                // Background Activity Pulse
                 updateDoc(doc(db, COLLECTION_ID_PROFILES, firebaseUser.uid), {
                     isOnline: true,
                     lastSeen: serverTimestamp()
@@ -80,32 +98,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 if (unsubProfile) unsubProfile();
                 setIsLoading(false);
                 
-                // Protected route handling
                 if (!pathname.includes('/auth') && pathname.startsWith('/dashboard')) {
                     router.replace('/auth/signin');
                 }
             }
         });
 
-        const fetchConfig = async () => {
-            try {
-                const [pDoc, cDoc] = await Promise.all([
-                    databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'proof').catch(() => null),
-                    databases.getDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, 'main').catch(() => null)
-                ]);
-                if (pDoc && pDoc.data) {
-                    setProof(typeof pDoc.data === 'string' ? JSON.parse(pDoc.data) : pDoc.data);
-                }
-                if (cDoc) setConfig(cDoc);
-            } catch (e) {}
-        };
-        fetchConfig();
-
         return () => { 
             unsubAuth(); 
             if(unsubProfile) unsubProfile(); 
         };
-    }, [pathname, router]);
+    }, [pathname, router, fetchConfig]);
 
     const recheck = async () => {
         // Real-time snapshot handles updates automatically
