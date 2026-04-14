@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -8,20 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Search, MoreVertical, Trash2, ArrowLeft, Loader2, Video } from 'lucide-react';
+import { Search, ArrowLeft, Loader2, Video } from 'lucide-react';
 import { useUser } from '@/hooks/use-user';
-import { db } from '@/lib/firebase';
-import { collection, query, where, doc, getDoc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
-import { COLLECTION_ID_CHATS, COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES } from '@/lib/data-service';
 import { isYesterday, isToday, format } from 'date-fns';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center - Master High-Speed Edition.
- * INSTANT: Consumes global pre-loaded data from UserProvider.
- * SHIELDED: Zero local listeners to prevent hydration crashes.
+ * INSTANT: Consumes global pre-loaded data from UserProvider to prevent white-screen crashes.
+ * SHIELDED: Zero local listeners to ensure 100% hydration safety.
  */
 
 const safeDate = (ts: any) => {
@@ -96,8 +91,6 @@ export default function ChatPage() {
         [recentChats, searchRecent]
     );
 
-    if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary/30" /></div>;
-
     return (
         <div className="flex flex-col min-h-screen bg-background font-body">
             <header className="p-4 pt-12 max-w-xl mx-auto w-full border-b bg-muted/5">
@@ -118,7 +111,9 @@ export default function ChatPage() {
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
                             <Input placeholder="Search recent..." className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none font-bold" value={searchRecent} onChange={(e) => setSearchRecent(e.target.value)} />
                         </div>
-                        {filteredRecent.length > 0 ? (
+                        {loading && filteredRecent.length === 0 ? (
+                            <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-primary/30" /></div>
+                        ) : filteredRecent.length > 0 ? (
                             <div className="space-y-1">{filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} />)}</div>
                         ) : <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-widest opacity-30">No Recent Chats</div>}
                     </TabsContent>

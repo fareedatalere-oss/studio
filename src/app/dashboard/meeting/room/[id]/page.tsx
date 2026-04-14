@@ -19,7 +19,7 @@ import Link from 'next/link';
 
 /**
  * @fileOverview Master Meeting Room Page.
- * SHIELDED: Zero auto-redirection unless the specific Meeting ID status is manually 'ended'.
+ * SHIELDED: Zero auto-redirection unless the specific Meeting ID status is explicitly changed to 'ended'.
  * FIXED: One icon per user (Unique Identity Map).
  */
 
@@ -66,7 +66,7 @@ export default function MeetingRoomPage() {
                 Query.limit(100)
             ]);
             
-            // FORCE: Unique Icons Only
+            // FORCE: Unique Icons Only (One per UserID)
             const uniqueMap = new Map();
             res.documents.filter(doc => doc.status === 'approved').forEach(p => {
                 uniqueMap.set(p.userId, p);
@@ -83,7 +83,7 @@ export default function MeetingRoomPage() {
         fetchMeeting();
         fetchAttendees();
         
-        // HARDENED LISTENER: Strictly filtered by THIS meeting ID
+        // HARDENED LISTENER: Strictly filtered by THIS specific meeting ID
         const unsubMeeting = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
             const payload = response.payload as any;
             if (!payload || payload.$id !== meetingId) return;

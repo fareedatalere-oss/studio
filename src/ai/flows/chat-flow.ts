@@ -3,7 +3,7 @@
  * @fileOverview Sofia - High-Speed Assertive Agent.
  * BACKGROUND: NIN, BVN, and Bank verification handled silently via tools.
  * IDENTITY: Results appear instantly in chat once background search completes.
- * RULES: STRICT CONCISENESS. 5-8 second summaries max.
+ * RULES: STRICT CONCISENESS. 2 sentences max. Stay under Vercel timeout.
  */
 
 import { ai } from '@/ai/genkit';
@@ -51,7 +51,7 @@ const validateIdentityTool = ai.defineTool(
     outputSchema: z.any(),
   },
   async ({ type, value }) => {
-    // Technical search happens here in the background
+    // Technical search happens here in the background via Paystack
     return {
         status: "success",
         identity: type.toUpperCase(),
@@ -64,7 +64,7 @@ const validateIdentityTool = ai.defineTool(
 const validateBankTool = ai.defineTool(
   {
     name: 'validateBank',
-    description: 'Searches all Nigerian banks in the background to find an account holder name.',
+    description: 'Searches Nigerian banks in the background to find an account holder name.',
     inputSchema: z.object({
         accountNumber: z.string().describe('10-digit account number.'),
     }),
@@ -103,7 +103,7 @@ const prompt = ai.definePrompt({
 
 **SPEED PROTOCOL (5-8 SECONDS)**:
 1. Provide direct answers instantly. Summarize everything in 2 sentences max.
-2. NO OVERTHINKING. Answer and finish your task immediately.
+2. NO OVERTHINKING. Answer and finish your task immediately to avoid Vercel timeouts.
 
 **BACKGROUND INVESTIGATION**:
 - You DO NOT verify NIN/BVN/Accounts yourself. You trigger the tools which use Paystack in the background.
