@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { databases, COLLECTION_ID_NOTIFICATIONS, Query, client, COLLECTION_ID_MESSAGES } from '@/lib/data-service';
+import { databases, COLLECTION_ID_NOTIFICATIONS, Query, client, COLLECTION_ID_MESSAGES, COLLECTION_ID_PROFILES } from '@/lib/data-service';
 import { cn } from '@/lib/utils';
 import { MeetingAlarm } from '@/components/meeting-alarm';
 
@@ -121,7 +121,6 @@ export default function DashboardLayout({
             fetchUnreadCounts();
             const recordTime = new Date(payload.$createdAt).getTime();
             if (isNew && recordTime > nowTime - 5000) {
-                // Play System Ping
                 const ping = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3');
                 ping.play().catch(() => {});
 
@@ -134,22 +133,30 @@ export default function DashboardLayout({
       });
 
       // CHAT PUSH LISTENER
-      const unsubChats = client.subscribe([`databases.default.collections.${COLLECTION_ID_MESSAGES}.documents`], (response: any) => {
+      const unsubChats = client.subscribe([`databases.default.collections.${COLLECTION_ID_MESSAGES}.documents`], async (response: any) => {
           const payload = response.payload;
           const isNew = response.events[0].endsWith('.added');
           
           if (isNew && payload.chatId?.includes(user.$id) && payload.senderId !== user.$id) {
               const recordTime = new Date(payload.$createdAt).getTime();
               if (recordTime > nowTime - 5000) {
-                  // Trigger Native Push for Messages
+                  let senderName = 'New Message';
+                  let senderIcon = '/logo.png';
+                  
+                  try {
+                      const sender = await databases.getDocument('default', COLLECTION_ID_PROFILES, payload.senderId);
+                      senderName = sender.username || 'I-Pay User';
+                      senderIcon = sender.avatar || '/logo.png';
+                  } catch (e) {}
+
                   if (Notification.permission === 'granted') {
-                      new Notification('New Message', { 
+                      new Notification(senderName, { 
                           body: payload.text || 'Media received', 
-                          icon: '/logo.png',
+                          icon: senderIcon,
                           tag: payload.chatId 
                       });
                   }
-                  toast({ title: "New Message", description: payload.text || "Shared a file" });
+                  toast({ title: senderName, description: payload.text || "Shared a file" });
               }
           }
       });

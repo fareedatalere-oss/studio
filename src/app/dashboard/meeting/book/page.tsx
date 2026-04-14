@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -68,7 +67,7 @@ export default function BookMeetingPage() {
             description: formData.description,
             type: formData.type,
             status: 'pending',
-            meetingLink: generatedGuestGuestLink, // Store the guest link as the primary reference
+            meetingLink: generatedGuestLink, 
             scheduledAt: selectedDateTime.toISOString(),
             expiresAt: expiryTime,
             createdAt: new Date().toISOString()

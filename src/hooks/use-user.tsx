@@ -1,4 +1,3 @@
-
 'use client';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/data-service';
@@ -96,7 +95,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
                             router.replace('/auth/signin');
                         }
                     }
-                    // MASTER FORCE: Zero automatic redirection here to prevent loops.
                     setIsLoading(false);
                 }, (error) => {
                     console.error("Profile sync error:", error);
