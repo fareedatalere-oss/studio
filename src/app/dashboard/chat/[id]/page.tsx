@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -8,34 +7,24 @@ import { db } from '@/lib/firebase';
 import { 
     collection, query, where, onSnapshot, doc, 
     serverTimestamp, setDoc, updateDoc, 
-    increment, getDocs, writeBatch, deleteDoc, arrayUnion, getDoc
+    increment, getDocs, writeBatch, deleteDoc, arrayUnion
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS, COLLECTION_ID_NOTIFICATIONS, DATABASE_ID } from '@/lib/data-service';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, Forward, Mic, X, CheckCircle2, Check, FileText, Image as ImageIcon, Film, Music, Link as LinkIcon, ExternalLink } from 'lucide-react';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/data-service';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, Forward, FileText, Image as ImageIcon, Film, Music } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import Link from 'next/link';
 
 /**
  * @fileOverview High-Speed Chat Hub.
- * REFINED: Smaller bubbles, icon-based media, and missed call logs.
+ * DEFINITIVE: Small professional bubbles, icon-based media, and missed session logs.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -56,13 +45,6 @@ export default function ChatThreadPage() {
     const [newMessage, setNewMessage] = useState('');
     const [isUploading, setIsUploading] = useState(false);
     
-    const [isRecording, setIsRecording] = useState(false);
-    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-    const [audioUrl, setAudioUrl] = useState<string | null>(null);
-    const [recordingDuration, setRecordingDuration] = useState(0);
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const timerRef = useRef<any>(null);
-
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [mediaTypeFilter, setMediaTypeFilter] = useState<string>('image/*');
@@ -78,31 +60,12 @@ export default function ChatThreadPage() {
     const safeGetTime = (ts: any) => {
         if (!ts) return 0;
         if (ts?.toMillis) return ts.toMillis();
-        if (ts?.toDate) return ts.toDate().getTime();
         if (typeof ts === 'number') return ts;
-        if (typeof ts === 'string') return new Date(ts).getTime();
-        return 0;
+        return new Date(ts).getTime() || 0;
     };
 
     useEffect(() => {
         if (!chatId || !currentUser) return;
-
-        const markAsSeen = async () => {
-            const q = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', chatId));
-            const snapshot = await getDocs(q);
-            const batch = writeBatch(db);
-            snapshot.docs.forEach(d => {
-                if (d.data().senderId === otherUserId && d.data().status !== 'seen') {
-                    batch.update(d.ref, { status: 'seen' });
-                }
-            });
-            await batch.commit().catch(() => {});
-            
-            await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
-                [`unreadCount.${currentUser.$id}`]: 0
-            }, { merge: true }).catch(() => {});
-        };
-        markAsSeen();
 
         const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
             if (d.exists()) setOtherUser(d.data());
@@ -112,11 +75,7 @@ export default function ChatThreadPage() {
         const unsub = onSnapshot(q, (snapshot) => {
             const docs = snapshot.docs.map(d => ({ $id: d.id, ...d.data() }));
             const filtered = docs.filter((m: any) => !m.deleteFor?.includes(currentUser?.$id))
-                .sort((a: any, b: any) => {
-                    const timeA = safeGetTime(a?.createdAt || a?.timestamp);
-                    const timeB = safeGetTime(b?.createdAt || b?.timestamp);
-                    return timeA - timeB;
-                });
+                .sort((a: any, b: any) => safeGetTime(a.createdAt || a.timestamp) - safeGetTime(b.createdAt || b.timestamp));
             setMessages(filtered);
         });
 
@@ -131,209 +90,109 @@ export default function ChatThreadPage() {
         if (!text && !mediaData) return;
         if (textOverride === undefined && !mediaData) setNewMessage('');
 
-        const msgId = doc(collection(db, COLLECTION_ID_MESSAGES)).id;
         try {
-            await setDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { 
-                chatId: chatId, 
-                senderId: currentUser.$id, 
-                text: text || '', 
-                status: 'sent',
-                createdAt: serverTimestamp(),
-                timestamp: Date.now(),
-                deleteFor: [],
+            await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), { 
+                chatId, senderId: currentUser.$id, text: text || '', 
+                status: 'sent', createdAt: serverTimestamp(),
+                timestamp: Date.now(), deleteFor: [],
                 ...(mediaData && { mediaUrl: mediaData.url, mediaType: mediaData.type })
             });
 
             await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
                 participants: [currentUser.$id, otherUserId],
-                lastMessage: text ? (text.length > 30 ? text.substring(0,30)+'...' : text) : `Shared a ${mediaData?.type || 'media'}`,
+                lastMessage: text ? (text.length > 20 ? text.substring(0,20)+'...' : text) : `Shared a ${mediaData?.type}`,
                 lastMessageAt: serverTimestamp(),
                 [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
 
-            await setDoc(doc(collection(db, COLLECTION_ID_NOTIFICATIONS)), {
-                userId: otherUserId,
-                senderId: currentUser.$id,
-                type: 'message',
-                description: `sent you a message: ${text || mediaData?.type || 'media'}`,
-                isRead: false,
-                link: `/dashboard/chat/${currentUser.$id}`,
-                createdAt: new Date().toISOString()
-            });
-
-        } catch (e) { toast({ variant: 'destructive', title: 'Send Error' }); }
+        } catch (e) { toast({ title: 'Send Error' }); }
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-
-        if ((file.type.includes('video') || file.type.includes('audio')) && file.size > 100 * 1024 * 1024) {
-            toast({ variant: 'destructive', title: 'Limit: 3m / 100MB' });
-            return;
-        }
-
         setIsUploading(true);
         try {
             const reader = new FileReader();
-            const b64: string = await new Promise((res) => {
-                reader.onloadend = () => res(reader.result as string);
-                reader.readAsDataURL(file);
-            });
-
-            let resourceType: 'image' | 'video' | 'raw' = 'image';
-            if (file.type.includes('video') || file.type.includes('audio')) resourceType = 'video';
-            else if (file.type.includes('pdf')) resourceType = 'raw';
-
-            const up = await uploadToCloudinary(b64, resourceType === 'raw' ? 'auto' : resourceType);
+            const b64: string = await new Promise((res) => { reader.onloadend = () => res(reader.result as string); reader.readAsDataURL(file); });
+            const up = await uploadToCloudinary(b64, 'auto');
             if (up.success) {
                 let type = 'image';
                 if (file.type.includes('video')) type = 'video';
-                else if (file.type.includes('audio')) type = 'audio';
+                else if (file.type.includes('audio')) type = 'music';
                 else if (file.type.includes('pdf')) type = 'pdf';
-
-                await handleSend('', { url: up.url, type: type });
+                await handleSend('', { url: up.url, type });
             }
-        } catch (err: any) {
-            toast({ variant: 'destructive', title: 'Upload Failed' });
-        } finally {
-            setIsUploading(false);
-        }
-    };
-
-    const handleStartCall = async () => {
-        if (!currentUser || !otherUserId || !otherUser) return;
-        const callId = doc(collection(db, COLLECTION_ID_MEETINGS)).id;
-        try {
-            await setDoc(doc(db, COLLECTION_ID_MEETINGS, callId), {
-                hostId: currentUser.$id,
-                invitedUsers: [otherUserId],
-                type: 'call',
-                status: 'pending',
-                createdAt: serverTimestamp(),
-                activeView: 'none'
-            });
-            router.push(`/dashboard/chat/call/${callId}`);
-        } catch (e) { toast({ variant: 'destructive', title: 'Call Failed' }); }
+        } catch (err) { toast({ title: 'Upload Failed' }); } finally { setIsUploading(false); }
     };
 
     const MediaIcon = ({ type, url }: { type: string, url: string }) => {
         const icons = {
-            image: <ImageIcon className="h-8 w-8 text-primary" />,
-            video: <Film className="h-8 w-8 text-orange-500" />,
-            audio: <Music className="h-8 w-8 text-purple-500" />,
-            pdf: <FileText className="h-8 w-8 text-red-500" />,
-            link: <LinkIcon className="h-8 w-8 text-blue-500" />
+            image: <ImageIcon className="h-6 w-6 text-primary" />,
+            video: <Film className="h-6 w-6 text-orange-500" />,
+            music: <Music className="h-6 w-6 text-purple-500" />,
+            pdf: <FileText className="h-6 w-6 text-red-500" />
         };
         return (
-            <Link href={`/dashboard/chat/view-media?url=${encodeURIComponent(url)}&type=${type}`} className="flex flex-col items-center gap-1 p-3 bg-muted/50 rounded-xl border border-dashed border-primary/20 hover:bg-primary/5 transition-all">
-                {icons[type as keyof typeof icons] || <FileText className="h-8 w-8" />}
-                <span className="text-[7px] font-black uppercase tracking-widest opacity-50">{type}</span>
+            <Link href={`/dashboard/chat/view-media?url=${encodeURIComponent(url)}&type=${type}`} className="flex flex-col items-center gap-1 p-2 bg-muted/50 rounded-xl border border-dashed border-primary/20 hover:bg-primary/5">
+                {icons[type as keyof typeof icons] || <FileText className="h-6 w-6" />}
+                <span className="text-[6px] font-black uppercase tracking-widest opacity-50">{type}</span>
             </Link>
         );
     };
 
     return (
-        <div className="flex flex-col h-screen bg-background overflow-hidden font-body">
-            <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-50 pt-12 shadow-sm">
-                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-10 w-10 rounded-full bg-muted/50"><ArrowLeft className="h-5 w-5" /></Button>
+        <div className="flex flex-col min-h-screen bg-background font-body overflow-y-auto">
+            <header className="sticky top-0 bg-background/80 backdrop-blur-md border-b flex items-center p-3 gap-2 z-50 pt-12 shadow-sm">
+                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-9 w-9 rounded-full bg-muted/50"><ArrowLeft className="h-4 w-4" /></Button>
                 {otherUser && (
-                    <div className="flex-1 flex items-center gap-3 overflow-hidden ml-1">
-                        <Avatar className="h-11 w-11 border-2 border-primary/10 shadow-sm">
-                            <AvatarImage src={otherUser.avatar} className="object-cover" />
-                            <AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="truncate">
-                            <h2 className="font-bold text-xs leading-none truncate tracking-tighter">{otherUser.username}</h2>
-                            <p className={cn("text-[8px] font-black uppercase mt-1.5", otherUser.isOnline ? "text-green-500 animate-pulse" : "text-muted-foreground")}>
-                                {otherUser.isOnline ? 'Online Now' : 'Offline'}
-                            </p>
+                    <div className="flex-1 flex items-center gap-3 ml-1">
+                        <Avatar className="h-10 w-10 border-2 border-primary/10"><AvatarImage src={otherUser.avatar} /><AvatarFallback>{otherUser.username?.charAt(0)}</AvatarFallback></Avatar>
+                        <div>
+                            <h2 className="font-bold text-xs leading-none tracking-tighter">{otherUser.username}</h2>
+                            <p className={cn("text-[7px] font-black uppercase mt-1", otherUser.isOnline ? "text-green-500 animate-pulse" : "text-muted-foreground")}>{otherUser.isOnline ? 'Online' : 'Offline'}</p>
                         </div>
                     </div>
                 )}
-                <Button onClick={handleStartCall} variant="ghost" size="icon" className="h-10 w-10 rounded-full text-primary hover:bg-primary/10">
-                    <Phone className="h-5 w-5" />
-                </Button>
+                <Button onClick={() => router.push('/dashboard/meeting/book')} variant="ghost" size="icon" className="h-10 w-10 rounded-full text-primary"><Phone className="h-4 w-4" /></Button>
             </header>
             
-            <main className="flex-1 overflow-y-auto p-4 space-y-2 overscroll-contain bg-muted/5">
-                <div className="max-w-xl mx-auto w-full space-y-3">
-                    <div className="text-center py-6 opacity-20 flex flex-col items-center gap-2"><ShieldCheck className="h-4 w-4" /><p className="text-[7px] font-black uppercase tracking-[0.4em]">End-to-End Encryption</p></div>
+            <main className="flex-1 p-4 space-y-2 bg-muted/5 pb-32">
+                <div className="max-w-xl mx-auto w-full space-y-2">
+                    <div className="text-center py-4 opacity-20 flex flex-col items-center gap-1"><ShieldCheck className="h-3 w-3" /><p className="text-[6px] font-black uppercase tracking-widest">End-to-End Secure</p></div>
                     {messages.map((msg) => {
                         const isMine = msg.senderId === currentUser?.$id;
                         return (
-                            <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[80%] group", isMine ? "ml-auto items-end" : "items-start")}>
-                                <div className={cn("p-2 px-3 rounded-[1rem] shadow-sm relative text-[12px] font-bold leading-relaxed", isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="flex-1 min-w-0">
-                                            {msg.mediaType ? (
-                                                <MediaIcon type={msg.mediaType} url={msg.mediaUrl} />
-                                            ) : (
-                                                <p className="whitespace-pre-wrap break-words">{msg.text}</p>
-                                            )}
-                                        </div>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-5 w-5 -mr-1 -mt-1 opacity-20 hover:opacity-100"><MoreVertical className="h-3 w-3" /></Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align={isMine ? 'end' : 'start'} className="font-black uppercase text-[8px] rounded-xl">
-                                                <DropdownMenuItem onClick={() => updateDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id), { deleteFor: arrayUnion(currentUser?.$id) })}>
-                                                    <Trash2 className="mr-2 h-3 w-3" /> Delete for me
-                                                </DropdownMenuItem>
-                                                {isMine && (
-                                                    <DropdownMenuItem onClick={() => deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id))} className="text-destructive">
-                                                        <Trash2 className="mr-2 h-3 w-3" /> Delete for both
-                                                    </DropdownMenuItem>
-                                                )}
-                                                <DropdownMenuItem onClick={() => { setForwardMessage(msg); setIsForwardOpen(true); }}><Forward className="mr-2 h-3 w-3" /> Forward</DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </div>
+                            <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%] group", isMine ? "ml-auto items-end" : "items-start")}>
+                                <div className={cn("p-2 px-3 rounded-[1.2rem] shadow-sm relative text-[11px] font-bold leading-relaxed", isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
+                                    {msg.mediaType ? <MediaIcon type={msg.mediaType} url={msg.mediaUrl} /> : <p className="whitespace-pre-wrap break-words">{msg.text}</p>}
                                     <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
-                                        <span className="text-[6px] font-black uppercase">
-                                            {msg.timestamp ? format(msg.timestamp, 'HH:mm') : '...'}
-                                        </span>
-                                        {isMine && (
-                                            <div className="flex items-center -mb-0.5">
-                                                {msg.status === 'seen' ? <CheckCircle2 className="h-2 w-2 text-white" /> : <Check className="h-2 w-2 text-white/40" />}
-                                            </div>
-                                        )}
+                                        <span className="text-[5px] font-black uppercase">{msg.timestamp ? format(msg.timestamp, 'HH:mm') : '...'}</span>
                                     </div>
                                 </div>
                             </div>
                         );
                     })}
-                    <div ref={messagesEndRef} className="h-4" />
+                    <div ref={messagesEndRef} />
                 </div>
             </main>
 
-            <footer className="p-4 border-t bg-background safe-area-bottom pb-8">
+            <footer className="fixed bottom-0 left-0 right-0 p-4 border-t bg-background pb-8 z-50">
                 <div className="max-w-xl mx-auto w-full flex items-center gap-2">
                     <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full"><Paperclip className="h-5 w-5" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-48 p-2 font-black uppercase text-[9px] rounded-[1.5rem]">
-                            <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('application/pdf'); fileInputRef.current?.click(); }}><FileText className="h-4 w-4 text-red-500" /> Documents / PDF</DropdownMenuItem>
-                            <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('image/*'); fileInputRef.current?.click(); }}><ImageIcon className="h-4 w-4 text-primary" /> Gallery / Image</DropdownMenuItem>
-                            <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('video/*'); fileInputRef.current?.click(); }}><Film className="h-4 w-4 text-orange-500" /> Video (Max 3m)</DropdownMenuItem>
-                            <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('audio/*'); fileInputRef.current?.click(); }}><Music className="h-4 w-4 text-purple-500" /> Music / Audio</DropdownMenuItem>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-11 w-11 rounded-full"><Paperclip className="h-5 w-5" /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-48 p-2 font-black uppercase text-[8px] rounded-2xl">
+                            <DropdownMenuItem className="h-11 gap-3" onClick={() => { setMediaTypeFilter('application/pdf'); fileInputRef.current?.click(); }}><FileText className="h-4 w-4 text-red-500" /> Documents</DropdownMenuItem>
+                            <DropdownMenuItem className="h-11 gap-3" onClick={() => { setMediaTypeFilter('image/*'); fileInputRef.current?.click(); }}><ImageIcon className="h-4 w-4 text-primary" /> Images</DropdownMenuItem>
+                            <DropdownMenuItem className="h-11 gap-3" onClick={() => { setMediaTypeFilter('video/*'); fileInputRef.current?.click(); }}><Film className="h-4 w-4 text-orange-500" /> Videos (3m)</DropdownMenuItem>
+                            <DropdownMenuItem className="h-11 gap-3" onClick={() => { setMediaTypeFilter('audio/*'); fileInputRef.current?.click(); }}><Music className="h-4 w-4 text-purple-500" /> Audio (3m)</DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <Input placeholder="Message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />
-                    <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() || isUploading} className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90">{isUploading ? <Loader2 className="animate-spin h-5 w-5 text-white" /> : <Send className="h-5 w-5 text-white" />}</Button>
+                    <Input placeholder="Message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} className="flex-1 h-11 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />
+                    <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() || isUploading} className="h-11 w-11 rounded-full shadow-lg"><Send className="h-4 w-4 text-white" /></Button>
                 </div>
                 <input type="file" ref={fileInputRef} className="hidden" accept={mediaTypeFilter} onChange={handleFileUpload} />
             </footer>
-
-            <Dialog open={isForwardOpen} onOpenChange={setIsForwardOpen}>
-                <DialogContent className="rounded-[2.5rem]">
-                    <DialogHeader><DialogTitle className="text-center font-black uppercase text-sm">Forward Item</DialogTitle></DialogHeader>
-                    <div className="p-4 space-y-4">
-                        <Button variant="outline" className="w-full h-14 rounded-2xl font-black uppercase text-[10px]" onClick={() => { if(forwardMessage) { handleSend(forwardMessage.text, forwardMessage.mediaUrl ? {url: forwardMessage.mediaUrl, type: forwardMessage.mediaType} : null); setIsForwardOpen(false); toast({title: 'Forwarded'}); } }}>Resend Here</Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }

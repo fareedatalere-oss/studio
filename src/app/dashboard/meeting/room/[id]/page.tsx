@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -20,7 +19,7 @@ import Link from 'next/link';
 
 /**
  * @fileOverview Master Meeting Room Page.
- * FORCE Sync: Admin approval bar with live previews and master audio drivers.
+ * FORCE Sync: High-visibility Admin approval bar with live previews.
  */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -87,7 +86,6 @@ export default function MeetingRoomPage() {
             if (payload.meetingId === meetingId) fetchAttendees();
         });
 
-        // Initialize Local Streams
         if (mySetup?.useCamera && navigator?.mediaDevices) {
             navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
                 if (selfVideoRef.current) selfVideoRef.current.srcObject = stream;
@@ -97,54 +95,30 @@ export default function MeetingRoomPage() {
         return () => { unsubMeeting(); unsubAttendees(); };
     }, [meetingId, fetchMeeting, fetchAttendees, router, mySetup?.useCamera]);
 
-    const handleSyncAudio = () => {
-        setIsAudioSyncing(true);
-        if (audioSyncRef.current) {
-            audioSyncRef.current.play().then(() => {
-                setIsAudioSyncing(false);
-                toast({ title: 'Audio Channels Synced' });
-            }).catch(() => setIsAudioSyncing(false));
-        }
-    };
-
     const handleAction = async (requestId: string, status: 'approved' | 'declined') => {
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, requestId, { status });
         fetchAttendees();
     };
 
-    const handleRemoveUser = async (requestId: string) => {
-        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, requestId, { status: 'declined' });
-        fetchAttendees();
-    };
-
     const handleEndMeeting = async () => {
-        if (isAdmin) {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'ended' });
-        } else {
-            router.replace('/dashboard/meeting');
-        }
+        if (isAdmin) await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'ended' });
+        router.replace('/dashboard/meeting');
     };
 
     if (loading || !meeting) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
 
     return (
         <div className="h-screen w-full bg-black text-white flex flex-col overflow-hidden relative font-body">
-            {/* Master Audio Driver - Syncs audio from all approved participants */}
             <audio ref={audioSyncRef} autoPlay playsInline muted={false} className="hidden" src="https://assets.mixkit.co/sfx/preview/mixkit-silent-fast-thud-2094.mp3" />
 
             <header className="p-4 pt-12 flex justify-between items-center bg-black/50 border-b border-white/5 z-50">
                 <div className="flex-1">
                     <h1 className="font-black uppercase text-xs tracking-widest text-primary truncate">{meeting.name}</h1>
-                    <p className="text-[8px] font-bold opacity-50 uppercase">{isAdmin ? 'Chairman View' : 'Guest View'}</p>
+                    <p className="text-[8px] font-bold opacity-50 uppercase">{isAdmin ? 'Chairman Control' : 'Secure Session'}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Button onClick={handleSyncAudio} variant="outline" size="sm" className="h-8 rounded-full font-black uppercase text-[8px] gap-1 px-3 bg-white/5 border-white/10">
-                        <Volume2 className="h-3 w-3" /> {isAudioSyncing ? 'Syncing...' : 'Sync Audio'}
-                    </Button>
-                    <Button onClick={handleEndMeeting} size="sm" variant="destructive" className="h-8 rounded-full font-black uppercase text-[9px] shadow-lg">
-                        {isAdmin ? 'End Meeting' : 'Leave'}
-                    </Button>
-                </div>
+                <Button onClick={handleEndMeeting} size="sm" variant="destructive" className="h-9 rounded-full font-black uppercase text-[9px] shadow-lg px-6">
+                    {isAdmin ? 'End Session' : 'Leave'}
+                </Button>
             </header>
 
             <main className="flex-1 overflow-y-auto p-6 scrollbar-visible">
@@ -152,24 +126,13 @@ export default function MeetingRoomPage() {
                     {participants.map(p => (
                         <div key={p.$id} className="flex flex-col items-center gap-2 group relative">
                             <div className={cn("relative rounded-full border-2 p-0.5 h-20 w-20 transition-all", p.isHost ? "border-yellow-500" : "border-primary/40")}>
-                                {/* Live Media Sync Driver */}
                                 <audio autoPlay playsInline muted={p.userId === user?.$id} className="hidden" />
-                                
-                                {p.hasVideo ? (
-                                    <div className="h-full w-full rounded-full overflow-hidden bg-muted shadow-2xl">
-                                        <video autoPlay muted={p.userId === user?.$id} playsInline className="h-full w-full object-cover scale-x-[-1]" />
-                                    </div>
-                                ) : (
-                                    <Avatar className="h-full w-full shadow-xl">
-                                        <AvatarImage src={p.avatar} className="object-cover" />
-                                        <AvatarFallback className="font-black bg-muted text-[10px]">{p.name?.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                )}
-                                
+                                <Avatar className="h-full w-full shadow-xl">
+                                    <AvatarImage src={p.avatar} className="object-cover" />
+                                    <AvatarFallback className="font-black bg-muted text-[10px]">{p.name?.charAt(0)}</AvatarFallback>
+                                </Avatar>
                                 {isAdmin && !p.isHost && (
-                                    <button onClick={() => handleRemoveUser(p.$id)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 shadow-lg z-20 hover:scale-110 transition-transform">
-                                        <X className="h-3 w-3" />
-                                    </button>
+                                    <button onClick={() => handleAction(p.$id, 'declined')} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 shadow-lg hover:scale-110"><X className="h-3 w-3" /></button>
                                 )}
                             </div>
                             <p className="font-black text-[8px] opacity-80 uppercase text-center truncate w-full tracking-tighter">{p.name}</p>
@@ -178,24 +141,21 @@ export default function MeetingRoomPage() {
                 </div>
             </main>
 
-            {/* Master Approval Bar (Host Only) */}
             {isAdmin && requests.length > 0 && (
-                <div className="absolute bottom-32 left-4 right-4 z-[100] animate-in slide-in-from-bottom-5">
+                <div className="absolute bottom-28 left-4 right-4 z-[100] animate-in slide-in-from-bottom-5">
                     <div className="max-w-2xl mx-auto">
                         <ScrollArea className="w-full">
                             <div className="flex gap-3 pb-2">
                                 {requests.map(req => (
-                                    <div key={req.$id} className="bg-white/10 backdrop-blur-2xl border border-white/20 p-3 rounded-[1.5rem] flex items-center gap-4 shrink-0 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-                                        <div className="relative h-12 w-12 rounded-full overflow-hidden border-2 border-primary shadow-lg">
-                                            <img src={req.avatar} className="h-full w-full object-cover" alt="Req" />
-                                        </div>
+                                    <div key={req.$id} className="bg-white/10 backdrop-blur-2xl border border-white/20 p-3 rounded-3xl flex items-center gap-4 shrink-0 shadow-2xl">
+                                        <div className="relative h-12 w-12 rounded-full overflow-hidden border-2 border-primary"><img src={req.avatar} className="h-full w-full object-cover" alt="Req" /></div>
                                         <div className="min-w-[80px]">
                                             <span className="text-[10px] font-black uppercase truncate block leading-tight">{req.name}</span>
-                                            <p className="text-[7px] font-bold text-primary uppercase mt-0.5">Requesting Entry</p>
+                                            <p className="text-[7px] font-bold text-primary uppercase mt-0.5">Member Waiting</p>
                                         </div>
                                         <div className="flex gap-2">
-                                            <Button size="icon" onClick={() => handleAction(req.$id, 'approved')} className="h-9 w-9 rounded-full bg-green-500 hover:bg-green-600 shadow-lg"><Check className="h-4 w-4" /></Button>
-                                            <Button size="icon" onClick={() => handleAction(req.$id, 'declined')} className="h-9 w-9 rounded-full bg-red-500 hover:bg-red-600 shadow-lg"><X className="h-4 w-4" /></Button>
+                                            <Button size="icon" onClick={() => handleAction(req.$id, 'approved')} className="h-10 w-10 rounded-full bg-green-500 shadow-lg"><Check className="h-5 w-5" /></Button>
+                                            <Button size="icon" onClick={() => handleAction(req.$id, 'declined')} className="h-10 w-10 rounded-full bg-red-500 shadow-lg"><X className="h-5 w-5" /></Button>
                                         </div>
                                     </div>
                                 ))}
@@ -206,26 +166,18 @@ export default function MeetingRoomPage() {
             )}
 
             <footer className="p-6 border-t bg-black/80 backdrop-blur-md border-white/5 flex items-center justify-between z-[90] safe-area-bottom">
-                <div className="flex items-center gap-3 bg-white/5 p-2 pr-6 rounded-full border border-white/10 shadow-xl">
-                    <div className="h-12 w-12 rounded-full border-2 border-primary p-0.5 overflow-hidden shadow-inner">
-                        {mySetup?.useCamera ? (
-                            <video ref={selfVideoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
-                        ) : (
-                            <Avatar className="h-full w-full">
-                                <AvatarImage src={mySetup?.avatar || profile?.avatar} className="object-cover" />
-                                <AvatarFallback>{mySetup?.name?.charAt(0) || '?'}</AvatarFallback>
-                            </Avatar>
-                        )}
+                <div className="flex items-center gap-3 bg-white/5 p-2 pr-6 rounded-full border border-white/10">
+                    <div className="h-12 w-12 rounded-full border-2 border-primary p-0.5 overflow-hidden">
+                        {mySetup?.useCamera ? <video ref={selfVideoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" /> : <Avatar className="h-full w-full"><AvatarImage src={mySetup?.avatar || profile?.avatar} className="object-cover" /><AvatarFallback>?</AvatarFallback></Avatar>}
                     </div>
                     <div className="text-left">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none">Your Stream</p>
-                        <p className="text-[8px] font-bold opacity-50 mt-1 uppercase">Microphone Live</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Your Identity</p>
+                        <p className="text-[8px] font-bold opacity-50 uppercase">Active Stream</p>
                     </div>
                 </div>
-                
-                <div className="text-right flex flex-col items-end">
-                    <p className="text-[7px] font-black uppercase tracking-[0.4em] opacity-20">I-Pay meeting HUB</p>
-                    <p className="text-[6px] font-bold text-primary uppercase mt-1">End-to-End Encrypted</p>
+                <div className="text-right flex flex-col items-end opacity-20">
+                    <p className="text-[7px] font-black uppercase tracking-[0.4em]">I-Pay Meeting</p>
+                    <p className="text-[6px] font-bold uppercase">Encrypted Session</p>
                 </div>
             </footer>
         </div>
