@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -17,7 +17,7 @@ import { databases, DATABASE_ID, COLLECTION_ID_TRANSACTIONS, COLLECTION_ID_PROFI
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
-import { Search, Info, Eye, ExternalLink } from 'lucide-react';
+import { Search, Info, Eye, ExternalLink, AlertCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +26,24 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+
+/**
+ * @fileOverview Admin Transactions Ledger.
+ * FORCE FIX: Removed server-side ordering to bypass Firebase Index requirements.
+ * SHIELDED: Implements client-side sorting for instant loading.
+ */
+
+const safeDate = (val: any) => {
+    if (!val) return new Date(0);
+    try {
+        if (typeof val.toDate === 'function') return val.toDate();
+        if (typeof val.toMillis === 'function') return new Date(val.toMillis());
+        if (val.seconds !== undefined) return new Date(val.seconds * 1000);
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? new Date(0) : d;
+    } catch (e) { return new Date(0); }
+};
 
 const TransactionDetails = ({ tx }: { tx: any }) => {
     const [user, setUser] = useState<any>(null);
@@ -53,9 +71,9 @@ const TransactionDetails = ({ tx }: { tx: any }) => {
 
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                    <p className="text-[9px] font-black uppercase opacity-40">Financial Impact</p>
+                    <p className="text-[9px] font-black uppercase opacity-40">Financial Context</p>
                     <div className="p-3 bg-primary/5 rounded-xl">
-                        <p className="text-[8px] font-bold text-muted-foreground uppercase">Balance Change</p>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase">Flow</p>
                         <p className="text-xs font-black">₦{tx.oldBalance?.toLocaleString() || '...'} → ₦{tx.newBalance?.toLocaleString() || '...'}</p>
                     </div>
                 </div>
@@ -84,7 +102,7 @@ const TransactionDetails = ({ tx }: { tx: any }) => {
                         </div>
                     )}
                     <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-bold uppercase">Amount</span>
+                        <span className="text-[10px] font-bold uppercase">Value</span>
                         <span className="text-sm font-black">₦{tx.amount?.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -102,18 +120,32 @@ export default function ManagerTransactionsPage() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
 
-    useEffect(() => {
+    const fetchTransactions = useCallback(async () => {
         setLoading(true);
-        databases.listDocuments(
-            DATABASE_ID,
-            COLLECTION_ID_TRANSACTIONS,
-            [Query.orderDesc('$createdAt'), Query.limit(100)]
-        ).then(response => {
-            setTransactions(response.documents);
-        }).finally(() => {
+        try {
+            // FORCE BYPASS INDEX: Fetch without sorting, then sort in memory
+            const response = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTION_ID_TRANSACTIONS,
+                [Query.limit(200)] 
+            );
+            
+            // Sort in memory to avoid Firebase Index Requirement
+            const sorted = response.documents.sort((a, b) => {
+                return safeDate(b.$createdAt).getTime() - safeDate(a.$createdAt).getTime();
+            });
+
+            setTransactions(sorted);
+        } catch (error: any) {
+            console.error("Master Fetch Fail:", error.message);
+        } finally {
             setLoading(false);
-        });
+        }
     }, []);
+
+    useEffect(() => {
+        fetchTransactions();
+    }, [fetchTransactions]);
 
     const filtered = useMemo(() => {
         const q = search.toLowerCase();
@@ -121,25 +153,17 @@ export default function ManagerTransactionsPage() {
             tx.$id.toLowerCase().includes(q) || 
             tx.type.toLowerCase().includes(q) || 
             tx.recipientDetails?.toLowerCase().includes(q) ||
-            tx.userId?.toLowerCase().includes(q)
+            tx.userId?.toLowerCase().includes(q) ||
+            tx.recipientName?.toLowerCase().includes(q)
         );
     }, [search, transactions]);
-
-    const getStatusVariant = (status: string) => {
-        switch (status?.toLowerCase()) {
-            case 'completed': return 'secondary';
-            case 'pending': return 'default';
-            case 'failed': return 'destructive';
-            default: return 'outline';
-        }
-    };
 
   return (
     <div className="container py-8 max-w-6xl">
       <Card className="rounded-[2rem] shadow-2xl border-none overflow-hidden">
         <CardHeader className="bg-primary/5 pb-8">
           <CardTitle className="text-2xl font-black uppercase tracking-tighter">Master Ledger</CardTitle>
-          <CardDescription className="font-bold">Real-time audit of all I-Pay financial activities</CardDescription>
+          <CardDescription className="font-bold">Real-time audit of all I-Pay financial activities (Shielded View)</CardDescription>
         </CardHeader>
         <CardContent className="pt-8">
             <div className="relative mb-6">
@@ -157,7 +181,7 @@ export default function ManagerTransactionsPage() {
               <TableRow className="border-none">
                 <TableHead className="font-black uppercase text-[10px]">Reference / Time</TableHead>
                 <TableHead className="font-black uppercase text-[10px]">Service</TableHead>
-                <TableHead className="font-black uppercase text-[10px]">Target</TableHead>
+                <TableHead className="font-black uppercase text-[10px]">Recipient</TableHead>
                 <TableHead className="text-right font-black uppercase text-[10px]">Value</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
@@ -172,17 +196,21 @@ export default function ManagerTransactionsPage() {
                     <TableRow key={tx.$id} className="border-muted/20 hover:bg-muted/10 h-16">
                         <TableCell>
                             <div className="text-[9px] font-black font-mono uppercase tracking-tighter truncate max-w-[100px]">{tx.$id}</div>
-                            <div className="text-[8px] font-bold opacity-50 uppercase mt-1">{format(new Date(tx.$createdAt), 'PPpp')}</div>
+                            <div className="text-[8px] font-bold opacity-50 uppercase mt-1">
+                                {format(safeDate(tx.$createdAt), 'PPpp')}
+                            </div>
                         </TableCell>
                         <TableCell>
-                            <Badge variant="outline" className="text-[8px] font-black uppercase h-5 px-2 border-primary/20 text-primary bg-primary/5">{tx.type.replace('_', ' ')}</Badge>
+                            <Badge variant="outline" className={cn("text-[8px] font-black uppercase h-5 px-2 border-primary/20", tx.status === 'failed' ? 'text-red-500 bg-red-50' : 'text-primary bg-primary/5')}>
+                                {tx.type.replace('_', ' ')}
+                            </Badge>
                         </TableCell>
                         <TableCell>
                             <div className="text-[10px] font-bold truncate max-w-[120px]">{tx.recipientName || 'SYSTEM'}</div>
                             <div className="text-[8px] font-mono opacity-50">{tx.recipientDetails || tx.userId?.substring(0, 8)}</div>
                         </TableCell>
-                         <TableCell className={cn("text-right font-black text-xs", tx.type === 'deposit' ? 'text-green-600' : 'text-red-600')}>
-                            {tx.type === 'deposit' ? '+' : '-'} ₦{tx.amount?.toLocaleString()}
+                         <TableCell className={cn("text-right font-black text-xs", tx.type === 'deposit' || tx.type === 'product_sale' ? 'text-green-600' : 'text-red-600')}>
+                            {tx.type === 'deposit' || tx.type === 'product_sale' ? '+' : '-'} ₦{Number(tx.amount || 0).toLocaleString()}
                         </TableCell>
                         <TableCell>
                             <Dialog>
@@ -198,7 +226,12 @@ export default function ManagerTransactionsPage() {
                     </TableRow>
                  ))
               ) : (
-                <TableRow><TableCell colSpan={5} className="h-40 text-center text-muted-foreground opacity-30 font-black uppercase text-xs tracking-widest">No matching records found</TableCell></TableRow>
+                <TableRow>
+                    <TableCell colSpan={5} className="h-40 text-center text-muted-foreground opacity-30">
+                        <AlertCircle className="mx-auto h-12 w-12 mb-4" />
+                        <p className="font-black uppercase text-xs tracking-widest">No matching records found</p>
+                    </TableCell>
+                </TableRow>
               )}
             </TableBody>
           </Table>
