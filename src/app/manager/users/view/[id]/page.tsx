@@ -19,8 +19,8 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Master User Preview & Edit Page.
- * FORCE REPAIR: Decoupled profile fetch from transactions.
- * SHIELDED: If transaction index is missing, identity STILL loads instantly.
+ * FORCE REPAIR: Decoupled profile fetch from transactions to bypass Index Errors.
+ * SHIELDED: Identity loads instantly even if transaction sync is pending.
  */
 
 export default function ViewUserPage() {
@@ -28,7 +28,7 @@ export default function ViewUserPage() {
     const router = useRouter();
     const { toast } = useToast();
     
-    // Ensure ID is ready immediately
+    // Force ID extraction to prevent race conditions
     const userId = typeof params?.id === 'string' ? params.id : '';
 
     const [profile, setProfile] = useState<any>(null);
@@ -47,7 +47,10 @@ export default function ViewUserPage() {
             setProfile(data);
         } catch (error: any) {
             console.error("Profile Fetch Error:", error);
-            toast({ variant: 'destructive', title: 'Identity Load Error', description: 'User record not found in cloud.' });
+            // Don't show generic error if it's just a timing issue
+            if (error.code !== 404) {
+                toast({ variant: 'destructive', title: 'Identity Load Error', description: 'User record not found in cloud.' });
+            }
         } finally {
             setLoadingProfile(false);
         }
@@ -66,9 +69,9 @@ export default function ViewUserPage() {
             setTransactions(data.documents);
         } catch (error: any) {
             console.error("Tx Fetch Error:", error);
-            // Handle Missing Index Error gracefully without crashing Identity Preview
-            if (error.message?.includes('index')) {
-                setTxError("History sync pending index creation. Check Firebase Console.");
+            // Handle Missing Index Error gracefully to keep the Identity View working
+            if (error.message?.includes('index') || error.message?.includes('FAILED_PRECONDITION')) {
+                setTxError("Index required. Create it via the link in your Firebase Console.");
             } else {
                 setTxError("Could not load recent history.");
             }
@@ -88,6 +91,7 @@ export default function ViewUserPage() {
         if (!profile) return;
         setIsSaving(true);
         try {
+            // Clean internal properties before update
             const { $id, uid, $createdAt, $updatedAt, email, ...updateData } = profile;
             const finalData = {
                 ...updateData,
@@ -111,16 +115,20 @@ export default function ViewUserPage() {
         setProfile((prev: any) => ({ ...prev, [id]: value }));
     };
 
-    if (loadingProfile) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
+    if (loadingProfile) {
+        return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
+    }
     
-    if (!profile) return (
-        <div className="container py-20 text-center space-y-4">
-            <ShieldAlert className="h-16 w-16 mx-auto text-destructive opacity-20" />
-            <h2 className="text-xl font-black uppercase tracking-tighter">Identity Missing</h2>
-            <p className="text-sm font-bold text-muted-foreground">This user record does not exist in the platform database.</p>
-            <Button asChild variant="outline" className="rounded-full px-10"><Link href="/manager/users">Return to List</Link></Button>
-        </div>
-    );
+    if (!profile) {
+        return (
+            <div className="container py-20 text-center space-y-4">
+                <ShieldAlert className="h-16 w-16 mx-auto text-destructive opacity-20" />
+                <h2 className="text-xl font-black uppercase tracking-tighter">Identity Missing</h2>
+                <p className="text-sm font-bold text-muted-foreground">The requested user record could not be found.</p>
+                <Button asChild variant="outline" className="rounded-full px-10"><Link href="/manager/users">Return to List</Link></Button>
+            </div>
+        );
+    }
 
     return (
         <div className="container py-8 max-w-5xl space-y-8 font-body">
@@ -139,33 +147,33 @@ export default function ViewUserPage() {
                 )}
             </div>
 
-            <Card className={cn("rounded-[3rem] shadow-2xl border-none overflow-hidden", profile.isBlocked && "ring-4 ring-destructive/20")}>
+            <Card className={cn("rounded-[3rem] shadow-2xl border-none overflow-hidden", profile?.isBlocked && "ring-4 ring-destructive/20")}>
                 <CardHeader className="bg-primary/5 pb-10 pt-10 text-center relative">
                     <div className="absolute top-4 right-6 flex gap-2">
-                        {profile.isOnline && <Badge className="bg-green-500 font-black uppercase text-[8px]">Online</Badge>}
-                        {profile.isSuspended && <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px]">Suspended</Badge>}
+                        {profile?.isOnline && <Badge className="bg-green-500 font-black uppercase text-[8px]">Online</Badge>}
+                        {profile?.isSuspended && <Badge variant="outline" className="border-primary text-primary font-black uppercase text-[8px]">Suspended</Badge>}
                     </div>
                     <Avatar className="h-32 w-32 border-8 border-white shadow-2xl mx-auto mb-6">
-                        <AvatarImage src={profile.avatar} className="object-cover" />
-                        <AvatarFallback className="font-black text-4xl uppercase bg-primary text-white">{profile.username?.charAt(0)}</AvatarFallback>
+                        <AvatarImage src={profile?.avatar} className="object-cover" />
+                        <AvatarFallback className="font-black text-4xl uppercase bg-primary text-white">{profile?.username?.charAt(0)}</AvatarFallback>
                     </Avatar>
-                    <CardTitle className="text-4xl font-black uppercase tracking-tighter">@{profile.username}</CardTitle>
-                    <CardDescription className="font-bold text-xs opacity-60 uppercase">{profile.email}</CardDescription>
+                    <CardTitle className="text-4xl font-black uppercase tracking-tighter">@{profile?.username}</CardTitle>
+                    <CardDescription className="font-bold text-xs opacity-60 uppercase">{profile?.email}</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-8 p-10 pt-12">
                     <div className="space-y-4">
                         <h3 className="font-black uppercase text-[10px] tracking-widest opacity-30 flex items-center gap-2"><Activity className="h-3 w-3"/> Global Assets</h3>
                         <div className="space-y-1">
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Balance (₦)</Label>
-                            <Input id="nairaBalance" type="number" value={profile.nairaBalance || 0} onChange={handleInputChange} readOnly={!editMode} className="h-12 rounded-2xl border-none bg-primary/10 font-black text-primary text-xl px-6 shadow-inner" />
+                            <Input id="nairaBalance" type="number" value={profile?.nairaBalance || 0} onChange={handleInputChange} readOnly={!editMode} className="h-12 rounded-2xl border-none bg-primary/10 font-black text-primary text-xl px-6 shadow-inner" />
                         </div>
                         <div className="space-y-1">
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Rewards</Label>
-                            <Input id="rewardBalance" type="number" value={profile.rewardBalance || 0} onChange={handleInputChange} readOnly={!editMode} className="h-12 rounded-2xl border-none bg-orange-50 font-black text-orange-600 text-xl px-6" />
+                            <Input id="rewardBalance" type="number" value={profile?.rewardBalance || 0} onChange={handleInputChange} readOnly={!editMode} className="h-12 rounded-2xl border-none bg-orange-50 font-black text-orange-600 text-xl px-6" />
                         </div>
                         <div className="space-y-1">
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Clicks</Label>
-                            <Input id="clickCount" type="number" value={profile.clickCount || 0} onChange={handleInputChange} readOnly={!editMode} className="h-12 rounded-2xl border-none bg-blue-50 font-black text-blue-600 text-xl px-6" />
+                            <Input id="clickCount" type="number" value={profile?.clickCount || 0} onChange={handleInputChange} readOnly={!editMode} className="h-12 rounded-2xl border-none bg-blue-50 font-black text-blue-600 text-xl px-6" />
                         </div>
                     </div>
 
@@ -173,16 +181,16 @@ export default function ViewUserPage() {
                         <h3 className="font-black uppercase text-[10px] tracking-widest opacity-30 flex items-center gap-2"><ShieldAlert className="h-3 w-3"/> Verification</h3>
                         <div className="space-y-1">
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Virtual Account</Label>
-                            <Input value={profile.accountNumber || 'NOT GENERATED'} readOnly className="h-12 rounded-2xl border-none bg-muted font-mono font-bold px-6" />
+                            <Input value={profile?.accountNumber || 'NOT GENERATED'} readOnly className="h-12 rounded-2xl border-none bg-muted font-mono font-bold px-6" />
                         </div>
                         <div className="space-y-1">
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">BVN / NIN</Label>
-                            <Input value={profile.bvn || 'HIDDEN'} readOnly className="h-12 rounded-2xl border-none bg-muted font-mono px-6" />
+                            <Input value={profile?.bvn || 'HIDDEN'} readOnly className="h-12 rounded-2xl border-none bg-muted font-mono px-6" />
                         </div>
                         <div className="space-y-1">
                             <Label className="text-[9px] font-black uppercase opacity-50 pl-1">Transaction PIN</Label>
                             <div className="h-12 flex items-center gap-3 px-6 bg-primary/10 rounded-2xl text-primary font-black font-mono shadow-inner">
-                                <KeyRound className="h-4 w-4" /> {profile.pin || 'NOT SET'}
+                                <KeyRound className="h-4 w-4" /> {profile?.pin || 'NOT SET'}
                             </div>
                         </div>
                     </div>
@@ -192,15 +200,17 @@ export default function ViewUserPage() {
                         <div className="p-6 rounded-3xl bg-muted/30 border-2 border-dashed space-y-4">
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-black uppercase">Blocked</span>
-                                <Badge variant={profile.isBlocked ? 'destructive' : 'outline'}>{profile.isBlocked ? 'YES' : 'NO'}</Badge>
+                                <Badge variant={profile?.isBlocked ? 'destructive' : 'outline'}>{profile?.isBlocked ? 'YES' : 'NO'}</Badge>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-black uppercase">Suspended</span>
-                                <Badge variant={profile.isSuspended ? 'destructive' : 'outline'}>{profile.isSuspended ? 'YES' : 'NO'}</Badge>
+                                <Badge variant={profile?.isSuspended ? 'destructive' : 'outline'}>{profile?.isSuspended ? 'YES' : 'NO'}</Badge>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-black uppercase">Last Active</span>
-                                <span className="text-[8px] font-bold opacity-50 truncate max-w-[80px]">{profile.lastSeen ? format(new Date(profile.lastSeen), 'HH:mm') : 'Never'}</span>
+                                <span className="text-[8px] font-bold opacity-50 truncate max-w-[80px]">
+                                    {profile?.lastSeen ? format(new Date(profile.lastSeen), 'HH:mm') : 'Never'}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -216,7 +226,9 @@ export default function ViewUserPage() {
                     <Table>
                         <TableHeader><TableRow className="border-none hover:bg-transparent"><TableHead className="font-black uppercase text-[10px] pl-10">Event</TableHead><TableHead className="font-black uppercase text-[10px]">Recipient</TableHead><TableHead className="text-right font-black uppercase text-[10px] pr-10">Value</TableHead></TableRow></TableHeader>
                         <TableBody>
-                            {loadingTx ? <TableRow><TableCell colSpan={3} className="text-center h-24"><Loader2 className="animate-spin h-5 w-5 mx-auto opacity-20" /></TableCell></TableRow> : transactions.length > 0 ? transactions.map(tx => (
+                            {loadingTx ? (
+                                <TableRow><TableCell colSpan={3} className="text-center h-24"><Loader2 className="animate-spin h-5 w-5 mx-auto opacity-20" /></TableCell></TableRow>
+                            ) : transactions.length > 0 ? transactions.map(tx => (
                                 <TableRow key={tx.$id} className="border-muted/10 h-16">
                                     <TableCell className="pl-10">
                                         <div className="font-black uppercase text-[10px] tracking-tight">{tx.type.replace('_', ' ')}</div>
@@ -224,10 +236,12 @@ export default function ViewUserPage() {
                                     </TableCell>
                                     <TableCell className="text-[10px] font-bold uppercase truncate max-w-[150px]">{tx.recipientName || 'SYSTEM'}</TableCell>
                                     <TableCell className={cn("text-right pr-10 font-black text-xs", tx.type === 'deposit' ? 'text-green-600' : 'text-red-600')}>
-                                        {tx.type === 'deposit' ? '+' : '-'} ₦{tx.amount.toLocaleString()}
+                                        {tx.type === 'deposit' ? '+' : '-'} ₦{tx.amount?.toLocaleString()}
                                     </TableCell>
                                 </TableRow>
-                            )) : <TableRow><TableCell colSpan={3} className="text-center h-24 text-[10px] font-black uppercase opacity-20 tracking-widest">No Activity Logged</TableCell></TableRow>}
+                            )) : (
+                                <TableRow><TableCell colSpan={3} className="text-center h-24 text-[10px] font-black uppercase opacity-20 tracking-widest">No Activity Logged</TableCell></TableRow>
+                            )}
                         </TableBody>
                     </Table>
                 </CardContent>
