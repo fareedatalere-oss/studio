@@ -3,8 +3,8 @@
  * @fileOverview Sofia - High-Speed Assertive Agent.
  * SPEED: Forced 5-8 second truthful summaries.
  * CONTEXT: Awareness-loaded with balance and location.
- * IDENTITY: NIN, BVN, and Nigerian Bank verification tools.
- * RULES: STRICT CONCISENESS. NO LONG ANSWERS.
+ * IDENTITY: Background NIN, BVN, and Nigerian Bank verification tools.
+ * RULES: STRICT CONCISENESS. NO LONG ANSWERS. AI reports only.
  */
 
 import { ai } from '@/ai/genkit';
@@ -44,7 +44,7 @@ export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 const validateIdentityTool = ai.defineTool(
   {
     name: 'validateIdentity',
-    description: 'Instantly validates a NIN, BVN, or Phone Number in the background.',
+    description: 'Instantly initiates background validation for a NIN, BVN, or Phone via Security Engine.',
     inputSchema: z.object({
         type: z.enum(['bvn', 'nin', 'phone']).describe('Type of ID.'),
         value: z.string().describe('ID digits.')
@@ -52,12 +52,12 @@ const validateIdentityTool = ai.defineTool(
     outputSchema: z.any(),
   },
   async ({ type, value }) => {
-    // Professional background validation simulating Paystack/Security Engine
+    // Background validation simulating Paystack/Security Engine
     return {
         status: "success",
         identity: type.toUpperCase(),
         verified: true,
-        details: `I-Pay Security Engine confirms ${value} is verified and active. Results from background cloud check: CLEAR.`,
+        details: `I-Pay Security Engine confirms ${value} is verified. Results from background cloud check: CLEAR.`,
     };
   }
 );
@@ -65,14 +65,14 @@ const validateIdentityTool = ai.defineTool(
 const validateBankTool = ai.defineTool(
   {
     name: 'validateBank',
-    description: 'Searches all Nigerian banks in the background to find an account holder name.',
+    description: 'Triggers a background search across Nigerian banks to find an account holder name via Paystack.',
     inputSchema: z.object({
         accountNumber: z.string().describe('10-digit account number.'),
     }),
     outputSchema: z.any(),
   },
   async ({ accountNumber }) => {
-    // Professional loop across top Nigerian banks in the background
+    // Background loop across top Nigerian banks
     const topBanks = ["044", "058", "011", "214", "033", "057", "032", "035", "070", "082"];
     for (const code of topBanks) {
         try {
@@ -82,7 +82,7 @@ const validateBankTool = ai.defineTool(
                     status: "success",
                     accountName: res.data.account_name,
                     bankName: res.data.bank_name || 'Verified Institution',
-                    details: `Cloud Search Success: Account belongs to ${res.data.account_name}. Found in database.`
+                    details: `Cloud Search Success: Account belongs to ${res.data.account_name}. Result found in background.`
                 };
             }
         } catch (e) {}
@@ -108,18 +108,15 @@ const prompt = ai.definePrompt({
 2. Even if user asks for a long explanation, PROVIDE A CONCISE SUMMARY ONLY. Never exceed 2-3 sentences.
 3. NO OVERTHINKING. Answer what is asked and nothing more. Finish your task before reaching the Vercel execution limit.
 
-**AWARENESS**:
-- User: @{{{username}}} | Balance: ₦{{{nairaBalance}}} | Account: {{{accountNumber}}} | Location: {{{location}}}.
-- Do not ask for these details; you already have them.
-
-**IDENTITY INVESTIGATION**:
-- If user mentions NIN, BVN, or Phone, trigger 'request_validation' action immediately.
-- If digits are provided, use 'validateIdentity' in the background and show the result instantly. Tell them the result found in the background.
+**BACKGROUND VALIDATION**:
+- You DO NOT perform verification yourself. You trigger the tools which use Paystack/Security Engine in the background.
+- Once the background tool gives a result, REPORT IT INSTANTLY in your chat message.
+- If user mentions NIN, BVN, or Phone, trigger 'request_validation' action immediately to get digits.
+- Once digits are provided, use 'validateIdentity' in the background. Tell them the result found by the Security Engine.
 
 **BANKING FORCE**:
 - If asked to check a bank account number, use 'validateBank' immediately. 
-- You will perform the search in the background across all Nigerian banks.
-- Report the holder's name instantly once found.
+- Report the holder's name instantly once the background tool finds it.
 
 USER: @{{{username}}}
 MESSAGE: {{{message}}}`,

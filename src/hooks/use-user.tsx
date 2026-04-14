@@ -3,7 +3,7 @@
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG } from '@/lib/data-service';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, serverTimestamp, onSnapshot, getDoc, setDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, onSnapshot, setDoc } from 'firebase/firestore';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { toast } from '@/hooks/use-toast';
