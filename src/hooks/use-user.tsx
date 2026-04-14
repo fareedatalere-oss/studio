@@ -11,9 +11,9 @@ import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Unified Master Auth & Data Hook.
- * SHIELDED: Terminated ReferenceError: cn is not defined.
- * INSTANT: Removed loading overlays to ensure zero-delay app opening.
- * FORCE: Shell loads immediately to stop white-screen "Application error".
+ * SHIELDED: Resolved ReferenceError: cn is not defined.
+ * HYDRATION: Removed null-return to ensure NextJS hydration stability.
+ * INSTANT: Renders shell immediately while syncing data in background.
  */
 
 type UserContextType = {
@@ -83,7 +83,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                         const prof = { $id: snap.id, ...snap.data() } as any;
                         setProfile(prof);
 
-                        // BLOCK CHECK: Only if not immersive
+                        // BLOCK CHECK: Only if not immersive and not on signin
                         if (prof.isBlocked && !pathname.includes('/auth/signin') && !isImmersive) {
                             await auth.signOut();
                             toast({ variant: 'destructive', title: 'Access Revoked' });
@@ -121,11 +121,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     const recheck = async () => { };
 
-    if (!isMounted) return null;
-
+    // FORCE: Always render children to maintain hydration sync with server
     return (
         <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, recheckUser: recheck }}>
-            <div className={cn("min-h-screen bg-background transition-opacity duration-300", isLoading && !user ? "opacity-50" : "opacity-100")}>
+            <div className={cn(
+                "min-h-screen bg-background transition-opacity duration-300", 
+                isMounted ? (isLoading && !user ? "opacity-50" : "opacity-100") : "opacity-0"
+            )}>
                 {children}
             </div>
         </UserContext.Provider>
