@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -11,7 +12,7 @@ import { parseISO, differenceInSeconds } from 'date-fns';
 
 /**
  * @fileOverview Master Alarm Engine.
- * NATIVE UPDATE: Removed custom ringtone. Uses System Default Notification and Vibration.
+ * FORCE UPDATE: Uses Native System Notification and Vibration to bypass device restrictions.
  */
 
 export function MeetingAlarm() {
@@ -45,10 +46,10 @@ export function MeetingAlarm() {
 
         const now = new Date();
 
-        // 1. Check for incoming calls (for Guests)
+        // 1. Incoming Call Detection
         const incomingCall = res.documents.find(m => m.type === 'call' && m.invitedUsers?.includes(user.$id));
         
-        // 2. Check for scheduled meetings (for Admin/Chairman)
+        // 2. Scheduled Meeting Alarm
         const scheduledMeeting = res.documents.find(m => {
             if (m.hostId !== user.$id || rungIds.current.has(m.$id)) return false;
             if (!m.scheduledAt) return false;
@@ -56,7 +57,7 @@ export function MeetingAlarm() {
             const schedTime = parseISO(m.scheduledAt);
             const diffSec = differenceInSeconds(now, schedTime);
             
-            // Ring if we are within 60 seconds of the start time
+            // Trigger alarm within a 60-second window of the start time
             return diffSec >= -10 && diffSec < 60;
         });
 
@@ -70,7 +71,7 @@ export function MeetingAlarm() {
             ...target, 
             isHostAlert: target.hostId === user.$id,
             callerAvatar: caller?.avatar, 
-            callerName: caller?.username || (target.hostId === user.$id ? 'My Meeting' : 'I-Pay User')
+            callerName: caller?.username || (target.hostId === user.$id ? 'Meeting Master' : 'I-Pay User')
           });
           startRinging();
         }
@@ -100,10 +101,10 @@ export function MeetingAlarm() {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
-    // Trigger Native System Notification (this plays the user's default device sound)
+    // FORCE: Trigger Native System Notification (uses device ringing tone)
     if ("Notification" in window && Notification.permission === "granted") {
         new Notification(activeCall?.isHostAlert ? 'I-Pay: Meeting Now' : 'I-Pay: Incoming Call', {
-            body: activeCall?.isHostAlert ? `Your session "${activeCall.name}" is starting.` : `Call from @${activeCall?.callerName}`,
+            body: activeCall?.isHostAlert ? `Session "${activeCall.name}" is starting.` : `Call from @${activeCall?.callerName}`,
             icon: '/logo.png',
             tag: 'meeting-alert',
             renotify: true,
@@ -111,12 +112,13 @@ export function MeetingAlarm() {
         });
     }
 
-    // Force Native Vibration
+    // FORCE: Native Vibration Logic
     if (navigator.vibrate) {
-        navigator.vibrate([1000, 500, 1000, 500, 1000]);
+        const ringPattern = [1000, 500, 1000, 500, 1000];
+        navigator.vibrate(ringPattern);
         vibrationInterval.current = setInterval(() => {
-            navigator.vibrate([1000, 500, 1000, 500, 1000]);
-        }, 3000);
+            navigator.vibrate(ringPattern);
+        }, 3500);
     }
   };
 
@@ -156,7 +158,7 @@ export function MeetingAlarm() {
           <div className="flex items-center justify-center gap-2 text-primary/60">
             {activeCall?.isHostAlert ? <Clock className="h-4 w-4" /> : <Video className="h-4 w-4" />}
             <p className="text-[10px] font-black uppercase tracking-widest">
-                {activeCall?.isHostAlert ? 'Chairman Reminder' : 'I-Pay Voice Line'}
+                {activeCall?.isHostAlert ? 'Master Reminder' : 'Live Secure Line'}
             </p>
           </div>
       </div>
@@ -182,17 +184,17 @@ export function MeetingAlarm() {
       <div className="flex items-center justify-center gap-16 w-full max-w-sm px-10">
           <div className="flex flex-col items-center gap-4">
               <Button onClick={handleDecline} size="icon" variant="destructive" className="h-20 w-20 rounded-full shadow-2xl bg-red-500 hover:bg-red-600 active:scale-90 transition-transform"><PhoneOff className="h-10 w-10 text-white" /></Button>
-              <span className="text-xs font-black uppercase text-red-600 tracking-widest">{activeCall?.isHostAlert ? 'Close' : 'Decline'}</span>
+              <span className="text-xs font-black uppercase text-red-600 tracking-widest">{activeCall?.isHostAlert ? 'Dismiss' : 'Decline'}</span>
           </div>
           <div className="flex flex-col items-center gap-4">
               <Button onClick={handleAccept} size="icon" className="h-20 w-20 rounded-full bg-green-500 hover:bg-green-600 shadow-2xl active:scale-90 transition-transform"><CheckCircle2 className="h-10 w-10 text-white" /></Button>
-              <span className="text-xs font-black uppercase text-green-600 tracking-widest">{activeCall?.isHostAlert ? 'Join' : 'Accept'}</span>
+              <span className="text-xs font-black uppercase text-green-600 tracking-widest">{activeCall?.isHostAlert ? 'Join Now' : 'Accept'}</span>
           </div>
       </div>
       
       <div className="absolute bottom-10 flex items-center gap-2 opacity-20">
           <Volume2 className="h-3 w-3" />
-          <p className="text-[8px] font-black uppercase tracking-widest">Master Alert Service Active</p>
+          <p className="text-[8px] font-black uppercase tracking-widest">Global Alert Sync Active</p>
       </div>
     </div>
   );

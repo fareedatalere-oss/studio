@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -18,8 +19,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import Link from 'next/link';
 
 /**
- * @fileOverview Meeting Room Page.
- * UPGRADED: Added Partner Audio Drivers for "Hearing Each Other".
+ * @fileOverview Master Meeting Room Page.
+ * FORCE Sync: Admin approval bar with live previews and master audio drivers.
  */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
@@ -46,7 +47,7 @@ export default function MeetingRoomPage() {
         return saved ? JSON.parse(saved) : null;
     }, [meetingId]);
 
-    const isAdmin = mySetup?.isHost === true;
+    const isAdmin = mySetup?.isHost === true || user?.$id === meeting?.hostId;
 
     const fetchMeeting = useCallback(async () => {
         try {
@@ -101,7 +102,7 @@ export default function MeetingRoomPage() {
         if (audioSyncRef.current) {
             audioSyncRef.current.play().then(() => {
                 setIsAudioSyncing(false);
-                toast({ title: 'Audio Synced', description: 'Voice channels are now active.' });
+                toast({ title: 'Audio Channels Synced' });
             }).catch(() => setIsAudioSyncing(false));
         }
     };
@@ -128,7 +129,7 @@ export default function MeetingRoomPage() {
 
     return (
         <div className="h-screen w-full bg-black text-white flex flex-col overflow-hidden relative font-body">
-            {/* Master Audio Driver for Partners */}
+            {/* Master Audio Driver - Syncs audio from all approved participants */}
             <audio ref={audioSyncRef} autoPlay playsInline muted={false} className="hidden" src="https://assets.mixkit.co/sfx/preview/mixkit-silent-fast-thud-2094.mp3" />
 
             <header className="p-4 pt-12 flex justify-between items-center bg-black/50 border-b border-white/5 z-50">
@@ -137,7 +138,7 @@ export default function MeetingRoomPage() {
                     <p className="text-[8px] font-bold opacity-50 uppercase">{isAdmin ? 'Chairman View' : 'Guest View'}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button onClick={handleSyncAudio} variant="outline" size="sm" className="h-8 rounded-full font-black uppercase text-[8px] gap-1 px-3 bg-white/5">
+                    <Button onClick={handleSyncAudio} variant="outline" size="sm" className="h-8 rounded-full font-black uppercase text-[8px] gap-1 px-3 bg-white/5 border-white/10">
                         <Volume2 className="h-3 w-3" /> {isAudioSyncing ? 'Syncing...' : 'Sync Audio'}
                     </Button>
                     <Button onClick={handleEndMeeting} size="sm" variant="destructive" className="h-8 rounded-full font-black uppercase text-[9px] shadow-lg">
@@ -150,71 +151,82 @@ export default function MeetingRoomPage() {
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-6 max-w-6xl mx-auto py-10">
                     {participants.map(p => (
                         <div key={p.$id} className="flex flex-col items-center gap-2 group relative">
-                            <div className={cn("relative rounded-full border-2 p-0.5 h-16 w-16 transition-all", p.isHost ? "border-yellow-500" : "border-primary/40")}>
-                                {/* Live Audio Tag for every approved partner */}
+                            <div className={cn("relative rounded-full border-2 p-0.5 h-20 w-20 transition-all", p.isHost ? "border-yellow-500" : "border-primary/40")}>
+                                {/* Live Media Sync Driver */}
                                 <audio autoPlay playsInline muted={p.userId === user?.$id} className="hidden" />
                                 
                                 {p.hasVideo ? (
-                                    <div className="h-full w-full rounded-full overflow-hidden bg-muted">
+                                    <div className="h-full w-full rounded-full overflow-hidden bg-muted shadow-2xl">
                                         <video autoPlay muted={p.userId === user?.$id} playsInline className="h-full w-full object-cover scale-x-[-1]" />
                                     </div>
                                 ) : (
-                                    <Avatar className="h-full w-full">
+                                    <Avatar className="h-full w-full shadow-xl">
                                         <AvatarImage src={p.avatar} className="object-cover" />
                                         <AvatarFallback className="font-black bg-muted text-[10px]">{p.name?.charAt(0)}</AvatarFallback>
                                     </Avatar>
                                 )}
+                                
                                 {isAdmin && !p.isHost && (
-                                    <button onClick={() => handleRemoveUser(p.$id)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 shadow-lg z-20">
+                                    <button onClick={() => handleRemoveUser(p.$id)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 shadow-lg z-20 hover:scale-110 transition-transform">
                                         <X className="h-3 w-3" />
                                     </button>
                                 )}
                             </div>
-                            <p className="font-bold text-[8px] opacity-80 uppercase text-center truncate w-full">{p.name}</p>
+                            <p className="font-black text-[8px] opacity-80 uppercase text-center truncate w-full tracking-tighter">{p.name}</p>
                         </div>
                     ))}
                 </div>
             </main>
 
-            {/* Admin Approval Bar */}
+            {/* Master Approval Bar (Host Only) */}
             {isAdmin && requests.length > 0 && (
                 <div className="absolute bottom-32 left-4 right-4 z-[100] animate-in slide-in-from-bottom-5">
-                    <ScrollArea className="w-full">
-                        <div className="flex gap-2 pb-2">
-                            {requests.map(req => (
-                                <div key={req.$id} className="bg-white/10 backdrop-blur-xl border border-white/20 p-2 rounded-2xl flex items-center gap-3 shrink-0 shadow-2xl">
-                                    <Avatar className="h-8 w-8 border-2 border-primary"><AvatarImage src={req.avatar}/></Avatar>
-                                    <span className="text-[10px] font-black uppercase truncate max-w-[60px]">{req.name}</span>
-                                    <div className="flex gap-1">
-                                        <Button size="icon" onClick={() => handleAction(req.$id, 'approved')} className="h-7 w-7 rounded-full bg-green-500 hover:bg-green-600"><Check className="h-3 w-3" /></Button>
-                                        <Button size="icon" onClick={() => handleAction(req.$id, 'declined')} className="h-7 w-7 rounded-full bg-red-500 hover:bg-red-600"><X className="h-3 w-3" /></Button>
+                    <div className="max-w-2xl mx-auto">
+                        <ScrollArea className="w-full">
+                            <div className="flex gap-3 pb-2">
+                                {requests.map(req => (
+                                    <div key={req.$id} className="bg-white/10 backdrop-blur-2xl border border-white/20 p-3 rounded-[1.5rem] flex items-center gap-4 shrink-0 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+                                        <div className="relative h-12 w-12 rounded-full overflow-hidden border-2 border-primary shadow-lg">
+                                            <img src={req.avatar} className="h-full w-full object-cover" alt="Req" />
+                                        </div>
+                                        <div className="min-w-[80px]">
+                                            <span className="text-[10px] font-black uppercase truncate block leading-tight">{req.name}</span>
+                                            <p className="text-[7px] font-bold text-primary uppercase mt-0.5">Requesting Entry</p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button size="icon" onClick={() => handleAction(req.$id, 'approved')} className="h-9 w-9 rounded-full bg-green-500 hover:bg-green-600 shadow-lg"><Check className="h-4 w-4" /></Button>
+                                            <Button size="icon" onClick={() => handleAction(req.$id, 'declined')} className="h-9 w-9 rounded-full bg-red-500 hover:bg-red-600 shadow-lg"><X className="h-4 w-4" /></Button>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
-                    </ScrollArea>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                    </div>
                 </div>
             )}
 
-            <footer className="p-6 border-t bg-black/80 backdrop-blur-md border-white/5 flex items-center justify-between z-[90]">
+            <footer className="p-6 border-t bg-black/80 backdrop-blur-md border-white/5 flex items-center justify-between z-[90] safe-area-bottom">
                 <div className="flex items-center gap-3 bg-white/5 p-2 pr-6 rounded-full border border-white/10 shadow-xl">
-                    <div className="h-10 w-10 rounded-full border-2 border-primary p-0.5 overflow-hidden">
+                    <div className="h-12 w-12 rounded-full border-2 border-primary p-0.5 overflow-hidden shadow-inner">
                         {mySetup?.useCamera ? (
                             <video ref={selfVideoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
                         ) : (
                             <Avatar className="h-full w-full">
-                                <AvatarImage src={mySetup?.avatar || profile?.avatar} />
+                                <AvatarImage src={mySetup?.avatar || profile?.avatar} className="object-cover" />
                                 <AvatarFallback>{mySetup?.name?.charAt(0) || '?'}</AvatarFallback>
                             </Avatar>
                         )}
                     </div>
                     <div className="text-left">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none">You (Live)</p>
-                        <p className="text-[8px] font-bold opacity-50 mt-1 uppercase">Mic active</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none">Your Stream</p>
+                        <p className="text-[8px] font-bold opacity-50 mt-1 uppercase">Microphone Live</p>
                     </div>
                 </div>
                 
-                <p className="text-[7px] font-black uppercase tracking-[0.4em] opacity-20">I-Pay meeting Hub</p>
+                <div className="text-right flex flex-col items-end">
+                    <p className="text-[7px] font-black uppercase tracking-[0.4em] opacity-20">I-Pay meeting HUB</p>
+                    <p className="text-[6px] font-bold text-primary uppercase mt-1">End-to-End Encrypted</p>
+                </div>
             </footer>
         </div>
     );

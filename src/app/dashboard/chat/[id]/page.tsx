@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -30,6 +31,12 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
+import Link from 'next/link';
+
+/**
+ * @fileOverview High-Speed Chat Hub.
+ * REFINED: Smaller bubbles, icon-based media, and missed call logs.
+ */
 
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
@@ -139,7 +146,7 @@ export default function ChatThreadPage() {
 
             await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
                 participants: [currentUser.$id, otherUserId],
-                lastMessage: text ? (text.length > 30 ? text.substring(0,30)+'...' : text) : `Shared a ${mediaData?.type || 'file'}`,
+                lastMessage: text ? (text.length > 30 ? text.substring(0,30)+'...' : text) : `Shared a ${mediaData?.type || 'media'}`,
                 lastMessageAt: serverTimestamp(),
                 [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
@@ -161,15 +168,12 @@ export default function ChatThreadPage() {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        // Validation for video/audio (3 mins approx 50MB for decent quality)
         if ((file.type.includes('video') || file.type.includes('audio')) && file.size > 100 * 1024 * 1024) {
-            toast({ variant: 'destructive', title: 'File too large', description: 'Maximum 3 minutes (Approx 100MB).' });
+            toast({ variant: 'destructive', title: 'Limit: 3m / 100MB' });
             return;
         }
 
         setIsUploading(true);
-        toast({ title: 'Uploading to Vault...' });
-
         try {
             const reader = new FileReader();
             const b64: string = await new Promise((res) => {
@@ -179,22 +183,19 @@ export default function ChatThreadPage() {
 
             let resourceType: 'image' | 'video' | 'raw' = 'image';
             if (file.type.includes('video') || file.type.includes('audio')) resourceType = 'video';
-            else if (file.type.includes('pdf') || file.type.includes('application')) resourceType = 'raw';
+            else if (file.type.includes('pdf')) resourceType = 'raw';
 
             const up = await uploadToCloudinary(b64, resourceType === 'raw' ? 'auto' : resourceType);
             if (up.success) {
-                let type: 'image' | 'video' | 'audio' | 'pdf' | 'link' = 'image';
+                let type = 'image';
                 if (file.type.includes('video')) type = 'video';
                 else if (file.type.includes('audio')) type = 'audio';
                 else if (file.type.includes('pdf')) type = 'pdf';
 
                 await handleSend('', { url: up.url, type: type });
-                toast({ title: 'Shared!' });
-            } else {
-                throw new Error(up.message);
             }
         } catch (err: any) {
-            toast({ variant: 'destructive', title: 'Upload Failed', description: err.message });
+            toast({ variant: 'destructive', title: 'Upload Failed' });
         } finally {
             setIsUploading(false);
         }
@@ -216,71 +217,18 @@ export default function ChatThreadPage() {
         } catch (e) { toast({ variant: 'destructive', title: 'Call Failed' }); }
     };
 
-    const startRecording = async () => {
-        if (typeof window === 'undefined') return;
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const recorder = new MediaRecorder(stream);
-            mediaRecorderRef.current = recorder;
-            const chunks: BlobPart[] = [];
-            recorder.ondataavailable = (e) => chunks.push(e.data);
-            recorder.onstop = () => {
-                const blob = new Blob(chunks, { type: 'audio/webm' });
-                setAudioBlob(blob);
-                setAudioUrl(URL.createObjectURL(blob));
-            };
-            recorder.start();
-            setIsRecording(true);
-            setRecordingDuration(0);
-            timerRef.current = setInterval(() => setRecordingDuration(p => p >= 180 ? 180 : p + 1), 1000);
-        } catch (err) { toast({ variant: 'destructive', title: 'Mic Access Error' }); }
-    };
-
-    const stopRecording = () => {
-        if (mediaRecorderRef.current && isRecording) {
-            mediaRecorderRef.current.stop();
-            setIsRecording(false);
-            if (timerRef.current) clearInterval(timerRef.current);
-        }
-    };
-
-    const handleSendVoice = async () => {
-        if (!audioBlob) return;
-        setIsUploading(true);
-        try {
-            const reader = new FileReader();
-            const b64: string = await new Promise((res) => {
-                reader.onloadend = () => res(reader.result as string);
-                reader.readAsDataURL(audioBlob);
-            });
-            const up = await uploadToCloudinary(b64, 'video'); 
-            if (up.success) {
-                await handleSend('', { url: up.url, type: 'audio' });
-                cancelRecording();
-            }
-        } catch (err: any) { toast({ variant: 'destructive', title: 'Failed' }); }
-        finally { setIsUploading(false); }
-    };
-
-    const cancelRecording = () => {
-        setAudioBlob(null);
-        setAudioUrl(null);
-        setRecordingDuration(0);
-        if (timerRef.current) clearInterval(timerRef.current);
-    };
-
     const MediaIcon = ({ type, url }: { type: string, url: string }) => {
         const icons = {
-            image: <ImageIcon className="h-10 w-10 text-primary" />,
-            video: <Film className="h-10 w-10 text-orange-500" />,
-            audio: <Music className="h-10 w-10 text-purple-500" />,
-            pdf: <FileText className="h-10 w-10 text-red-500" />,
-            link: <LinkIcon className="h-10 w-10 text-blue-500" />
+            image: <ImageIcon className="h-8 w-8 text-primary" />,
+            video: <Film className="h-8 w-8 text-orange-500" />,
+            audio: <Music className="h-8 w-8 text-purple-500" />,
+            pdf: <FileText className="h-8 w-8 text-red-500" />,
+            link: <LinkIcon className="h-8 w-8 text-blue-500" />
         };
         return (
-            <Link href={`/dashboard/chat/view-media?url=${encodeURIComponent(url)}&type=${type}`} className="flex flex-col items-center gap-2 p-4 bg-muted/50 rounded-2xl border-2 border-dashed border-primary/20 hover:bg-primary/5 transition-all">
-                {icons[type as keyof typeof icons] || <FileText className="h-10 w-10" />}
-                <span className="text-[8px] font-black uppercase tracking-widest opacity-50">{type} file</span>
+            <Link href={`/dashboard/chat/view-media?url=${encodeURIComponent(url)}&type=${type}`} className="flex flex-col items-center gap-1 p-3 bg-muted/50 rounded-xl border border-dashed border-primary/20 hover:bg-primary/5 transition-all">
+                {icons[type as keyof typeof icons] || <FileText className="h-8 w-8" />}
+                <span className="text-[7px] font-black uppercase tracking-widest opacity-50">{type}</span>
             </Link>
         );
     };
@@ -310,13 +258,13 @@ export default function ChatThreadPage() {
             
             <main className="flex-1 overflow-y-auto p-4 space-y-2 overscroll-contain bg-muted/5">
                 <div className="max-w-xl mx-auto w-full space-y-3">
-                    <div className="text-center py-6 opacity-20 flex flex-col items-center gap-2"><ShieldCheck className="h-4 w-4" /><p className="text-[7px] font-black uppercase tracking-[0.4em]">End-to-End Encrypted</p></div>
+                    <div className="text-center py-6 opacity-20 flex flex-col items-center gap-2"><ShieldCheck className="h-4 w-4" /><p className="text-[7px] font-black uppercase tracking-[0.4em]">End-to-End Encryption</p></div>
                     {messages.map((msg) => {
                         const isMine = msg.senderId === currentUser?.$id;
                         return (
-                            <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%] group", isMine ? "ml-auto items-end" : "items-start")}>
-                                <div className={cn("p-2 px-4 rounded-[1.2rem] shadow-sm relative text-[13px] font-bold leading-relaxed", isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
-                                    <div className="flex items-start justify-between gap-4">
+                            <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[80%] group", isMine ? "ml-auto items-end" : "items-start")}>
+                                <div className={cn("p-2 px-3 rounded-[1rem] shadow-sm relative text-[12px] font-bold leading-relaxed", isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
+                                    <div className="flex items-start justify-between gap-3">
                                         <div className="flex-1 min-w-0">
                                             {msg.mediaType ? (
                                                 <MediaIcon type={msg.mediaType} url={msg.mediaUrl} />
@@ -326,9 +274,9 @@ export default function ChatThreadPage() {
                                         </div>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 -mt-1 opacity-20 hover:opacity-100"><MoreVertical className="h-3 w-3" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-5 w-5 -mr-1 -mt-1 opacity-20 hover:opacity-100"><MoreVertical className="h-3 w-3" /></Button>
                                             </DropdownMenuTrigger>
-                                            <DropdownMenuContent align={isMine ? 'end' : 'start'} className="font-black uppercase text-[9px] rounded-xl">
+                                            <DropdownMenuContent align={isMine ? 'end' : 'start'} className="font-black uppercase text-[8px] rounded-xl">
                                                 <DropdownMenuItem onClick={() => updateDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id), { deleteFor: arrayUnion(currentUser?.$id) })}>
                                                     <Trash2 className="mr-2 h-3 w-3" /> Delete for me
                                                 </DropdownMenuItem>
@@ -347,16 +295,7 @@ export default function ChatThreadPage() {
                                         </span>
                                         {isMine && (
                                             <div className="flex items-center -mb-0.5">
-                                                {msg.status === 'seen' ? (
-                                                    <CheckCircle2 className="h-2 w-2 text-white" />
-                                                ) : otherUser?.isOnline ? (
-                                                    <div className="flex gap-px">
-                                                        <Check className="h-2 w-2 text-white/80" />
-                                                        <Check className="h-2 w-2 text-white/80 -ml-1" />
-                                                    </div>
-                                                ) : (
-                                                    <Check className="h-2 w-2 text-white/40" />
-                                                )}
+                                                {msg.status === 'seen' ? <CheckCircle2 className="h-2 w-2 text-white" /> : <Check className="h-2 w-2 text-white/40" />}
                                             </div>
                                         )}
                                     </div>
@@ -369,44 +308,28 @@ export default function ChatThreadPage() {
             </main>
 
             <footer className="p-4 border-t bg-background safe-area-bottom pb-8">
-                {audioUrl ? (
-                    <div className="max-w-xl mx-auto w-full flex items-center gap-3 bg-muted/50 p-2 rounded-2xl animate-in slide-in-from-bottom-2">
-                        <Button onClick={cancelRecording} variant="ghost" size="icon" className="h-10 w-10 text-destructive"><X className="h-5 w-5" /></Button>
-                        <audio src={audioUrl} controls className="flex-1 h-8" preload="auto" />
-                        <Button onClick={handleSendVoice} size="icon" className="h-10 w-10 bg-green-500 hover:bg-green-600 rounded-full" disabled={isUploading}><CheckCircle2 className="h-5 w-5 text-white" /></Button>
-                    </div>
-                ) : isRecording ? (
-                    <div className="max-w-xl mx-auto w-full flex items-center gap-4 bg-primary/10 p-3 rounded-2xl animate-pulse">
-                        <div className="h-3 w-3 rounded-full bg-red-500" />
-                        <p className="flex-1 font-black text-xs uppercase tracking-widest text-primary">Recording... {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}</p>
-                        <Button onClick={stopRecording} variant="destructive" size="sm" className="rounded-full h-8 px-4 font-black uppercase text-[10px]">Stop</Button>
-                    </div>
-                ) : (
-                    <div className="max-w-xl mx-auto w-full flex items-center gap-2">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full"><Paperclip className="h-5 w-5" /></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-48 p-2 font-black uppercase text-[9px] rounded-[1.5rem]">
-                                <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('application/pdf'); fileInputRef.current?.click(); }}><FileText className="h-4 w-4 text-red-500" /> Documents / PDF</DropdownMenuItem>
-                                <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('image/*'); fileInputRef.current?.click(); }}><ImageIcon className="h-4 w-4 text-primary" /> Gallery / Image</DropdownMenuItem>
-                                <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('video/*'); fileInputRef.current?.click(); }}><Film className="h-4 w-4 text-orange-500" /> Video (Max 3m)</DropdownMenuItem>
-                                <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('audio/*'); fileInputRef.current?.click(); }}><Music className="h-4 w-4 text-purple-500" /> Music / Audio</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <Input placeholder="Type message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />
-                        <Button onClick={startRecording} variant="ghost" size="icon" className="h-11 w-11 rounded-full text-primary hover:bg-primary/10"><Mic className="h-5 w-5" /></Button>
-                        <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() || isUploading} className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90">{isUploading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5 text-white" />}</Button>
-                    </div>
-                )}
+                <div className="max-w-xl mx-auto w-full flex items-center gap-2">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full"><Paperclip className="h-5 w-5" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-48 p-2 font-black uppercase text-[9px] rounded-[1.5rem]">
+                            <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('application/pdf'); fileInputRef.current?.click(); }}><FileText className="h-4 w-4 text-red-500" /> Documents / PDF</DropdownMenuItem>
+                            <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('image/*'); fileInputRef.current?.click(); }}><ImageIcon className="h-4 w-4 text-primary" /> Gallery / Image</DropdownMenuItem>
+                            <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('video/*'); fileInputRef.current?.click(); }}><Film className="h-4 w-4 text-orange-500" /> Video (Max 3m)</DropdownMenuItem>
+                            <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('audio/*'); fileInputRef.current?.click(); }}><Music className="h-4 w-4 text-purple-500" /> Music / Audio</DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Input placeholder="Message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />
+                    <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() || isUploading} className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90">{isUploading ? <Loader2 className="animate-spin h-5 w-5 text-white" /> : <Send className="h-5 w-5 text-white" />}</Button>
+                </div>
                 <input type="file" ref={fileInputRef} className="hidden" accept={mediaTypeFilter} onChange={handleFileUpload} />
             </footer>
 
             <Dialog open={isForwardOpen} onOpenChange={setIsForwardOpen}>
                 <DialogContent className="rounded-[2.5rem]">
-                    <DialogHeader><DialogTitle className="text-center font-black uppercase text-sm">Forward Message</DialogTitle></DialogHeader>
-                    <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-4">Sharing to this chat...</p>
+                    <DialogHeader><DialogTitle className="text-center font-black uppercase text-sm">Forward Item</DialogTitle></DialogHeader>
+                    <div className="p-4 space-y-4">
                         <Button variant="outline" className="w-full h-14 rounded-2xl font-black uppercase text-[10px]" onClick={() => { if(forwardMessage) { handleSend(forwardMessage.text, forwardMessage.mediaUrl ? {url: forwardMessage.mediaUrl, type: forwardMessage.mediaType} : null); setIsForwardOpen(false); toast({title: 'Forwarded'}); } }}>Resend Here</Button>
                     </div>
                 </DialogContent>
