@@ -9,13 +9,13 @@ import { Badge } from '@/components/ui/badge';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { databases, COLLECTION_ID_NOTIFICATIONS, Query, client } from '@/lib/data-service';
+import { databases, COLLECTION_ID_NOTIFICATIONS, Query, client, COLLECTION_ID_MESSAGES } from '@/lib/data-service';
 import { cn } from '@/lib/utils';
 import { MeetingAlarm } from '@/components/meeting-alarm';
 
 /**
  * @fileOverview Unified Dashboard Layout.
- * UPGRADED: Forced Real-time Notification Engine with Audio & Native Push.
+ * UPGRADED: Forced Real-time Notification Engine with Audio & Native Push for Chats and Alerts.
  */
 
 export default function DashboardLayout({
@@ -105,48 +105,58 @@ export default function DashboardLayout({
     } catch (error) {
       console.error("Failed to fetch unread counts:", error);
     }
-  }, [user]);
+  }, [user?.$id]);
 
   useEffect(() => {
-    if (user) {
+    if (user?.$id) {
       fetchUnreadCounts();
       const nowTime = new Date().getTime();
 
-      const unsub = client.subscribe([`databases.default.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`], (response: any) => {
+      // ALERT LISTENER
+      const unsubAlerts = client.subscribe([`databases.default.collections.${COLLECTION_ID_NOTIFICATIONS}.documents`], (response: any) => {
           const payload = response.payload;
           const isNew = response.events[0].endsWith('.added');
           
           if (payload.userId === user.$id) {
             fetchUnreadCounts();
-
-            // FORCE ALERT LOGIC: Trigger sound and toast for live events
             const recordTime = new Date(payload.$createdAt).getTime();
-            if (isNew && recordTime > nowTime - 10000) {
-                // 1. Play Ping Sound
+            if (isNew && recordTime > nowTime - 5000) {
+                // Play System Ping
                 const ping = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3');
-                ping.volume = 0.6;
                 ping.play().catch(() => {});
 
-                // 2. Push Native Notification
                 if (Notification.permission === 'granted') {
-                    new Notification('I-Pay Alert', {
-                        body: payload.description,
-                        icon: '/logo.png'
-                    });
+                    new Notification('I-Pay Alert', { body: payload.description, icon: '/logo.png' });
                 }
-
-                // 3. Show Master Toast
-                toast({
-                    title: "Alert Received",
-                    description: payload.description,
-                    variant: payload.type === 'payment' ? 'default' : 'default',
-                });
+                toast({ title: "New Alert", description: payload.description });
             }
           }
       });
-      return () => unsub();
+
+      // CHAT PUSH LISTENER
+      const unsubChats = client.subscribe([`databases.default.collections.${COLLECTION_ID_MESSAGES}.documents`], (response: any) => {
+          const payload = response.payload;
+          const isNew = response.events[0].endsWith('.added');
+          
+          if (isNew && payload.chatId?.includes(user.$id) && payload.senderId !== user.$id) {
+              const recordTime = new Date(payload.$createdAt).getTime();
+              if (recordTime > nowTime - 5000) {
+                  // Trigger Native Push for Messages
+                  if (Notification.permission === 'granted') {
+                      new Notification('New Message', { 
+                          body: payload.text || 'Media received', 
+                          icon: '/logo.png',
+                          tag: payload.chatId 
+                      });
+                  }
+                  toast({ title: "New Message", description: payload.text || "Shared a file" });
+              }
+          }
+      });
+
+      return () => { unsubAlerts(); unsubChats(); };
     }
-  }, [user, fetchUnreadCounts, toast, router]);
+  }, [user?.$id, fetchUnreadCounts, toast]);
 
   const isTabOn = (key: string) => (!proof) ? true : proof[key] !== false;
 

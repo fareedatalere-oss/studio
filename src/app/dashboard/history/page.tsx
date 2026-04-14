@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 
 /**
  * @fileOverview User Transaction History.
- * SHIELDED: Client-side sorting to bypass Firebase index errors.
+ * SHIELDED: Forced In-Memory sorting to bypass missing indexes and open instantly.
  */
 
 const safeDate = (val: any) => {
@@ -35,11 +35,11 @@ export default function HistoryPage() {
     const [error, setError] = useState<string | null>(null);
 
     const fetchTransactions = useCallback(async () => {
-        if (!user) return;
+        if (!user?.$id) return;
         setLoading(true);
         setError(null);
         try {
-            // FORCE: Use raw fetch and client-side sort to bypass missing indexes
+            // Master Force: Use raw fetch and client-side sort to bypass missing indexes
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_ID_TRANSACTIONS,
@@ -55,19 +55,20 @@ export default function HistoryPage() {
 
             setTransactions(sorted);
         } catch (err: any) {
-            setError("We encountered an error loading your history. Please retry.");
+            console.error("History Sync Fail:", err.message);
+            setError("Ledger is updating. Try again in 5 seconds.");
         } finally {
             setLoading(false);
         }
-    }, [user]);
+    }, [user?.$id]);
 
     useEffect(() => {
-        if (user) {
+        if (user?.$id) {
             fetchTransactions();
         } else if (!userLoading) {
             setLoading(false);
         }
-    }, [user, userLoading, fetchTransactions]);
+    }, [user?.$id, userLoading, fetchTransactions]);
 
     const getStatusVariant = (status: string) => {
         switch (status?.toLowerCase()) {
@@ -89,31 +90,31 @@ export default function HistoryPage() {
     };
 
     return (
-        <div className="container py-8 max-w-4xl">
+        <div className="container py-8 max-w-4xl font-body">
             <Link href="/dashboard" className="flex items-center gap-2 mb-6 text-sm font-black uppercase text-muted-foreground hover:text-primary transition-all">
                 <ArrowLeft className="h-4 w-4" /> Hub
             </Link>
             <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
-                <CardHeader className="bg-primary/5 pb-8">
+                <CardHeader className="bg-primary/5 pb-8 pt-10">
                     <CardTitle className="flex items-center gap-3 text-2xl font-black uppercase tracking-tighter">
-                        <Calendar className="h-6 w-6 text-primary" />
-                        Account Log
+                        <Calendar className="h-7 w-7 text-primary" />
+                        Account Ledger
                     </CardTitle>
-                    <CardDescription className="font-bold">Real-time ledger of your digital assets.</CardDescription>
+                    <CardDescription className="font-bold text-xs opacity-70">Official record of all digital asset movements.</CardDescription>
                 </CardHeader>
-                <CardContent className="pt-8">
-                    {error ? (
+                <CardContent className="pt-10">
+                    {error && !loading && transactions.length === 0 ? (
                         <div className="py-16 text-center space-y-4">
                             <ShieldAlert className="h-12 w-12 mx-auto text-orange-500 opacity-50" />
                             <p className="font-bold text-sm max-w-xs mx-auto text-muted-foreground">{error}</p>
-                            <Button variant="outline" size="sm" onClick={fetchTransactions} className="rounded-full font-black uppercase text-[10px]">Retry Sync</Button>
+                            <Button variant="outline" size="sm" onClick={fetchTransactions} className="rounded-full font-black uppercase text-[10px]">Retry Hub</Button>
                         </div>
                     ) : (
                         <Table>
                             <TableHeader>
                                 <TableRow className="border-none hover:bg-transparent">
                                     <TableHead className="font-black uppercase text-[10px]">Event</TableHead>
-                                    <TableHead className="font-black uppercase text-[10px]">Description</TableHead>
+                                    <TableHead className="font-black uppercase text-[10px]">Recipient</TableHead>
                                     <TableHead className="text-right font-black uppercase text-[10px]">Value</TableHead>
                                     <TableHead className="w-10"></TableHead>
                                 </TableRow>
@@ -130,7 +131,7 @@ export default function HistoryPage() {
                                     ))
                                 ) : transactions.length > 0 ? (
                                     transactions.map((tx: any) => (
-                                        <TableRow key={tx.$id} className="hover:bg-muted/30 border-muted/20">
+                                        <TableRow key={tx.$id} className="hover:bg-muted/30 border-muted/20 h-16">
                                             <TableCell>
                                                 <div className="text-[10px] font-black text-foreground uppercase tracking-tighter leading-none">
                                                     {format(safeDate(tx.$createdAt), 'PP')}
@@ -163,7 +164,7 @@ export default function HistoryPage() {
                                     <TableRow>
                                         <TableCell colSpan={4} className="h-40 text-center text-muted-foreground grayscale opacity-20">
                                             <XCircle className="mx-auto h-12 w-12 mb-4" />
-                                            <p className="font-black uppercase text-[10px] tracking-widest">No Records Found</p>
+                                            <p className="font-black uppercase text-[10px] tracking-widest">No Logs Registered</p>
                                         </TableCell>
                                     </TableRow>
                                 )}

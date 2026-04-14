@@ -1,14 +1,20 @@
 'use client';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Heart, MessageCircle, UserPlus, Store, CreditCard, ShieldCheck } from "lucide-react";
-import { useUser } from '@/hooks/use-appwrite';
+import { Bell, Heart, MessageCircle, UserPlus, Store, CreditCard, ShieldCheck, ArrowLeft, Loader2, Trash2 } from "lucide-react";
+import { useUser } from '@/hooks/use-user';
 import { useEffect, useState, useCallback } from "react";
 import { formatDistanceToNow } from 'date-fns';
 import { databases, DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_PROFILES, Query } from "@/lib/appwrite";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+
+/**
+ * @fileOverview Alert Center Hub.
+ * HARDENED: Instant loading with client-side error shields.
+ */
 
 export default function NotificationsPage() {
     const { user } = useUser();
@@ -17,7 +23,7 @@ export default function NotificationsPage() {
     const [loading, setLoading] = useState(true);
 
     const fetchNotifications = useCallback(async () => {
-        if (!user) return;
+        if (!user?.$id) return;
         setLoading(true);
         try {
             const response = await databases.listDocuments(
@@ -30,38 +36,21 @@ export default function NotificationsPage() {
                 ]
             );
 
-            const notificationsWithProfiles = await Promise.all(response.documents.map(async (notif) => {
-                if (notif.type === 'system' || !notif.senderId) {
-                    return { ...notif, sender: { username: 'I-Pay Admin', avatar: '' } };
-                }
-                try {
-                    const senderProfile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, notif.senderId);
-                    return { ...notif, sender: senderProfile };
-                } catch {
-                    return { ...notif, sender: { username: 'User', avatar: '' } };
-                }
-            }));
+            setNotifications(response.documents);
 
-            setNotifications(notificationsWithProfiles);
-
-            // Mark unread as read
+            // Background: Mark as read
             const unread = response.documents.filter(n => !n.isRead);
             if (unread.length > 0) {
-                await Promise.all(unread.map(n => 
-                    databases.updateDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, n.$id, { isRead: true })
-                ));
+                unread.forEach(n => {
+                    databases.updateDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, n.$id, { isRead: true }).catch(() => {});
+                });
             }
         } catch (error: any) {
-            console.error("Failed to fetch notifications:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Sync Error',
-                description: 'Could not load alerts.',
-            });
+            console.error("Alert Sync Error:", error);
         } finally {
             setLoading(false);
         }
-    }, [user, toast]);
+    }, [user?.$id]);
 
     useEffect(() => {
         fetchNotifications();
@@ -81,54 +70,51 @@ export default function NotificationsPage() {
     }
     
     return (
-        <div className="container py-8">
-            <Card className="rounded-[2rem] shadow-xl overflow-hidden border-none">
-                <CardHeader className="bg-primary/5 pb-6">
-                    <CardTitle className="flex items-center gap-2 font-black uppercase text-xl tracking-tighter">
-                        <Bell className="h-6 w-6 text-primary" />
-                        Alert Center
+        <div className="container py-8 max-w-2xl font-body">
+            <Link href="/dashboard" className="flex items-center gap-2 mb-6 text-sm font-black uppercase text-muted-foreground hover:text-primary transition-all">
+                <ArrowLeft className="h-4 w-4" /> Hub
+            </Link>
+            <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
+                <CardHeader className="bg-primary/5 pb-8 pt-10">
+                    <CardTitle className="flex items-center gap-3 font-black uppercase text-2xl tracking-tighter">
+                        <Bell className="h-7 w-7 text-primary" />
+                        Alert Hub
                     </CardTitle>
-                    <CardDescription className="font-bold">Real-time platform activity.</CardDescription>
+                    <CardDescription className="font-bold text-xs opacity-70">Real-time status and activity logging.</CardDescription>
                 </CardHeader>
-                <CardContent className="pt-6">
+                <CardContent className="pt-8">
                     {loading ? (
                         <div className="space-y-4">
-                            {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}
+                            {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-3xl" />)}
                         </div>
                     ) : notifications.length > 0 ? (
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             {notifications.map(notif => (
                                 <Link 
                                     key={notif.$id} 
                                     href={notif.link || '#'} 
                                     className="block group"
                                 >
-                                    <div className={`flex items-start gap-4 p-4 rounded-2xl transition-all group-active:scale-95 ${!notif.isRead ? 'bg-primary/5 border-l-4 border-l-primary' : 'bg-muted/30'}`}>
-                                        <div className="mt-1">
+                                    <div className={`flex items-start gap-4 p-5 rounded-[1.8rem] transition-all group-active:scale-95 border border-transparent ${!notif.isRead ? 'bg-primary/5 border-primary/10' : 'bg-muted/30'}`}>
+                                        <div className="mt-1 bg-white p-2 rounded-full shadow-sm">
                                             <NotificationIcon type={notif.type} />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold">
-                                                <span className="text-primary">@{notif.sender?.username || 'System'}</span>
-                                                {' '}
+                                            <p className="text-[13px] font-bold leading-tight">
                                                 <span className="text-foreground">{notif.description}</span>
                                             </p>
-                                            <p className="text-[9px] font-black uppercase opacity-50 mt-1">
+                                            <p className="text-[8px] font-black uppercase opacity-40 mt-2 tracking-widest">
                                                 {formatDistanceToNow(new Date(notif.$createdAt), { addSuffix: true })}
                                             </p>
                                         </div>
-                                        <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
-                                            <AvatarImage src={notif.sender?.avatar} />
-                                            <AvatarFallback className="font-black bg-muted text-foreground/30">{notif.type === 'system' ? 'A' : (notif.sender?.username?.charAt(0).toUpperCase())}</AvatarFallback>
-                                        </Avatar>
                                     </div>
                                 </Link>
                             ))}
                         </div>
                     ) : (
                        <div className="text-center py-20 opacity-20 grayscale">
-                           <Bell className="h-16 w-16 mx-auto mb-4" />
-                           <p className="font-black uppercase text-xs tracking-widest">No Alerts Found</p>
+                           <Trash2 className="h-16 w-16 mx-auto mb-4" />
+                           <p className="font-black uppercase text-xs tracking-[0.3em]">Vault is Empty</p>
                        </div>
                     )}
                 </CardContent>

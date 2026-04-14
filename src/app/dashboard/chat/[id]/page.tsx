@@ -7,10 +7,10 @@ import { db } from '@/lib/firebase';
 import { 
     collection, query, where, onSnapshot, doc, 
     serverTimestamp, setDoc, updateDoc, 
-    increment, getDocs, writeBatch, deleteDoc, arrayUnion
+    increment, getDocs, writeBatch, deleteDoc, arrayUnion, getDoc
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/data-service';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, Forward, Mic, X, CheckCircle2, Check } from 'lucide-react';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS, COLLECTION_ID_NOTIFICATIONS, DATABASE_ID } from '@/lib/data-service';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, Forward, Mic, X, CheckCircle2, Check, FileText, Image as ImageIcon, Film, Music, Link as LinkIcon, ExternalLink } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -58,6 +58,7 @@ export default function ChatThreadPage() {
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [mediaTypeFilter, setMediaTypeFilter] = useState<string>('image/*');
     
     const [isForwardOpen, setIsForwardOpen] = useState(false);
     const [forwardMessage, setForwardMessage] = useState<any>(null);
@@ -90,10 +91,9 @@ export default function ChatThreadPage() {
             });
             await batch.commit().catch(() => {});
             
-            // Reset unread count
-            await updateDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
+            await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
                 [`unreadCount.${currentUser.$id}`]: 0
-            }).catch(() => {});
+            }, { merge: true }).catch(() => {});
         };
         markAsSeen();
 
@@ -139,23 +139,65 @@ export default function ChatThreadPage() {
 
             await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
                 participants: [currentUser.$id, otherUserId],
-                lastMessage: text ? (text.length > 30 ? text.substring(0,30)+'...' : text) : `Shared a file`,
+                lastMessage: text ? (text.length > 30 ? text.substring(0,30)+'...' : text) : `Shared a ${mediaData?.type || 'file'}`,
                 lastMessageAt: serverTimestamp(),
                 [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
 
-            // SEND REAL-TIME PUSH NOTIFICATION
             await setDoc(doc(collection(db, COLLECTION_ID_NOTIFICATIONS)), {
                 userId: otherUserId,
                 senderId: currentUser.$id,
                 type: 'message',
-                description: `sent you a message: ${text || 'media'}`,
+                description: `sent you a message: ${text || mediaData?.type || 'media'}`,
                 isRead: false,
                 link: `/dashboard/chat/${currentUser.$id}`,
                 createdAt: new Date().toISOString()
             });
 
         } catch (e) { toast({ variant: 'destructive', title: 'Send Error' }); }
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Validation for video/audio (3 mins approx 50MB for decent quality)
+        if ((file.type.includes('video') || file.type.includes('audio')) && file.size > 100 * 1024 * 1024) {
+            toast({ variant: 'destructive', title: 'File too large', description: 'Maximum 3 minutes (Approx 100MB).' });
+            return;
+        }
+
+        setIsUploading(true);
+        toast({ title: 'Uploading to Vault...' });
+
+        try {
+            const reader = new FileReader();
+            const b64: string = await new Promise((res) => {
+                reader.onloadend = () => res(reader.result as string);
+                reader.readAsDataURL(file);
+            });
+
+            let resourceType: 'image' | 'video' | 'raw' = 'image';
+            if (file.type.includes('video') || file.type.includes('audio')) resourceType = 'video';
+            else if (file.type.includes('pdf') || file.type.includes('application')) resourceType = 'raw';
+
+            const up = await uploadToCloudinary(b64, resourceType === 'raw' ? 'auto' : resourceType);
+            if (up.success) {
+                let type: 'image' | 'video' | 'audio' | 'pdf' | 'link' = 'image';
+                if (file.type.includes('video')) type = 'video';
+                else if (file.type.includes('audio')) type = 'audio';
+                else if (file.type.includes('pdf')) type = 'pdf';
+
+                await handleSend('', { url: up.url, type: type });
+                toast({ title: 'Shared!' });
+            } else {
+                throw new Error(up.message);
+            }
+        } catch (err: any) {
+            toast({ variant: 'destructive', title: 'Upload Failed', description: err.message });
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     const handleStartCall = async () => {
@@ -171,9 +213,7 @@ export default function ChatThreadPage() {
                 activeView: 'none'
             });
             router.push(`/dashboard/chat/call/${callId}`);
-        } catch (e) {
-            toast({ variant: 'destructive', title: 'Call Failed' });
-        }
+        } catch (e) { toast({ variant: 'destructive', title: 'Call Failed' }); }
     };
 
     const startRecording = async () => {
@@ -192,7 +232,7 @@ export default function ChatThreadPage() {
             recorder.start();
             setIsRecording(true);
             setRecordingDuration(0);
-            timerRef.current = setInterval(() => setRecordingDuration(p => p >= 3600 ? 3600 : p + 1), 1000);
+            timerRef.current = setInterval(() => setRecordingDuration(p => p >= 180 ? 180 : p + 1), 1000);
         } catch (err) { toast({ variant: 'destructive', title: 'Mic Access Error' }); }
     };
 
@@ -217,8 +257,6 @@ export default function ChatThreadPage() {
             if (up.success) {
                 await handleSend('', { url: up.url, type: 'audio' });
                 cancelRecording();
-            } else {
-                toast({ variant: 'destructive', title: 'Upload Failed', description: up.message });
             }
         } catch (err: any) { toast({ variant: 'destructive', title: 'Failed' }); }
         finally { setIsUploading(false); }
@@ -231,8 +269,24 @@ export default function ChatThreadPage() {
         if (timerRef.current) clearInterval(timerRef.current);
     };
 
+    const MediaIcon = ({ type, url }: { type: string, url: string }) => {
+        const icons = {
+            image: <ImageIcon className="h-10 w-10 text-primary" />,
+            video: <Film className="h-10 w-10 text-orange-500" />,
+            audio: <Music className="h-10 w-10 text-purple-500" />,
+            pdf: <FileText className="h-10 w-10 text-red-500" />,
+            link: <LinkIcon className="h-10 w-10 text-blue-500" />
+        };
+        return (
+            <Link href={`/dashboard/chat/view-media?url=${encodeURIComponent(url)}&type=${type}`} className="flex flex-col items-center gap-2 p-4 bg-muted/50 rounded-2xl border-2 border-dashed border-primary/20 hover:bg-primary/5 transition-all">
+                {icons[type as keyof typeof icons] || <FileText className="h-10 w-10" />}
+                <span className="text-[8px] font-black uppercase tracking-widest opacity-50">{type} file</span>
+            </Link>
+        );
+    };
+
     return (
-        <div className="flex flex-col h-screen bg-background overflow-hidden">
+        <div className="flex flex-col h-screen bg-background overflow-hidden font-body">
             <header className="sticky top-0 bg-background border-b flex items-center p-3 gap-2 z-50 pt-12 shadow-sm">
                 <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-10 w-10 rounded-full bg-muted/50"><ArrowLeft className="h-5 w-5" /></Button>
                 {otherUser && (
@@ -261,37 +315,35 @@ export default function ChatThreadPage() {
                         const isMine = msg.senderId === currentUser?.$id;
                         return (
                             <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%] group", isMine ? "ml-auto items-end" : "items-start")}>
-                                <div className={cn("p-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold leading-relaxed", isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
+                                <div className={cn("p-2 px-4 rounded-[1.2rem] shadow-sm relative text-[13px] font-bold leading-relaxed", isMine ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
                                     <div className="flex items-start justify-between gap-4">
-                                        <div className="flex-1">
-                                            {msg.mediaType === 'audio' ? (
-                                                <audio src={msg.mediaUrl} key={msg.mediaUrl} controls className="h-8 max-w-[200px]" preload="auto" playsInline />
+                                        <div className="flex-1 min-w-0">
+                                            {msg.mediaType ? (
+                                                <MediaIcon type={msg.mediaType} url={msg.mediaUrl} />
                                             ) : (
-                                                <p className="whitespace-pre-wrap">{msg.text}</p>
+                                                <p className="whitespace-pre-wrap break-words">{msg.text}</p>
                                             )}
                                         </div>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 -mt-2 opacity-30 hover:opacity-100"><MoreVertical className="h-4 w-4" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 -mt-1 opacity-20 hover:opacity-100"><MoreVertical className="h-3 w-3" /></Button>
                                             </DropdownMenuTrigger>
-                                            <DropdownMenuContent align={isMine ? 'end' : 'start'} className="font-black uppercase text-[9px]">
+                                            <DropdownMenuContent align={isMine ? 'end' : 'start'} className="font-black uppercase text-[9px] rounded-xl">
                                                 <DropdownMenuItem onClick={() => updateDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id), { deleteFor: arrayUnion(currentUser?.$id) })}>
-                                                    <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for me
+                                                    <Trash2 className="mr-2 h-3 w-3" /> Delete for me
                                                 </DropdownMenuItem>
                                                 {isMine && (
                                                     <DropdownMenuItem onClick={() => deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id))} className="text-destructive">
-                                                        <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete for both
+                                                        <Trash2 className="mr-2 h-3 w-3" /> Delete for both
                                                     </DropdownMenuItem>
                                                 )}
-                                                <DropdownMenuItem onClick={() => { setForwardMessage(msg); setIsForwardOpen(true); }}><Forward className="mr-2 h-3.5 w-3.5" /> Forward</DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => { setForwardMessage(msg); setIsForwardOpen(true); }}><Forward className="mr-2 h-3 w-3" /> Forward</DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </div>
-                                    <div className="flex items-center justify-end gap-1 mt-1">
-                                        <span className="text-[6px] font-black uppercase opacity-60">
-                                            {msg.createdAt && typeof msg.createdAt.toMillis === 'function' 
-                                                ? format(msg.createdAt.toMillis(), 'HH:mm') 
-                                                : (msg.timestamp ? format(msg.timestamp, 'HH:mm') : '...')}
+                                    <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
+                                        <span className="text-[6px] font-black uppercase">
+                                            {msg.timestamp ? format(msg.timestamp, 'HH:mm') : '...'}
                                         </span>
                                         {isMine && (
                                             <div className="flex items-center -mb-0.5">
@@ -331,20 +383,30 @@ export default function ChatThreadPage() {
                     </div>
                 ) : (
                     <div className="max-w-xl mx-auto w-full flex items-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-11 w-11 rounded-full"><Paperclip className="h-5 w-5" /></Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full"><Paperclip className="h-5 w-5" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-48 p-2 font-black uppercase text-[9px] rounded-[1.5rem]">
+                                <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('application/pdf'); fileInputRef.current?.click(); }}><FileText className="h-4 w-4 text-red-500" /> Documents / PDF</DropdownMenuItem>
+                                <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('image/*'); fileInputRef.current?.click(); }}><ImageIcon className="h-4 w-4 text-primary" /> Gallery / Image</DropdownMenuItem>
+                                <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('video/*'); fileInputRef.current?.click(); }}><Film className="h-4 w-4 text-orange-500" /> Video (Max 3m)</DropdownMenuItem>
+                                <DropdownMenuItem className="h-12 gap-3" onClick={() => { setMediaTypeFilter('audio/*'); fileInputRef.current?.click(); }}><Music className="h-4 w-4 text-purple-500" /> Music / Audio</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                         <Input placeholder="Type message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} className="flex-1 h-12 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />
                         <Button onClick={startRecording} variant="ghost" size="icon" className="h-11 w-11 rounded-full text-primary hover:bg-primary/10"><Mic className="h-5 w-5" /></Button>
                         <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() || isUploading} className="h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90">{isUploading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5 text-white" />}</Button>
                     </div>
                 )}
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,application/pdf" />
+                <input type="file" ref={fileInputRef} className="hidden" accept={mediaTypeFilter} onChange={handleFileUpload} />
             </footer>
 
             <Dialog open={isForwardOpen} onOpenChange={setIsForwardOpen}>
                 <DialogContent className="rounded-[2.5rem]">
                     <DialogHeader><DialogTitle className="text-center font-black uppercase text-sm">Forward Message</DialogTitle></DialogHeader>
                     <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-4">Click to resend here</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mb-4">Sharing to this chat...</p>
                         <Button variant="outline" className="w-full h-14 rounded-2xl font-black uppercase text-[10px]" onClick={() => { if(forwardMessage) { handleSend(forwardMessage.text, forwardMessage.mediaUrl ? {url: forwardMessage.mediaUrl, type: forwardMessage.mediaType} : null); setIsForwardOpen(false); toast({title: 'Forwarded'}); } }}>Resend Here</Button>
                     </div>
                 </DialogContent>
