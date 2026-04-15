@@ -23,6 +23,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
+/**
+ * @fileOverview Definitive Meeting Hub Room.
+ * SELFIE FORCE: Front-facing camera logic mirrored correctly.
+ * TIER ENFORCEMENT: Personal (5 max, 1hr, no board/display) vs General.
+ * PRIVATE CHAT: Click participant icons for bottom-screen overlay.
+ */
+
 export default function MeetingRoomPage() {
     const params = useParams();
     const router = useRouter();

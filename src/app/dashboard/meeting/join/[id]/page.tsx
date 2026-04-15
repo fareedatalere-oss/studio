@@ -15,6 +15,12 @@ import { cn } from '@/lib/utils';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
+/**
+ * @fileOverview Meeting Identity Setup.
+ * SELFIE FORCE: Hardware Mirror logic ensured for front-camera identity.
+ * MIRRORED: Mirrored preview for natural UX.
+ */
+
 function MeetingJoinContent() {
     const params = useParams();
     const router = useRouter();
