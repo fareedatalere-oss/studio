@@ -103,7 +103,7 @@ export default function ChatPage() {
                 <Tabs defaultValue="recent" className="w-full">
                     <TabsList className="grid grid-cols-2 bg-muted h-12 rounded-2xl p-1 mb-6 border">
                         <TabsTrigger value="recent" className="rounded-xl font-black uppercase text-[10px]">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="rounded-xl font-black uppercase text-[10px]">All Users</TabsTrigger>
+                        <TabsTrigger value="all" className="rounded-xl font-black uppercase text-[10px]">All</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="recent" className="m-0 space-y-1">
@@ -115,7 +115,7 @@ export default function ChatPage() {
                             <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-primary/30" /></div>
                         ) : filteredRecent.length > 0 ? (
                             <div className="space-y-1">{filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} />)}</div>
-                        ) : <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-widest opacity-30">No Recent Chats</div>}
+                        ) : <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-widest opacity-30">No recent chats</div>}
                     </TabsContent>
 
                     <TabsContent value="all" className="m-0 space-y-1">
@@ -130,7 +130,7 @@ export default function ChatPage() {
                                         <Avatar className="h-12 w-12 border-2 border-primary/10 shadow-sm"><AvatarImage src={u.avatar} /><AvatarFallback className="font-black bg-muted">{u.username?.charAt(0) || '?'}</AvatarFallback></Avatar>
                                         {u.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white"></div>}
                                     </div>
-                                    <div className="flex-1 overflow-hidden"><p className="font-bold text-xs tracking-tight">@{u.username}</p><p className="text-[8px] font-bold uppercase text-primary/60">{u.isOnline ? 'Online Now' : 'Offline'}</p></div>
+                                    <div className="flex-1 overflow-hidden"><p className="font-bold text-xs tracking-tight">@{u.username}</p><p className="text-[8px] font-bold uppercase text-primary/60">{u.isOnline ? 'Online now' : 'Offline'}</p></div>
                                 </Link>
                             ))}
                         </div>

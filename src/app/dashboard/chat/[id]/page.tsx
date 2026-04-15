@@ -194,7 +194,7 @@ export default function ChatThreadPage() {
                         </div>
                     </div>
                 )}
-                <Button onClick={() => router.push('/dashboard/meeting/book')} variant="ghost" size="icon" className="h-10 w-10 rounded-full text-primary"><Phone className="h-4 w-4" /></Button>
+                <Button onClick={() => router.push(`/dashboard/chat/call/${otherUserId}`)} variant="ghost" size="icon" className="h-10 w-10 rounded-full text-primary"><Phone className="h-4 w-4" /></Button>
             </header>
             
             <main className="flex-1 p-4 space-y-2 bg-muted/5 pb-32">
