@@ -24,8 +24,8 @@ import Link from 'next/link';
 
 /**
  * @fileOverview Definitive Chat Hub.
- * UI: Smaller professional bubbles with assertive message controls.
- * MEDIA: Max 3m for video/audio. Sent as specialized icons.
+ * TICKS: ✅ (Read), ☑️ ☑️ (Online), ☑️ (Offline).
+ * SYNC: Automatic Read Status update on mount.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -37,11 +37,10 @@ const getChatId = (userId1?: string, userId2?: string) => {
 export default function ChatThreadPage() {
     const params = useParams();
     const router = useRouter();
-    const { user: currentUser, profile: currentProfile } = useUser();
+    const { user: currentUser, profile: currentProfile, allUsers } = useUser();
     const { toast } = useToast();
 
     const otherUserId = params.id as string;
-    const [otherUser, setOtherUser] = useState<any>(null);
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [isUploading, setIsUploading] = useState(false);
@@ -52,6 +51,8 @@ export default function ChatThreadPage() {
     
     const [isForwardOpen, setIsForwardOpen] = useState(false);
     const [forwardMessage, setForwardMessage] = useState<any>(null);
+
+    const otherUser = useMemo(() => allUsers.find(u => u.$id === otherUserId), [allUsers, otherUserId]);
 
     const chatId = useMemo(() => {
         if (!currentUser?.$id || !otherUserId) return null;
@@ -68,10 +69,6 @@ export default function ChatThreadPage() {
     useEffect(() => {
         if (!chatId || !currentUser) return;
 
-        const unsubOther = onSnapshot(doc(db, COLLECTION_ID_PROFILES, otherUserId), (d) => {
-            if (d.exists()) setOtherUser(d.data());
-        });
-
         const q = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', chatId));
         const unsub = onSnapshot(q, (snapshot) => {
             const docs = snapshot.docs.map(d => ({ $id: d.id, ...d.data() }));
@@ -80,7 +77,25 @@ export default function ChatThreadPage() {
             setMessages(filtered);
         });
 
-        return () => { unsub(); unsubOther(); };
+        // FORCE: Mark incoming as read
+        const markAsRead = async () => {
+            const unreadQ = query(
+                collection(db, COLLECTION_ID_MESSAGES), 
+                where('chatId', '==', chatId), 
+                where('senderId', '==', otherUserId),
+                where('status', '!=', 'read')
+            );
+            const snap = await getDocs(unreadQ);
+            if (!snap.empty) {
+                const batch = writeBatch(db);
+                snap.docs.forEach(d => batch.update(d.ref, { status: 'read' }));
+                await batch.commit();
+                await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), { [`unreadCount.${currentUser.$id}`]: 0 }, { merge: true });
+            }
+        };
+        markAsRead();
+
+        return () => unsub();
     }, [chatId, currentUser, otherUserId]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
@@ -125,23 +140,7 @@ export default function ChatThreadPage() {
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        
-        // 3 Minute Limit Check
-        if (file.type.includes('video') || file.type.includes('audio')) {
-            const video = document.createElement(file.type.includes('video') ? 'video' : 'audio');
-            video.preload = 'metadata';
-            video.onloadedmetadata = () => {
-                window.URL.revokeObjectURL(video.src);
-                if (video.duration > 180) {
-                    toast({ variant: 'destructive', title: 'Limit Exceeded', description: 'Video/Audio must be under 3 minutes.' });
-                    return;
-                }
-                proceedUpload(file);
-            };
-            video.src = URL.createObjectURL(file);
-        } else {
-            proceedUpload(file);
-        }
+        proceedUpload(file);
     };
 
     const proceedUpload = async (file: File) => {
@@ -158,6 +157,13 @@ export default function ChatThreadPage() {
                 await handleSend('', { url: up.url, type });
             }
         } catch (err) { toast({ title: 'Upload Failed' }); } finally { setIsUploading(false); }
+    };
+
+    const MessageStatus = ({ msg }: { msg: any }) => {
+        if (msg.senderId !== currentUser?.$id) return null;
+        if (msg.status === 'read') return <span className="text-green-500 ml-1">✅</span>;
+        if (otherUser?.isOnline) return <span className="text-muted-foreground ml-1">☑️ ☑️</span>;
+        return <span className="text-muted-foreground ml-1">☑️</span>;
     };
 
     const MediaIcon = ({ type, url }: { type: string, url: string }) => {
@@ -214,6 +220,7 @@ export default function ChatThreadPage() {
                                     {msg.mediaType ? <MediaIcon type={msg.mediaType} url={msg.mediaUrl} /> : <p className="whitespace-pre-wrap break-words">{msg.text}</p>}
                                     <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
                                         <span className="text-[5px] font-black uppercase">{msg.timestamp ? format(msg.timestamp, 'HH:mm') : '...'}</span>
+                                        <MessageStatus msg={msg} />
                                     </div>
                                 </div>
                             </div>
@@ -230,8 +237,8 @@ export default function ChatThreadPage() {
                         <DropdownMenuContent align="start" className="w-48 p-2 font-black uppercase text-[8px] rounded-2xl">
                             <DropdownMenuItem className="h-11 gap-3" onClick={() => { setMediaTypeFilter('application/pdf'); fileInputRef.current?.click(); }}><FileText className="h-4 w-4 text-red-500" /> Documents</DropdownMenuItem>
                             <DropdownMenuItem className="h-11 gap-3" onClick={() => { setMediaTypeFilter('image/*'); fileInputRef.current?.click(); }}><ImageIcon className="h-4 w-4 text-primary" /> Images</DropdownMenuItem>
-                            <DropdownMenuItem className="h-11 gap-3" onClick={() => { setMediaTypeFilter('video/*'); fileInputRef.current?.click(); }}><Film className="h-4 w-4 text-orange-500" /> Videos (3m)</DropdownMenuItem>
-                            <DropdownMenuItem className="h-11 gap-3" onClick={() => { setMediaTypeFilter('audio/*'); fileInputRef.current?.click(); }}><Music className="h-4 w-4 text-purple-500" /> Audio (3m)</DropdownMenuItem>
+                            <DropdownMenuItem className="h-11 gap-3" onClick={() => { setMediaTypeFilter('video/*'); fileInputRef.current?.click(); }}><Film className="h-4 w-4 text-orange-500" /> Videos</DropdownMenuItem>
+                            <DropdownMenuItem className="h-11 gap-3" onClick={() => { setMediaTypeFilter('audio/*'); fileInputRef.current?.click(); }}><Music className="h-4 w-4 text-purple-500" /> Audio</DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                     <Input placeholder="Message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => { if(e.key === 'Enter') handleSend(); }} className="flex-1 h-11 rounded-2xl bg-muted/50 border-none px-6 text-xs font-bold shadow-inner" />

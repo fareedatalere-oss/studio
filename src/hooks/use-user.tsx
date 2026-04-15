@@ -3,7 +3,7 @@
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, Query } from '@/lib/data-service';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, serverTimestamp, onSnapshot, setDoc, collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { doc, serverTimestamp, onSnapshot, setDoc, collection, query, where, orderBy, limit, updateDoc } from 'firebase/firestore';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { cn } from "@/lib/utils";
@@ -11,8 +11,7 @@ import { cn } from "@/lib/utils";
 /**
  * @fileOverview Unified Master Data Hub.
  * FORCE: Pre-loads all members, chats, and alerts in background.
- * INSTANT: Renders app shell immediately to prevent white-screen crashes.
- * SHIELDED: Fixed "cn is not defined" error.
+ * PRESENCE: Hardened visibility listeners to ensure 100% accurate online status.
  */
 
 type UserContextType = {
@@ -21,7 +20,6 @@ type UserContextType = {
     config: any | null;
     proof: any | null;
     loading: boolean;
-    // Global Data Center (Pre-loaded)
     allUsers: any[];
     recentChats: any[];
     unreadNotifications: number;
@@ -48,7 +46,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
     const [isMounted, setIsMounted] = useState(false);
     
-    // Global State Sync (Master Repositories)
     const [allUsers, setAllUsers] = useState<any[]>([]);
     const [recentChats, setRecentChats] = useState<any[]>([]);
     const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -70,6 +67,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
         } catch (e) {}
     }, []);
 
+    const updatePresence = useCallback(async (isOnline: boolean) => {
+        if (!auth.currentUser) return;
+        try {
+            await updateDoc(doc(db, COLLECTION_ID_PROFILES, auth.currentUser.uid), {
+                isOnline,
+                lastSeen: serverTimestamp()
+            });
+        } catch (e) {}
+    }, []);
+
     useEffect(() => {
         setIsMounted(true);
         fetchConfig();
@@ -84,7 +91,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 const uid = firebaseUser.uid;
                 setUser({ $id: uid, uid, email: firebaseUser.email });
                 
-                // 1. Master Profile Sync
                 unsubProfile = onSnapshot(doc(db, COLLECTION_ID_PROFILES, uid), (snap) => {
                     if (snap.exists()) {
                         const prof = { $id: snap.id, ...snap.data() } as any;
@@ -97,26 +103,36 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     setIsLoading(false);
                 });
 
-                // 2. Global Users Pre-load (Background Data Hub)
                 unsubUsers = onSnapshot(collection(db, COLLECTION_ID_PROFILES), (snap) => {
                     setAllUsers(snap.docs.map(d => ({ $id: d.id, ...d.data() })));
                 });
 
-                // 3. Global Chats Pre-load (Background Data Hub)
                 const chatQuery = query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', uid));
                 unsubChats = onSnapshot(chatQuery, (snap) => {
                     const chats = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
                     setRecentChats(chats.sort((a: any, b: any) => (b.lastMessageAt?.seconds || 0) - (a.lastMessageAt?.seconds || 0)));
                 });
 
-                // 4. Global Alerts Pre-load (Background Data Hub)
                 const notifQuery = query(collection(db, COLLECTION_ID_NOTIFICATIONS), where('userId', '==', uid), where('isRead', '==', false));
                 unsubNotifs = onSnapshot(notifQuery, (snap) => {
                     setUnreadNotifications(snap.size);
                 });
 
-                // Update Presence
-                setDoc(doc(db, COLLECTION_ID_PROFILES, uid), { isOnline: true, lastSeen: serverTimestamp() }, { merge: true }).catch(() => {});
+                // FORCE: Accurate Presence Handshake
+                updatePresence(true);
+                
+                const handleVisibility = () => updatePresence(document.visibilityState === 'visible');
+                const handleOffline = () => updatePresence(false);
+                
+                window.addEventListener('visibilitychange', handleVisibility);
+                window.addEventListener('beforeunload', handleOffline);
+                window.addEventListener('pagehide', handleOffline);
+
+                return () => {
+                    window.removeEventListener('visibilitychange', handleVisibility);
+                    window.removeEventListener('beforeunload', handleOffline);
+                    window.removeEventListener('pagehide', handleOffline);
+                };
 
             } else {
                 setUser(null);
@@ -140,7 +156,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             if(unsubChats) unsubChats(); 
             if(unsubNotifs) unsubNotifs(); 
         };
-    }, [pathname, router, fetchConfig]);
+    }, [pathname, router, fetchConfig, updatePresence]);
 
     const recheck = async () => { await fetchConfig(); };
 
