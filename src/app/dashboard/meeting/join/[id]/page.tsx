@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, ID } from '@/lib/data-service';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, ID, Query } from '@/lib/data-service';
 import { useUser } from '@/hooks/use-user';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -28,7 +28,7 @@ function MeetingJoinContent() {
     const [name, setName] = useState('');
     const [avatar, setAvatar] = useState<string | null>(null);
     const [useLiveCamera, setUseLiveCamera] = useState(false);
-    const [step, setStep] = useState<'info' | 'waiting' | 'expired'>('info');
+    const [step, setStep] = useState<'info' | 'waiting' | 'expired' | 'full'>('info');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [hasCamera, setHasCamera] = useState(false);
     const [loadingMeeting, setLoadingMeeting] = useState(true);
@@ -46,6 +46,18 @@ function MeetingJoinContent() {
             try {
                 const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
                 setMeeting(doc);
+                
+                // 1. Check Participant Limit for Personal Meetings (5 Total)
+                if (doc.type === 'personal') {
+                    const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
+                        Query.equal('meetingId', meetingId),
+                        Query.equal('status', 'approved')
+                    ]);
+                    if (attendees.total >= 5 && !isAdminLink && authUser?.$id !== doc.hostId) {
+                        setStep('full');
+                    }
+                }
+
                 if (doc.status === 'ended' || doc.status === 'cancelled') {
                     setStep('expired');
                 }
@@ -57,15 +69,19 @@ function MeetingJoinContent() {
         };
         checkMeeting();
 
+        // FORCE: Request Selfie Camera (facingMode: user)
         if (navigator?.mediaDevices) {
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+            navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'user' }, 
+                audio: true 
+            }).then(stream => {
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
                     setHasCamera(true);
                 }
             }).catch(() => setHasCamera(false));
         }
-    }, [meetingId]);
+    }, [meetingId, authUser?.$id, isAdminLink]);
 
     useEffect(() => {
         if (authProfile) {
@@ -150,13 +166,26 @@ function MeetingJoinContent() {
 
     if (loadingMeeting) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
 
+    if (step === 'full') {
+        return (
+            <div className="h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+                <Card className="max-w-md w-full rounded-[2.5rem] shadow-2xl border-none p-10">
+                    <div className="bg-destructive/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><XCircle className="h-10 w-10 text-destructive" /></div>
+                    <h2 className="text-2xl font-black uppercase tracking-tighter">Hub Full</h2>
+                    <p className="text-muted-foreground font-bold text-xs mt-4 uppercase tracking-widest">This personal meeting is limited to 5 participants.</p>
+                    <Button asChild className="w-full mt-8 h-12 rounded-full font-black uppercase text-[10px] tracking-widest"><Link href="/dashboard/meeting">Return to Hub</Link></Button>
+                </Card>
+            </div>
+        );
+    }
+
     if (step === 'expired') {
         return (
             <div className="h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
                 <Card className="max-w-md w-full rounded-[2.5rem] shadow-2xl border-none p-10">
                     <div className="bg-destructive/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><XCircle className="h-10 w-10 text-destructive" /></div>
                     <h2 className="text-2xl font-black uppercase tracking-tighter">Session Closed</h2>
-                    <p className="text-muted-foreground font-bold text-xs mt-4 uppercase tracking-widest">The host has concluded this session.</p>
+                    <p className="text-muted-foreground font-bold text-xs mt-4 uppercase tracking-widest">The host has concluded this session or it has expired.</p>
                     <Button asChild className="w-full mt-8 h-12 rounded-full font-black uppercase text-[10px] tracking-widest"><Link href="/dashboard/meeting">Return to Hub</Link></Button>
                 </Card>
             </div>
@@ -192,7 +221,7 @@ function MeetingJoinContent() {
             <Card className="max-w-md w-full mx-auto rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
                 <CardHeader className="bg-primary text-white p-10 text-center">
                     <CardTitle className="text-xl font-black uppercase tracking-widest leading-none">Session Identity</CardTitle>
-                    <CardDescription className="text-white/70 font-bold mt-2 uppercase text-[9px]">Chairman & Guest setup required</CardDescription>
+                    <CardDescription className="text-white/70 font-bold mt-2 uppercase text-[9px]">Selfie Setup Required</CardDescription>
                 </CardHeader>
                 <CardContent className="p-8 space-y-6">
                     <div className="space-y-2">
@@ -200,7 +229,7 @@ function MeetingJoinContent() {
                         <Input placeholder="Enter your name..." className="h-12 rounded-2xl bg-muted border-none px-6 font-bold" value={name} onChange={e => setName(e.target.value)} />
                     </div>
                     <div className="space-y-4">
-                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest pl-2">Security Preview</Label>
+                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest pl-2">Security Preview (Selfie)</Label>
                         <div className="relative aspect-video bg-black rounded-[2rem] overflow-hidden border-4 border-white shadow-2xl">
                             {avatar && !useLiveCamera ? (
                                 <img src={avatar} className="h-full w-full object-cover" alt="Preview" />
@@ -210,7 +239,7 @@ function MeetingJoinContent() {
                             <canvas ref={canvasRef} className="hidden" />
                             <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
                                 <Button onClick={() => { setUseLiveCamera(true); setAvatar(null); }} variant={useLiveCamera ? "default" : "secondary"} size="sm" className="h-8 rounded-full text-[9px] font-black uppercase px-4"><VideoIcon className="mr-1 h-3 w-3" /> Live Camera</Button>
-                                <Button onClick={() => fileInputRef.current?.click()} variant="secondary" size="sm" className="h-8 rounded-full text-[9px] font-black uppercase px-4"><UploadCloud className="mr-1 h-3 w-3" /> Upload Icon</Button>
+                                <Button onClick={() => fileInputRef.current?.click()} variant="secondary" size="sm" className="h-8 rounded-full text-[9px] font-black uppercase px-4"><UploadCloud className="mr-1 h-3 w-3" /> Static Icon</Button>
                                 {avatar && <Button onClick={() => { setAvatar(null); setUseLiveCamera(true); }} size="sm" variant="destructive" className="h-8 w-8 rounded-full p-0">X</Button>}
                             </div>
                         </div>

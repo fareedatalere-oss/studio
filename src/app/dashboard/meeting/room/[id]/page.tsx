@@ -145,8 +145,12 @@ export default function MeetingRoomPage() {
             if (payload && payload.meetingId === meetingId) fetchAttendees();
         });
 
+        // FORCE: Use Selfie Camera (facingMode: user)
         if (mySetup?.useCamera && navigator?.mediaDevices) {
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+            navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'user' }, 
+                audio: true 
+            }).then(stream => {
                 if (selfVideoRef.current) selfVideoRef.current.srcObject = stream;
                 setPermissionError(false);
             }).catch(() => setPermissionError(true));
@@ -161,20 +165,20 @@ export default function MeetingRoomPage() {
     };
 
     const toggleView = async (view: 'board' | 'display' | 'none') => {
-        if (!isAdmin) return;
+        if (!isAdmin || meeting.type === 'personal') return;
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { activeView: view });
     };
 
     const handleBoardTextChange = async (text: string) => {
-        if (!isAdmin) return;
+        if (!isAdmin || meeting.type === 'personal') return;
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { boardText: text });
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (!file || !isAdmin) return;
+        if (!file || !isAdmin || meeting.type === 'personal') return;
         setIsUploading(true);
-        toast({ title: 'Uploading to Vault...' });
+        toast({ title: 'Sharing Media...' });
         try {
             const reader = new FileReader();
             const b64: string = await new Promise((res) => {
@@ -189,7 +193,7 @@ export default function MeetingRoomPage() {
                     displayType: type,
                     activeView: 'display'
                 });
-                toast({ title: 'Display Active!' });
+                toast({ title: 'Shared!' });
             }
         } catch (error) { toast({ variant: 'destructive', title: 'Upload failed' }); } 
         finally { setIsUploading(false); }
@@ -212,6 +216,8 @@ export default function MeetingRoomPage() {
 
     if (loading || !meeting) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
 
+    const isPersonal = meeting.type === 'personal';
+
     return (
         <div className="h-screen w-full bg-black text-white flex flex-col overflow-hidden relative font-body" onClick={initializeAudio}>
             <header className="p-4 pt-12 flex justify-between items-center bg-black/50 border-b border-white/5 z-50">
@@ -219,7 +225,7 @@ export default function MeetingRoomPage() {
                     <h1 className="font-black uppercase text-xs tracking-widest text-primary truncate">{meeting.name}</h1>
                     <p className="text-[8px] font-bold opacity-50 uppercase">{isAdmin ? 'Chairman Control' : 'Secure Session'}</p>
                 </div>
-                {isAdmin && (
+                {isAdmin && !isPersonal && (
                     <div className="flex gap-2 mx-4">
                         <Button onClick={() => toggleView('board')} size="icon" variant="ghost" className="h-9 w-9 rounded-full bg-white/5"><Layout className="h-4 w-4" /></Button>
                         <Button onClick={() => mediaInputRef.current?.click()} size="icon" variant="ghost" className="h-9 w-9 rounded-full bg-white/5" disabled={isUploading}><MonitorPlay className="h-4 w-4" /></Button>
@@ -267,9 +273,9 @@ export default function MeetingRoomPage() {
             </main>
 
             {/* MASTER BOARD OVERLAY */}
-            {meeting.activeView === 'board' && (
+            {!isPersonal && meeting.activeView === 'board' && (
                 <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-6 animate-in zoom-in duration-300">
-                    <Card className="w-full max-w-md h-[60vh] flex flex-col rounded-[2.5rem] overflow-hidden border-none shadow-2xl bg-white">
+                    <Card className="w-full max-w-sm h-[50vh] flex flex-col rounded-[2.5rem] overflow-hidden border-none shadow-2xl bg-white">
                         <header className="p-4 flex items-center justify-between border-b bg-muted/10">
                             <h2 className="text-sm font-black uppercase tracking-tighter text-primary">Master Board</h2>
                             <Button variant="ghost" size="icon" className="rounded-full bg-muted h-8 w-8 text-black" onClick={() => toggleView('none')}><X className="h-4 w-4" /></Button>
@@ -286,7 +292,7 @@ export default function MeetingRoomPage() {
             )}
 
             {/* DISPLAY VAULT OVERLAY */}
-            {meeting.activeView === 'display' && meeting.displayUrl && (
+            {!isPersonal && meeting.activeView === 'display' && meeting.displayUrl && (
                 <div className="absolute inset-0 z-[300] bg-black/95 backdrop-blur-2xl flex flex-col animate-in fade-in duration-300">
                     <header className="absolute top-12 left-0 right-0 flex items-center justify-between p-6 z-10">
                         <div className="flex items-center gap-3"><MonitorPlay className="h-6 w-6 text-primary" /><h2 className="text-white text-xl font-black uppercase tracking-widest">Live Display</h2></div>
@@ -300,7 +306,7 @@ export default function MeetingRoomPage() {
                 </div>
             )}
 
-            {/* PRIVATE INTERNAL CHAT OVERLAY */}
+            {/* PRIVATE INTERNAL CHAT OVERLAY (Always enabled for guest interaction) */}
             {privateChatPartner && (
                 <div className="absolute bottom-20 left-0 right-0 z-[400] flex justify-center p-4 animate-in slide-in-from-bottom duration-300">
                     <Card className="w-full max-w-md h-[50vh] flex flex-col rounded-[2.5rem] overflow-hidden border-none shadow-[0_-20px_50px_rgba(0,0,0,0.5)] bg-white">
