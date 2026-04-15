@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -25,6 +26,7 @@ import Link from 'next/link';
 /**
  * @fileOverview Definitive Chat Hub.
  * CALL: Restored private call logic. Creates a pending session and rings the receiver.
+ * FIXED: handleFileUpload and handleDeleteMessage defined to prevent Runtime ReferenceError.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -138,6 +140,61 @@ export default function ChatThreadPage() {
             router.push(`/dashboard/chat/call/${callId}`);
         } catch (e) {
             toast({ variant: 'destructive', title: 'Call Error' });
+        }
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !currentUser) return;
+
+        setIsUploading(true);
+        toast({ title: 'Uploading media...' });
+
+        try {
+            const reader = new FileReader();
+            const base64: string = await new Promise((resolve) => {
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(file);
+            });
+
+            // Determine media type for professional labeling
+            let type = 'file';
+            if (file.type.startsWith('image/')) type = 'image';
+            else if (file.type.startsWith('video/')) type = 'video';
+            else if (file.type.startsWith('audio/')) type = 'music';
+            else if (file.type === 'application/pdf') type = 'pdf';
+
+            // Resource type for Cloudinary
+            const resourceType = type === 'image' ? 'image' : (type === 'video' || type === 'music' ? 'video' : 'raw');
+            const res = await uploadToCloudinary(base64, resourceType);
+            
+            if (res.success) {
+                await handleSend(undefined, { url: res.url, type });
+                toast({ title: 'Sent!' });
+            } else {
+                throw new Error(res.message);
+            }
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Upload Failed', description: error.message });
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleDeleteMessage = async (messageId: string, mode: 'me' | 'both') => {
+        if (!currentUser) return;
+        try {
+            if (mode === 'me') {
+                await updateDoc(doc(db, COLLECTION_ID_MESSAGES, messageId), {
+                    deleteFor: arrayUnion(currentUser.$id)
+                });
+            } else {
+                await deleteDoc(doc(db, COLLECTION_ID_MESSAGES, messageId));
+            }
+            toast({ title: 'Message deleted' });
+        } catch (e) {
+            toast({ variant: 'destructive', title: 'Delete failed' });
         }
     };
 

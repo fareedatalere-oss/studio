@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center - Master High-Speed Edition.
- * SPELLING: Recent, All (Corrected Spelling).
+ * SPELLING: Recent, All (Title Case enforced).
  */
 
 const safeDate = (ts: any) => {
@@ -102,8 +102,8 @@ export default function ChatPage() {
                 
                 <Tabs defaultValue="recent" className="w-full">
                     <TabsList className="grid grid-cols-2 bg-muted h-12 rounded-2xl p-1 mb-6 border">
-                        <TabsTrigger value="recent" className="rounded-xl font-black uppercase text-[10px]">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="rounded-xl font-black uppercase text-[10px]">All</TabsTrigger>
+                        <TabsTrigger value="recent" className="rounded-xl font-bold text-xs">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="rounded-xl font-bold text-xs">All</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="recent" className="m-0 space-y-1">

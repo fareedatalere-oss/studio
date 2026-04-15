@@ -15,7 +15,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 
 /**
  * @fileOverview Unified Dashboard Layout.
- * SPELLING: Home, Chat, Media, Market, Profile (Corrected Spelling).
+ * SPELLING: Home, Chat, Media, Market, Profile (Title Case enforced).
  * SHIELDED: Permission Bar optimized for zero-crash hydration.
  */
 
@@ -129,7 +129,7 @@ export default function DashboardLayout({
             ].map((tab) => (
                 <Link key={tab.key} href={tab.href} onClick={(e) => handleTabClick(e, tab.key)} className={cn("flex flex-col items-center gap-0.5 transition-colors", pathname === tab.href ? "text-primary scale-110" : "text-muted-foreground")}>
                     <tab.icon className="h-4 w-4" />
-                    <span className="text-[8px] font-black uppercase tracking-tighter">{tab.label}</span>
+                    <span className="text-[8px] font-bold tracking-tighter">{tab.label}</span>
                 </Link>
             ))}
           </div>
