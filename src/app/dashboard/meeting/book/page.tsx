@@ -20,6 +20,7 @@ import { db } from '@/lib/firebase';
 /**
  * @fileOverview Meeting Booking Page.
  * FORCE: Generates GUEST links only. Admin uses the dashboard/alarm to enter via Identity Gate.
+ * EXPIRY: Personal (1hr), General (3hrs).
  */
 
 export default function BookMeetingPage() {
@@ -58,6 +59,7 @@ export default function BookMeetingPage() {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const selectedDateTime = parse(`${todayStr} ${formData.time}`, 'yyyy-MM-dd HH:mm', new Date());
         
+        // CALCULATE EXPIRY BASED ON TYPE
         const durationHours = formData.type === 'personal' ? 1 : 3;
         const expiryTime = new Date(selectedDateTime.getTime() + durationHours * 60 * 60 * 1000).toISOString();
 

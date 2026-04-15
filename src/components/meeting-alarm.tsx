@@ -11,8 +11,8 @@ import { parseISO, isBefore } from 'date-fns';
 
 /**
  * @fileOverview Master Alarm Engine.
- * FORCE: Persistent continuous ringing for calls even if app is backgrounded.
- * INTENSE: High-frequency vibration and priority notifications.
+ * FORCE: Only rings for pending, unexpired meetings. 
+ * EXPIRY SHIELD: 1 hour for Personal, 3 hours for General.
  */
 
 export function MeetingAlarm() {
@@ -39,6 +39,7 @@ export function MeetingAlarm() {
 
     const checkMeetings = async () => {
       try {
+        // Query only pending meetings
         const hostRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
           Query.equal('status', 'pending'),
           Query.equal('hostId', user.$id),
@@ -47,23 +48,29 @@ export function MeetingAlarm() {
 
         const inviteRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
           Query.equal('status', 'pending'),
-          Query.contains('invitedUsers', user.$id),
+          Query.contains('invitees', user.$id),
           Query.limit(5)
         ]);
 
         const allDocs = [...hostRes.documents, ...inviteRes.documents];
         const now = new Date();
 
+        // MASTER FILTER: Exclude passed, ended, cancelled, or already rung meetings
         const target = allDocs.find(m => {
             if (rungIds.current.has(m.$id)) return false;
+            if (m.status !== 'pending') return false;
             
-            if (m.hostId === user.$id) {
-                if (!m.scheduledAt) return true;
-                const schedTime = parseISO(m.scheduledAt);
-                return isBefore(schedTime, now);
+            // Check Expiry
+            if (m.expiresAt) {
+                const expiry = parseISO(m.expiresAt);
+                if (isBefore(expiry, now)) return false;
             }
-            
-            if (m.invitees?.includes(user.$id)) return true;
+
+            // Check if scheduled time has arrived
+            if (m.scheduledAt) {
+                const sched = parseISO(m.scheduledAt);
+                return isBefore(sched, now);
+            }
             
             return false;
         });
@@ -86,6 +93,7 @@ export function MeetingAlarm() {
 
     const interval = setInterval(checkMeetings, 4000); 
     
+    // Listen for status changes to stop ringing
     const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
         const payload = response.payload as any;
         if (payload?.$id === activeCall?.$id) {
@@ -107,7 +115,6 @@ export function MeetingAlarm() {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
-    // FORCE: High-Priority System Push
     if ("Notification" in window && Notification.permission === "granted") {
         new Notification(activeCall?.isHostAlert ? 'CHAIRMAN CALL' : 'INCOMING I-PAY CALL', {
             body: activeCall?.isHostAlert ? `Room "${activeCall.name}" is due.` : `Incoming secure line from @${activeCall?.callerName}`,
@@ -118,7 +125,6 @@ export function MeetingAlarm() {
         });
     }
 
-    // FORCE: Intense Ring Vibration [2s on, 0.5s off]
     if (navigator.vibrate) {
         const pattern = [2000, 500, 2000, 500, 2000, 500];
         navigator.vibrate(pattern);
@@ -127,7 +133,9 @@ export function MeetingAlarm() {
   };
 
   const handleDecline = async () => {
-    if (activeCall?.$id) rungIds.current.add(activeCall.$id);
+    if (activeCall?.$id) {
+        rungIds.current.add(activeCall.$id);
+    }
     stopRinging(); 
     setActiveCall(null);
   };
