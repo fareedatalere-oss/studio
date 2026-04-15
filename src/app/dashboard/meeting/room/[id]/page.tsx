@@ -158,7 +158,10 @@ export default function MeetingRoomPage() {
                 video: { facingMode: 'user' }, 
                 audio: true 
             }).then(stream => {
-                if (selfVideoRef.current) selfVideoRef.current.srcObject = stream;
+                if (selfVideoRef.current) {
+                    selfVideoRef.current.srcObject = stream;
+                    selfVideoRef.current.play().catch(() => {});
+                }
                 setPermissionError(false);
             }).catch(() => setPermissionError(true));
         }
@@ -258,7 +261,7 @@ export default function MeetingRoomPage() {
                     {participants.map(p => (
                         <div key={p.$id} className="flex flex-col items-center gap-2 group relative">
                             <div 
-                                className={cn("relative rounded-full border-2 p-0.5 h-20 w-20 transition-all cursor-pointer hover:scale-105 active:scale-95", p.isHost ? "border-yellow-500" : "border-primary/40")}
+                                className={cn("relative rounded-full border-2 p-0.5 h-20 w-20 transition-all cursor-pointer hover:scale-105 active:scale-95 overflow-hidden", p.isHost ? "border-yellow-500" : "border-primary/40")}
                                 onClick={() => p.userId !== user?.$id && setPrivateChatPartner(p)}
                             >
                                 <audio autoPlay playsInline muted={p.userId === user?.$id} className="hidden" />
@@ -266,7 +269,13 @@ export default function MeetingRoomPage() {
                                     <AvatarImage src={p.avatar === 'live_stream' ? undefined : p.avatar} className="object-cover" />
                                     <AvatarFallback className="font-black bg-muted text-[10px]">{p.name?.charAt(0)}</AvatarFallback>
                                     {p.useCamera && p.userId === user?.$id && (
-                                        <video ref={selfVideoRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full object-cover rounded-full scale-x-[-1]" />
+                                        <video 
+                                            ref={selfVideoRef} 
+                                            autoPlay 
+                                            muted 
+                                            playsInline 
+                                            className="absolute inset-0 h-full w-full object-cover rounded-full scale-x-[-1]" 
+                                        />
                                     )}
                                 </Avatar>
                                 {isAdmin && !p.isHost && (
@@ -313,7 +322,7 @@ export default function MeetingRoomPage() {
                 </div>
             )}
 
-            {/* PRIVATE INTERNAL CHAT OVERLAY (Always enabled for guest interaction) */}
+            {/* PRIVATE INTERNAL CHAT OVERLAY */}
             {privateChatPartner && (
                 <div className="absolute bottom-20 left-0 right-0 z-[400] flex justify-center p-4 animate-in slide-in-from-bottom duration-300">
                     <Card className="w-full max-w-md h-[50vh] flex flex-col rounded-[2.5rem] overflow-hidden border-none shadow-[0_-20px_50px_rgba(0,0,0,0.5)] bg-white">
