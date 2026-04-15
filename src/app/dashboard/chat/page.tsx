@@ -15,8 +15,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center - Master High-Speed Edition.
- * INSTANT: Consumes global pre-loaded data from UserProvider to prevent white-screen crashes.
- * SHIELDED: Zero local listeners to ensure 100% hydration safety.
+ * LABELS: Recent, All (Standard Title Case).
  */
 
 const safeDate = (ts: any) => {

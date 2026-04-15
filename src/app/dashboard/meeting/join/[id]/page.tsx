@@ -17,8 +17,8 @@ const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
 /**
  * @fileOverview Meeting Identity Setup.
- * CAMERA FORCE: Specific Front vs Back selectors.
- * MIRRORED: Mirrored only for selfie view.
+ * APPROVAL: Admin enters instantly. All others wait for Admin approval.
+ * SELFIE: Front button forces selfie camera.
  */
 
 function MeetingJoinContent() {
@@ -60,7 +60,7 @@ function MeetingJoinContent() {
             }
         } catch (e) {
             setHasCamera(false);
-            toast({ variant: 'destructive', title: 'Camera Error', description: 'Could not access the selected camera.' });
+            toast({ variant: 'destructive', title: 'Camera Error' });
         }
     };
 
@@ -94,8 +94,6 @@ function MeetingJoinContent() {
             }
         };
         checkMeeting();
-        
-        // Default to front camera on mount if possible
         startCamera('user');
     }, [meetingId, authUser?.$id, isAdminLink]);
 
@@ -118,10 +116,7 @@ function MeetingJoinContent() {
     };
 
     const handleRequestJoin = async () => {
-        if (!name || (!avatar && !useLiveCamera)) {
-            toast({ variant: 'destructive', title: 'Setup Required', description: 'Enter name and set an icon or live camera.' });
-            return;
-        }
+        if (!name || (!avatar && !useLiveCamera)) return;
 
         setIsSubmitting(true);
         try {
@@ -155,7 +150,7 @@ function MeetingJoinContent() {
                     if (payload.$id === requestId) {
                         if (payload.status === 'approved') router.replace(`/dashboard/meeting/room/${meetingId}`);
                         else if (payload.status === 'declined') {
-                            toast({ variant: 'destructive', title: 'Entry Denied', description: 'The host has declined your request.' });
+                            toast({ variant: 'destructive', title: 'Entry Denied' });
                             setStep('info');
                             setIsSubmitting(false);
                         }
@@ -164,38 +159,12 @@ function MeetingJoinContent() {
                 return () => unsub();
             }
         } catch (e: any) {
-            toast({ variant: 'destructive', title: 'Sync Error', description: e.message });
+            toast({ variant: 'destructive', title: 'Sync Error' });
             setIsSubmitting(false);
         }
     };
 
     if (loadingMeeting) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
-
-    if (step === 'full') {
-        return (
-            <div className="h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-                <Card className="max-w-md w-full rounded-[2.5rem] shadow-2xl border-none p-10">
-                    <div className="bg-destructive/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><XCircle className="h-10 w-10 text-destructive" /></div>
-                    <h2 className="text-2xl font-black uppercase tracking-tighter">Hub Full</h2>
-                    <p className="text-muted-foreground font-bold text-xs mt-4 uppercase tracking-widest">This personal meeting is limited to 5 participants.</p>
-                    <Button asChild className="w-full mt-8 h-12 rounded-full font-black uppercase text-[10px] tracking-widest"><Link href="/dashboard/meeting">Return to Hub</Link></Button>
-                </Card>
-            </div>
-        );
-    }
-
-    if (step === 'expired') {
-        return (
-            <div className="h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-                <Card className="max-w-md w-full rounded-[2.5rem] shadow-2xl border-none p-10">
-                    <div className="bg-destructive/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><XCircle className="h-10 w-10 text-destructive" /></div>
-                    <h2 className="text-2xl font-black uppercase tracking-tighter">Session Closed</h2>
-                    <p className="text-muted-foreground font-bold text-xs mt-4 uppercase tracking-widest">The host has concluded this session or it has expired.</p>
-                    <Button asChild className="w-full mt-8 h-12 rounded-full font-black uppercase text-[10px] tracking-widest"><Link href="/dashboard/meeting">Return to Hub</Link></Button>
-                </Card>
-            </div>
-        );
-    }
 
     if (step === 'waiting') {
         return (
@@ -212,7 +181,7 @@ function MeetingJoinContent() {
                         </div>
                     </div>
                 </div>
-                <h2 className="text-white text-3xl font-black tracking-tighter uppercase leading-none">Verifying...</h2>
+                <h2 className="text-white text-3xl font-black tracking-tighter uppercase">Verifying...</h2>
                 <p className="text-primary font-black text-xs uppercase mt-4 animate-pulse tracking-[0.2em]">Waiting for Chairman to Accept</p>
             </div>
         );

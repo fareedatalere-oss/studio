@@ -14,7 +14,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 
 /**
  * @fileOverview Unified Dashboard Layout.
- * INSTANT: Renders shell immediately using global UserProvider data.
+ * LABELS: Home, Chat, Media, Market, Profile (Standard Title Case).
  * SHIELDED: Permission Bar optimized for zero-crash hydration.
  */
 

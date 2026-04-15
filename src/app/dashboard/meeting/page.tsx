@@ -4,6 +4,11 @@ import Link from 'next/link';
 import { ArrowLeft, Video, Users, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+/**
+ * @fileOverview Meeting Hub Landing.
+ * LABELS: create a meeting, enter a meeting (lowercase).
+ */
+
 export default function MeetingLandingPage() {
   return (
     <div className="container py-8 max-lg">

@@ -9,7 +9,7 @@ import {
     serverTimestamp, setDoc, updateDoc, 
     increment, getDocs, writeBatch, deleteDoc, arrayUnion
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } from '@/lib/data-service';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
 import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, Forward, FileText, Image as ImageIcon, Film, Music } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -24,8 +24,7 @@ import Link from 'next/link';
 
 /**
  * @fileOverview Definitive Chat Hub.
- * TICKS: ✅ (Read), ☑️ ☑️ (Online), ☑️ (Offline).
- * SYNC: Automatic Read Status update on mount.
+ * CALL: Restored private call logic. Creates a pending session and rings the receiver.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -77,7 +76,6 @@ export default function ChatThreadPage() {
             setMessages(filtered);
         });
 
-        // FORCE: Mark incoming as read
         const markAsRead = async () => {
             const unreadQ = query(
                 collection(db, COLLECTION_ID_MESSAGES), 
@@ -124,39 +122,23 @@ export default function ChatThreadPage() {
         } catch (e) { toast({ title: 'Send Error' }); }
     };
 
-    const handleDeleteMessage = async (msgId: string, scope: 'me' | 'both') => {
+    const handleInitiateCall = async () => {
+        if (!currentUser || !otherUserId) return;
         try {
-            if (scope === 'me') {
-                await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), {
-                    deleteFor: arrayUnion(currentUser?.$id)
-                });
-            } else {
-                await deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msgId));
-            }
-            toast({ title: 'Message Deleted' });
-        } catch (e) { toast({ title: 'Delete Failed' }); }
-    };
-
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        proceedUpload(file);
-    };
-
-    const proceedUpload = async (file: File) => {
-        setIsUploading(true);
-        try {
-            const reader = new FileReader();
-            const b64: string = await new Promise((res) => { reader.onloadend = () => res(reader.result as string); reader.readAsDataURL(file); });
-            const up = await uploadToCloudinary(b64, 'auto');
-            if (up.success) {
-                let type = 'image';
-                if (file.type.includes('video')) type = 'video';
-                else if (file.type.includes('audio')) type = 'music';
-                else if (file.type.includes('pdf')) type = 'pdf';
-                await handleSend('', { url: up.url, type });
-            }
-        } catch (err) { toast({ title: 'Upload Failed' }); } finally { setIsUploading(false); }
+            const callId = doc(collection(db, COLLECTION_ID_MEETINGS)).id;
+            await setDoc(doc(db, COLLECTION_ID_MEETINGS, callId), {
+                hostId: currentUser.$id,
+                invitedUsers: [otherUserId],
+                type: 'private_call',
+                status: 'pending',
+                name: `Call from @${currentProfile?.username}`,
+                createdAt: serverTimestamp(),
+                scheduledAt: new Date().toISOString()
+            });
+            router.push(`/dashboard/chat/call/${callId}`);
+        } catch (e) {
+            toast({ variant: 'destructive', title: 'Call Error' });
+        }
     };
 
     const MessageStatus = ({ msg }: { msg: any }) => {
@@ -194,7 +176,7 @@ export default function ChatThreadPage() {
                         </div>
                     </div>
                 )}
-                <Button onClick={() => router.push(`/dashboard/chat/call/${otherUserId}`)} variant="ghost" size="icon" className="h-10 w-10 rounded-full text-primary"><Phone className="h-4 w-4" /></Button>
+                <Button onClick={handleInitiateCall} variant="ghost" size="icon" className="h-10 w-10 rounded-full text-primary"><Phone className="h-4 w-4" /></Button>
             </header>
             
             <main className="flex-1 p-4 space-y-2 bg-muted/5 pb-32">
