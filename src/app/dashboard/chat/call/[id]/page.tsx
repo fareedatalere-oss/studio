@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -6,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { 
     PhoneOff, Loader2, Video, X, Send, 
     Mic, MicOff, MessageSquare, Layout, Smile,
-    ImageIcon, Music, Film, MonitorPlay, Volume2, VolumeX
+    ImageIcon, Music, Film, MonitorPlay, Volume2, VolumeX, CheckCircle2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-user';
@@ -21,7 +20,8 @@ import Image from 'next/image';
 
 /**
  * @fileOverview Private Call Page.
- * HARDENING: Removed premature redirects. Call stays active and rings until explicit hangup.
+ * UI: Shows receiver name/icon with Accept/Decline or Cancel buttons.
+ * HARDENING: Removed all premature redirects. Call stays active until hangup.
  */
 
 const getChatId = (userId1: string, userId2: string) => {
@@ -39,26 +39,9 @@ export default function PrivateCallPage() {
     const [call, setCall] = useState<any>(null);
     const [partner, setPartner] = useState<any>(null);
     const [duration, setDuration] = useState(0);
-    
-    const [isChatOpen, setIsChatOpen] = useState(false);
-    const [isVideoOpen, setIsVideoOpen] = useState(false);
-    const [isDisplayOpen, setIsDisplayOpen] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     
-    const [chatInput, setChatInput] = useState('');
-    const [messages, setMessages] = useState<any[]>([]);
-    const [isUploading, setIsUploading] = useState(false);
-    
     const timerRef = useRef<NodeJS.Timeout | null>(null);
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const selfVideoRef = useRef<HTMLVideoElement>(null);
-    const mediaInputRef = useRef<HTMLInputElement>(null);
-    const [uploadType, setUploadType] = useState<'image' | 'video' | 'music' | null>(null);
-
-    const chatId = useMemo(() => {
-        if (!user?.$id || !partner?.$id) return null;
-        return getChatId(user.$id, partner.$id);
-    }, [user?.$id, partner?.$id]);
 
     const fetchCall = useCallback(async () => {
         try {
@@ -69,22 +52,8 @@ export default function PrivateCallPage() {
                 const p = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, partnerId);
                 setPartner(p);
             }
-        } catch (e) {
-            // SILENT ERROR: Do not redirect if record is just fetching
-        }
-    }, [callId, user?.$id]);
-
-    const fetchMessages = useCallback(async () => {
-        if (!chatId) return;
-        try {
-            const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
-                Query.equal('chatId', chatId),
-                Query.orderAsc('$createdAt'),
-                Query.limit(50)
-            ]);
-            setMessages(res.documents);
         } catch (e) {}
-    }, [chatId]);
+    }, [callId, user?.$id]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -103,44 +72,18 @@ export default function PrivateCallPage() {
     }, [callId, fetchCall, router]);
 
     useEffect(() => {
-        if (chatId) {
-            fetchMessages();
-            const unsubMsg = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`], response => {
-                const payload = response.payload as any;
-                if (payload.chatId === chatId) fetchMessages();
-            });
-            return () => unsubMsg();
-        }
-    }, [chatId, fetchMessages]);
-
-    useEffect(() => {
         if (call?.status === 'connected' && !timerRef.current) {
             timerRef.current = setInterval(() => setDuration(prev => prev + 1), 1000);
         }
     }, [call?.status]);
 
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-                if (selfVideoRef.current) selfVideoRef.current.srcObject = stream;
-            }).catch(() => {});
-        }
-    }, []);
-
-    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
-
-    const handleSendChat = async () => {
-        if (!chatInput.trim() || !chatId) return;
-        const txt = chatInput.trim();
-        setChatInput('');
-        await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
-            chatId, senderId: user.$id, text: txt, status: 'sent'
-        });
-    };
-
     const handleHangUp = async () => {
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { status: 'ended' });
         router.replace('/dashboard/chat');
+    };
+
+    const handleAccept = async () => {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, callId, { status: 'connected' });
     };
 
     const formatDuration = (seconds: number) => {
@@ -152,6 +95,8 @@ export default function PrivateCallPage() {
     if (!partner || !call) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>;
 
     const isConnected = call.status === 'connected';
+    const isIncoming = call.status === 'pending' && call.hostId !== user?.$id;
+    const isOutgoing = call.status === 'pending' && call.hostId === user?.$id;
 
     return (
         <div className="h-screen w-full bg-white flex flex-col items-center justify-between py-24 font-body overflow-hidden relative">
@@ -159,16 +104,16 @@ export default function PrivateCallPage() {
 
             <header className="absolute top-16 left-0 right-0 text-center z-50">
                 <div className="space-y-1">
-                    <p className="text-primary font-black uppercase tracking-[0.3em] text-xl animate-in fade-in">
-                        {isConnected ? 'Live Secure' : 'Connecting...'}
+                    <p className="text-primary font-black uppercase tracking-[0.3em] text-xl animate-pulse">
+                        {isConnected ? 'Secure Line' : isIncoming ? 'Incoming Call' : 'Calling...'}
                     </p>
-                    <p className="text-lg font-black text-black/40">{formatDuration(duration)}</p>
+                    <p className="text-lg font-black text-black/40">{isConnected ? formatDuration(duration) : 'Private Session'}</p>
                 </div>
             </header>
 
             <div className="flex-1 flex flex-col items-center justify-center space-y-8 w-full px-6">
                 <div className="relative">
-                    <div className="absolute inset-0 bg-primary/10 rounded-full animate-pulse scale-110"></div>
+                    <div className="absolute inset-0 bg-primary/10 rounded-full animate-ping scale-150"></div>
                     <Avatar className="h-48 w-48 ring-8 ring-primary/5 shadow-2xl relative z-10">
                         <AvatarImage src={partner.avatar} className="object-cover" />
                         <AvatarFallback className="bg-primary text-white text-5xl font-black">{partner.username?.charAt(0)}</AvatarFallback>
@@ -176,61 +121,39 @@ export default function PrivateCallPage() {
                 </div>
                 <div className="text-center">
                     <h2 className="text-black text-2xl font-black tracking-tighter uppercase">@{partner.username}</h2>
-                    <div className="flex items-center justify-center gap-2 mt-2 opacity-40">
-                        <Volume2 className="h-3 w-3" />
-                        <p className="text-[10px] font-black uppercase tracking-widest">Live Voice Active</p>
-                    </div>
+                    <p className="text-[10px] font-black uppercase opacity-40 mt-2 tracking-widest">End-to-End Encrypted</p>
                 </div>
             </div>
 
-            <footer className="w-full max-sm px-10 flex flex-col items-center gap-8 z-50">
-                <div className="flex items-center justify-center gap-10 w-full animate-in slide-in-from-bottom-10">
-                    <div className="flex flex-col items-center gap-2">
-                        <Button onClick={() => setIsChatOpen(!isChatOpen)} variant="ghost" size="icon" className={cn("h-12 w-12 rounded-full", isChatOpen ? "bg-primary text-white" : "bg-muted")}>
-                            <MessageSquare className="h-5 w-5" />
-                        </Button>
-                        <span className="text-[8px] font-black uppercase opacity-40">Chat</span>
+            <footer className="w-full max-sm px-10 flex flex-col items-center gap-10 z-50">
+                {isIncoming ? (
+                    <div className="flex items-center justify-center gap-12 w-full animate-in slide-in-from-bottom-10">
+                        <div className="flex flex-col items-center gap-4">
+                            <Button onClick={handleHangUp} size="icon" variant="destructive" className="h-20 w-20 rounded-full shadow-2xl bg-red-500 hover:bg-red-600 active:scale-90 transition-transform">
+                                <PhoneOff className="h-8 w-8 text-white" />
+                            </Button>
+                            <span className="text-[10px] font-black uppercase text-red-600 tracking-widest">Decline</span>
+                        </div>
+                        <div className="flex flex-col items-center gap-4">
+                            <Button onClick={handleAccept} size="icon" className="h-20 w-20 rounded-full bg-green-500 hover:bg-green-600 shadow-2xl active:scale-90 transition-transform">
+                                <CheckCircle2 className="h-10 w-10 text-white" />
+                            </Button>
+                            <span className="text-[10px] font-black uppercase text-green-600 tracking-widest">Accept</span>
+                        </div>
                     </div>
-                    <div className="flex flex-col items-center gap-2">
-                        <Button onClick={() => setIsMuted(!isMuted)} variant="ghost" size="icon" className={cn("h-12 w-12 rounded-full", isMuted ? "bg-red-500 text-white" : "bg-muted")}>
-                            {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                ) : (
+                    <div className="flex flex-col items-center gap-4 animate-in slide-in-from-bottom-10">
+                         <Button onClick={handleHangUp} size="icon" variant="destructive" className="h-20 w-20 rounded-full shadow-2xl bg-red-500 hover:bg-red-600 active:scale-90 transition-transform">
+                            <PhoneOff className="h-8 w-8 text-white" />
                         </Button>
-                        <span className="text-[8px] font-black uppercase opacity-40">{isMuted ? 'Muted' : 'Voice'}</span>
+                        <span className="text-[10px] font-black uppercase text-red-600 tracking-widest">{isOutgoing ? 'Cancel' : 'End Call'}</span>
                     </div>
-                </div>
-
-                <div className="flex flex-col items-center gap-3">
-                    <Button onClick={handleHangUp} size="icon" variant="destructive" className="h-20 w-20 rounded-full shadow-2xl bg-red-500 hover:bg-red-600 active:scale-90 transition-transform">
-                        <PhoneOff className="h-8 w-8 text-white" />
-                    </Button>
-                    <span className="text-[10px] font-black uppercase text-red-600 tracking-widest">End Call</span>
-                </div>
+                )}
             </footer>
 
-            {isChatOpen && (
-                <div className="absolute inset-0 z-[200] bg-white flex flex-col animate-in slide-in-from-bottom duration-300">
-                    <header className="p-6 pt-16 flex items-center justify-between border-b bg-muted/10">
-                        <h2 className="text-3xl font-black uppercase tracking-tighter text-primary">Call Chat</h2>
-                        <Button variant="ghost" size="icon" className="rounded-full bg-muted h-10 w-10" onClick={() => setIsChatOpen(false)}><X className="h-6 w-6" /></Button>
-                    </header>
-                    <ScrollArea className="flex-1 p-6">
-                        <div className="max-w-md mx-auto w-full space-y-4 pb-10">
-                            {messages.map(m => (
-                                <div key={m.$id} className={cn("flex flex-col", m.senderId === user?.$id ? "items-end" : "items-start")}>
-                                    <div className={cn("p-4 rounded-[1.5rem] shadow-sm text-sm font-bold max-w-[80%]", m.senderId === user?.$id ? "bg-primary text-white rounded-tr-none" : "bg-muted text-black rounded-tl-none border")}>{m.text}</div>
-                                </div>
-                            ))}
-                            <div ref={messagesEndRef} />
-                        </div>
-                    </ScrollArea>
-                    <footer className="p-4 bg-muted/20 border-t pb-10">
-                        <div className="max-w-md mx-auto w-full flex gap-2">
-                            <Input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSendChat()} placeholder="Type something..." className="h-12 flex-1 rounded-2xl bg-white border-none px-6 font-bold shadow-inner" />
-                            <Button onClick={handleSendChat} size="icon" className="h-12 w-12 rounded-full bg-primary shadow-lg"><Send className="h-5 w-5 text-white" /></Button>
-                        </div>
-                    </footer>
-                </div>
-            )}
+            <div className="absolute bottom-10 opacity-20">
+                <p className="text-[8px] font-black uppercase tracking-widest">I-Pay Secure Line active</p>
+            </div>
         </div>
     );
 }

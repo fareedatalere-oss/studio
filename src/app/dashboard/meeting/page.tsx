@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 
 /**
  * @fileOverview Meeting Hub Landing.
- * SPELLING: create a meeting, enter a meeting (Corrected Lowercase Spelling).
+ * SPELLING: create a meeting, enter a meeting (Lowercase Enforcement).
  */
 
 export default function MeetingLandingPage() {

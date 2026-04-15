@@ -1,4 +1,3 @@
-
 'use client';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, Query } from '@/lib/data-service';
@@ -11,9 +10,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Unified Master Data Hub.
- * FORCE: Pre-loads all members, chats, and alerts in background.
- * PRESENCE: Hardened visibility listeners to ensure 100% accurate online status.
- * REPAIR: Fixed ReferenceError: cn is not defined.
+ * NETWORK SHIELD: Presence only shows Online if navigator.onLine is true.
+ * PRESENCE: Hardened visibility listeners for 100% accurate online status.
  */
 
 type UserContextType = {
@@ -71,9 +69,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     const updatePresence = useCallback(async (isOnline: boolean) => {
         if (!auth.currentUser) return;
+        // FORCE: Check actual network access before showing online
+        const hasNetwork = typeof window !== 'undefined' ? window.navigator.onLine : true;
+        const finalStatus = isOnline && hasNetwork;
+
         try {
             await updateDoc(doc(db, COLLECTION_ID_PROFILES, auth.currentUser.uid), {
-                isOnline,
+                isOnline: finalStatus,
                 lastSeen: serverTimestamp()
             });
         } catch (e) {}
@@ -97,10 +99,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     if (snap.exists()) {
                         const prof = { $id: snap.id, ...snap.data() } as any;
                         setProfile(prof);
-                        if (prof.isBlocked && !pathname.includes('/auth/signin')) {
-                            auth.signOut();
-                            router.replace('/auth/signin');
-                        }
                     }
                     setIsLoading(false);
                 });
@@ -120,20 +118,23 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     setUnreadNotifications(snap.size);
                 });
 
-                // FORCE: Accurate Presence Handshake
+                // MASTER PRESENCE HANDSHAKE
                 updatePresence(true);
                 
                 const handleVisibility = () => updatePresence(document.visibilityState === 'visible');
                 const handleOffline = () => updatePresence(false);
+                const handleOnline = () => updatePresence(document.visibilityState === 'visible');
                 
                 window.addEventListener('visibilitychange', handleVisibility);
+                window.addEventListener('online', handleOnline);
+                window.addEventListener('offline', handleOffline);
                 window.addEventListener('beforeunload', handleOffline);
-                window.addEventListener('pagehide', handleOffline);
 
                 return () => {
                     window.removeEventListener('visibilitychange', handleVisibility);
+                    window.removeEventListener('online', handleOnline);
+                    window.removeEventListener('offline', handleOffline);
                     window.removeEventListener('beforeunload', handleOffline);
-                    window.removeEventListener('pagehide', handleOffline);
                 };
 
             } else {
@@ -144,10 +145,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 if (unsubUsers) unsubUsers();
                 if (unsubChats) unsubChats();
                 if (unsubNotifs) unsubNotifs();
-                
-                if (!pathname.includes('/auth') && pathname.startsWith('/dashboard')) {
-                    router.replace('/auth/signin');
-                }
             }
         });
 

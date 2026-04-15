@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Bell, Home, PlaySquare, Store, User, Bot, ShieldAlert } from 'lucide-react';
+import { Bell, Home, PlaySquare, Store, User, Bot, ShieldAlert, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -14,8 +14,8 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 
 /**
  * @fileOverview Unified Dashboard Layout.
- * SPELLING: Home, Chat, Media, Market, Profile (Title Case enforced).
- * SHIELDED: Permission Bar optimized for zero-crash hydration.
+ * SPELLING: Home, Chat, Media, Market, Profile (Enforced Title Case).
+ * ICONS: Chat (MessageSquare), Market (Store).
  */
 
 export default function DashboardLayout({
@@ -121,9 +121,9 @@ export default function DashboardLayout({
           <div className="container grid h-full grid-cols-5 items-center justify-around text-center px-2">
             {[
                 { href: '/dashboard', label: 'Home', icon: Home, key: 'tab_home' },
-                { href: '/dashboard/chat', label: 'Chat', icon: Store, key: 'tab_chat' },
+                { href: '/dashboard/chat', label: 'Chat', icon: MessageSquare, key: 'tab_chat' },
                 { href: '/dashboard/media', label: 'Media', icon: PlaySquare, key: 'tab_media' },
-                { href: '/dashboard/market', label: 'Market', icon: User, key: 'tab_market' },
+                { href: '/dashboard/market', label: 'Market', icon: Store, key: 'tab_market' },
                 { href: '/dashboard/profile', label: 'Profile', icon: User, key: 'tab_profile' }
             ].map((tab) => (
                 <Link key={tab.key} href={tab.href} onClick={(e) => handleTabClick(e, tab.key)} className={cn("flex flex-col items-center gap-0.5 transition-colors", pathname === tab.href ? "text-primary scale-110" : "text-muted-foreground")}>

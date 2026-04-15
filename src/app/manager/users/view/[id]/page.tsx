@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Edit, Save, Loader2, KeyRound, Activity, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Edit, Save, Loader2, KeyRound, Activity, ShieldAlert, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_TRANSACTIONS, Query } from '@/lib/data-service';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,8 +19,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Master User Preview & Edit Page.
- * SHIELDED: Universal null-guards to stop "Client-side exception".
- * FORCED: Decoupled loading for instant identity viewing.
+ * IDENTITY: Shows exact date and time for last active status.
  */
 
 export default function ViewUserPage() {
@@ -70,7 +69,6 @@ export default function ViewUserPage() {
                 Query.limit(20)
             ]);
             
-            // Client-side sorting to avoid index requirements
             const sorted = data.documents.sort((a, b) => {
                 const dateA = safeDate(a.$createdAt)?.getTime() || 0;
                 const dateB = safeDate(b.$createdAt)?.getTime() || 0;
@@ -193,12 +191,12 @@ export default function ViewUserPage() {
                                 <span className="text-[10px] font-black uppercase">Blocked</span>
                                 <Badge variant={profile?.isBlocked ? 'destructive' : 'outline'}>{profile?.isBlocked ? 'YES' : 'NO'}</Badge>
                             </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black uppercase">Last Active</span>
-                                <span className="text-[8px] font-bold opacity-50 truncate max-w-[80px]">
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-black uppercase flex items-center gap-1"><Clock className="h-3 w-3"/> Exact Activity</span>
+                                <span className="text-[9px] font-black text-primary uppercase">
                                     {(() => {
                                         const d = safeDate(profile?.lastSeen);
-                                        return d ? format(d, 'HH:mm') : 'Never';
+                                        return d ? format(d, 'PPpp') : 'Never Registered';
                                     })()}
                                 </span>
                             </div>
