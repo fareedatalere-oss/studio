@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -20,7 +21,7 @@ import Image from 'next/image';
 
 /**
  * @fileOverview Private Call Page.
- * HARDENING: Removed premature redirects. Call stays active until explicitly ended.
+ * HARDENING: Removed premature redirects. Call stays active and rings until explicit hangup.
  */
 
 const getChatId = (userId1: string, userId2: string) => {
@@ -69,7 +70,7 @@ export default function PrivateCallPage() {
                 setPartner(p);
             }
         } catch (e) {
-            // No automatic redirect on fetch fail to prevent loop
+            // SILENT ERROR: Do not redirect if record is just fetching
         }
     }, [callId, user?.$id]);
 

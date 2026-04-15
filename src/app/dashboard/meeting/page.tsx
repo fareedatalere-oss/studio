@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/button';
 
 /**
  * @fileOverview Meeting Hub Landing.
- * LABELS: create a meeting, enter a meeting (lowercase).
+ * SPELLING: create a meeting, enter a meeting (Corrected Lowercase Spelling).
  */
 
 export default function MeetingLandingPage() {

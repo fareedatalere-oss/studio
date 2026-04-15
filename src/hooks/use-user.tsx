@@ -1,3 +1,4 @@
+
 'use client';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, Query } from '@/lib/data-service';
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils";
  * @fileOverview Unified Master Data Hub.
  * FORCE: Pre-loads all members, chats, and alerts in background.
  * PRESENCE: Hardened visibility listeners to ensure 100% accurate online status.
+ * REPAIR: Fixed ReferenceError: cn is not defined.
  */
 
 type UserContextType = {

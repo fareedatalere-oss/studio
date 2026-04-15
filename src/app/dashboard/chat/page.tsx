@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -15,7 +16,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center - Master High-Speed Edition.
- * LABELS: Recent, All (Standard Title Case).
+ * SPELLING: Recent, All (Corrected Spelling).
  */
 
 const safeDate = (ts: any) => {

@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { Bell, Home, PlaySquare, Store, User, Bot, ShieldAlert } from 'lucide-react';
@@ -14,7 +15,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 
 /**
  * @fileOverview Unified Dashboard Layout.
- * LABELS: Home, Chat, Media, Market, Profile (Standard Title Case).
+ * SPELLING: Home, Chat, Media, Market, Profile (Corrected Spelling).
  * SHIELDED: Permission Bar optimized for zero-crash hydration.
  */
 

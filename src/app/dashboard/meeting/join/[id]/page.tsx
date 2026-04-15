@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect, Suspense } from 'react';
@@ -17,8 +18,8 @@ const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
 /**
  * @fileOverview Meeting Identity Setup.
- * APPROVAL: Admin enters instantly. All others wait for Admin approval.
- * SELFIE: Front button forces selfie camera.
+ * APPROVAL SHIELD: Admin (Host) bypasses waiting screen. All others MUST wait for approval.
+ * SELFIE FORCE: "Front" button specifically forces user-facing camera and mirrors logic.
  */
 
 function MeetingJoinContent() {
@@ -141,9 +142,11 @@ function MeetingJoinContent() {
                 }));
             }
 
+            // ADMIN BYPASS: Instantly enter if Host
             if (isActuallyHost) {
                 router.replace(`/dashboard/meeting/room/${meetingId}`);
             } else {
+                // GUEST WAIT: Stay on verifying screen until approved
                 setStep('waiting');
                 const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_ATTENDEES}.documents`], response => {
                     const payload = response.payload as any;
