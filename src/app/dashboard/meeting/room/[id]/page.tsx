@@ -28,6 +28,7 @@ const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
  * SELFIE FORCE: Front-facing camera logic mirrored correctly.
  * TIER ENFORCEMENT: Personal (5 max, 1hr, no board/display) vs General.
  * PRIVATE CHAT: Click participant icons for bottom-screen overlay.
+ * MIRROR FIX: Only mirror when facingMode is 'user'.
  */
 
 export default function MeetingRoomPage() {
@@ -152,10 +153,10 @@ export default function MeetingRoomPage() {
             if (payload && payload.meetingId === meetingId) fetchAttendees();
         });
 
-        // FORCE: Use Selfie Camera (facingMode: user)
+        // FORCE: Start Camera based on stored setup
         if (mySetup?.useCamera && navigator?.mediaDevices) {
             navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'user' }, 
+                video: { facingMode: mySetup.facingMode || 'user' }, 
                 audio: true 
             }).then(stream => {
                 if (selfVideoRef.current) {
@@ -167,7 +168,7 @@ export default function MeetingRoomPage() {
         }
 
         return () => { unsubMeeting(); unsubAttendees(); };
-    }, [meetingId, fetchMeeting, fetchAttendees, router, mySetup?.useCamera, initializeAudio]);
+    }, [meetingId, fetchMeeting, fetchAttendees, router, mySetup?.useCamera, mySetup?.facingMode, initializeAudio]);
 
     const handleAction = async (requestId: string, status: 'approved' | 'declined') => {
         await databases.updateDocument(DATABASE_ID, COLLECTION_ID_ATTENDEES, requestId, { status });
@@ -274,7 +275,7 @@ export default function MeetingRoomPage() {
                                             autoPlay 
                                             muted 
                                             playsInline 
-                                            className="absolute inset-0 h-full w-full object-cover rounded-full scale-x-[-1]" 
+                                            className={cn("absolute inset-0 h-full w-full object-cover rounded-full", p.facingMode === 'user' && "scale-x-[-1]")} 
                                         />
                                     )}
                                 </Avatar>
@@ -372,7 +373,11 @@ export default function MeetingRoomPage() {
             <footer className="p-6 border-t bg-black/80 backdrop-blur-md border-white/5 flex items-center justify-between z-[90]">
                 <div className="flex items-center gap-3 bg-white/5 p-2 pr-6 rounded-full border border-white/10">
                     <div className="h-12 w-12 rounded-full border-2 border-primary p-0.5 overflow-hidden">
-                        {mySetup?.useCamera ? <video ref={selfVideoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" /> : <Avatar className="h-full w-full"><AvatarImage src={mySetup?.avatar || profile?.avatar} className="object-cover" /><AvatarFallback>?</AvatarFallback></Avatar>}
+                        {mySetup?.useCamera ? (
+                            <video ref={selfVideoRef} autoPlay muted playsInline className={cn("h-full w-full object-cover", mySetup.facingMode === 'user' && "scale-x-[-1]")} />
+                        ) : (
+                            <Avatar className="h-full w-full"><AvatarImage src={mySetup?.avatar || profile?.avatar} className="object-cover" /><AvatarFallback>?</AvatarFallback></Avatar>
+                        )}
                     </div>
                     <div className="text-left"><p className="text-[10px] font-black uppercase tracking-widest text-primary">Identity Feed</p><p className="text-[8px] font-bold opacity-50 uppercase">Live Master Sync</p></div>
                 </div>

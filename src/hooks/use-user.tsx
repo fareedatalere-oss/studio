@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
  * @fileOverview Unified Master Data Hub.
  * FORCE: Pre-loads all members, chats, and alerts in background.
  * INSTANT: Renders app shell immediately to prevent white-screen crashes.
+ * SHIELDED: Fixed "cn is not defined" error.
  */
 
 type UserContextType = {

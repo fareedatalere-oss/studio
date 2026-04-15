@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Camera, ImageIcon, Loader2, CheckCircle2, UploadCloud, ArrowLeft, XCircle, Video as VideoIcon } from 'lucide-react';
+import { Camera, ImageIcon, Loader2, CheckCircle2, UploadCloud, ArrowLeft, XCircle, Video as VideoIcon, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,8 +17,8 @@ const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
 /**
  * @fileOverview Meeting Identity Setup.
- * SELFIE FORCE: Hardware Mirror logic ensured for front-camera identity.
- * MIRRORED: Mirrored preview for natural UX.
+ * CAMERA FORCE: Specific Front vs Back selectors.
+ * MIRRORED: Mirrored only for selfie view.
  */
 
 function MeetingJoinContent() {
@@ -34,6 +34,7 @@ function MeetingJoinContent() {
     const [name, setName] = useState('');
     const [avatar, setAvatar] = useState<string | null>(null);
     const [useLiveCamera, setUseLiveCamera] = useState(false);
+    const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
     const [step, setStep] = useState<'info' | 'waiting' | 'expired' | 'full'>('info');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [hasCamera, setHasCamera] = useState(false);
@@ -42,6 +43,26 @@ function MeetingJoinContent() {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const startCamera = async (mode: 'user' | 'environment') => {
+        if (!navigator?.mediaDevices) return;
+        setFacingMode(mode);
+        setUseLiveCamera(true);
+        setAvatar(null);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: mode }, 
+                audio: true 
+            });
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                setHasCamera(true);
+            }
+        } catch (e) {
+            setHasCamera(false);
+            toast({ variant: 'destructive', title: 'Camera Error', description: 'Could not access the selected camera.' });
+        }
+    };
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -53,7 +74,6 @@ function MeetingJoinContent() {
                 const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
                 setMeeting(doc);
                 
-                // 1. Check Participant Limit for Personal Meetings (5 Total)
                 if (doc.type === 'personal') {
                     const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
                         Query.equal('meetingId', meetingId),
@@ -74,19 +94,9 @@ function MeetingJoinContent() {
             }
         };
         checkMeeting();
-
-        // FORCE: Request Selfie Camera (facingMode: user)
-        if (navigator?.mediaDevices) {
-            navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'user' }, 
-                audio: true 
-            }).then(stream => {
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                    setHasCamera(true);
-                }
-            }).catch(() => setHasCamera(false));
-        }
+        
+        // Default to front camera on mount if possible
+        startCamera('user');
     }, [meetingId, authUser?.$id, isAdminLink]);
 
     useEffect(() => {
@@ -95,18 +105,6 @@ function MeetingJoinContent() {
             if (!useLiveCamera) setAvatar(authProfile.avatar || null);
         }
     }, [authProfile, useLiveCamera]);
-
-    const handleCapture = () => {
-        if (videoRef.current && canvasRef.current) {
-            const canvas = canvasRef.current;
-            const video = videoRef.current;
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d')?.drawImage(video, 0, 0);
-            setAvatar(canvas.toDataURL('image/png'));
-            setUseLiveCamera(false);
-        }
-    };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -136,6 +134,7 @@ function MeetingJoinContent() {
                 name,
                 avatar: avatar || 'live_stream',
                 useCamera: useLiveCamera,
+                facingMode: facingMode,
                 status: isActuallyHost ? 'approved' : 'waiting',
                 isHost: isActuallyHost,
                 createdAt: new Date().toISOString()
@@ -143,7 +142,7 @@ function MeetingJoinContent() {
 
             if (typeof window !== 'undefined') {
                 sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ 
-                    name, avatar, requestId, isHost: isActuallyHost, useCamera: useLiveCamera 
+                    name, avatar, requestId, isHost: isActuallyHost, useCamera: useLiveCamera, facingMode 
                 }));
             }
 
@@ -206,7 +205,7 @@ function MeetingJoinContent() {
                     <div className="absolute inset-0 flex items-center justify-center">
                         <div className="h-24 w-24 rounded-full overflow-hidden border-2 border-white/20">
                             {useLiveCamera ? (
-                                <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
+                                <video ref={videoRef} autoPlay muted playsInline className={cn("h-full w-full object-cover", facingMode === 'user' && "scale-x-[-1]")} />
                             ) : (
                                 <img src={avatar || ''} className="h-full w-full object-cover" alt="Identity" />
                             )}
@@ -227,7 +226,7 @@ function MeetingJoinContent() {
             <Card className="max-w-md w-full mx-auto rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
                 <CardHeader className="bg-primary text-white p-10 text-center">
                     <CardTitle className="text-xl font-black uppercase tracking-widest leading-none">Session Identity</CardTitle>
-                    <CardDescription className="text-white/70 font-bold mt-2 uppercase text-[9px]">Selfie Setup Required</CardDescription>
+                    <CardDescription className="text-white/70 font-bold mt-2 uppercase text-[9px]">Select Camera Feed</CardDescription>
                 </CardHeader>
                 <CardContent className="p-8 space-y-6">
                     <div className="space-y-2">
@@ -235,18 +234,18 @@ function MeetingJoinContent() {
                         <Input placeholder="Enter your name..." className="h-12 rounded-2xl bg-muted border-none px-6 font-bold" value={name} onChange={e => setName(e.target.value)} />
                     </div>
                     <div className="space-y-4">
-                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest pl-2">Security Preview (Selfie)</Label>
+                        <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest pl-2">Security Preview</Label>
                         <div className="relative aspect-video bg-black rounded-[2rem] overflow-hidden border-4 border-white shadow-2xl">
                             {avatar && !useLiveCamera ? (
                                 <img src={avatar} className="h-full w-full object-cover" alt="Preview" />
                             ) : (
-                                <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
+                                <video ref={videoRef} autoPlay muted playsInline className={cn("h-full w-full object-cover", facingMode === 'user' && "scale-x-[-1]")} />
                             )}
                             <canvas ref={canvasRef} className="hidden" />
-                            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
-                                <Button onClick={() => { setUseLiveCamera(true); setAvatar(null); }} variant={useLiveCamera ? "default" : "secondary"} size="sm" className="h-8 rounded-full text-[9px] font-black uppercase px-4"><VideoIcon className="mr-1 h-3 w-3" /> Live Camera</Button>
-                                <Button onClick={() => fileInputRef.current?.click()} variant="secondary" size="sm" className="h-8 rounded-full text-[9px] font-black uppercase px-4"><UploadCloud className="mr-1 h-3 w-3" /> Static Icon</Button>
-                                {avatar && <Button onClick={() => { setAvatar(null); setUseLiveCamera(true); }} size="sm" variant="destructive" className="h-8 w-8 rounded-full p-0">X</Button>}
+                            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-4">
+                                <Button onClick={() => startCamera('user')} variant={facingMode === 'user' && useLiveCamera ? "default" : "secondary"} size="sm" className="flex-1 h-8 rounded-full text-[8px] font-black uppercase"><VideoIcon className="mr-1 h-3 w-3" /> Front</Button>
+                                <Button onClick={() => startCamera('environment')} variant={facingMode === 'environment' && useLiveCamera ? "default" : "secondary"} size="sm" className="flex-1 h-8 rounded-full text-[8px] font-black uppercase"><Smartphone className="mr-1 h-3 w-3" /> Back</Button>
+                                <Button onClick={() => fileInputRef.current?.click()} variant="secondary" size="sm" className="flex-1 h-8 rounded-full text-[8px] font-black uppercase"><UploadCloud className="mr-1 h-3 w-3" /> Icon</Button>
                             </div>
                         </div>
                         <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
