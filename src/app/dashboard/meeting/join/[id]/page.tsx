@@ -2,23 +2,16 @@
 
 import { useState, useRef, useEffect, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Camera, ImageIcon, Loader2, CheckCircle2, UploadCloud, ArrowLeft, XCircle, Clock } from 'lucide-react';
+import { Camera, ImageIcon, Loader2, CheckCircle2, UploadCloud, ArrowLeft, XCircle, Video as VideoIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, ID, Query } from '@/lib/data-service';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, ID } from '@/lib/data-service';
 import { useUser } from '@/hooks/use-user';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { format, isBefore } from 'date-fns';
-
-/**
- * @fileOverview Universal Identity Gate for Meetings.
- * HARDENED: Strictly filtered by Meeting ID.
- * NO auto-redirection unless the specific session is marked 'ended' or 'cancelled'.
- */
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
 
@@ -34,6 +27,7 @@ function MeetingJoinContent() {
     const [meeting, setMeeting] = useState<any>(null);
     const [name, setName] = useState('');
     const [avatar, setAvatar] = useState<string | null>(null);
+    const [useLiveCamera, setUseLiveCamera] = useState(false);
     const [step, setStep] = useState<'info' | 'waiting' | 'expired'>('info');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [hasCamera, setHasCamera] = useState(false);
@@ -52,8 +46,6 @@ function MeetingJoinContent() {
             try {
                 const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
                 setMeeting(doc);
-                
-                // ONLY show expired if definitively ended/cancelled in THIS doc
                 if (doc.status === 'ended' || doc.status === 'cancelled') {
                     setStep('expired');
                 }
@@ -66,7 +58,7 @@ function MeetingJoinContent() {
         checkMeeting();
 
         if (navigator?.mediaDevices) {
-            navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+            navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
                     setHasCamera(true);
@@ -78,9 +70,9 @@ function MeetingJoinContent() {
     useEffect(() => {
         if (authProfile) {
             setName(authProfile.username || '');
-            setAvatar(authProfile.avatar || null);
+            if (!useLiveCamera) setAvatar(authProfile.avatar || null);
         }
-    }, [authProfile]);
+    }, [authProfile, useLiveCamera]);
 
     const handleCapture = () => {
         if (videoRef.current && canvasRef.current) {
@@ -90,20 +82,24 @@ function MeetingJoinContent() {
             canvas.height = video.videoHeight;
             canvas.getContext('2d')?.drawImage(video, 0, 0);
             setAvatar(canvas.toDataURL('image/png'));
+            setUseLiveCamera(false);
         }
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const reader = new FileReader();
-            reader.onload = (ev) => setAvatar(ev.target?.result as string);
+            reader.onload = (ev) => {
+                setAvatar(ev.target?.result as string);
+                setUseLiveCamera(false);
+            };
             reader.readAsDataURL(e.target.files[0]);
         }
     };
 
     const handleRequestJoin = async () => {
-        if (!name || !avatar) {
-            toast({ variant: 'destructive', title: 'Setup Required', description: 'Enter name and photo.' });
+        if (!name || (!avatar && !useLiveCamera)) {
+            toast({ variant: 'destructive', title: 'Setup Required', description: 'Enter name and set an icon or live camera.' });
             return;
         }
 
@@ -116,7 +112,8 @@ function MeetingJoinContent() {
                 meetingId,
                 userId: authUser?.$id || `guest_${Date.now()}`,
                 name,
-                avatar,
+                avatar: avatar || 'live_stream',
+                useCamera: useLiveCamera,
                 status: isActuallyHost ? 'approved' : 'waiting',
                 isHost: isActuallyHost,
                 createdAt: new Date().toISOString()
@@ -124,7 +121,7 @@ function MeetingJoinContent() {
 
             if (typeof window !== 'undefined') {
                 sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ 
-                    name, avatar, requestId, isHost: isActuallyHost, useCamera: true 
+                    name, avatar, requestId, isHost: isActuallyHost, useCamera: useLiveCamera 
                 }));
             }
 
@@ -173,7 +170,11 @@ function MeetingJoinContent() {
                     <div className="h-32 w-32 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
                     <div className="absolute inset-0 flex items-center justify-center">
                         <div className="h-24 w-24 rounded-full overflow-hidden border-2 border-white/20">
-                            <img src={avatar || ''} className="h-full w-full object-cover" alt="Identity" />
+                            {useLiveCamera ? (
+                                <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
+                            ) : (
+                                <img src={avatar || ''} className="h-full w-full object-cover" alt="Identity" />
+                            )}
                         </div>
                     </div>
                 </div>
@@ -201,18 +202,23 @@ function MeetingJoinContent() {
                     <div className="space-y-4">
                         <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest pl-2">Security Preview</Label>
                         <div className="relative aspect-video bg-black rounded-[2rem] overflow-hidden border-4 border-white shadow-2xl">
-                            {avatar ? <img src={avatar} className="h-full w-full object-cover" alt="Preview" /> : <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />}
+                            {avatar && !useLiveCamera ? (
+                                <img src={avatar} className="h-full w-full object-cover" alt="Preview" />
+                            ) : (
+                                <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover scale-x-[-1]" />
+                            )}
                             <canvas ref={canvasRef} className="hidden" />
-                            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3">
-                                {avatar ? <Button onClick={() => setAvatar(null)} size="sm" variant="destructive" className="h-8 rounded-full text-[9px] font-black uppercase">Reset</Button> : <Button onClick={handleCapture} size="sm" className="h-8 rounded-full text-[9px] font-black uppercase" disabled={!hasCamera}><Camera className="mr-1 h-3 w-3" /> Capture</Button>}
-                                <Button onClick={() => fileInputRef.current?.click()} size="sm" variant="secondary" className="h-8 rounded-full text-[9px] font-black uppercase"><UploadCloud className="mr-1 h-3 w-3" /> Upload</Button>
+                            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
+                                <Button onClick={() => { setUseLiveCamera(true); setAvatar(null); }} variant={useLiveCamera ? "default" : "secondary"} size="sm" className="h-8 rounded-full text-[9px] font-black uppercase px-4"><VideoIcon className="mr-1 h-3 w-3" /> Live Camera</Button>
+                                <Button onClick={() => fileInputRef.current?.click()} variant="secondary" size="sm" className="h-8 rounded-full text-[9px] font-black uppercase px-4"><UploadCloud className="mr-1 h-3 w-3" /> Upload Icon</Button>
+                                {avatar && <Button onClick={() => { setAvatar(null); setUseLiveCamera(true); }} size="sm" variant="destructive" className="h-8 w-8 rounded-full p-0">X</Button>}
                             </div>
                         </div>
                         <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
                     </div>
                 </CardContent>
                 <CardFooter className="p-8 pt-0">
-                    <Button onClick={handleRequestJoin} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-2xl active:scale-95 transition-transform" disabled={isSubmitting || !name || !avatar}>
+                    <Button onClick={handleRequestJoin} className="w-full h-14 rounded-full font-black uppercase tracking-widest shadow-2xl active:scale-95 transition-transform" disabled={isSubmitting || !name || (!avatar && !useLiveCamera)}>
                         {isSubmitting ? <Loader2 className="animate-spin" /> : isAdminLink || authUser?.$id === meeting?.hostId ? 'Join Hub Now' : 'Request Entry'}
                     </Button>
                 </CardFooter>
