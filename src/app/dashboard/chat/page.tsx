@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 /**
  * @fileOverview Chat Center - Shadow List Protocol.
  * FORCE: Only show users in Recent if a real message exists and the user identity is valid.
- * PRESENCE: Hardened heartbeat check to stop fake "Online" status.
+ * PRESENCE: Hardened heartbeat check from Global Memory Shield.
  */
 
 const safeDate = (ts: any) => {
@@ -30,18 +30,8 @@ const safeDate = (ts: any) => {
     } catch (e) { return null; }
 };
 
-const isUserActuallyOnline = (user: any) => {
-    if (!user?.isOnline) return false;
-    if (!user?.lastSeen) return false;
-    
-    const lastSeenDate = user.lastSeen.toDate ? user.lastSeen.toDate() : new Date(user.lastSeen);
-    const now = new Date();
-    // FORCE: Consider offline if heartbeat was more than 3 minutes ago
-    return (now.getTime() - lastSeenDate.getTime()) < 180000; 
-};
-
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
-    const { allUsers } = useUser();
+    const { allUsers, isUserActuallyOnline } = useUser();
     const currentUid = currentUser?.$id || currentUser?.uid;
     
     const otherUser = useMemo(() => {
@@ -97,7 +87,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
 
 export default function ChatPage() {
     const router = useRouter();
-    const { user: currentUser, allUsers, recentChats, loading } = useUser();
+    const { user: currentUser, allUsers, recentChats, loading, isUserActuallyOnline } = useUser();
     const [searchRecent, setSearchRecent] = useState('');
     const [searchAll, setSearchAll] = useState('');
     const [isMounted, setIsMounted] = useState(false);

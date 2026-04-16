@@ -35,7 +35,7 @@ const getChatId = (userId1?: string, userId2?: string) => {
 export default function ChatThreadPage() {
     const params = useParams();
     const router = useRouter();
-    const { user: currentUser, profile: currentProfile, allUsers, globalMessages, recheckUser } = useUser();
+    const { user: currentUser, profile: currentProfile, allUsers, globalMessages, recheckUser, isUserActuallyOnline } = useUser();
     const { toast } = useToast();
 
     const otherUserId = params.id as string;
@@ -274,6 +274,7 @@ export default function ChatThreadPage() {
     if (!isMounted) return null;
 
     const filteredForwardUsers = allUsers.filter(u => u.$id !== currentUser?.$id && u.username?.toLowerCase().includes(forwardSearch.toLowerCase()));
+    const online = otherUser && isUserActuallyOnline(otherUser);
 
     return (
         <div className="flex flex-col min-h-screen bg-background font-body overflow-hidden">
@@ -281,14 +282,17 @@ export default function ChatThreadPage() {
                 <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-8 w-8 rounded-full bg-muted/50"><ArrowLeft className="h-4 w-4" /></Button>
                 {otherUser && (
                     <div className="flex-1 flex items-center gap-3">
-                        <Avatar className="h-10 w-10 border-2 border-primary/5 shadow-sm">
-                            <AvatarImage src={otherUser.avatar}/>
-                            <AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
-                        </Avatar>
+                        <div className="relative">
+                            <Avatar className="h-10 w-10 border-2 border-primary/5 shadow-sm">
+                                <AvatarImage src={otherUser.avatar}/>
+                                <AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            {online && <div className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>}
+                        </div>
                         <div>
                             <h2 className="font-black text-xs">@{otherUser.username}</h2>
-                            <p className={cn("text-[7px] font-black uppercase", otherUser.isOnline ? "text-green-500" : "text-muted-foreground")}>
-                                {anyBlockActive ? 'BLOCKED' : otherUser.isOnline ? 'Online' : 'Offline'}
+                            <p className={cn("text-[7px] font-black uppercase", online ? "text-green-500" : "text-muted-foreground")}>
+                                {anyBlockActive ? 'BLOCKED' : online ? 'Online' : 'Offline'}
                             </p>
                         </div>
                     </div>

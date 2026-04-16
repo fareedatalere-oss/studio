@@ -8,9 +8,9 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import { cn } from "@/lib/utils";
 
 /**
- * @fileOverview Global Memory Shield.
- * SYNC: Pre-loads all critical data in background to prevent racing.
- * PRESENCE: Hardened with Last-Seen heartbeat logic to stop fake online status.
+ * @fileOverview Global Memory Shield & Presence Engine.
+ * HEARTBEAT: Sends signal every 60s to ensure accurate Online status.
+ * CONSISTENCY: Centralizes isUserActuallyOnline for the entire app.
  */
 
 type UserContextType = {
@@ -24,6 +24,7 @@ type UserContextType = {
     unreadNotifications: number;
     globalMessages: Record<string, any[]>;
     recheckUser: () => Promise<void>;
+    isUserActuallyOnline: (user: any) => boolean;
 };
 
 const UserContext = createContext<UserContextType>({ 
@@ -36,7 +37,8 @@ const UserContext = createContext<UserContextType>({
     recentChats: [],
     unreadNotifications: 0,
     globalMessages: {},
-    recheckUser: async () => {} 
+    recheckUser: async () => {},
+    isUserActuallyOnline: () => false
 });
 
 export function UserProvider({ children }: { children: ReactNode }) {
@@ -51,6 +53,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const [recentChats, setRecentChats] = useState<any[]>([]);
     const [unreadNotifications, setUnreadNotifications] = useState(0);
     const [globalMessages, setGlobalMessages] = useState<Record<string, any[]>>({});
+
+    const isUserActuallyOnline = useCallback((u: any) => {
+        if (!u?.isOnline) return false;
+        if (!u?.lastSeen) return false;
+        
+        // Use either Firestore timestamp or raw ISO string
+        const lastSeenDate = u.lastSeen?.toDate ? u.lastSeen.toDate() : new Date(u.lastSeen);
+        const now = new Date();
+        // FORCE: Consider offline if heartbeat was more than 3 minutes ago
+        return (now.getTime() - lastSeenDate.getTime()) < 180000; 
+    }, []);
 
     const fetchConfig = useCallback(async () => {
         try {
@@ -81,6 +94,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         fetchConfig();
         
         let unsubs: any[] = [];
+        let heartbeatInterval: NodeJS.Timeout | null = null;
 
         const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
@@ -117,6 +131,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 }));
 
                 updatePresence(true);
+                heartbeatInterval = setInterval(() => updatePresence(true), 60000); // 1 min heartbeat
                 
                 const handleVisibilityChange = () => {
                     if (document.visibilityState === 'visible') updatePresence(true);
@@ -130,17 +145,24 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 }
             } else {
                 setUser(null); setProfile(null); setIsLoading(false);
+                if (heartbeatInterval) clearInterval(heartbeatInterval);
             }
         });
 
         return () => { 
             unsubAuth(); 
             unsubs.forEach(u => u());
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
         };
     }, [fetchConfig, updatePresence]);
 
     return (
-        <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, allUsers, recentChats, unreadNotifications, globalMessages, recheckUser: async () => { await fetchConfig(); } }}>
+        <UserContext.Provider value={{ 
+            user, profile, config, proof, loading: isLoading, 
+            allUsers, recentChats, unreadNotifications, globalMessages, 
+            recheckUser: async () => { await fetchConfig(); },
+            isUserActuallyOnline
+        }}>
             <div className={cn("min-h-screen transition-opacity duration-300", isMounted ? "opacity-100" : "opacity-0")}>
                 {children}
             </div>
