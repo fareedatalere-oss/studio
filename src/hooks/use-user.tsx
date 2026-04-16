@@ -1,16 +1,17 @@
 'use client';
 
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS, Query } from '@/lib/data-service';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/data-service';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, serverTimestamp, onSnapshot, setDoc, collection, query, where, orderBy, limit, updateDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, onSnapshot, collection, query, where, orderBy, limit, updateDoc } from 'firebase/firestore';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { cn } from "@/lib/utils";
 
 /**
- * @fileOverview Unified Master Data Hub.
- * NETWORK SHIELD: Presence strictly depends on navigator.onLine.
+ * @fileOverview Global Memory Shield.
+ * SYNC: Pre-loads all critical data in background to terminate white-screen crashes.
+ * NETWORK: Strictly checks navigator.onLine for accurate presence dot.
  */
 
 type UserContextType = {
@@ -113,8 +114,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
                 updatePresence(true);
                 const handleVisibility = () => updatePresence(document.visibilityState === 'visible');
-                const handleOffline = () => updatePresence(false);
                 const handleOnline = () => updatePresence(true);
+                const handleOffline = () => updatePresence(false);
                 
                 window.addEventListener('visibilitychange', handleVisibility);
                 window.addEventListener('online', handleOnline);
@@ -136,7 +137,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         return () => { 
             unsubAuth(); if(unsubProfile) unsubProfile(); if(unsubUsers) unsubUsers(); if(unsubChats) unsubChats(); if(unsubNotifs) unsubNotifs(); 
         };
-    }, [pathname, router, fetchConfig, updatePresence]);
+    }, [fetchConfig, updatePresence]);
 
     return (
         <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, allUsers, recentChats, unreadNotifications, recheckUser: async () => { await fetchConfig(); } }}>

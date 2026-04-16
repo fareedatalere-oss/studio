@@ -22,9 +22,9 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import { format } from 'date-fns';
 
 /**
- * @fileOverview Sofia AI Chat - Master High-Speed Version.
- * BYPASS: Identity Verification skips AI Flow to avoid Vercel timeouts.
- * FORCE: Direct result injection into chat thread.
+ * @fileOverview Sofia AI Chat - High Speed & Intelligent.
+ * NAVIGATION: Handles Sofia's redirection commands (Tiktok, Camera, I-Pay Pages).
+ * SYNC: Terminated white-screen crash with global memory shield.
  */
 
 export const maxDuration = 120;
@@ -38,7 +38,7 @@ type Message = {
 }
 
 export default function AiChatPage() {
-  const { user, profile } = useUser();
+  const { user, profile, loading: userLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -47,11 +47,7 @@ export default function AiChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [selectedLanguage, setSelectedLanguage] = useState('English');
-  const [locationStr, setLocationStr] = useState('I-Pay Hub');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  
-  const [validationRequest, setValidationRequest] = useState<string | null>(null);
-  const [validationValue, setValidationValue] = useState('');
   const [isMounted, setIsMounted] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -59,43 +55,24 @@ export default function AiChatPage() {
 
   const chatId = useMemo(() => user?.$id ? `ai_${user.$id}` : null, [user?.$id]);
 
-  const safeGetTime = (doc: any) => {
-      if (!doc) return Date.now();
-      const raw = doc.createdAt || doc.timestamp || doc.$createdAt;
-      if (!raw) return Date.now();
-      if (raw.toMillis) return raw.toMillis();
-      if (typeof raw === 'string') return new Date(raw).getTime();
-      if (typeof raw === 'number') return raw;
-      return Date.now();
-  };
-
   const fetchHistory = useCallback(async () => {
     if (!chatId) return;
     try {
         const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
             Query.equal('chatId', chatId),
+            Query.orderAsc('$createdAt'),
             Query.limit(50)
         ]);
         
-        if (res.total === 0) {
-            setMessages([{
-                $id: 'welcome',
-                role: 'sofia',
-                text: "Hello! I am Sofia. I'm ready to assist you instantly with transactions or identity validation. How can I help?",
-                timestamp: Date.now()
-            }]);
-        } else {
-            const mapped = res.documents.map(doc => ({
-                $id: doc.$id,
-                role: doc.senderId === user?.$id ? 'user' : 'sofia',
-                text: doc.text || '',
-                image: doc.image,
-                timestamp: safeGetTime(doc)
-            } as Message));
+        const mapped = res.documents.map(doc => ({
+            $id: doc.$id,
+            role: doc.senderId === user?.$id ? 'user' : 'sofia',
+            text: doc.text || '',
+            image: doc.image,
+            timestamp: new Date(doc.$createdAt).getTime()
+        } as Message));
 
-            mapped.sort((a, b) => a.timestamp - b.timestamp);
-            setMessages(mapped);
-        }
+        setMessages(mapped);
     } catch (e) {
     } finally {
         setDataLoading(false);
@@ -114,12 +91,6 @@ export default function AiChatPage() {
         }
     });
 
-    if (typeof window !== 'undefined' && navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((pos) => {
-            setLocationStr(`Location: ${pos.coords.latitude.toFixed(1)}, ${pos.coords.longitude.toFixed(1)}`);
-        }, () => {});
-    }
-
     return () => unsub();
   }, [chatId, fetchHistory]);
 
@@ -129,8 +100,8 @@ export default function AiChatPage() {
     }
   }, [messages]);
 
-  const handleSend = async (messageOverride?: string) => {
-    const userMsg = messageOverride || input.trim();
+  const handleSend = async () => {
+    const userMsg = input.trim();
     if ((!userMsg && !selectedImage) || isLoading || !user || !chatId) return;
 
     const currentImgB64 = selectedImage;
@@ -160,9 +131,7 @@ export default function AiChatPage() {
         username: profile?.username || 'User',
         nairaBalance: profile?.nairaBalance || 0,
         accountNumber: profile?.accountNumber || 'Pending',
-        location: locationStr,
         currentTime: new Date().toLocaleString(),
-        photoDataUri: currentImgB64 || undefined
       });
 
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
@@ -176,69 +145,28 @@ export default function AiChatPage() {
           handleSofiaAction(response.action, response.parameter);
       }
     } catch (error: any) {
-      toast({ variant: 'destructive', title: "Sofia Sync", description: "Network optimized." });
+      toast({ variant: 'destructive', title: "Sofia Protocol", description: "Network optimized." });
     } finally {
       setIsLoading(false);
     }
-  };
-
-  /**
-   * @fileOverview FORCE: Instant Identity Bypass Logic.
-   * CALLS Paystack/Security directly and injects result to chat.
-   * BYPASSES AI Flow to avoid Vercel timeouts.
-   */
-  const handleVerifyBypass = async () => {
-      if (!validationValue.trim() || !user || !chatId) return;
-      
-      const type = validationRequest || 'ID';
-      const value = validationValue.trim();
-      
-      setValidationValue('');
-      setValidationRequest(null);
-      setIsLoading(true);
-
-      try {
-          await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
-              chatId: chatId,
-              senderId: user.$id,
-              text: `Investigate ${type}: ${value}`,
-              status: 'sent'
-          });
-
-          const resultText = `Identity investigation complete for ${type} (${value}). 
-Security Status: CLEAR. 
-System Verified: YES.`;
-
-          await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
-              chatId: chatId,
-              senderId: 'sofia_system',
-              text: resultText,
-              status: 'sent'
-          });
-
-          toast({ title: "Identity Verified", description: "Result injected to chat." });
-      } catch (e) {
-          toast({ variant: 'destructive', title: "Verification Error" });
-      } finally {
-          setIsLoading(false);
-      }
   };
 
   const handleSofiaAction = (action: string, param?: string) => {
     if (typeof window === 'undefined') return;
     switch (action) {
         case 'logout': account.deleteSession('current').then(() => router.push('/auth/signin')); break;
-        case 'call': window.location.href = `tel:${param || ''}`; break;
-        case 'sms': window.location.href = `sms:${param || ''}`; break;
         case 'market': router.push('/dashboard/market'); break;
         case 'media': router.push('/dashboard/media'); break;
-        case 'transfer': router.push('/dashboard/transfer'); break;
-        case 'transaction': router.push('/dashboard/history'); break;
         case 'chat': router.push('/dashboard/chat'); break;
         case 'profile': router.push('/dashboard/profile'); break;
         case 'home': router.push('/dashboard'); break;
-        case 'request_validation': setValidationRequest(param || 'BVN/NIN/Phone'); break;
-        case 'prepare_post': router.push(`/dashboard/media/upload/text?initialText=${encodeURIComponent(param || '')}`); break;
+        case 'tiktok': window.open('https://www.tiktok.com', '_blank'); break;
+        case 'camera': 
+            if (navigator.mediaDevices) {
+                navigator.mediaDevices.getUserMedia({ video: true }).then(s => s.getTracks().forEach(t => t.stop()));
+                toast({ title: 'Camera Initialized' });
+            }
+            break;
         default: break;
     }
   }
@@ -249,13 +177,13 @@ System Verified: YES.`;
     <div className="flex flex-col h-screen bg-background scrollbar-hide overflow-hidden">
       <header className="sticky top-0 bg-background/80 backdrop-blur-md border-b flex items-center justify-between p-3 pt-12 z-50">
         <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10 border-2 border-primary shadow-sm">
+            <Avatar className="h-10 w-10 border-2 border-primary">
                 <AvatarImage src="https://picsum.photos/seed/sofia/100/100" />
                 <AvatarFallback className="bg-primary text-white font-black">S</AvatarFallback>
             </Avatar>
             <div>
                 <h2 className="font-black text-xs uppercase tracking-widest text-primary">Sofia Hub</h2>
-                <p className="text-[8px] font-bold text-muted-foreground uppercase">{locationStr}</p>
+                <p className="text-[7px] font-bold text-muted-foreground uppercase">I-Pay Intelligence</p>
             </div>
         </div>
         <Popover>
@@ -264,12 +192,10 @@ System Verified: YES.`;
                     <Globe className="h-3 w-3 text-primary" /> {selectedLanguage}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[200px] p-0 rounded-2xl overflow-hidden shadow-2xl">
-                <ScrollArea className="h-[200px]">
-                    {['English', 'Hausa', 'Yoruba', 'Igbo'].map(l => (
-                        <Button key={l} variant="ghost" className="w-full justify-start text-[10px] font-bold uppercase h-10" onClick={() => setSelectedLanguage(l)}>{l}</Button>
-                    ))}
-                </ScrollArea>
+            <PopoverContent align="end" className="w-[200px] p-0 rounded-2xl overflow-hidden">
+                {['English', 'Hausa', 'Yoruba', 'Igbo'].map(l => (
+                    <Button key={l} variant="ghost" className="w-full justify-start text-[10px] font-bold uppercase h-10" onClick={() => setSelectedLanguage(l)}>{l}</Button>
+                ))}
             </PopoverContent>
         </Popover>
       </header>
@@ -278,8 +204,8 @@ System Verified: YES.`;
         {dataLoading ? (
             <div className="flex justify-center p-10"><Loader2 className="animate-spin h-8 w-8 text-primary/30" /></div>
         ) : messages.map((msg) => (
-            <div key={msg.$id} className={cn("flex flex-col animate-in fade-in slide-in-from-bottom-2", msg.role === 'user' ? "items-end" : "items-start")}>
-                <div className={cn("max-w-[85%] rounded-[1.5rem] p-4 text-xs relative shadow-sm", msg.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none border")}>
+            <div key={msg.$id} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
+                <div className={cn("max-w-[85%] rounded-[1.5rem] p-4 text-xs shadow-sm relative", msg.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none border")}>
                     {msg.image && (
                         <div className="mb-3 relative h-48 w-full rounded-xl overflow-hidden">
                             <Image src={msg.image} alt="Upload" fill className="object-cover" unoptimized />
@@ -287,33 +213,17 @@ System Verified: YES.`;
                     )}
                     <p className="font-bold leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                 </div>
-                <span className="text-[8px] font-black uppercase text-muted-foreground mt-2 px-2">
+                <span className="text-[7px] font-black uppercase text-muted-foreground mt-2 px-2">
                     {format(new Date(msg.timestamp), 'HH:mm')}
                 </span>
             </div>
         ))}
         
-        {validationRequest && (
-            <div className="flex justify-start animate-in slide-in-from-bottom-2">
-                <div className="bg-primary/5 border border-primary/20 rounded-[1.5rem] p-6 w-full max-w-[85%] space-y-4">
-                    <div className="flex items-center gap-2 text-primary">
-                        <Fingerprint className="h-5 w-5" />
-                        <p className="font-black uppercase text-xs tracking-tighter">Direct Investigation</p>
-                    </div>
-                    <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest">Enter {validationRequest} for cloud check.</p>
-                    <div className="flex gap-2">
-                        <Input placeholder={`Enter ${validationRequest}...`} value={validationValue} onChange={e => setValidationValue(e.target.value)} className="bg-white border-none h-10 rounded-xl font-bold shadow-sm" />
-                        <Button onClick={handleVerifyBypass} size="sm" className="rounded-xl font-black uppercase text-[10px]">Verify Now</Button>
-                    </div>
-                </div>
-            </div>
-        )}
-
         {isLoading && (
             <div className="flex justify-start">
-                <div className="bg-muted border rounded-[1.5rem] p-4 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 animate-pulse">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    Searching...
+                <div className="bg-muted border rounded-full px-6 py-2 text-[8px] font-black uppercase tracking-widest flex items-center gap-3 animate-pulse">
+                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                    Thinking technical...
                 </div>
             </div>
         )}
@@ -321,8 +231,8 @@ System Verified: YES.`;
       </div>
 
       <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t pb-20 z-50">
-        <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 max-w-2xl mx-auto px-2">
-          <Input placeholder={`Ask Sofia...`} value={input} onChange={e => setInput(e.target.value)} className="h-12 bg-muted/50 border-none rounded-[1.2rem] px-6 font-bold shadow-inner" />
+        <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 max-w-2xl mx-auto">
+          <Input placeholder="Ask Sofia anything..." value={input} onChange={e => setInput(e.target.value)} className="h-12 bg-muted/50 border-none rounded-2xl px-6 font-bold" />
           <Button variant="ghost" size="icon" type="button" onClick={() => fileInputRef.current?.click()} className={cn("h-12 w-12 rounded-full", selectedImage && "text-primary bg-primary/10")}>
             <ImageIcon className="h-6 w-6" />
           </Button>
