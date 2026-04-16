@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 /**
  * @fileOverview Global Memory Shield.
  * SYNC: Pre-loads all critical data in background.
- * SEQUENTIAL: Enforces data-handshake before rendering complex pages.
+ * SEQUENTIAL: Enforces total hydration before rendering.
  */
 
 type UserContextType = {
@@ -99,14 +99,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     setAllUsers(snap.docs.map(d => ({ $id: d.id, ...d.data() })));
                 }));
 
-                unsubs.push(onSnapshot(query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', uid)), (snap) => {
+                unsubs.push(onSnapshot(collection(db, COLLECTION_ID_CHATS), (snap) => {
                     const chats = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
-                    // Client-side sort to avoid index errors
+                    // Client-side sort to avoid index and racing crashes
                     setRecentChats(chats.sort((a: any, b: any) => (b.lastMessageAt?.seconds || 0) - (a.lastMessageAt?.seconds || 0)));
                 }));
 
-                unsubs.push(onSnapshot(query(collection(db, COLLECTION_ID_NOTIFICATIONS), where('userId', '==', uid), where('isRead', '==', false)), (snap) => {
-                    setUnreadNotifications(snap.size);
+                unsubs.push(onSnapshot(collection(db, COLLECTION_ID_NOTIFICATIONS), (snap) => {
+                    const myAlerts = snap.docs.filter(d => d.data().userId === uid && !d.data().isRead);
+                    setUnreadNotifications(myAlerts.length);
                 }));
 
                 unsubs.push(onSnapshot(collection(db, COLLECTION_ID_MESSAGES), (snap) => {

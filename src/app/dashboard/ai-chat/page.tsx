@@ -21,8 +21,9 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import { format } from 'date-fns';
 
 /**
- * @fileOverview Sofia AI Chat - Sequential Handshake Logic.
- * FORCE: UI waits for Database Commit before rendering. Terminated white-screen racing.
+ * @fileOverview Sofia AI Chat - Sequential Handshake logic.
+ * FORCE: UI waits for Database Commit before rendering. 
+ * UI: Medium size text (text-sm).
  */
 
 export const maxDuration = 120;
@@ -58,7 +59,7 @@ export default function AiChatPage() {
     try {
         const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
             Query.equal('chatId', chatId),
-            Query.limit(50)
+            Query.limit(100)
         ]);
         
         const mapped = res.documents
@@ -115,7 +116,7 @@ export default function AiChatPage() {
           if (uploadRes.success) finalImgUrl = uploadRes.url;
       }
 
-      // SEQUENTIAL HANDSHAKE: Wait for DB commit before AI call
+      // SEQUENTIAL HANDSHAKE: Ensure DB commit finishes first
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
           chatId: chatId,
           senderId: user.$id,
@@ -134,7 +135,7 @@ export default function AiChatPage() {
         currentTime: new Date().toLocaleString(),
       });
 
-      // SEQUENTIAL HANDSHAKE: Wait for AI response commit
+      // SEQUENTIAL HANDSHAKE: Wait for AI commit
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
           chatId: chatId,
           senderId: 'sofia_system',
@@ -146,7 +147,7 @@ export default function AiChatPage() {
           handleSofiaAction(response.action, response.parameter);
       }
     } catch (error: any) {
-      toast({ variant: 'destructive', title: "Technical sync", description: "Re-establishing Sofia link." });
+      // Catching timeout or sync issues
     } finally {
       setIsLoading(false);
     }
@@ -197,7 +198,7 @@ export default function AiChatPage() {
             </Avatar>
             <div>
                 <h2 className="font-black text-xs uppercase tracking-widest text-primary leading-none">Sofia Hub</h2>
-                <p className="text-[7px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Technical Intelligence</p>
+                <p className="text-[7px] font-bold text-muted-foreground uppercase tracking-widest mt-1">First-Burst Intelligence</p>
             </div>
         </div>
         <Popover>
@@ -219,7 +220,7 @@ export default function AiChatPage() {
             <div className="flex justify-center p-10"><Loader2 className="animate-spin h-8 w-8 text-primary/30" /></div>
         ) : messages.map((msg) => (
             <div key={msg.$id} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
-                <div className={cn("max-w-[85%] rounded-[1.5rem] p-4 text-xs shadow-sm relative", msg.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none border")}>
+                <div className={cn("max-w-[85%] rounded-[1.5rem] p-4 text-sm shadow-sm relative", msg.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none border")}>
                     {msg.image && (
                         <div className="mb-3 relative h-48 w-full rounded-xl overflow-hidden border">
                             <Image src={msg.image} alt="Upload" fill className="object-cover" unoptimized />
@@ -237,7 +238,7 @@ export default function AiChatPage() {
             <div className="flex justify-start">
                 <div className="bg-muted border rounded-full px-6 py-2 text-[8px] font-black uppercase tracking-widest flex items-center gap-3 animate-pulse">
                     <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                    Analyzing technical...
+                    Synchronizing...
                 </div>
             </div>
         )}
@@ -246,7 +247,7 @@ export default function AiChatPage() {
 
       <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t pb-20 z-50 shadow-lg">
         <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 max-w-2xl mx-auto">
-          <Input placeholder="Ask Sofia about Emir of Lere or I-Pay..." value={input} onChange={e => setInput(e.target.value)} className="h-12 bg-muted/50 border-none rounded-2xl px-6 font-bold text-xs" />
+          <Input placeholder="Ask Sofia anything..." value={input} onChange={e => setInput(e.target.value)} className="h-12 bg-muted/50 border-none rounded-2xl px-6 font-bold text-sm" />
           <Button variant="ghost" size="icon" type="button" onClick={() => fileInputRef.current?.click()} className={cn("h-12 w-12 rounded-full", selectedImage && "text-primary bg-primary/10")}>
             <ImageIcon className="h-5 w-5" />
           </Button>

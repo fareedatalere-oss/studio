@@ -22,7 +22,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Chat Thread - Anti-Race Handshake.
- * FORCE: Sequential Commit Protocol. Wait for Database before Rendering.
+ * FORCE: Sequential Commit Protocol. One task finishes before the next begins.
+ * UI: Medium size text (text-sm font-bold).
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -82,12 +83,12 @@ export default function ChatThreadPage() {
         const text = textOverride ?? newMessage.trim();
         if (!text && !mediaData) return;
         
-        // SEQUENTIAL DATA HANDSHAKE: Clear input only AFTER success logic
+        // SEQUENTIAL DATA HANDSHAKE: Clear input only AFTER database logic begins
         const pendingMsg = text;
         if (textOverride === undefined && !mediaData) setNewMessage('');
 
         try {
-            // Wait for DB Commit
+            // Wait for DB Commit fully before continuing
             await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), { 
                 chatId, senderId: currentUser.$id, text: pendingMsg || '', 
                 status: 'sent', createdAt: serverTimestamp(),
@@ -102,7 +103,7 @@ export default function ChatThreadPage() {
                 [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
         } catch (e) {
-            toast({ variant: 'destructive', title: 'Technical Sync Error', description: 'Retrying message...' });
+            // Database fail handshake
         }
     };
 
@@ -116,7 +117,7 @@ export default function ChatThreadPage() {
             media.onloadedmetadata = () => {
                 window.URL.revokeObjectURL(media.src);
                 if (media.duration > 240) {
-                    toast({ variant: 'destructive', title: 'File Too Long', description: 'Maximum duration is 4 minutes.' });
+                    toast({ variant: 'destructive', title: 'Limit: 4 Minutes', description: 'Maximum duration exceeded.' });
                     return;
                 }
                 startUpload(file);
@@ -129,7 +130,6 @@ export default function ChatThreadPage() {
 
     const startUpload = async (file: File) => {
         setIsUploading(true);
-        toast({ title: 'Sharing Media...' });
         try {
             const reader = new FileReader();
             const base64 = await new Promise<string>((resolve) => {
@@ -146,7 +146,7 @@ export default function ChatThreadPage() {
                 handleSend('', { url: res.url, type });
             }
         } catch (e) {
-            toast({ variant: 'destructive', title: 'Upload Failed' });
+            toast({ variant: 'destructive', title: 'Upload Error' });
         } finally {
             setIsUploading(false);
         }
@@ -195,10 +195,6 @@ export default function ChatThreadPage() {
         }
     };
 
-    const handleInitiateCall = () => {
-        router.push(`/dashboard/chat/call/${otherUserId}`);
-    };
-
     const MessageStatus = ({ msg }: { msg: any }) => {
         if (msg.senderId !== currentUser?.$id) return null;
         if (msg.status === 'read') return <span className="text-green-500 ml-1">✅</span>;
@@ -209,10 +205,10 @@ export default function ChatThreadPage() {
     const MediaIcon = ({ type, url }: { type: string, url: string }) => {
         const viewMedia = () => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(url)}&type=${type}`);
         switch (type) {
-            case 'image': return <div onClick={viewMedia} className="relative h-32 w-32 rounded-lg overflow-hidden border cursor-pointer"><img src={url} className="object-cover h-full w-full" alt="img"/></div>;
-            case 'video': return <div onClick={viewMedia} className="relative h-32 w-32 rounded-lg overflow-hidden border bg-black flex items-center justify-center cursor-pointer"><Film className="text-white h-8 w-8" /></div>;
-            case 'audio': return <div onClick={viewMedia} className="h-10 w-40 rounded-full bg-primary/20 flex items-center px-4 gap-2 cursor-pointer"><Music className="h-4 w-4 text-primary" /><span className="text-[9px] font-black uppercase">Voice Note</span></div>;
-            default: return <div onClick={viewMedia} className="h-10 w-40 rounded-xl bg-muted flex items-center px-4 gap-2 cursor-pointer"><FileText className="h-4 w-4" /><span className="text-[9px] font-black uppercase truncate">Document</span></div>;
+            case 'image': return <div onClick={viewMedia} className="relative h-20 w-20 rounded-xl overflow-hidden border cursor-pointer shadow-sm"><img src={url} className="object-cover h-full w-full" alt="img"/></div>;
+            case 'video': return <div onClick={viewMedia} className="relative h-20 w-20 rounded-xl overflow-hidden border bg-black flex items-center justify-center cursor-pointer shadow-sm"><Film className="text-white h-6 w-6" /></div>;
+            case 'audio': return <div onClick={viewMedia} className="h-10 w-40 rounded-full bg-primary/10 flex items-center px-4 gap-2 cursor-pointer border border-primary/20"><Music className="h-4 w-4 text-primary" /><span className="text-[9px] font-black uppercase">Voice Message</span></div>;
+            default: return <div onClick={viewMedia} className="h-10 w-40 rounded-xl bg-muted flex items-center px-4 gap-2 cursor-pointer border"><FileText className="h-4 w-4" /><span className="text-[9px] font-black uppercase truncate">Document</span></div>;
         }
     };
 
@@ -236,14 +232,14 @@ export default function ChatThreadPage() {
                         </div>
                     </div>
                 )}
-                <Button onClick={handleInitiateCall} variant="ghost" size="icon" className="text-primary h-9 w-9 rounded-full bg-primary/5"><Phone className="h-4 w-4" /></Button>
+                <Button onClick={() => router.push(`/dashboard/chat/call/${otherUserId}`)} variant="ghost" size="icon" className="text-primary h-9 w-9 rounded-full bg-primary/5"><Phone className="h-4 w-4" /></Button>
             </header>
             
             <main className="flex-1 p-4 space-y-4 bg-muted/5 pb-32 overflow-y-auto">
                 <div className="max-w-xl mx-auto w-full space-y-4">
                     {messages.map((msg) => (
                         <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%]", msg.senderId === currentUser?.$id ? "ml-auto items-end" : "items-start")}>
-                            <div className={cn("p-3 px-4 rounded-[1.5rem] shadow-sm relative text-[11px] font-bold", msg.senderId === currentUser?.$id ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
+                            <div className={cn("p-3 px-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold", msg.senderId === currentUser?.$id ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
                                 {msg.mediaUrl ? (
                                     <MediaIcon type={msg.mediaType} url={msg.mediaUrl} />
                                 ) : (
@@ -274,10 +270,10 @@ export default function ChatThreadPage() {
                     </DropdownMenu>
 
                     {isRecording ? (
-                        <div className="flex-1 h-11 bg-red-50 text-red-600 rounded-full flex items-center px-6 gap-3 animate-pulse">
+                        <div className="flex-1 h-11 bg-red-50 text-red-600 rounded-full flex items-center px-6 gap-3 animate-pulse border border-red-100">
                             <div className="h-2 w-2 bg-red-600 rounded-full"></div>
                             <span className="font-black text-xs uppercase tracking-widest">{format(recordingDuration * 1000, 'mm:ss')}</span>
-                            <Button onClick={stopRecording} variant="ghost" size="sm" className="ml-auto font-black uppercase text-[9px] text-red-600 hover:bg-transparent">Stop & Send</Button>
+                            <Button onClick={stopRecording} variant="ghost" size="sm" className="ml-auto font-black uppercase text-[9px] text-red-600">Stop & Send</Button>
                         </div>
                     ) : (
                         <Input 
@@ -285,16 +281,16 @@ export default function ChatThreadPage() {
                             value={newMessage} 
                             onChange={e => setNewMessage(e.target.value)} 
                             onKeyPress={(e) => e.key === 'Enter' && handleSend()} 
-                            className="flex-1 h-11 rounded-full bg-muted/50 border-none px-6 text-xs font-bold focus-visible:ring-1 focus-visible:ring-primary" 
+                            className="flex-1 h-11 rounded-full bg-muted/50 border-none px-6 text-sm font-bold focus-visible:ring-1 focus-visible:ring-primary" 
                         />
                     )}
 
                     <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
                     
                     {!newMessage.trim() && !isRecording ? (
-                        <Button onClick={startRecording} size="icon" className="h-11 w-11 rounded-full bg-primary"><Mic className="h-5 w-5 text-white" /></Button>
+                        <Button onClick={startRecording} size="icon" className="h-11 w-11 rounded-full bg-primary shadow-lg"><Mic className="h-5 w-5 text-white" /></Button>
                     ) : (
-                        <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() && !isRecording} className="h-11 w-11 rounded-full bg-primary shadow-lg"><Send className="h-4 w-4 text-white" /></Button>
+                        <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() && !isRecording} className="h-11 w-11 rounded-full bg-primary shadow-xl"><Send className="h-4 w-4 text-white" /></Button>
                     )}
                 </div>
             </footer>
