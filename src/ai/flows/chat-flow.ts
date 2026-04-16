@@ -33,8 +33,17 @@ const SofiaOutputSchema = z.object({
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 
 export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
-  const { output } = await chatSofiaFlow(input);
-  return output!;
+  try {
+    const { output } = await chatSofiaFlow(input);
+    if (!output) throw new Error("Brain produced empty response.");
+    return output;
+  } catch (e: any) {
+    console.error("Sofia Brain Failure:", e.message);
+    return {
+        text: `I-Pay Brain encountered a technical sync issue: ${e.message}. Please check your connection or API configuration.`,
+        action: 'none'
+    };
+  }
 }
 
 const chatSofiaFlow = ai.defineFlow(
@@ -50,6 +59,7 @@ const chatSofiaFlow = ai.defineFlow(
 - Detect the user's language automatically.
 - YOU MUST respond in the EXACT same language as the user.
 - SUPPORTED LANGUAGES: Hausa, English, Yoruba, Kanuri, Bura, Igbo, Arabic.
+- If the user speaks Hausa, you respond in Hausa. If Arabic, you respond in Arabic.
 
 **STRICT ZERO-WAIT PROTOCOL**:
 - Answer immediately.
@@ -72,14 +82,26 @@ lere is a local government under kaduna state, the emir of lere succeed the powe
 - If user asks to call, use 'call' action with phone number parameter.
 - If user asks to go somewhere (Market, Media, Profile), trigger the appropriate navigation action.
 
+**FORMATTING**:
+- YOU MUST ALWAYS OUTPUT A JSON OBJECT matching the schema.
+- Text should be informative and polite in the user's language.
+
 USER: @${input.username}
 MESSAGE: ${input.message}`;
 
-    const { output } = await ai.generate({
+    const response = await ai.generate({
       prompt: systemPrompt,
       output: { schema: SofiaOutputSchema }
     });
     
-    return output!;
+    // Safety Force: Fallback if JSON parsing failed but text is present
+    if (!response.output && response.text) {
+        return {
+            text: response.text,
+            action: 'none'
+        };
+    }
+
+    return response.output!;
   }
 );

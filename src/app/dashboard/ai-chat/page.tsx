@@ -100,12 +100,15 @@ export default function AiChatPage() {
                 weather: '32°C, Sunny'
             });
 
+            // NULL SAFETY GASKET: Verify response exists before reading properties
+            if (!response) throw new Error("Connection to Brain was interrupted.");
+
             // 3. Commit Sofia Response to Cloud
             const aiMsgId = ID.unique();
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, aiMsgId), {
                 chatId: chatId,
                 senderId: 'sofia_ai',
-                text: response.text,
+                text: response.text || "I am currently syncing my technical records. Please try again.",
                 sender: 'ai',
                 action: response.action || 'none',
                 parameter: response.parameter || '',
