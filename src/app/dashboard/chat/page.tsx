@@ -14,9 +14,9 @@ import { isYesterday, isToday, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 /**
- * @fileOverview Chat Center - Shadow List Protocol.
+ * @fileOverview Chat Center - Unique Participant Protocol.
  * FORCE: Only show unique users in Recent list. Duplicate entries are terminated.
- * PRESENCE: Hardened heartbeat check from Global Memory Shield.
+ * BADGE: Shows real-time unread counts per account.
  */
 
 const safeDate = (ts: any) => {

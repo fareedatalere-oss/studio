@@ -1,4 +1,3 @@
-
 'use client';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
@@ -11,7 +10,7 @@ import { cn } from "@/lib/utils";
 /**
  * @fileOverview Global Memory Shield & Presence Engine.
  * PUSH FORCE: Native device notifications for calls and alerts.
- * HEARTBEAT: Sends signal every 60s to ensure accurate Online status.
+ * BADGE SYNC: Global unread state for chats and notifications.
  */
 
 type UserContextType = {
@@ -110,11 +109,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setIsMounted(true);
         fetchConfig();
         
-        // PWA Push Handshake
-        if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/firebase-messaging-sw.js').catch(() => {});
-        }
-
         let unsubs: any[] = [];
         let heartbeatInterval: NodeJS.Timeout | null = null;
 
@@ -123,7 +117,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 const uid = firebaseUser.uid;
                 setUser({ $id: uid, uid, email: firebaseUser.email });
                 
-                // Request Permission Gate
+                // Native Permission Handshake
                 if ('Notification' in window && Notification.permission === 'default') {
                     Notification.requestPermission();
                 }
@@ -142,7 +136,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     setRecentChats(chats.sort((a: any, b: any) => (b.lastMessageAt?.seconds || 0) - (a.lastMessageAt?.seconds || 0)));
                 }));
 
-                // Push Alert Handshake: Notifications
                 unsubs.push(onSnapshot(collection(db, COLLECTION_ID_NOTIFICATIONS), (snap) => {
                     const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     const myAlerts = docs.filter((d: any) => d.userId === uid && !d.isRead);
@@ -156,36 +149,24 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     });
                 }));
 
-                // Push Alert Handshake: Meetings / Calls
-                unsubs.push(onSnapshot(collection(db, COLLECTION_ID_MEETINGS), (snap) => {
-                    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    const incomingCall = docs.find((m: any) => 
-                        m.status === 'pending' && 
-                        m.invitees?.includes(uid) && 
-                        !lastNotifiedRef.current.has(m.id)
-                    );
-                    if (incomingCall) {
-                        lastNotifiedRef.current.add(incomingCall.id);
-                        showNativeNotification(
-                            "Incoming I-Pay Call", 
-                            `You have a new invitation: ${incomingCall.name}`,
-                            `/dashboard/meeting/join/${incomingCall.id}`
-                        );
-                    }
-                }));
-
                 unsubs.push(onSnapshot(collection(db, COLLECTION_ID_MESSAGES), (snap) => {
                     const messagesByChat: Record<string, any[]> = {};
                     snap.docs.forEach(d => {
                         const m = { $id: d.id, ...d.data() };
                         if (!messagesByChat[m.chatId]) messagesByChat[m.chatId] = [];
                         messagesByChat[m.chatId].push(m);
+                        
+                        // Push Force for incoming messages
+                        if (m.senderId !== uid && !lastNotifiedRef.current.has(m.$id)) {
+                            lastNotifiedRef.current.add(m.$id);
+                            showNativeNotification("New Message", m.text || "Shared an item", `/dashboard/chat/${m.senderId}`);
+                        }
                     });
                     setGlobalMessages(messagesByChat);
                 }));
 
                 updatePresence(true);
-                heartbeatInterval = setInterval(() => updatePresence(true), 60000); // 1 min heartbeat
+                heartbeatInterval = setInterval(() => updatePresence(true), 60000); 
                 
                 const handleVisibilityChange = () => {
                     if (document.visibilityState === 'visible') updatePresence(true);

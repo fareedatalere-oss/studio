@@ -29,7 +29,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 /**
  * @fileOverview Private Chat Thread.
  * FIXED: RangeError: Invalid time value resolved via safeFormatTime handshake.
- * PROTOCOL: Sender-only ticks, bilateral blocking, medium UI.
+ * PROTOCOL: Sender-only ticks, bilateral blocking, medium UI (text-sm font-bold).
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -139,12 +139,12 @@ export default function ChatThreadPage() {
         try {
             if (msg.senderId === currentUser.$id) {
                 await deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id));
-                toast({ title: 'Message deleted for both.' });
+                toast({ title: 'Deleted for both' });
             } else {
                 await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id), {
                     deleteFor: arrayUnion(currentUser.$id)
                 });
-                toast({ title: 'Message deleted for self.' });
+                toast({ title: 'Deleted for self' });
             }
         } catch (e) {
             toast({ variant: 'destructive', title: 'Delete Failed' });
@@ -161,7 +161,7 @@ export default function ChatThreadPage() {
                 });
             });
             await batch.commit();
-            toast({ title: 'Chat cleared for you.' });
+            toast({ title: 'Chat cleared' });
         } catch (e) {
             toast({ variant: 'destructive', title: 'Clear Failed' });
         }
@@ -176,7 +176,6 @@ export default function ChatThreadPage() {
             });
             toast({ 
                 title: newState ? 'User Blocked' : 'User Unblocked', 
-                description: newState ? 'They can no longer message you.' : 'You can now exchange messages.' 
             });
             recheckUser();
         } catch (e) {
