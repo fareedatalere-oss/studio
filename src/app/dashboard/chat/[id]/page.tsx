@@ -57,7 +57,6 @@ export default function ChatThreadPage() {
     const otherUser = useMemo(() => allUsers.find(u => u.$id === otherUserId), [allUsers, otherUserId]);
     const chatId = useMemo(() => currentUser?.$id && otherUserId ? getChatId(currentUser.$id, otherUserId) : null, [currentUser?.$id, otherUserId]);
 
-    // BLOCK STATUS LOGIC
     const isBlockedByMe = useMemo(() => currentProfile?.blockedUsers?.includes(otherUserId), [currentProfile, otherUserId]);
     const isBlockedByThem = useMemo(() => otherUser?.blockedUsers?.includes(currentUser?.$id), [otherUser, currentUser]);
     const anyBlockActive = isBlockedByMe || isBlockedByThem;
@@ -65,7 +64,7 @@ export default function ChatThreadPage() {
     const messages = useMemo(() => {
         if (!chatId || !globalMessages[chatId]) return [];
         return [...globalMessages[chatId]]
-            .filter(m => !m.deleteFor?.includes(currentUser?.$id)) // Filter out deleted for me
+            .filter(m => !m.deleteFor?.includes(currentUser?.$id))
             .sort((a: any, b: any) => {
                 const timeA = new Date(a.$createdAt || a.timestamp || 0).getTime();
                 const timeB = new Date(b.$createdAt || b.timestamp || 0).getTime();
@@ -133,11 +132,9 @@ export default function ChatThreadPage() {
         if (!currentUser) return;
         try {
             if (msg.senderId === currentUser.$id) {
-                // DELETE FOR EVERYONE (Wipe from DB)
                 await deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id));
                 toast({ title: 'Message deleted for both.' });
             } else {
-                // DELETE FOR ME (Add UID to hidden array)
                 await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id), {
                     deleteFor: arrayUnion(currentUser.$id)
                 });
@@ -287,7 +284,7 @@ export default function ChatThreadPage() {
                                 <AvatarImage src={otherUser.avatar}/>
                                 <AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
                             </Avatar>
-                            {online && <div className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>}
+                            {online && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>}
                         </div>
                         <div>
                             <h2 className="font-black text-xs">@{otherUser.username}</h2>
@@ -327,6 +324,7 @@ export default function ChatThreadPage() {
                                         {msg.mediaUrl ? <MediaIcon type={msg.mediaType} url={msg.mediaUrl} /> : <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>}
                                         <div className="flex items-center justify-end gap-1 mt-1.5 opacity-60">
                                             <span className="text-[5px] font-black uppercase">{format(new Date(msg.$createdAt || msg.timestamp), 'HH:mm')}</span>
+                                            {/* SENDER ONLY TICK PROTOCOL */}
                                             {msg.senderId === currentUser?.$id && <span className="text-[8px] ml-1">{msg.status === 'read' ? '✅' : '☑️'}</span>}
                                         </div>
                                     </div>
