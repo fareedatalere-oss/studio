@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next'
 
 /**
  * @fileOverview Dynamic PWA Manifest.
- * REMOVED: Sofia AI shortcut.
+ * AI REMOVAL: Cleaned Sofia AI shortcut.
  */
 
 export default function manifest(): MetadataRoute.Manifest {
