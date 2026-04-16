@@ -8,10 +8,10 @@ import { db } from '@/lib/firebase';
 import { 
     collection, query, where, onSnapshot, doc, 
     serverTimestamp, setDoc, updateDoc, 
-    increment, getDocs, writeBatch, deleteDoc, arrayUnion
+    increment, getDocs, writeBatch, arrayUnion
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, Forward, FileText, Image as ImageIcon, Film, Music, Mic, X, Download } from 'lucide-react';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } from '@/lib/data-service';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, FileText, Image as ImageIcon, Film, Music, Mic, X } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,6 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
-import Link from 'next/link';
 
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
@@ -40,6 +39,7 @@ export default function ChatThreadPage() {
     const [isUploading, setIsUploading] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const [recordingDuration, setRecordingDuration] = useState(0);
+    const [isMounted, setIsMounted] = useState(false);
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -51,7 +51,9 @@ export default function ChatThreadPage() {
     const chatId = useMemo(() => currentUser?.$id && otherUserId ? getChatId(currentUser.$id, otherUserId) : null, [currentUser?.$id, otherUserId]);
 
     useEffect(() => {
+        setIsMounted(true);
         if (!chatId || !currentUser) return;
+
         const q = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', chatId));
         const unsub = onSnapshot(q, (snapshot) => {
             const docs = snapshot.docs.map(d => ({ $id: d.id, ...d.data() }));
@@ -59,11 +61,13 @@ export default function ChatThreadPage() {
         });
 
         const markAsRead = async () => {
-            const unreadQ = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', chatId), where('senderId', '==', otherUserId), where('status', '!=', 'read'));
-            const snap = await getDocs(unreadQ);
-            if (!snap.empty) {
+            const qRead = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', chatId), where('senderId', '==', otherUserId));
+            const snap = await getDocs(qRead);
+            // FORCE: Client-side filter to bypass Index nonsense
+            const unread = snap.docs.filter(d => d.data().status !== 'read');
+            if (unread.length > 0) {
                 const batch = writeBatch(db);
-                snap.docs.forEach(d => batch.update(d.ref, { status: 'read' }));
+                unread.forEach(d => batch.update(d.ref, { status: 'read' }));
                 await batch.commit();
                 await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), { [`unreadCount.${currentUser.$id}`]: 0 }, { merge: true });
             }
@@ -101,19 +105,18 @@ export default function ChatThreadPage() {
         const file = e.target.files?.[0];
         if (!file || !currentUser) return;
 
-        // 4 Minute Limit Force
         if (file.type.startsWith('video') || file.type.startsWith('audio')) {
-            const video = document.createElement(file.type.startsWith('video') ? 'video' : 'audio');
-            video.preload = 'metadata';
-            video.onloadedmetadata = () => {
-                window.URL.revokeObjectURL(video.src);
-                if (video.duration > 240) {
+            const media = document.createElement(file.type.startsWith('video') ? 'video' : 'audio');
+            media.preload = 'metadata';
+            media.onloadedmetadata = () => {
+                window.URL.revokeObjectURL(media.src);
+                if (media.duration > 240) {
                     toast({ variant: 'destructive', title: 'File Too Long', description: 'Maximum duration is 4 minutes.' });
                     return;
                 }
                 startUpload(file);
             };
-            video.src = URL.createObjectURL(file);
+            media.src = URL.createObjectURL(file);
         } else {
             startUpload(file);
         }
@@ -135,7 +138,6 @@ export default function ChatThreadPage() {
                 if (file.type.startsWith('image')) type = 'image';
                 else if (file.type.startsWith('video')) type = 'video';
                 else if (file.type.startsWith('audio')) type = 'audio';
-
                 handleSend('', { url: res.url, type });
             }
         } catch (e) {
@@ -201,7 +203,6 @@ export default function ChatThreadPage() {
 
     const MediaIcon = ({ type, url }: { type: string, url: string }) => {
         const viewMedia = () => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(url)}&type=${type}`);
-        
         switch (type) {
             case 'image': return <div onClick={viewMedia} className="relative h-32 w-32 rounded-lg overflow-hidden border cursor-pointer"><img src={url} className="object-cover h-full w-full" alt="img"/></div>;
             case 'video': return <div onClick={viewMedia} className="relative h-32 w-32 rounded-lg overflow-hidden border bg-black flex items-center justify-center cursor-pointer"><Film className="text-white h-8 w-8" /></div>;
@@ -209,6 +210,8 @@ export default function ChatThreadPage() {
             default: return <div onClick={viewMedia} className="h-10 w-40 rounded-xl bg-muted flex items-center px-4 gap-2 cursor-pointer"><FileText className="h-4 w-4" /><span className="text-[9px] font-black uppercase truncate">Document</span></div>;
         }
     };
+
+    if (!isMounted) return null;
 
     return (
         <div className="flex flex-col min-h-screen bg-background font-body">
