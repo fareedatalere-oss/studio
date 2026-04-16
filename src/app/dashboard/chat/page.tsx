@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
  * FORCE: Hydration Guard (500ms Freeze) to stop Vercel crashes.
  * FIXED: Objects are not valid as React child error fixed with content type check.
  * FIXED: (c.lastMessage || "").toLowerCase() error handled with String() cast.
+ * FILTER: Only show users in Recent if a message has been sent.
  */
 
 const safeDate = (ts: any) => {
@@ -51,7 +52,6 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     if (!chat || !currentUid) return null;
     const unreadCount = chat.unreadCount?.[currentUid] || 0;
 
-    // MASTER FIX: Handle lastMessage as an object or string to prevent React child error
     const displayMessage = useMemo(() => {
         if (!chat.lastMessage) return '...';
         if (typeof chat.lastMessage === 'object') return chat.lastMessage.text || 'Media shared';
@@ -93,7 +93,6 @@ export default function ChatPage() {
     const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
-        // 500ms Freeze Guard to prevent Hydration Death
         const timer = setTimeout(() => setIsMounted(true), 500);
         return () => clearTimeout(timer);
     }, []);
@@ -105,6 +104,7 @@ export default function ChatPage() {
 
     const filteredRecent = useMemo(() =>
         recentChats.filter(c => {
+            if (!c.lastMessage) return false; // FORCE: If you didn't chat, never show the list
             const msg = typeof c.lastMessage === 'object' ? (c.lastMessage.text || '') : String(c.lastMessage || '');
             return msg.toLowerCase().includes(searchRecent.toLowerCase());
         }), 

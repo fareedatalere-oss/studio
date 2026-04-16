@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 
 /**
  * @fileOverview Meeting Entry Page.
- * PRODUCTION HARDENING: Robust Link Parsing for Vercel URLs and shorten IDs.
+ * PRODUCTION HARDENING: Robust Link Parsing for Vercel URLs and Role detection.
  */
 
 export default function EnterMeetingPage() {
@@ -89,7 +89,7 @@ export default function EnterMeetingPage() {
 
   return (
     <div className="container py-8 max-w-lg">
-      <Link href="/dashboard/meeting" className="flex items-center gap-2 mb-6 text-sm font-black uppercase text-muted-foreground hover:text-primary">
+      <Link href="/dashboard/meeting" className="flex items-center gap-2 mb-6 text-sm font-black uppercase text-muted-foreground hover:text-primary transition-all">
         <ArrowLeft className="h-4 w-4" /> Hub
       </Link>
       <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
