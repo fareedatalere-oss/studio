@@ -21,6 +21,7 @@ import {
   Lightbulb,
   Eye,
   EyeOff,
+  Bot,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
@@ -29,7 +30,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Master Dashboard.
- * REMOVED: Sofia AI action entry.
+ * Sofia AI placed beside Refund button as requested.
  */
 
 export default function DashboardPage() {
@@ -75,11 +76,11 @@ export default function DashboardPage() {
     { key: 'feat_electric', label: 'Electricity', icon: Lightbulb, href: '/dashboard/electric-bill' },
     { key: 'feat_multipurpose', label: 'Multi-pay', icon: CreditCard, href: '/dashboard/multi-purpose' },
     { key: 'feat_refund', label: 'Refund', icon: Undo2, href: '/dashboard/deposit' },
+    { key: 'feat_ai', label: 'Sofia AI', icon: Bot, href: '/dashboard/ai-chat', color: 'bg-primary text-white' },
   ];
 
   return (
     <div className="container py-6 space-y-6">
-      {/* WALLET BOARD: COMPACT BLUE DESIGN */}
       <Card className="rounded-[1.2rem] shadow-xl border-none bg-primary text-primary-foreground overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between pb-1 px-4 pt-4">
           <CardTitle className="text-[9px] font-black uppercase tracking-widest opacity-80">My Wallet</CardTitle>
@@ -161,7 +162,7 @@ export default function DashboardPage() {
                   className={cn(
                       "h-11 w-11 rounded-xl mx-auto flex items-center justify-center transition-all active:scale-90 shadow-sm border border-border/50 group-hover:border-emerald-500/20",
                       !isFeatOn(action.key) && "opacity-50 grayscale",
-                      "bg-emerald-50 text-emerald-700 border-emerald-100"
+                      action.color || "bg-emerald-50 text-emerald-700 border-emerald-100"
                   )}
               >
                   {isProcessing && action.label === 'Refresh' ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <action.icon className="h-5 w-5" />}
