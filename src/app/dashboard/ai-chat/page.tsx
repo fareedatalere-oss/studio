@@ -9,7 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Globe, Loader2, ImageIcon, Send, Fingerprint } from 'lucide-react';
+import { Globe, Loader2, ImageIcon, Send, ArrowLeft } from 'lucide-react';
 import { chatSofia } from '@/ai/flows/chat-flow';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/use-user';
@@ -17,13 +17,12 @@ import { useRouter } from 'next/navigation';
 import { account, databases, DATABASE_ID, COLLECTION_ID_MESSAGES, Query, ID, client } from '@/lib/data-service';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import { format } from 'date-fns';
 
 /**
  * @fileOverview Sofia AI Chat - High Speed & Intelligent.
- * NAVIGATION: Handles Sofia's redirection commands (Tiktok, Camera, I-Pay Pages).
+ * NAVIGATION: Handles Sofia's redirection commands for device apps and I-Pay pages.
  * SYNC: Terminated white-screen crash with global memory shield.
  */
 
@@ -145,7 +144,7 @@ export default function AiChatPage() {
           handleSofiaAction(response.action, response.parameter);
       }
     } catch (error: any) {
-      toast({ variant: 'destructive', title: "Sofia Protocol", description: "Network optimized." });
+      toast({ variant: 'destructive', title: "Sofia Hub", description: "Technical sync optimized." });
     } finally {
       setIsLoading(false);
     }
@@ -155,16 +154,26 @@ export default function AiChatPage() {
     if (typeof window === 'undefined') return;
     switch (action) {
         case 'logout': account.deleteSession('current').then(() => router.push('/auth/signin')); break;
+        case 'home': router.push('/dashboard'); break;
         case 'market': router.push('/dashboard/market'); break;
         case 'media': router.push('/dashboard/media'); break;
         case 'chat': router.push('/dashboard/chat'); break;
         case 'profile': router.push('/dashboard/profile'); break;
-        case 'home': router.push('/dashboard'); break;
+        case 'transaction': router.push('/dashboard/history'); break;
         case 'tiktok': window.open('https://www.tiktok.com', '_blank'); break;
+        case 'youtube': window.open(param ? `https://www.youtube.com/search?q=${encodeURIComponent(param)}` : 'https://www.youtube.com', '_blank'); break;
+        case 'instagram': window.open(param ? `https://www.instagram.com/${param}` : 'https://www.instagram.com', '_blank'); break;
+        case 'facebook': window.open(param ? `https://www.facebook.com/${param}` : 'https://www.facebook.com', '_blank'); break;
+        case 'whatsapp': window.open(param ? `https://wa.me/${param}` : 'https://web.whatsapp.com', '_blank'); break;
+        case 'tel': window.location.href = `tel:${param || ''}`; break;
+        case 'sms': window.location.href = `sms:${param || ''}`; break;
+        case 'mail': window.location.href = `mailto:${param || ''}`; break;
+        case 'maps': window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(param || '')}`, '_blank'); break;
+        case 'browser': window.open(param || 'https://www.google.com', '_blank'); break;
         case 'camera': 
             if (navigator.mediaDevices) {
                 navigator.mediaDevices.getUserMedia({ video: true }).then(s => s.getTracks().forEach(t => t.stop()));
-                toast({ title: 'Camera Initialized' });
+                toast({ title: 'Camera Access Activated' });
             }
             break;
         default: break;
@@ -174,16 +183,19 @@ export default function AiChatPage() {
   if (!isMounted) return null;
 
   return (
-    <div className="flex flex-col h-screen bg-background scrollbar-hide overflow-hidden">
+    <div className="flex flex-col h-screen bg-background scrollbar-hide overflow-hidden font-body">
       <header className="sticky top-0 bg-background/80 backdrop-blur-md border-b flex items-center justify-between p-3 pt-12 z-50">
         <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-8 w-8 rounded-full bg-muted/50">
+                <ArrowLeft className="h-4 w-4" />
+            </Button>
             <Avatar className="h-10 w-10 border-2 border-primary">
                 <AvatarImage src="https://picsum.photos/seed/sofia/100/100" />
                 <AvatarFallback className="bg-primary text-white font-black">S</AvatarFallback>
             </Avatar>
             <div>
-                <h2 className="font-black text-xs uppercase tracking-widest text-primary">Sofia Hub</h2>
-                <p className="text-[7px] font-bold text-muted-foreground uppercase">I-Pay Intelligence</p>
+                <h2 className="font-black text-xs uppercase tracking-widest text-primary leading-none">Sofia Hub</h2>
+                <p className="text-[7px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Technical Intelligence</p>
             </div>
         </div>
         <Popover>
@@ -192,9 +204,9 @@ export default function AiChatPage() {
                     <Globe className="h-3 w-3 text-primary" /> {selectedLanguage}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[200px] p-0 rounded-2xl overflow-hidden">
+            <PopoverContent align="end" className="w-[200px] p-0 rounded-2xl overflow-hidden shadow-2xl">
                 {['English', 'Hausa', 'Yoruba', 'Igbo'].map(l => (
-                    <Button key={l} variant="ghost" className="w-full justify-start text-[10px] font-bold uppercase h-10" onClick={() => setSelectedLanguage(l)}>{l}</Button>
+                    <Button key={l} variant="ghost" className="w-full justify-start text-[10px] font-bold uppercase h-10 px-6" onClick={() => setSelectedLanguage(l)}>{l}</Button>
                 ))}
             </PopoverContent>
         </Popover>
@@ -207,13 +219,13 @@ export default function AiChatPage() {
             <div key={msg.$id} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
                 <div className={cn("max-w-[85%] rounded-[1.5rem] p-4 text-xs shadow-sm relative", msg.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none border")}>
                     {msg.image && (
-                        <div className="mb-3 relative h-48 w-full rounded-xl overflow-hidden">
+                        <div className="mb-3 relative h-48 w-full rounded-xl overflow-hidden border">
                             <Image src={msg.image} alt="Upload" fill className="object-cover" unoptimized />
                         </div>
                     )}
                     <p className="font-bold leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                 </div>
-                <span className="text-[7px] font-black uppercase text-muted-foreground mt-2 px-2">
+                <span className="text-[7px] font-black uppercase text-muted-foreground mt-2 px-2 tracking-widest">
                     {format(new Date(msg.timestamp), 'HH:mm')}
                 </span>
             </div>
@@ -223,22 +235,22 @@ export default function AiChatPage() {
             <div className="flex justify-start">
                 <div className="bg-muted border rounded-full px-6 py-2 text-[8px] font-black uppercase tracking-widest flex items-center gap-3 animate-pulse">
                     <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                    Thinking technical...
+                    Analyzing technical...
                 </div>
             </div>
         )}
         <div ref={scrollRef} />
       </div>
 
-      <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t pb-20 z-50">
+      <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t pb-20 z-50 shadow-lg">
         <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 max-w-2xl mx-auto">
-          <Input placeholder="Ask Sofia anything..." value={input} onChange={e => setInput(e.target.value)} className="h-12 bg-muted/50 border-none rounded-2xl px-6 font-bold" />
+          <Input placeholder="Ask Sofia about Emir of Lere or I-Pay..." value={input} onChange={e => setInput(e.target.value)} className="h-12 bg-muted/50 border-none rounded-2xl px-6 font-bold text-xs" />
           <Button variant="ghost" size="icon" type="button" onClick={() => fileInputRef.current?.click()} className={cn("h-12 w-12 rounded-full", selectedImage && "text-primary bg-primary/10")}>
-            <ImageIcon className="h-6 w-6" />
+            <ImageIcon className="h-5 w-5" />
           </Button>
           <input type="file" className="hidden" ref={fileInputRef} accept="image/*" onChange={(e) => { if(e.target.files?.[0]) { const r = new FileReader(); r.onload = (ev) => setSelectedImage(ev.target?.result as string); r.readAsDataURL(e.target.files[0]); } }} />
-          <Button size="icon" type="submit" className="h-12 w-12 rounded-full shadow-lg bg-primary" disabled={isLoading || (!input.trim() && !selectedImage)}>
-            <Send className="h-5 w-5 text-white" />
+          <Button size="icon" type="submit" className="h-12 w-12 rounded-full shadow-xl bg-primary" disabled={isLoading || (!input.trim() && !selectedImage)}>
+            <Send className="h-4 w-4 text-white" />
           </Button>
         </form>
       </footer>

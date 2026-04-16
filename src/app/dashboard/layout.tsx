@@ -82,7 +82,7 @@ export default function DashboardLayout({
       </main>
 
       {!isImmersive && (
-        <footer className="fixed bottom-0 z-40 w-full border-t bg-background/95 backdrop-blur-md md:hidden h-14 shadow-lg">
+        <footer className="fixed bottom-0 z-40 w-full border-t bg-background/95 backdrop-blur-md h-14 shadow-lg">
           <div className="container grid h-full grid-cols-5 items-center justify-around text-center px-2">
             {[
                 { href: '/dashboard', label: 'Home', icon: Home, key: 'tab_home' },

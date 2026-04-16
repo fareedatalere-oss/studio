@@ -16,7 +16,6 @@ import { cn } from '@/lib/utils';
 /**
  * @fileOverview Chat Center - Zero Reload Sync.
  * LABELS: Recent, All (Title Case).
- * CRASH PROTECTION: Pre-loads data from UserProvider memory.
  */
 
 const safeDate = (ts: any) => {
