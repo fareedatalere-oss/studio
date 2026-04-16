@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
     ArrowLeft, Send, Loader2, Bot, ShieldCheck, 
-    Smartphone, Globe, Cloud, ExternalLink, CheckCircle2, AlertCircle
+    Smartphone, Globe, Cloud, ExternalLink, CheckCircle2, AlertCircle, Trash2, MoreVertical
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,13 +13,20 @@ import { useUser } from '@/hooks/use-user';
 import { chatSofia, SofiaOutput } from '@/ai/flows/chat-flow';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { databases, DATABASE_ID, COLLECTION_ID_MESSAGES, ID } from '@/lib/data-service';
+import { databases, DATABASE_ID, COLLECTION_ID_MESSAGES, ID, db, Query } from '@/lib/data-service';
+import { collection, query, where, onSnapshot, doc, deleteDoc, serverTimestamp, setDoc, orderBy } from 'firebase/firestore';
+import { 
+    DropdownMenu, 
+    DropdownMenuContent, 
+    DropdownMenuItem, 
+    DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
 
 /**
- * @fileOverview Sofia AI Chat Hub.
- * UI: Medium size text, normal speech bubbles.
- * LOGIC: Paystack verification prompt for sensitive data.
- * DEBUG: Forced real error reporting to screen.
+ * @fileOverview Sofia AI Chat Hub - Persistence & Control.
+ * FORCE: All messages are committed to Firestore collection.
+ * DELETE: Master power to wipe AI messages from cloud history.
+ * PROTOCOL: Zero-Wait Polyglot Technical Force.
  */
 
 export default function AiChatPage() {
@@ -29,31 +36,59 @@ export default function AiChatPage() {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isVerifying, setIsVerifying] = useState(false);
+    const [isMounted, setIsMounted] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
+    const chatId = user ? `ai_${user.$id}` : null;
+
     useEffect(() => {
-        setMessages([{
-            id: 'welcome',
-            text: 'Welcome to Sofia ai. I am your personal customer care partner. How can I help you today?',
-            sender: 'ai',
-            timestamp: new Date().toISOString()
-        }]);
-    }, []);
+        setIsMounted(true);
+        if (!chatId) return;
+
+        // FORCE: Real-time Master Sync with Database
+        const q = query(
+            collection(db, COLLECTION_ID_MESSAGES),
+            where('chatId', '==', chatId)
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const docs = snapshot.docs.map(d => ({ $id: d.id, ...d.data() }));
+            // Client-Side Force Sort to bypass Index Errors
+            const sorted = docs.sort((a: any, b: any) => {
+                const timeA = a.timestamp || 0;
+                const timeB = b.timestamp || 0;
+                return timeA - timeB;
+            });
+            setMessages(sorted);
+        });
+
+        return () => unsubscribe();
+    }, [chatId]);
 
     useEffect(() => {
         scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
     const handleSend = async () => {
-        if (!input.trim() || isLoading || !user) return;
+        if (!input.trim() || isLoading || !user || !chatId) return;
 
         const userMsg = input.trim();
         setInput('');
-        const newMsg = { id: Date.now().toString(), text: userMsg, sender: 'user', timestamp: new Date().toISOString() };
-        setMessages(prev => [...prev, newMsg]);
         setIsLoading(true);
 
         try {
+            // 1. Commit User Message to Cloud
+            const userMsgId = ID.unique();
+            await setDoc(doc(db, COLLECTION_ID_MESSAGES, userMsgId), {
+                chatId: chatId,
+                senderId: user.$id,
+                text: userMsg,
+                sender: 'user',
+                timestamp: Date.now(),
+                createdAt: serverTimestamp()
+            });
+
+            // 2. Technical Brain Handshake
             const response = await chatSofia({
                 message: userMsg,
                 userId: user.$id,
@@ -65,112 +100,141 @@ export default function AiChatPage() {
                 weather: '32°C, Sunny'
             });
 
-            if (response.action === 'verify_paystack') {
-                setMessages(prev => [...prev, {
-                    id: `ai-${Date.now()}`,
-                    text: response.text,
-                    sender: 'ai',
-                    timestamp: new Date().toISOString(),
-                    isVerification: true
-                }]);
-            } else if (response.action === 'call' && response.parameter) {
-                window.open(`tel:${response.parameter}`);
-                setMessages(prev => [...prev, {
-                    id: `ai-${Date.now()}`,
-                    text: `Sure! Calling ${response.parameter} now.`,
-                    sender: 'ai',
-                    timestamp: new Date().toISOString()
-                }]);
-            } else if (response.action && response.action !== 'none') {
-                router.push(`/dashboard/${response.action}`);
-                setMessages(prev => [...prev, {
-                    id: `ai-${Date.now()}`,
-                    text: `Taking you to your ${response.action} hub.`,
-                    sender: 'ai',
-                    timestamp: new Date().toISOString()
-                }]);
-            } else {
-                setMessages(prev => [...prev, {
-                    id: `ai-${Date.now()}`,
-                    text: response.text,
-                    sender: 'ai',
-                    timestamp: new Date().toISOString()
-                }]);
-            }
-        } catch (e: any) {
-            console.error("AI Handshake Error:", e);
-            setMessages(prev => [...prev, {
-                id: `error-${Date.now()}`,
-                text: `[BRAIN_ERROR]: ${e.message || "The AI encountered a technical sync issue. Please ensure GOOGLE_GENAI_API_KEY is correctly set in your environment."}`,
+            // 3. Commit Sofia Response to Cloud
+            const aiMsgId = ID.unique();
+            await setDoc(doc(db, COLLECTION_ID_MESSAGES, aiMsgId), {
+                chatId: chatId,
+                senderId: 'sofia_ai',
+                text: response.text,
                 sender: 'ai',
-                timestamp: new Date().toISOString(),
-                isError: true
-            }]);
+                action: response.action || 'none',
+                parameter: response.parameter || '',
+                timestamp: Date.now(),
+                createdAt: serverTimestamp(),
+                isVerification: response.action === 'verify_paystack'
+            });
+
+            // 4. Handle System Actions
+            if (response.action === 'call' && response.parameter) {
+                window.open(`tel:${response.parameter}`);
+            } else if (response.action && !['none', 'verify_paystack'].includes(response.action)) {
+                router.push(`/dashboard/${response.action}`);
+            }
+
+        } catch (e: any) {
+            console.error("Sofia Sync Failure:", e);
+            // Commit Error Log to Hub
+            await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), {
+                chatId: chatId,
+                senderId: 'sofia_ai',
+                text: `[BRAIN_ERROR]: ${e.message || "Technical sync issue. Check GOOGLE_GENAI_API_KEY."}`,
+                sender: 'ai',
+                isError: true,
+                timestamp: Date.now(),
+                createdAt: serverTimestamp()
+            });
         } finally {
             setIsLoading(false);
         }
     };
 
+    const handleDeleteMessage = async (msgId: string) => {
+        try {
+            await deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msgId));
+        } catch (e) {
+            console.error("Master Wipe Failed");
+        }
+    };
+
     const handlePaystackVerify = () => {
         setIsVerifying(true);
-        setTimeout(() => {
+        setTimeout(async () => {
             setIsVerifying(false);
-            setMessages(prev => [...prev, {
-                id: `verify-${Date.now()}`,
+            if (!chatId) return;
+            // Commit Verification Success to Cloud
+            await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), {
+                chatId: chatId,
+                senderId: 'sofia_ai',
                 text: "Identity Verification Complete. Your credentials have been validated securely via Paystack.",
                 sender: 'ai',
-                timestamp: new Date().toISOString(),
-                isVerified: true
-            }]);
+                isVerified: true,
+                timestamp: Date.now(),
+                createdAt: serverTimestamp()
+            });
         }, 2000);
     };
 
+    if (!isMounted) return null;
+
     return (
-        <div className="flex flex-col h-screen bg-background font-body">
+        <div className="flex flex-col h-screen bg-background font-body overflow-hidden">
             <header className="p-4 pt-12 border-b flex items-center justify-between bg-muted/30 backdrop-blur-md sticky top-0 z-50">
-                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="rounded-full"><ArrowLeft /></Button>
+                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="rounded-full h-10 w-10 bg-muted/50 border shadow-sm">
+                    <ArrowLeft className="h-5 w-5" />
+                </Button>
                 <div className="flex items-center gap-3">
                     <div className="bg-primary p-2 rounded-xl shadow-lg animate-pulse">
                         <Bot className="h-5 w-5 text-white" />
                     </div>
                     <div>
                         <h1 className="font-black uppercase text-xs tracking-widest text-primary">Sofia AI</h1>
-                        <p className="text-[8px] font-bold uppercase opacity-40">Polyglot Partner</p>
+                        <p className="text-[8px] font-bold uppercase opacity-40 tracking-widest">Polyglot Hub</p>
                     </div>
                 </div>
                 <div className="w-10"></div>
             </header>
 
             <main className="flex-1 overflow-y-auto p-6 space-y-6 bg-muted/5 scrollbar-hide">
+                {messages.length === 0 && !isLoading && (
+                    <div className="text-center py-20 opacity-30 grayscale flex flex-col items-center gap-4">
+                        <Bot className="h-16 w-16" />
+                        <p className="font-black uppercase text-[10px] tracking-widest">Sofia is waiting to assist...</p>
+                    </div>
+                )}
+                
                 {messages.map((msg) => (
-                    <div key={msg.id} className={cn("flex flex-col gap-2 max-w-[85%]", msg.sender === 'user' ? "ml-auto items-end" : "items-start")}>
-                        <div className={cn(
-                            "p-4 px-5 rounded-[1.8rem] shadow-sm text-sm font-bold leading-relaxed",
-                            msg.sender === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-white border rounded-tl-none text-foreground",
-                            msg.isError && "bg-red-50 border-red-200 text-red-700"
-                        )}>
-                            {msg.isError && <AlertCircle className="h-4 w-4 mb-2" />}
-                            {msg.text}
-                            
-                            {msg.isVerification && (
-                                <div className="mt-4 pt-4 border-t border-dashed flex flex-col gap-3">
-                                    <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Secure Handshake Required</p>
-                                    <Button onClick={handlePaystackVerify} disabled={isVerifying} className="h-10 rounded-full font-black uppercase text-[10px] tracking-widest gap-2 bg-emerald-600 hover:bg-emerald-700">
-                                        {isVerifying ? <Loader2 className="animate-spin h-3 w-3" /> : <ExternalLink className="h-3 w-3" />}
-                                        Verify with Paystack
-                                    </Button>
-                                </div>
-                            )}
+                    <div key={msg.$id} className={cn("flex flex-col gap-2 max-w-[85%]", msg.sender === 'user' ? "ml-auto items-end" : "items-start")}>
+                        <div className="group relative">
+                            <div className={cn(
+                                "p-4 px-5 rounded-[1.8rem] shadow-sm text-sm font-bold leading-relaxed",
+                                msg.sender === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-white border rounded-tl-none text-foreground",
+                                msg.isError && "bg-red-50 border-red-200 text-red-700"
+                            )}>
+                                {msg.isError && <AlertCircle className="h-4 w-4 mb-2" />}
+                                {msg.text}
+                                
+                                {msg.isVerification && (
+                                    <div className="mt-4 pt-4 border-t border-dashed flex flex-col gap-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Identity Handshake</p>
+                                        <Button onClick={handlePaystackVerify} disabled={isVerifying} className="h-10 rounded-full font-black uppercase text-[10px] tracking-widest gap-2 bg-emerald-600 hover:bg-emerald-700">
+                                            {isVerifying ? <Loader2 className="animate-spin h-3 w-3" /> : <ExternalLink className="h-3 w-3" />}
+                                            Verify with Paystack
+                                        </Button>
+                                    </div>
+                                )}
 
-                            {msg.isVerified && (
-                                <div className="mt-2 flex items-center gap-2 text-emerald-600">
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest">Master Auth Success</span>
-                                </div>
-                            )}
+                                {msg.isVerified && (
+                                    <div className="mt-2 flex items-center gap-2 text-emerald-600">
+                                        <CheckCircle2 className="h-4 w-4" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Master Auth Success</span>
+                                    </div>
+                                )}
 
-                            <div className="flex justify-end mt-1.5 opacity-40">
-                                <span className="text-[7px] font-black uppercase">{format(new Date(msg.timestamp), 'HH:mm')}</span>
+                                <div className="flex justify-between items-center mt-2 opacity-40">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <button className="h-6 w-6 rounded-full hover:bg-black/5 flex items-center justify-center transition-colors">
+                                                <MoreVertical className="h-3 w-3" />
+                                            </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align={msg.sender === 'user' ? 'end' : 'start'} className="font-black uppercase text-[9px] rounded-xl p-1 shadow-2xl">
+                                            <DropdownMenuItem onClick={() => handleDeleteMessage(msg.$id)} className="text-destructive gap-2">
+                                                <Trash2 className="h-3 w-3" /> Delete History
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    <span className="text-[7px] font-black uppercase">{format(new Date(msg.timestamp || Date.now()), 'HH:mm')}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -178,20 +242,20 @@ export default function AiChatPage() {
                 {isLoading && (
                     <div className="flex items-center gap-3 animate-pulse opacity-50">
                         <div className="bg-primary/10 p-2 rounded-full"><Loader2 className="h-4 w-4 animate-spin text-primary" /></div>
-                        <span className="font-black uppercase text-[8px] tracking-widest text-primary">Sofia is translating knowledge...</span>
+                        <span className="font-black uppercase text-[8px] tracking-widest text-primary">Sofia is generating knowledge...</span>
                     </div>
                 )}
                 <div ref={scrollRef} />
             </main>
 
-            <footer className="p-4 pb-10 border-t bg-background sticky bottom-0">
+            <footer className="p-4 pb-10 border-t bg-background sticky bottom-0 z-50">
                 <div className="max-w-xl mx-auto flex items-center gap-3">
                     <Input 
-                        placeholder="Ask Sofia in any language..." 
+                        placeholder="Ask Sofia in your language..." 
                         value={input} 
                         onChange={e => setInput(e.target.value)}
                         onKeyPress={e => e.key === 'Enter' && handleSend()}
-                        className="flex-1 h-12 rounded-full bg-muted/50 border-none px-6 font-bold shadow-inner"
+                        className="flex-1 h-12 rounded-full bg-muted/50 border-none px-6 font-bold shadow-inner focus-visible:ring-1 focus-visible:ring-primary"
                     />
                     <Button onClick={handleSend} size="icon" className="h-12 w-12 rounded-full shadow-xl bg-primary active:scale-90 transition-transform" disabled={isLoading || !input.trim()}>
                         <Send className="h-5 w-5 text-white" />
