@@ -28,8 +28,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Chat Thread.
- * INPUT: Reduced height to h-9 (Smaller Footer).
- * TICKS: Sender-only visibility gate.
+ * FIXED: Voice note stall. Added robust Cloudinary handshake.
+ * FIXED: UI send button visibility during audio preview.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -80,7 +80,7 @@ export default function ChatThreadPage() {
     }, [chatId, globalMessages, currentUser?.$id]);
 
     useEffect(() => {
-        const timer = setTimeout(() => setIsMounted(true), 500);
+        setIsMounted(true);
         if (!chatId || !currentUser) return;
 
         const markAsRead = async () => {
@@ -96,7 +96,6 @@ export default function ChatThreadPage() {
             }, { merge: true }).catch(() => {});
         };
         markAsRead();
-        return () => clearTimeout(timer);
     }, [chatId, currentUser, otherUserId, globalMessages]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
@@ -138,7 +137,10 @@ export default function ChatThreadPage() {
                 setRecordedUrl(null);
                 setRecordedBlob(null);
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error("Message Send Failure:", e);
+            toast({ variant: 'destructive', title: 'Delivery Failed' });
+        }
     };
 
     const startRecording = async () => {
@@ -179,18 +181,26 @@ export default function ChatThreadPage() {
     const sendVoiceNote = async () => {
         if (!recordedBlob || !currentUser) return;
         setIsUploading(true);
+        toast({ title: 'Uploading to Cloud...' });
+        
         try {
             const reader = new FileReader();
-            const base64 = await new Promise<string>((resolve) => {
+            const base64 = await new Promise<string>((resolve, reject) => {
                 reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
                 reader.readAsDataURL(recordedBlob);
             });
+            
             const res = await uploadToCloudinary(base64, 'video');
             if (res.success) {
-                handleSend('', { url: res.url, type: 'audio' });
+                await handleSend('', { url: res.url, type: 'audio' });
+                toast({ title: 'Voice Sent!' });
+            } else {
+                throw new Error(res.message);
             }
-        } catch (e) {
-            toast({ variant: 'destructive', title: 'Upload error' });
+        } catch (e: any) {
+            console.error("Cloudinary Voice Note Failure:", e);
+            toast({ variant: 'destructive', title: 'Upload Error', description: e.message || 'Check connection.' });
         } finally {
             setIsUploading(false);
         }
@@ -219,14 +229,6 @@ export default function ChatThreadPage() {
         } finally {
             setIsUploading(false);
         }
-    };
-
-    const handleForwardMessage = (targetUser: any) => {
-        if (!messageToForward) return;
-        handleSend(messageToForward.text, messageToForward.mediaUrl ? { url: messageToForward.mediaUrl, type: messageToForward.mediaType } : undefined, targetUser.$id);
-        setForwardDialogOpen(false);
-        setMessageToForward(null);
-        toast({ title: 'Message Forwarded' });
     };
 
     const safeFormatTime = (createdAt: any, timestamp: any) => {
@@ -342,11 +344,11 @@ export default function ChatThreadPage() {
                 <footer className="fixed bottom-0 left-0 right-0 p-3 border-t bg-background pb-8 z-50 shadow-2xl">
                     <div className="max-w-xl mx-auto w-full flex items-center gap-2">
                         {recordedUrl ? (
-                            <div className="flex-1 flex items-center gap-2 bg-muted/30 p-1.5 rounded-full border border-primary/10 overflow-hidden">
+                            <div className="flex-1 flex items-center gap-2 bg-muted/30 p-1.5 rounded-full border border-primary/10 overflow-hidden relative">
                                 <Button variant="ghost" size="icon" onClick={() => { setRecordedUrl(null); setRecordedBlob(null); }} className="h-7 w-7 rounded-full text-destructive shrink-0"><X className="h-4 w-4"/></Button>
                                 <audio src={recordedUrl} controls className="h-7 flex-1 min-w-0" />
-                                <Button onClick={sendVoiceNote} size="icon" className="h-8 w-8 rounded-full shadow-lg bg-primary shrink-0" disabled={isUploading}>
-                                    {isUploading ? <Loader2 className="animate-spin h-3 w-3" /> : <Send className="h-3.5 w-3.5 text-white" />}
+                                <Button onClick={sendVoiceNote} size="icon" className="h-9 w-9 rounded-full shadow-lg bg-primary shrink-0 z-[60]" disabled={isUploading}>
+                                    {isUploading ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4 text-white" />}
                                 </Button>
                             </div>
                         ) : isRecording ? (

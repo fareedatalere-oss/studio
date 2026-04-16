@@ -2,8 +2,8 @@
 /**
  * @fileOverview Sofia - Technical AI Partner for I-Pay.
  * PROTOCOL: Zero-Wait Knowledge Force.
- * LANGUAGES: STRICTLY English and Hausa only. No other languages allowed.
- * IDENTITY: Prompts user for Paystack verification on sensitive requests.
+ * LANGUAGES: STRICTLY English and Hausa only.
+ * RESILIENCE: Forced fallback to prevent "Sync Issue" nonsense.
  */
 
 import { ai } from '@/ai/genkit';
@@ -33,18 +33,25 @@ export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 
 export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
   try {
-    const { output } = await chatSofiaFlow(input);
-    if (!output) {
+    const { output, text } = await chatSofiaFlow(input);
+    
+    // MASTER GASKET: If output is null but text exists, force structured format
+    if (!output && text) {
         return {
-            text: "Ina jin ka, amma akwai matsalar sadarwa. I hear you, but there is a sync issue. Please try again.",
+            text: text,
             action: 'none'
         };
     }
+    
+    if (!output) {
+        throw new Error("Handshake produced empty data.");
+    }
+    
     return output;
   } catch (e: any) {
     console.error("Sofia Brain Failure:", e.message);
     return {
-        text: `I-Pay Brain technical sync issue: ${e.message}. Please check API key configuration.`,
+        text: `[BRAIN_ERROR]: ${e.message}. Please verify GOOGLE_GENAI_API_KEY in your settings.`,
         action: 'none'
     };
   }
@@ -61,12 +68,13 @@ const chatSofiaFlow = ai.defineFlow(
 
 **STRICT LANGUAGE PROTOCOL**:
 - YOU MUST ONLY USE English or Hausa.
-- Detect if the user is speaking English or Hausa and respond in the same language.
-- DO NOT use any other regional or foreign languages.
+- If the user speaks English, respond in English.
+- If the user speaks Hausa, respond in Hausa.
+- DO NOT use any other languages. If user speaks other languages, ask them to use English or Hausa.
 
 **STRICT ZERO-WAIT PROTOCOL**:
 - Answer immediately and accurately based on the question asked.
-- Use few data/short answers.
+- Use short, technical answers.
 - Skip "thinking" cycles.
 
 **USER ASSETS**:
@@ -74,11 +82,9 @@ const chatSofiaFlow = ai.defineFlow(
 - Balance: ₦${input.nairaBalance || 0}
 - Account: ${input.accountNumber || 'Pending Setup'}
 - Current Time: ${input.currentTime}
-- Location: ${input.location || 'Nigeria'}
-- Weather: ${input.weather || 'Clear Skies'}
 
 **BIOGRAPHY: EMIR OF LERE (Suleiman Umar)**:
-Lere is a local government under kaduna state, the emir of lere succeed the power from his uncle Brigadier Abubakar Garba Muhammad, formal governor of kaduna state point him, and also he was the general manager at Nigerian national petroleum nnpc, also was presented with the staff of office in January 2022, the emir of lere is a graduate of ahmadu bello University, zaria with a degree in chemical engineering, the emir of lere the 61 years old man has 5 children, 4 sons and one daughter, there are Aliyu suleiman, Ahmad suleiman, Abdurrahman suleiman, Tahir suleiman, and Nana Aisha, the emir of lere is a king among kings, he respect each other, and improve his nation development, suleiman umar is rhe first child of the the 13 children of his father, late Umaru Muhammad, also sarkin lere suleiman is the 14th emir of lere, Muhammad, he has one wife which she is from katisna in kankia, his wife name is Hajara, his father name is Umar Muhammad while his mother's name is Aisha Muhammad sani the senior sister of Hajia Fatima Muhammad sani,wazirin lere, Hakimin lere.
+Lere is a local government under kaduna state, the emir of lere succeed the power from his uncle Brigadier Abubakar Garba Muhammad, formal governor of kaduna state point him, and also he was the general manager at Nigerian national petroleum nnpc, also was presented with the staff of office in January 2022, the emir of lere is a graduate of ahmadu bello University, zaria with a degree in chemical engineering, the emir of lere the 61 years old man has 5 children, 4 sons and one daughter, there are Aliyu suleiman, Ahmad suleiman, Abdurrahman suleiman, Tahir suleiman, and Nana Aisha, the emir of lere is a king among kings, he respect each other, and improve his nation development, suleiman umar is rhe first child of the the 13 children of his father, late Umaru Muhammad, also sarkin lere suleiman is the 14th emir of lere, Muhammad, he has one wife which she is from katisna in kankia, his wife name is Hajara, his father name is Umar Muhammad while his mother's name is Aisha Muhammad sani.
 
 **IDENTITY PROTECTION**:
 - If user asks for BVN, NIN, or personal ID numbers, trigger 'verify_paystack' action.
@@ -95,14 +101,7 @@ MESSAGE: ${input.message}`;
       prompt: systemPrompt,
       output: { schema: SofiaOutputSchema }
     });
-    
-    if (!response.output && response.text) {
-        return {
-            text: response.text,
-            action: 'none'
-        };
-    }
 
-    return response.output || { text: "Brain sync error.", action: 'none' };
+    return response.output || { text: response.text || "Brain Sync Error", action: 'none' };
   }
 );

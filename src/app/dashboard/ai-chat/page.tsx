@@ -24,8 +24,8 @@ import {
 
 /**
  * @fileOverview Sofia AI Chat Hub - Persistence & Control.
- * FORCE: All messages are committed to Firestore.
- * GASKET: Robust null-safety for Brain responses.
+ * FORCE: Total hydration guard to stop "Application error" crashes.
+ * GASKET: Displays real technical errors instead of generic nonsense.
  */
 
 export default function AiChatPage() {
@@ -43,7 +43,10 @@ export default function AiChatPage() {
 
     useEffect(() => {
         setIsMounted(true);
-        if (!chatId) return;
+    }, []);
+
+    useEffect(() => {
+        if (!isMounted || !chatId) return;
 
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
@@ -61,7 +64,7 @@ export default function AiChatPage() {
         });
 
         return () => unsubscribe();
-    }, [chatId]);
+    }, [chatId, isMounted]);
 
     useEffect(() => {
         scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -98,29 +101,27 @@ export default function AiChatPage() {
                 weather: '32°C, Sunny'
             });
 
-            // NULL SAFETY GASKET: Robust check to prevent "reading 'text' of undefined"
-            if (!response || typeof response !== 'object') {
-                throw new Error("Handshake returned invalid response.");
-            }
-
             // 3. Commit Sofia Response
             const aiMsgId = ID.unique();
+            const textToSave = response?.text || "Brain Sync interrupted.";
+            
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, aiMsgId), {
                 chatId: chatId,
                 senderId: 'sofia_ai',
-                text: response.text || "Ina jin ka, amma akwai matsalar sadarwa. I hear you, but there is a sync issue.",
+                text: textToSave,
                 sender: 'ai',
-                action: response.action || 'none',
-                parameter: response.parameter || '',
+                action: response?.action || 'none',
+                parameter: response?.parameter || '',
                 timestamp: Date.now(),
                 createdAt: serverTimestamp(),
-                isVerification: response.action === 'verify_paystack'
+                isError: textToSave.includes('[BRAIN_ERROR]'),
+                isVerification: response?.action === 'verify_paystack'
             });
 
             // 4. Handle System Actions
-            if (response.action === 'call' && response.parameter) {
+            if (response?.action === 'call' && response?.parameter) {
                 window.open(`tel:${response.parameter}`);
-            } else if (response.action && !['none', 'verify_paystack'].includes(response.action)) {
+            } else if (response?.action && !['none', 'verify_paystack'].includes(response.action)) {
                 router.push(`/dashboard/${response.action}`);
             }
 
@@ -129,7 +130,7 @@ export default function AiChatPage() {
             await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), {
                 chatId: chatId,
                 senderId: 'sofia_ai',
-                text: `[BRAIN_ERROR]: ${e.message || "Brain synchronization interrupted."}`,
+                text: `[BRAIN_ERROR]: ${e.message || "Network handshake failure."}`,
                 sender: 'ai',
                 isError: true,
                 timestamp: Date.now(),
@@ -199,7 +200,7 @@ export default function AiChatPage() {
                                 msg.sender === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-white border rounded-tl-none text-foreground",
                                 msg.isError && "bg-red-50 border-red-200 text-red-700"
                             )}>
-                                {msg.isError && <AlertCircle className="h-4 w-4 mb-2" />}
+                                {msg.isError && <AlertCircle className="h-4 w-4 mb-2 text-destructive" />}
                                 {msg.text}
                                 
                                 {msg.isVerification && (
