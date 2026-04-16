@@ -10,8 +10,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Unified Master Data Hub.
- * NETWORK SHIELD: Presence only shows Online if navigator.onLine is true.
- * PRESENCE: Hardened visibility listeners for 100% accurate online status.
+ * NETWORK SHIELD: Presence strictly depends on navigator.onLine.
  */
 
 type UserContextType = {
@@ -69,7 +68,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     const updatePresence = useCallback(async (isOnline: boolean) => {
         if (!auth.currentUser) return;
-        // FORCE: Check actual network access before showing online
         const hasNetwork = typeof window !== 'undefined' ? window.navigator.onLine : true;
         const finalStatus = isOnline && hasNetwork;
 
@@ -96,10 +94,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 setUser({ $id: uid, uid, email: firebaseUser.email });
                 
                 unsubProfile = onSnapshot(doc(db, COLLECTION_ID_PROFILES, uid), (snap) => {
-                    if (snap.exists()) {
-                        const prof = { $id: snap.id, ...snap.data() } as any;
-                        setProfile(prof);
-                    }
+                    if (snap.exists()) setProfile({ $id: snap.id, ...snap.data() });
                     setIsLoading(false);
                 });
 
@@ -107,23 +102,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     setAllUsers(snap.docs.map(d => ({ $id: d.id, ...d.data() })));
                 });
 
-                const chatQuery = query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', uid));
-                unsubChats = onSnapshot(chatQuery, (snap) => {
+                unsubChats = onSnapshot(query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', uid)), (snap) => {
                     const chats = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
                     setRecentChats(chats.sort((a: any, b: any) => (b.lastMessageAt?.seconds || 0) - (a.lastMessageAt?.seconds || 0)));
                 });
 
-                const notifQuery = query(collection(db, COLLECTION_ID_NOTIFICATIONS), where('userId', '==', uid), where('isRead', '==', false));
-                unsubNotifs = onSnapshot(notifQuery, (snap) => {
+                unsubNotifs = onSnapshot(query(collection(db, COLLECTION_ID_NOTIFICATIONS), where('userId', '==', uid), where('isRead', '==', false)), (snap) => {
                     setUnreadNotifications(snap.size);
                 });
 
-                // MASTER PRESENCE HANDSHAKE
                 updatePresence(true);
-                
                 const handleVisibility = () => updatePresence(document.visibilityState === 'visible');
                 const handleOffline = () => updatePresence(false);
-                const handleOnline = () => updatePresence(document.visibilityState === 'visible');
+                const handleOnline = () => updatePresence(true);
                 
                 window.addEventListener('visibilitychange', handleVisibility);
                 window.addEventListener('online', handleOnline);
@@ -138,33 +129,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 };
 
             } else {
-                setUser(null);
-                setProfile(null);
-                setIsLoading(false);
-                if (unsubProfile) unsubProfile();
-                if (unsubUsers) unsubUsers();
-                if (unsubChats) unsubChats();
-                if (unsubNotifs) unsubNotifs();
+                setUser(null); setProfile(null); setIsLoading(false);
             }
         });
 
         return () => { 
-            unsubAuth(); 
-            if(unsubProfile) unsubProfile(); 
-            if(unsubUsers) unsubUsers(); 
-            if(unsubChats) unsubChats(); 
-            if(unsubNotifs) unsubNotifs(); 
+            unsubAuth(); if(unsubProfile) unsubProfile(); if(unsubUsers) unsubUsers(); if(unsubChats) unsubChats(); if(unsubNotifs) unsubNotifs(); 
         };
     }, [pathname, router, fetchConfig, updatePresence]);
 
-    const recheck = async () => { await fetchConfig(); };
-
     return (
-        <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, allUsers, recentChats, unreadNotifications, recheckUser: recheck }}>
-            <div className={cn(
-                "min-h-screen bg-background transition-opacity duration-300", 
-                isMounted ? "opacity-100" : "opacity-0"
-            )}>
+        <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, allUsers, recentChats, unreadNotifications, recheckUser: async () => { await fetchConfig(); } }}>
+            <div className={cn("min-h-screen transition-opacity duration-300", isMounted ? "opacity-100" : "opacity-0")}>
                 {children}
             </div>
         </UserContext.Provider>

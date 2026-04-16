@@ -12,12 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { MeetingAlarm } from '@/components/meeting-alarm';
 
-/**
- * @fileOverview Unified Dashboard Layout.
- * SPELLING: Home, Chat, Media, Market, Profile (Enforced Title Case).
- * ICONS: Chat (MessageSquare), Market (Store).
- */
-
 export default function DashboardLayout({
   children,
 }: {

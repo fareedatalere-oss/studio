@@ -11,8 +11,8 @@ import { parseISO, isBefore } from 'date-fns';
 
 /**
  * @fileOverview Master Alarm Engine.
- * FORCE: Only rings for pending, unexpired meetings. 
- * EXPIRY SHIELD: 1 hour for Personal, 3 hours for General.
+ * FORCE: Only rings for pending, unexpired meetings/calls.
+ * BUG FIX: Caller (A) no longer rings on their own device. Only Receiver (B) rings.
  */
 
 export function MeetingAlarm() {
@@ -39,45 +39,44 @@ export function MeetingAlarm() {
 
     const checkMeetings = async () => {
       try {
-        // Query only pending meetings
+        const inviteRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
+          Query.equal('status', 'pending'),
+          Query.contains('invitees', user.$id),
+          Query.limit(10)
+        ]);
+
+        // Host only gets alarm for established "meetings", not their own "private calls"
         const hostRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
           Query.equal('status', 'pending'),
           Query.equal('hostId', user.$id),
           Query.limit(5)
         ]);
 
-        const inviteRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
-          Query.equal('status', 'pending'),
-          Query.contains('invitees', user.$id),
-          Query.limit(5)
-        ]);
-
         const allDocs = [...hostRes.documents, ...inviteRes.documents];
         const now = new Date();
 
-        // MASTER FILTER: Exclude passed, ended, cancelled, or already rung meetings
         const target = allDocs.find(m => {
             if (rungIds.current.has(m.$id)) return false;
             if (m.status !== 'pending') return false;
+
+            // BUG FIX: Never ring if I am the one who started a private call
+            if (m.type === 'private_call' && m.hostId === user.$id) return false;
             
-            // Check Expiry
             if (m.expiresAt) {
                 const expiry = parseISO(m.expiresAt);
                 if (isBefore(expiry, now)) return false;
             }
 
-            // Check if scheduled time has arrived
             if (m.scheduledAt) {
                 const sched = parseISO(m.scheduledAt);
                 return isBefore(sched, now);
             }
-            
             return false;
         });
         
         if (target && !isRinging) {
           const isHostAlert = target.hostId === user.$id;
-          const callerId = isHostAlert ? user.$id : target.hostId;
+          const callerId = target.hostId;
           const caller = await databases.getDocument(DATABASE_ID, 'profiles', callerId).catch(() => null);
           
           setActiveCall({ 
@@ -93,11 +92,10 @@ export function MeetingAlarm() {
 
     const interval = setInterval(checkMeetings, 4000); 
     
-    // Listen for status changes to stop ringing
     const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
         const payload = response.payload as any;
         if (payload?.$id === activeCall?.$id) {
-            if (payload.status === 'ended' || payload.status === 'cancelled') {
+            if (payload.status === 'connected' || payload.status === 'ended' || payload.status === 'cancelled') {
                 stopRinging(); 
                 setActiveCall(null);
             }
@@ -116,25 +114,27 @@ export function MeetingAlarm() {
     setIsRinging(true);
     
     if ("Notification" in window && Notification.permission === "granted") {
-        new Notification(activeCall?.isHostAlert ? 'CHAIRMAN CALL' : 'INCOMING I-PAY CALL', {
-            body: activeCall?.isHostAlert ? `Room "${activeCall.name}" is due.` : `Incoming secure line from @${activeCall?.callerName}`,
+        new Notification(activeCall?.type === 'private_call' ? 'INCOMING CALL' : 'MEETING ALERT', {
+            body: activeCall?.type === 'private_call' ? `Secure call from @${activeCall?.callerName}` : `Meeting "${activeCall.name}" is due.`,
             icon: '/logo.png',
             tag: 'force-call',
-            renotify: true,
             requireInteraction: true 
         });
     }
 
     if (navigator.vibrate) {
-        const pattern = [2000, 500, 2000, 500, 2000, 500];
+        const pattern = [2000, 500, 2000, 500];
         navigator.vibrate(pattern);
-        vibrationInterval.current = setInterval(() => navigator.vibrate(pattern), 8000);
+        vibrationInterval.current = setInterval(() => navigator.vibrate(pattern), 6000);
     }
   };
 
   const handleDecline = async () => {
     if (activeCall?.$id) {
         rungIds.current.add(activeCall.$id);
+        if (activeCall.type === 'private_call') {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'cancelled' });
+        }
     }
     stopRinging(); 
     setActiveCall(null);
@@ -143,7 +143,12 @@ export function MeetingAlarm() {
   const handleAccept = async () => {
     if (activeCall?.$id) {
         rungIds.current.add(activeCall.$id);
-        router.push(`/dashboard/meeting/join/${activeCall.$id}${activeCall.isHostAlert ? '?role=admin' : ''}`);
+        if (activeCall.type === 'private_call') {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'connected' });
+            router.push(`/dashboard/chat/call/${activeCall.$id}`);
+        } else {
+            router.push(`/dashboard/meeting/join/${activeCall.$id}${activeCall.isHostAlert ? '?role=admin' : ''}`);
+        }
     }
     stopRinging(); 
     setActiveCall(null);
@@ -155,11 +160,11 @@ export function MeetingAlarm() {
     <div className="fixed inset-0 z-[1000] bg-white flex flex-col items-center justify-between py-24 animate-in fade-in zoom-in duration-500 font-body overflow-hidden">
       <div className="text-center space-y-2">
           <p className="text-primary font-black uppercase tracking-[0.4em] text-2xl animate-pulse">
-            {activeCall?.isHostAlert ? 'Chairman Call' : 'Incoming Hub'}
+            {activeCall?.type === 'private_call' ? 'Incoming Call' : 'Session Ready'}
           </p>
           <div className="flex items-center justify-center gap-2 text-primary/60">
             <Volume2 className="h-4 w-4 animate-bounce" />
-            <p className="text-[10px] font-black uppercase tracking-widest">Live Secure Session</p>
+            <p className="text-[10px] font-black uppercase tracking-widest">Secure Handshake</p>
           </div>
       </div>
 
@@ -173,9 +178,9 @@ export function MeetingAlarm() {
         </div>
         <div>
             <h2 className="text-black text-3xl font-black tracking-tighter uppercase leading-tight">
-                {activeCall?.isHostAlert ? activeCall.name : `@${activeCall?.callerName}`}
+                {activeCall?.type === 'private_call' ? `@${activeCall?.callerName}` : activeCall?.name}
             </h2>
-            <p className="text-muted-foreground font-bold text-xs mt-2 uppercase opacity-60">Identity Setup Required</p>
+            <p className="text-muted-foreground font-bold text-xs mt-2 uppercase opacity-60">Identity setup required</p>
         </div>
       </div>
 
@@ -186,12 +191,12 @@ export function MeetingAlarm() {
           </div>
           <div className="flex flex-col items-center gap-4">
               <Button onClick={handleAccept} size="icon" className="h-20 w-20 rounded-full bg-green-500 hover:bg-green-600 shadow-2xl active:scale-90 transition-transform"><CheckCircle2 className="h-10 w-10 text-white" /></Button>
-              <span className="text-[10px] font-black uppercase text-green-600 tracking-widest">Enter</span>
+              <span className="text-[10px] font-black uppercase text-green-600 tracking-widest">Accept</span>
           </div>
       </div>
       
       <div className="absolute bottom-10 opacity-20">
-          <p className="text-[8px] font-black uppercase tracking-widest">Powered by I-Pay Security Engine</p>
+          <p className="text-[8px] font-black uppercase tracking-widest">I-Pay Security Engine</p>
       </div>
     </div>
   );
