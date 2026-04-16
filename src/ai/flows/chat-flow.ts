@@ -3,7 +3,7 @@
  * @fileOverview Sofia - Technical AI Partner for I-Pay.
  * PROTOCOL: Zero-Wait Knowledge Force.
  * LANGUAGES: STRICTLY English and Hausa only.
- * RESILIENCE: Forced fallback to prevent "Sync Issue" nonsense.
+ * SILENCE: Never display technical errors to the user.
  */
 
 import { ai } from '@/ai/genkit';
@@ -35,7 +35,6 @@ export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
   try {
     const { output, text } = await chatSofiaFlow(input);
     
-    // MASTER GASKET: If output is null but text exists, force structured format
     if (!output && text) {
         return {
             text: text,
@@ -49,9 +48,9 @@ export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
     
     return output;
   } catch (e: any) {
-    console.error("Sofia Brain Failure:", e.message);
+    // SILENT RESILIENCE: Never show technical errors.
     return {
-        text: `[BRAIN_ERROR]: ${e.message}. Please verify GOOGLE_GENAI_API_KEY in your settings.`,
+        text: `Hello @${input.username}, I'm here to help. Could you please rephrase that for me?`,
         action: 'none'
     };
   }
@@ -70,7 +69,7 @@ const chatSofiaFlow = ai.defineFlow(
 - YOU MUST ONLY USE English or Hausa.
 - If the user speaks English, respond in English.
 - If the user speaks Hausa, respond in Hausa.
-- DO NOT use any other languages. If user speaks other languages, ask them to use English or Hausa.
+- DO NOT use any other languages.
 
 **STRICT ZERO-WAIT PROTOCOL**:
 - Answer immediately and accurately based on the question asked.
@@ -102,6 +101,6 @@ MESSAGE: ${input.message}`;
       output: { schema: SofiaOutputSchema }
     });
 
-    return response.output || { text: response.text || "Brain Sync Error", action: 'none' };
+    return response.output || { text: response.text || "I'm sorry, can you say that again?", action: 'none' };
   }
 );

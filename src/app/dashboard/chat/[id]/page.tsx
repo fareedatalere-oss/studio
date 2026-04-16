@@ -6,7 +6,7 @@ import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
 import { 
     collection, onSnapshot, doc, 
-    serverTimestamp, setDoc, 
+    serverTimestamp, setDoc, deleteDoc,
     increment, writeBatch
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } from '@/lib/data-service';
@@ -28,8 +28,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Chat Thread.
- * FIXED: Voice note stall. Added robust Cloudinary handshake.
- * FIXED: UI send button visibility during audio preview.
+ * FIXED: Message deletion in private chat.
+ * SILENT: Voice notes drop instantly with no upload toasts.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -139,8 +139,13 @@ export default function ChatThreadPage() {
             }
         } catch (e) {
             console.error("Message Send Failure:", e);
-            toast({ variant: 'destructive', title: 'Delivery Failed' });
         }
+    };
+
+    const handleDeleteMessage = async (msgId: string) => {
+        try {
+            await deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msgId));
+        } catch (e) {}
     };
 
     const startRecording = async () => {
@@ -167,7 +172,7 @@ export default function ChatThreadPage() {
                     return prev + 1;
                 });
             }, 1000);
-        } catch (e) { toast({ variant: 'destructive', title: 'Microphone denied' }); }
+        } catch (e) {}
     };
 
     const stopRecording = () => {
@@ -181,7 +186,7 @@ export default function ChatThreadPage() {
     const sendVoiceNote = async () => {
         if (!recordedBlob || !currentUser) return;
         setIsUploading(true);
-        toast({ title: 'Uploading to Cloud...' });
+        // SILENT DROP: No toasts.
         
         try {
             const reader = new FileReader();
@@ -194,15 +199,13 @@ export default function ChatThreadPage() {
             const res = await uploadToCloudinary(base64, 'video');
             if (res.success) {
                 await handleSend('', { url: res.url, type: 'audio' });
-                toast({ title: 'Voice Sent!' });
-            } else {
-                throw new Error(res.message);
             }
         } catch (e: any) {
             console.error("Cloudinary Voice Note Failure:", e);
-            toast({ variant: 'destructive', title: 'Upload Error', description: e.message || 'Check connection.' });
         } finally {
             setIsUploading(false);
+            setRecordedUrl(null);
+            setRecordedBlob(null);
         }
     };
 
@@ -225,7 +228,6 @@ export default function ChatThreadPage() {
                 handleSend('', { url: res.url, type });
             }
         } catch (e) {
-            toast({ variant: 'destructive', title: 'Upload error' });
         } finally {
             setIsUploading(false);
         }
@@ -322,8 +324,8 @@ export default function ChatThreadPage() {
                                 <DropdownMenuContent align={msg.senderId === currentUser?.$id ? 'end' : 'start'} className="font-black uppercase text-[9px] w-32 rounded-xl p-1">
                                     <DropdownMenuItem onClick={() => { setMessageToForward(msg); setForwardDialogOpen(true); }} className="gap-2"><Share2 className="h-3 w-3" /> Forward</DropdownMenuItem>
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => {}} className="gap-2 text-destructive">
-                                        <Trash2 className="h-3 w-3" /> {msg.senderId === currentUser?.$id ? 'Both' : 'Self'}
+                                    <DropdownMenuItem onClick={() => handleDeleteMessage(msg.$id)} className="gap-2 text-destructive">
+                                        <Trash2 className="h-3 w-3" /> Delete Message
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
@@ -396,7 +398,7 @@ export default function ChatThreadPage() {
                         <ScrollArea className="h-64 pr-2">
                             <div className="space-y-2">
                                 {filteredForwardUsers.map(u => (
-                                    <div key={u.$id} className="flex items-center justify-between p-3 rounded-2xl bg-muted/30 hover:bg-primary/5 transition-colors cursor-pointer" onClick={() => handleForwardMessage(u)}>
+                                    <div key={u.$id} className="flex items-center justify-between p-3 rounded-2xl bg-muted/30 hover:bg-primary/5 transition-colors cursor-pointer" onClick={() => handleSend(messageToForward?.text, messageToForward?.mediaUrl ? { url: messageToForward.mediaUrl, type: messageToForward.mediaType } : undefined, u.$id)}>
                                         <div className="flex items-center gap-3">
                                             <Avatar className="h-8 w-8"><AvatarImage src={u.avatar}/><AvatarFallback>{u.username?.charAt(0)}</AvatarFallback></Avatar>
                                             <p className="font-bold text-xs">@{u.username}</p>

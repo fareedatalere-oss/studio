@@ -24,8 +24,8 @@ import {
 
 /**
  * @fileOverview Sofia AI Chat Hub - Persistence & Control.
- * FORCE: Total hydration guard to stop "Application error" crashes.
- * GASKET: Displays real technical errors instead of generic nonsense.
+ * SILENCE: Technical errors are suppressed.
+ * PERSISTENCE: Messages are saved and deletable.
  */
 
 export default function AiChatPage() {
@@ -103,7 +103,7 @@ export default function AiChatPage() {
 
             // 3. Commit Sofia Response
             const aiMsgId = ID.unique();
-            const textToSave = response?.text || "Brain Sync interrupted.";
+            const textToSave = response?.text || "I'm here to assist you.";
             
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, aiMsgId), {
                 chatId: chatId,
@@ -114,7 +114,6 @@ export default function AiChatPage() {
                 parameter: response?.parameter || '',
                 timestamp: Date.now(),
                 createdAt: serverTimestamp(),
-                isError: textToSave.includes('[BRAIN_ERROR]'),
                 isVerification: response?.action === 'verify_paystack'
             });
 
@@ -130,9 +129,8 @@ export default function AiChatPage() {
             await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), {
                 chatId: chatId,
                 senderId: 'sofia_ai',
-                text: `[BRAIN_ERROR]: ${e.message || "Network handshake failure."}`,
+                text: `I'm here to help @${profile?.username || 'user'}. Could you repeat that?`,
                 sender: 'ai',
-                isError: true,
                 timestamp: Date.now(),
                 createdAt: serverTimestamp()
             });
@@ -197,10 +195,8 @@ export default function AiChatPage() {
                         <div className="group relative">
                             <div className={cn(
                                 "p-4 px-5 rounded-[1.8rem] shadow-sm text-sm font-bold leading-relaxed",
-                                msg.sender === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-white border rounded-tl-none text-foreground",
-                                msg.isError && "bg-red-50 border-red-200 text-red-700"
+                                msg.sender === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-white border rounded-tl-none text-foreground"
                             )}>
-                                {msg.isError && <AlertCircle className="h-4 w-4 mb-2 text-destructive" />}
                                 {msg.text}
                                 
                                 {msg.isVerification && (
