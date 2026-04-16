@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
     ArrowLeft, Send, Loader2, Bot, ShieldCheck, 
-    Smartphone, Globe, Cloud, ExternalLink, CheckCircle2 
+    Smartphone, Globe, Cloud, ExternalLink, CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,7 @@ import { databases, DATABASE_ID, COLLECTION_ID_MESSAGES, ID } from '@/lib/data-s
  * @fileOverview Sofia AI Chat Hub.
  * UI: Medium size text, normal speech bubbles.
  * LOGIC: Paystack verification prompt for sensitive data.
+ * DEBUG: Forced real error reporting to screen.
  */
 
 export default function AiChatPage() {
@@ -96,12 +97,14 @@ export default function AiChatPage() {
                     timestamp: new Date().toISOString()
                 }]);
             }
-        } catch (e) {
+        } catch (e: any) {
+            console.error("AI Handshake Error:", e);
             setMessages(prev => [...prev, {
                 id: `error-${Date.now()}`,
-                text: "I am having trouble connecting to my brain. Please try again.",
+                text: `[BRAIN_ERROR]: ${e.message || "The AI encountered a technical sync issue. Please ensure GOOGLE_GENAI_API_KEY is correctly set in your environment."}`,
                 sender: 'ai',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                isError: true
             }]);
         } finally {
             setIsLoading(false);
@@ -132,7 +135,7 @@ export default function AiChatPage() {
                     </div>
                     <div>
                         <h1 className="font-black uppercase text-xs tracking-widest text-primary">Sofia AI</h1>
-                        <p className="text-[8px] font-bold uppercase opacity-40">Technical Partner</p>
+                        <p className="text-[8px] font-bold uppercase opacity-40">Polyglot Partner</p>
                     </div>
                 </div>
                 <div className="w-10"></div>
@@ -143,8 +146,10 @@ export default function AiChatPage() {
                     <div key={msg.id} className={cn("flex flex-col gap-2 max-w-[85%]", msg.sender === 'user' ? "ml-auto items-end" : "items-start")}>
                         <div className={cn(
                             "p-4 px-5 rounded-[1.8rem] shadow-sm text-sm font-bold leading-relaxed",
-                            msg.sender === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-white border rounded-tl-none text-foreground"
+                            msg.sender === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-white border rounded-tl-none text-foreground",
+                            msg.isError && "bg-red-50 border-red-200 text-red-700"
                         )}>
+                            {msg.isError && <AlertCircle className="h-4 w-4 mb-2" />}
                             {msg.text}
                             
                             {msg.isVerification && (
@@ -173,7 +178,7 @@ export default function AiChatPage() {
                 {isLoading && (
                     <div className="flex items-center gap-3 animate-pulse opacity-50">
                         <div className="bg-primary/10 p-2 rounded-full"><Loader2 className="h-4 w-4 animate-spin text-primary" /></div>
-                        <span className="font-black uppercase text-[8px] tracking-widest text-primary">Sofia is gathering knowledge...</span>
+                        <span className="font-black uppercase text-[8px] tracking-widest text-primary">Sofia is translating knowledge...</span>
                     </div>
                 )}
                 <div ref={scrollRef} />
@@ -182,7 +187,7 @@ export default function AiChatPage() {
             <footer className="p-4 pb-10 border-t bg-background sticky bottom-0">
                 <div className="max-w-xl mx-auto flex items-center gap-3">
                     <Input 
-                        placeholder="Ask Sofia anything..." 
+                        placeholder="Ask Sofia in any language..." 
                         value={input} 
                         onChange={e => setInput(e.target.value)}
                         onKeyPress={e => e.key === 'Enter' && handleSend()}
