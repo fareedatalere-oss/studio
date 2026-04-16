@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -14,8 +14,9 @@ import { isYesterday, isToday, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 /**
- * @fileOverview Chat Center - High Speed.
- * SYNC: Enforces Recent and All labels.
+ * @fileOverview Chat Center - Zero Reload Sync.
+ * LABELS: Recent, All (Title Case).
+ * CRASH PROTECTION: Pre-loads data from UserProvider memory.
  */
 
 const safeDate = (ts: any) => {
@@ -79,6 +80,11 @@ export default function ChatPage() {
     const { user: currentUser, allUsers, recentChats, loading } = useUser();
     const [searchRecent, setSearchRecent] = useState('');
     const [searchAll, setSearchAll] = useState('');
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     const filteredUsers = useMemo(() =>
         allUsers.filter(u => u.$id !== currentUser?.$id && (u.username || '').toLowerCase().includes(searchAll.toLowerCase())), 
@@ -90,12 +96,14 @@ export default function ChatPage() {
         [recentChats, searchRecent]
     );
 
+    if (!isMounted) return null;
+
     return (
         <div className="flex flex-col min-h-screen bg-background font-body">
             <header className="p-4 pt-12 max-w-xl mx-auto w-full border-b bg-muted/5">
                 <div className="flex items-center justify-between mb-6">
                     <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-10 w-10 bg-muted/50 rounded-full border shadow-sm"><ArrowLeft className="h-5 w-5" /></Button>
-                    <h1 className="font-black uppercase text-sm tracking-[0.2em] text-primary">Chat</h1>
+                    <h1 className="font-black uppercase text-sm tracking-widest text-primary">Chat Center</h1>
                     <Button asChild variant="ghost" size="icon" className="h-10 w-10 bg-primary/10 text-primary rounded-full"><Link href="/dashboard/meeting"><Video className="h-5 w-5" /></Link></Button>
                 </div>
                 

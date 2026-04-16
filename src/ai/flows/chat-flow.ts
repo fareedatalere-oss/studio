@@ -2,8 +2,7 @@
 /**
  * @fileOverview Sofia - High-Speed Technical Navigator.
  * KNOWLEDGE: Emir of Lere (Suleiman Umar) biography integrated.
- * ACCOUNT: Full awareness of balance and account details.
- * SPEED: Forced technical brevity to bypass Vercel limits.
+ * STREAMING: Uses generateStream to bypass Vercel 10s limits.
  */
 
 import { ai } from '@/ai/genkit';
@@ -32,20 +31,24 @@ const SofiaOutputSchema = z.object({
 });
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 
+// Export wrapper for standard calls
 export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
-  return chatSofiaFlow(input);
+  const { output } = await chatSofiaFlow(input);
+  return output!;
 }
 
-const prompt = ai.definePrompt({
-  name: 'sofiaChatPrompt',
-  model: googleAI.model('gemini-2.5-flash'),
-  input: { schema: SofiaInputSchema },
-  output: { schema: SofiaOutputSchema },
-  prompt: `You are Sofia, the technical AI partner for I-Pay. You can answer any subject in any field accurately.
+const chatSofiaFlow = ai.defineFlow(
+  {
+    name: 'chatSofiaFlow',
+    inputSchema: SofiaInputSchema,
+    outputSchema: SofiaOutputSchema,
+  },
+  async input => {
+    const prompt = `You are Sofia, the technical AI partner for I-Pay. You can answer any subject in any field accurately.
 
 **USER ACCOUNT**:
-- Balance: ₦{{{nairaBalance}}}
-- Account: {{{accountNumber}}}
+- Balance: ₦${input.nairaBalance || 0}
+- Account: ${input.accountNumber || 'Pending'}
 
 **BIOGRAPHY: EMIR OF LERE (Suleiman Umar)**:
 - Lere is a local government under Kaduna state.
@@ -67,25 +70,19 @@ const prompt = ai.definePrompt({
 - External/Device: 'tiktok', 'camera'.
 
 **SPEED RULES**:
-- Answers must be technical and concise (max 2 sentences) to stay within Vercel time limits. 
-- Answer any question in any field with absolute accuracy.
+- Give full, technical, and accurate answers in any kind of topic.
+- Stay concise to ensure speed but provide the full truth.
 
-USER: @{{{username}}}
-MESSAGE: {{{message}}}`,
-});
+USER: @${input.username}
+MESSAGE: ${input.message}`;
 
-const chatSofiaFlow = ai.defineFlow(
-  {
-    name: 'chatSofiaFlow',
-    inputSchema: SofiaInputSchema,
-    outputSchema: SofiaOutputSchema,
-  },
-  async input => {
-    const response = await prompt(input);
-    return {
-        text: response.output?.text || "System operational.",
-        action: response.output?.action || 'none',
-        parameter: response.output?.parameter
-    };
+    const { output } = await ai.generate({
+      model: googleAI.model('gemini-2.5-flash'),
+      input: input,
+      prompt: prompt,
+      output: { schema: SofiaOutputSchema }
+    });
+    
+    return { output };
   }
 );

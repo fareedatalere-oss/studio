@@ -12,6 +12,12 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { MeetingAlarm } from '@/components/meeting-alarm';
 
+/**
+ * @fileOverview Master Dashboard Layout.
+ * LABELS: Home, Chat, Media, Market, Profile (Title Case).
+ * ICONS: Corrected for professional identity.
+ */
+
 export default function DashboardLayout({
   children,
 }: {
@@ -19,7 +25,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const { toast } = useToast();
-  const { profile, loading, unreadNotifications, proof } = useUser();
+  const { profile, unreadNotifications, proof } = useUser();
   
   const [isMounted, setIsMounted] = useState(false);
 
@@ -37,6 +43,8 @@ export default function DashboardLayout({
   };
 
   const isImmersive = pathname.includes('/room/') || pathname.includes('/call/') || pathname.includes('/join/');
+
+  if (!isMounted) return null;
 
   return (
     <div className="flex min-h-screen flex-col font-body bg-background">
@@ -85,7 +93,7 @@ export default function DashboardLayout({
             ].map((tab) => (
                 <Link key={tab.key} href={tab.href} onClick={(e) => handleTabClick(e, tab.key)} className={cn("flex flex-col items-center gap-0.5 transition-colors", pathname === tab.href ? "text-primary scale-110" : "text-muted-foreground")}>
                     <tab.icon className="h-4 w-4" />
-                    <span className="text-[8px] font-bold tracking-tighter">{tab.label}</span>
+                    <span className="text-[9px] font-bold tracking-tighter">{tab.label}</span>
                 </Link>
             ))}
           </div>

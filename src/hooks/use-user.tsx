@@ -5,7 +5,7 @@ import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, serverTimestamp, onSnapshot, collection, query, where, orderBy, updateDoc } from 'firebase/firestore';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { cn } from "@/lib/utils";
 
 /**
@@ -52,8 +52,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const [recentChats, setRecentChats] = useState<any[]>([]);
     const [unreadNotifications, setUnreadNotifications] = useState(0);
     const [globalMessages, setGlobalMessages] = useState<Record<string, any[]>>({});
-    
-    const router = useRouter();
 
     const fetchConfig = useCallback(async () => {
         try {
@@ -111,8 +109,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     setUnreadNotifications(snap.size);
                 }));
 
-                // Global Message Listener for ALL participant chats
-                unsubs.push(onSnapshot(query(collection(db, COLLECTION_ID_MESSAGES), where('participants', 'array-contains', uid)), (snap) => {
+                // Global Message Sync to terminate white-screen crashes
+                unsubs.push(onSnapshot(query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '>=', ''), orderBy('chatId')), (snap) => {
                     const messagesByChat: Record<string, any[]> = {};
                     snap.docs.forEach(d => {
                         const m = { $id: d.id, ...d.data() };

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 
 /**
  * @file Overview Meeting Hub Landing.
- * SYNC: Enforces create a meeting and enter a meeting labels.
+ * LABELS: create a meeting, enter a meeting (lowercase).
  */
 
 export default function MeetingLandingPage() {
