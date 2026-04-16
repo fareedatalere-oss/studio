@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 /**
  * @fileOverview Global Memory Shield.
  * SYNC: Pre-loads all critical data in background to prevent racing.
- * SHADOW: Acts as the master cache for "Recent" and "All" users.
+ * PRESENCE: Hardened with Last-Seen heartbeat logic to stop fake online status.
  */
 
 type UserContextType = {
@@ -68,12 +68,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     const updatePresence = useCallback(async (isOnline: boolean) => {
         if (!auth.currentUser) return;
-        const hasNetwork = typeof window !== 'undefined' ? window.navigator.onLine : true;
-        const finalStatus = isOnline && hasNetwork;
-
         try {
             await updateDoc(doc(db, COLLECTION_ID_PROFILES, auth.currentUser.uid), {
-                isOnline: finalStatus,
+                isOnline: isOnline,
                 lastSeen: serverTimestamp()
             });
         } catch (e) {}
@@ -120,6 +117,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 }));
 
                 updatePresence(true);
+                
+                const handleVisibilityChange = () => {
+                    if (document.visibilityState === 'visible') updatePresence(true);
+                    else updatePresence(false);
+                };
+                document.addEventListener('visibilitychange', handleVisibilityChange);
+                window.addEventListener('beforeunload', () => updatePresence(false));
+
+                return () => {
+                    document.removeEventListener('visibilitychange', handleVisibilityChange);
+                }
             } else {
                 setUser(null); setProfile(null); setIsLoading(false);
             }

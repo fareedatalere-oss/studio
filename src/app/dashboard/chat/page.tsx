@@ -15,10 +15,8 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center - Shadow List Protocol.
- * FORCE: Hydration Guard (500ms Freeze) to stop Vercel crashes.
- * FIXED: Objects are not valid as React child error fixed with content type check.
- * FIXED: (c.lastMessage || "").toLowerCase() error handled with String() cast.
- * FILTER: Only show users in Recent if a message has been sent.
+ * FORCE: Only show users in Recent if a real message exists and the user identity is valid.
+ * PRESENCE: Hardened heartbeat check to stop fake "Online" status.
  */
 
 const safeDate = (ts: any) => {
@@ -30,6 +28,16 @@ const safeDate = (ts: any) => {
         const d = new Date(ts);
         return isNaN(d.getTime()) ? null : d;
     } catch (e) { return null; }
+};
+
+const isUserActuallyOnline = (user: any) => {
+    if (!user?.isOnline) return false;
+    if (!user?.lastSeen) return false;
+    
+    const lastSeenDate = user.lastSeen.toDate ? user.lastSeen.toDate() : new Date(user.lastSeen);
+    const now = new Date();
+    // FORCE: Consider offline if heartbeat was more than 3 minutes ago
+    return (now.getTime() - lastSeenDate.getTime()) < 180000; 
 };
 
 const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) => {
@@ -49,8 +57,10 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
         return format(date, 'dd/MM/yy');
     };
 
-    if (!chat || !currentUid) return null;
+    if (!chat || !currentUid || !otherUser) return null; // SHIELD: Hide if user is "Fake" or missing
+    
     const unreadCount = chat.unreadCount?.[currentUid] || 0;
+    const online = isUserActuallyOnline(otherUser);
 
     const displayMessage = useMemo(() => {
         if (!chat.lastMessage) return '...';
@@ -60,13 +70,13 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
 
     return (
         <div className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all active:scale-[0.98] max-w-xl mx-auto">
-            <Link href={otherUser ? `/dashboard/chat/${otherUser.$id}` : '#'} className="flex-1 flex items-center gap-3 overflow-hidden">
+            <Link href={`/dashboard/chat/${otherUser.$id}`} className="flex-1 flex items-center gap-3 overflow-hidden">
                 <div className="relative">
                     <Avatar className="h-12 w-12 border-2 border-primary/5 shadow-sm">
                         <AvatarImage src={otherUser?.avatar} className="object-cover" />
                         <AvatarFallback className="font-black bg-primary text-white">{otherUser?.username?.charAt(0).toUpperCase() || '?'}</AvatarFallback>
                     </Avatar>
-                    {otherUser?.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>}
+                    {online && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>}
                 </div>
                 <div className="flex-1 overflow-hidden">
                     <div className="flex justify-between items-center mb-0.5">
@@ -104,11 +114,17 @@ export default function ChatPage() {
 
     const filteredRecent = useMemo(() =>
         recentChats.filter(c => {
-            if (!c.lastMessage) return false; // FORCE: If you didn't chat, never show the list
+            if (!c.lastMessage) return false; 
+            
+            // FORCE: Wipe out ghost accounts from Recent list
+            const otherId = c.participants?.find((p: string) => p !== (currentUser?.$id || currentUser?.uid));
+            const exists = allUsers.some(u => u.$id === otherId);
+            if (!exists) return false;
+
             const msg = typeof c.lastMessage === 'object' ? (c.lastMessage.text || '') : String(c.lastMessage || '');
             return msg.toLowerCase().includes(searchRecent.toLowerCase());
         }), 
-        [recentChats, searchRecent]
+        [recentChats, searchRecent, allUsers, currentUser]
     );
 
     if (!isMounted) return null;
@@ -150,9 +166,9 @@ export default function ChatPage() {
                                 <Link key={u.$id} href={`/dashboard/chat/${u.$id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all active:scale-[0.98]">
                                     <div className="relative">
                                         <Avatar className="h-12 w-12 border-2 border-primary/10 shadow-sm"><AvatarImage src={u.avatar} /><AvatarFallback className="font-black bg-muted">{u.username?.charAt(0) || '?'}</AvatarFallback></Avatar>
-                                        {u.isOnline && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white"></div>}
+                                        {isUserActuallyOnline(u) && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white"></div>}
                                     </div>
-                                    <div className="flex-1 overflow-hidden"><p className="font-bold text-xs tracking-tight">@{u.username}</p><p className="text-[8px] font-bold uppercase text-primary/60">{u.isOnline ? 'Online now' : 'Offline'}</p></div>
+                                    <div className="flex-1 overflow-hidden"><p className="font-bold text-xs tracking-tight">@{u.username}</p><p className="text-[8px] font-bold uppercase text-primary/60">{isUserActuallyOnline(u) ? 'Online now' : 'Offline'}</p></div>
                                 </Link>
                             ))}
                         </div>
