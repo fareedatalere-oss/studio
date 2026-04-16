@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { Bell, Home, PlaySquare, Store, User, Bot, MessageSquare } from 'lucide-react';
@@ -16,6 +15,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 /**
  * @fileOverview Master Dashboard Layout.
  * LABELS: Home, Chat, Media, Market, Profile (Enforced Title Case).
+ * ICONS: Corrected Chat (MessageSquare) and Market (Store) icons.
  */
 
 export default function DashboardLayout({
@@ -67,7 +67,7 @@ export default function DashboardLayout({
                 </Link>
               </Button>
               <Link href="/dashboard/profile" onClick={(e) => handleTabClick(e, 'tab_profile')}>
-                <Avatar className="h-8 w-8 border-2 border-primary/10">
+                <Avatar className="h-8 w-8 border-2 border-primary/10 shadow-sm">
                   <AvatarImage src={profile?.avatar} />
                   <AvatarFallback className="text-[10px] font-black">{profile?.username?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
                 </Avatar>
@@ -91,9 +91,9 @@ export default function DashboardLayout({
                 { href: '/dashboard/market', label: 'Market', icon: Store, key: 'tab_market' },
                 { href: '/dashboard/profile', label: 'Profile', icon: User, key: 'tab_profile' }
             ].map((tab) => (
-                <Link key={tab.key} href={tab.href} onClick={(e) => handleTabClick(e, tab.key)} className={cn("flex flex-col items-center gap-0.5 transition-colors", pathname === tab.href ? "text-primary" : "text-muted-foreground")}>
+                <Link key={tab.key} href={tab.href} onClick={(e) => handleTabClick(e, tab.key)} className={cn("flex flex-col items-center gap-0.5 transition-all duration-300", pathname === tab.href ? "text-primary scale-110" : "text-muted-foreground opacity-60")}>
                     <tab.icon className="h-4 w-4" />
-                    <span className="text-[10px] font-bold tracking-tighter">{tab.label}</span>
+                    <span className="text-[10px] font-black tracking-tight">{tab.label}</span>
                 </Link>
             ))}
           </div>

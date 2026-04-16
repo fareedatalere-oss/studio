@@ -18,9 +18,15 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import Image from 'next/image';
-import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
+
+/**
+ * @fileOverview Master Meeting Hub Room.
+ * ADMIN: Can see "X" to remove users.
+ * GUEST: Can see "Out" to leave.
+ * INDEX FIX: Removed server-side orderBy to bypass Firestore Index errors.
+ */
 
 export default function MeetingRoomPage() {
     const params = useParams();
@@ -37,7 +43,6 @@ export default function MeetingRoomPage() {
     const [loading, setLoading] = useState(true);
     const [participants, setParticipants] = useState<any[]>([]);
     const [requests, setRequests] = useState<any[]>([]);
-    const [isUploading, setIsUploading] = useState(false);
     
     const [privateChatPartner, setPrivateChatPartner] = useState<any>(null);
     const [privateMessages, setPrivateMessages] = useState<any[]>([]);
@@ -76,12 +81,13 @@ export default function MeetingRoomPage() {
         if (!privateChatPartner || !user?.$id) return;
         const chatId = [user.$id, privateChatPartner.userId].sort().join('_') + '_' + meetingId;
         try {
+            // INDEX FIX: Removed orderAsc, sorting client-side
             const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
                 Query.equal('chatId', chatId),
-                Query.orderAsc('$createdAt'),
-                Query.limit(50)
+                Query.limit(100)
             ]);
-            setPrivateMessages(res.documents);
+            const sorted = res.documents.sort((a: any, b: any) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+            setPrivateMessages(sorted);
         } catch (e) {}
     }, [privateChatPartner, user?.$id, meetingId]);
 
@@ -102,7 +108,7 @@ export default function MeetingRoomPage() {
         fetchMeeting();
         fetchAttendees();
         
-        const unsubMeeting = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents`], response => {
+        const unsubMeeting = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MEETINGS}.documents.${meetingId}`], response => {
             const payload = response.payload as any;
             if (payload?.$id === meetingId) {
                 if (payload.status === 'ended' || payload.status === 'cancelled') router.replace('/dashboard/meeting');
@@ -152,6 +158,7 @@ export default function MeetingRoomPage() {
             <header className="p-4 pt-12 flex justify-between items-center bg-black/50 border-b border-white/5 z-50">
                 <div className="flex-1">
                     <h1 className="font-black uppercase text-xs tracking-widest text-primary truncate">{meeting.name}</h1>
+                    <p className="text-[7px] font-bold uppercase opacity-40">Chairman: {isAdmin ? 'YOU' : 'Authorized Only'}</p>
                 </div>
                 {isAdmin && !isPersonal && (
                     <div className="flex gap-2 mx-4">
@@ -163,6 +170,21 @@ export default function MeetingRoomPage() {
                     {isAdmin ? 'End Hub' : 'Out'}
                 </Button>
             </header>
+
+            {/* REQUESTS TOAST FOR ADMIN */}
+            {isAdmin && requests.length > 0 && (
+                <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[300] w-[90%] max-w-sm">
+                    <Card className="bg-primary text-white p-4 rounded-3xl shadow-2xl border-none">
+                        <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-black uppercase">{requests.length} Guest(s) Waiting</p>
+                            <div className="flex gap-2">
+                                <Button size="sm" className="h-7 rounded-full bg-white text-primary font-black uppercase text-[8px]" onClick={() => handleAction(requests[0].$id, 'approved')}>Accept</Button>
+                                <Button size="sm" variant="ghost" className="h-7 rounded-full text-white/60 font-black uppercase text-[8px]" onClick={() => handleAction(requests[0].$id, 'declined')}>Decline</Button>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+            )}
 
             <main className="flex-1 overflow-y-auto p-6 scrollbar-visible">
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-6 max-w-6xl mx-auto py-10">
@@ -180,7 +202,7 @@ export default function MeetingRoomPage() {
                                     )}
                                 </Avatar>
                                 {isAdmin && !p.isHost && (
-                                    <button onClick={(e) => { e.stopPropagation(); handleAction(p.$id, 'declined'); }} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1"><X className="h-3 w-3" /></button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleAction(p.$id, 'declined'); }} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 shadow-lg hover:scale-110 active:scale-90"><X className="h-3 w-3" /></button>
                                 )}
                             </div>
                             <p className="font-black text-[8px] opacity-80 uppercase text-center truncate w-full tracking-tighter">@{p.name}</p>
@@ -192,10 +214,10 @@ export default function MeetingRoomPage() {
             {/* BOARD OVERLAY */}
             {!isPersonal && meeting.activeView === 'board' && (
                 <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-6">
-                    <Card className="w-full max-w-sm h-[40vh] flex flex-col rounded-[2.5rem] bg-white text-black overflow-hidden">
-                        <header className="p-4 border-b flex justify-between items-center"><span className="font-black uppercase text-[10px]">Board</span><Button variant="ghost" onClick={() => databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { activeView: 'none' })}><X /></Button></header>
+                    <Card className="w-full max-w-sm h-[40vh] flex flex-col rounded-[2.5rem] bg-white text-black overflow-hidden shadow-2xl">
+                        <header className="p-4 border-b flex justify-between items-center"><span className="font-black uppercase text-[10px] tracking-widest text-primary">Chairman Board</span><Button variant="ghost" onClick={() => databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { activeView: 'none' })}><X /></Button></header>
                         <div className="flex-1 p-6">
-                            {isAdmin ? <Textarea className="h-full border-none shadow-none text-lg font-bold" value={meeting.boardText} onChange={e => databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { boardText: e.target.value })} /> : <div className="text-lg font-bold">{meeting.boardText || 'Waiting...'}</div>}
+                            {isAdmin ? <Textarea className="h-full border-none shadow-none text-lg font-bold placeholder:opacity-20" placeholder="Type instructions here..." value={meeting.boardText} onChange={e => databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { boardText: e.target.value })} /> : <div className="text-lg font-bold leading-relaxed">{meeting.boardText || 'Board is clear.'}</div>}
                         </div>
                     </Card>
                 </div>
@@ -204,24 +226,27 @@ export default function MeetingRoomPage() {
             {/* PRIVATE CHAT OVERLAY */}
             {privateChatPartner && (
                 <div className="absolute bottom-20 left-0 right-0 z-[400] flex justify-center p-4">
-                    <Card className="w-full max-w-md h-[45vh] flex flex-col rounded-[2.5rem] overflow-hidden bg-white text-black shadow-2xl">
+                    <Card className="w-full max-w-md h-[45vh] flex flex-col rounded-[2.5rem] overflow-hidden bg-white text-black shadow-2xl border-none">
                         <header className="p-4 bg-primary text-white flex justify-between items-center">
-                            <div className="flex items-center gap-2"><Avatar className="h-6 w-6"><AvatarImage src={privateChatPartner.avatar}/></Avatar><p className="font-black uppercase text-[9px]">{privateChatPartner.name}</p></div>
-                            <Button variant="ghost" onClick={() => setPrivateChatPartner(null)}><X className="h-4 w-4"/></Button>
+                            <div className="flex items-center gap-2">
+                                <Avatar className="h-8 w-8 border border-white/20"><AvatarImage src={privateChatPartner.avatar}/></Avatar>
+                                <div><p className="font-black uppercase text-[10px] leading-none">{privateChatPartner.name}</p><p className="text-[7px] font-bold opacity-60 mt-1 uppercase tracking-widest">Private Hub</p></div>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => setPrivateChatPartner(null)} className="rounded-full text-white hover:bg-white/10"><X className="h-5 w-5"/></Button>
                         </header>
                         <ScrollArea className="flex-1 p-4">
                             <div className="space-y-3">
                                 {privateMessages.map(m => (
                                     <div key={m.$id} className={cn("flex flex-col", m.senderId === user?.$id ? "items-end" : "items-start")}>
-                                        <div className={cn("p-3 rounded-2xl text-xs font-bold max-w-[85%]", m.senderId === user?.$id ? "bg-primary text-white" : "bg-muted")}>{m.text}</div>
+                                        <div className={cn("p-4 rounded-[1.5rem] text-sm font-bold max-w-[85%] shadow-sm", m.senderId === user?.$id ? "bg-primary text-white rounded-tr-none" : "bg-muted rounded-tl-none")}>{m.text}</div>
                                     </div>
                                 ))}
                                 <div ref={privateChatEndRef} />
                             </div>
                         </ScrollArea>
-                        <footer className="p-3 border-t flex gap-2">
-                            <Input value={privateInput} onChange={e => setPrivateInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSendPrivate()} placeholder="Message..." className="h-10 rounded-xl" />
-                            <Button onClick={handleSendPrivate} size="icon" className="h-10 w-10 rounded-full"><Send className="h-4 w-4"/></Button>
+                        <footer className="p-4 border-t flex gap-2">
+                            <Input value={privateInput} onChange={e => setPrivateInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSendPrivate()} placeholder="Private message..." className="h-12 rounded-2xl bg-muted border-none px-6 font-bold" />
+                            <Button onClick={handleSendPrivate} size="icon" className="h-12 w-12 rounded-full shadow-lg bg-primary"><Send className="h-5 w-5 text-white"/></Button>
                         </footer>
                     </Card>
                 </div>
@@ -229,8 +254,12 @@ export default function MeetingRoomPage() {
 
             <footer className="p-6 border-t bg-black/80 flex items-center justify-between z-[90]">
                 <div className="flex items-center gap-3">
-                    <Avatar className="h-12 w-12 border-2 border-primary p-0.5"><AvatarImage src={profile?.avatar} /></Avatar>
-                    <div className="text-left"><p className="text-[10px] font-black uppercase text-primary">Identity Feed</p><p className="text-[8px] font-bold opacity-50 uppercase">Live Master Sync</p></div>
+                    <Avatar className="h-14 w-14 border-2 border-primary p-0.5"><AvatarImage src={profile?.avatar} /></Avatar>
+                    <div className="text-left"><p className="text-[10px] font-black uppercase text-primary">Identity Active</p><p className="text-[8px] font-bold opacity-30 uppercase tracking-[0.2em]">Real-time Master Sync</p></div>
+                </div>
+                <div className="flex items-center gap-4">
+                    <div className="bg-primary/20 p-3 rounded-full animate-pulse"><Mic className="h-4 w-4 text-primary" /></div>
+                    <div className="bg-primary/20 p-3 rounded-full"><Volume2 className="h-4 w-4 text-primary" /></div>
                 </div>
             </footer>
         </div>
