@@ -11,8 +11,8 @@ import { parseISO, isBefore } from 'date-fns';
 
 /**
  * @fileOverview Master Alarm Engine.
- * FORCE: Only rings for pending, unexpired meetings/calls.
- * BUG FIX: Caller (A) no longer rings on their own device. Only Receiver (B) rings.
+ * FORCE: Receiver rings ONLY. Sender device is silent.
+ * EXPIRY: Strictly respects Personal (1hr) and General (3hr) time limits.
  */
 
 export function MeetingAlarm() {
@@ -45,7 +45,6 @@ export function MeetingAlarm() {
           Query.limit(10)
         ]);
 
-        // Host only gets alarm for established "meetings", not their own "private calls"
         const hostRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
           Query.equal('status', 'pending'),
           Query.equal('hostId', user.$id),
@@ -59,8 +58,8 @@ export function MeetingAlarm() {
             if (rungIds.current.has(m.$id)) return false;
             if (m.status !== 'pending') return false;
 
-            // BUG FIX: Never ring if I am the one who started a private call
-            if (m.type === 'private_call' && m.hostId === user.$id) return false;
+            // RING SHIELD: Never ring for the person who started the call
+            if (m.hostId === user.$id && m.type === 'private_call') return false;
             
             if (m.expiresAt) {
                 const expiry = parseISO(m.expiresAt);
@@ -83,7 +82,7 @@ export function MeetingAlarm() {
             ...target, 
             isHostAlert,
             callerAvatar: caller?.avatar, 
-            callerName: caller?.username || (isHostAlert ? 'Chairman' : 'I-Pay User')
+            callerName: caller?.username || 'I-Pay User'
           });
           startRinging();
         }
@@ -113,15 +112,6 @@ export function MeetingAlarm() {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
-    if ("Notification" in window && Notification.permission === "granted") {
-        new Notification(activeCall?.type === 'private_call' ? 'INCOMING CALL' : 'MEETING ALERT', {
-            body: activeCall?.type === 'private_call' ? `Secure call from @${activeCall?.callerName}` : `Meeting "${activeCall.name}" is due.`,
-            icon: '/logo.png',
-            tag: 'force-call',
-            requireInteraction: true 
-        });
-    }
-
     if (navigator.vibrate) {
         const pattern = [2000, 500, 2000, 500];
         navigator.vibrate(pattern);

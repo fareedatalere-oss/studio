@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -10,7 +9,7 @@ import {
     serverTimestamp, setDoc, updateDoc, 
     increment, getDocs, writeBatch, arrayUnion
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } from '@/lib/data-service';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, DATABASE_ID } from '@/lib/data-service';
 import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, FileText, Image as ImageIcon, Film, Music, Mic, X } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -18,8 +17,14 @@ import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
+
+/**
+ * @fileOverview Private Chat Thread.
+ * DESIGN: Restored Paperclip choice and 4-minute Voice Note logic.
+ * SYNC: Enforced Client-Side filtering to bypass Firebase Index errors.
+ */
 
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
@@ -30,11 +35,10 @@ const getChatId = (userId1?: string, userId2?: string) => {
 export default function ChatThreadPage() {
     const params = useParams();
     const router = useRouter();
-    const { user: currentUser, profile: currentProfile, allUsers } = useUser();
+    const { user: currentUser, profile: currentProfile, allUsers, globalMessages } = useUser();
     const { toast } = useToast();
 
     const otherUserId = params.id as string;
-    const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [isUploading, setIsUploading] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
@@ -43,38 +47,34 @@ export default function ChatThreadPage() {
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const mediaTypeRef = useRef<'image' | 'video' | 'audio' | 'raw'>('image');
+    const mediaTypeRef = useRef<'image' | 'video' | 'raw'>('image');
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
     
     const otherUser = useMemo(() => allUsers.find(u => u.$id === otherUserId), [allUsers, otherUserId]);
     const chatId = useMemo(() => currentUser?.$id && otherUserId ? getChatId(currentUser.$id, otherUserId) : null, [currentUser?.$id, otherUserId]);
 
+    const messages = useMemo(() => {
+        if (!chatId || !globalMessages[chatId]) return [];
+        return [...globalMessages[chatId]].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    }, [chatId, globalMessages]);
+
     useEffect(() => {
         setIsMounted(true);
         if (!chatId || !currentUser) return;
 
-        const q = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', chatId));
-        const unsub = onSnapshot(q, (snapshot) => {
-            const docs = snapshot.docs.map(d => ({ $id: d.id, ...d.data() }));
-            setMessages(docs.filter((m: any) => !m.deleteFor?.includes(currentUser?.$id)).sort((a: any, b: any) => (a.timestamp || 0) - (b.timestamp || 0)));
-        });
-
         const markAsRead = async () => {
-            const qRead = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', chatId), where('senderId', '==', otherUserId));
-            const snap = await getDocs(qRead);
-            // FORCE: Client-side filter to bypass Index nonsense
-            const unread = snap.docs.filter(d => d.data().status !== 'read');
+            const chatMessages = globalMessages[chatId] || [];
+            const unread = chatMessages.filter(m => m.senderId === otherUserId && m.status !== 'read');
             if (unread.length > 0) {
                 const batch = writeBatch(db);
-                unread.forEach(d => batch.update(d.ref, { status: 'read' }));
+                unread.forEach(m => batch.update(doc(db, COLLECTION_ID_MESSAGES, m.$id), { status: 'read' }));
                 await batch.commit();
                 await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), { [`unreadCount.${currentUser.$id}`]: 0 }, { merge: true });
             }
         };
         markAsRead();
-        return () => unsub();
-    }, [chatId, currentUser, otherUserId]);
+    }, [chatId, currentUser, otherUserId, globalMessages]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 

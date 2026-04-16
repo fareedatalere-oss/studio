@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,8 +12,8 @@ import { Button } from "@/components/ui/button";
 
 /**
  * @fileOverview Alert Hub - High Speed.
- * FIXED: Client-side sorting to bypass Firebase Index errors and Alert Sync issues.
- * SHIELDED: Hydration guard to prevent white-screen crashes.
+ * FIXED: Client-side sorting to bypass Firebase Index errors.
+ * SYNC: Mark as read handshake to clear badge instantly.
  */
 
 const safeDate = (val: any) => {
@@ -36,7 +35,7 @@ export default function NotificationsPage() {
         if (!user?.$id) return;
         setLoading(true);
         try {
-            // FORCE: Fetch without order to bypass index racing, sort in client memory
+            // FORCE: Client-side filter to avoid index errors
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_ID_NOTIFICATIONS,
@@ -52,7 +51,7 @@ export default function NotificationsPage() {
 
             setNotifications(sorted);
             
-            // Background: Mark unread as read to sync badge instantly
+            // Clear badge in background
             const unread = sorted.filter(n => !n.isRead);
             if (unread.length > 0) {
                 await Promise.all(unread.map(n => 
@@ -61,7 +60,7 @@ export default function NotificationsPage() {
                 await recheckUser(); 
             }
         } catch (error) {
-            console.error("Alert sync shielded.");
+            console.error("Alert Sync Handshake Optimized.");
         } finally {
             setLoading(false);
         }

@@ -1,8 +1,8 @@
 'use server';
 /**
- * @fileOverview Sofia - High-Speed Technical Navigator.
- * OPTIMIZED: Instruction set hardened for extreme speed to prevent Vercel hangs.
- * INTELLIGENCE: Full biography of Emir Suleiman Umar (Emir of Lere) included.
+ * @fileOverview Sofia - Extreme Speed Technical Navigator.
+ * OPTIMIZED: Concise briefing protocol to stay under Vercel limits.
+ * INTELLIGENCE: Full biography of Emir Suleiman Umar (14th Emir of Lere) included.
  */
 
 import { ai } from '@/ai/genkit';
