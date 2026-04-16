@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
     ArrowLeft, Send, Loader2, Bot, ShieldCheck, 
@@ -10,11 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { useUser } from '@/hooks/use-user';
-import { chatSofia, SofiaOutput } from '@/ai/flows/chat-flow';
+import { chatSofia } from '@/ai/flows/chat-flow';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { databases, DATABASE_ID, COLLECTION_ID_MESSAGES, ID, db, Query } from '@/lib/data-service';
-import { collection, query, where, onSnapshot, doc, deleteDoc, serverTimestamp, setDoc, orderBy } from 'firebase/firestore';
+import { db, ID } from '@/lib/data-service';
+import { collection, query, where, onSnapshot, doc, deleteDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { 
     DropdownMenu, 
     DropdownMenuContent, 
@@ -24,9 +24,8 @@ import {
 
 /**
  * @fileOverview Sofia AI Chat Hub - Persistence & Control.
- * FORCE: All messages are committed to Firestore collection.
- * DELETE: Master power to wipe AI messages from cloud history.
- * PROTOCOL: Zero-Wait Polyglot Technical Force.
+ * FORCE: All messages are committed to Firestore.
+ * GASKET: Robust null-safety for Brain responses.
  */
 
 export default function AiChatPage() {
@@ -40,12 +39,12 @@ export default function AiChatPage() {
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const chatId = user ? `ai_${user.$id}` : null;
+    const COLLECTION_ID_MESSAGES = 'messages';
 
     useEffect(() => {
         setIsMounted(true);
         if (!chatId) return;
 
-        // FORCE: Real-time Master Sync with Database
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
             where('chatId', '==', chatId)
@@ -53,7 +52,6 @@ export default function AiChatPage() {
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const docs = snapshot.docs.map(d => ({ $id: d.id, ...d.data() }));
-            // Client-Side Force Sort to bypass Index Errors
             const sorted = docs.sort((a: any, b: any) => {
                 const timeA = a.timestamp || 0;
                 const timeB = b.timestamp || 0;
@@ -77,7 +75,7 @@ export default function AiChatPage() {
         setIsLoading(true);
 
         try {
-            // 1. Commit User Message to Cloud
+            // 1. Commit User Message
             const userMsgId = ID.unique();
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, userMsgId), {
                 chatId: chatId,
@@ -96,19 +94,21 @@ export default function AiChatPage() {
                 nairaBalance: profile?.nairaBalance,
                 accountNumber: profile?.accountNumber,
                 currentTime: new Date().toLocaleString(),
-                location: 'Abuja, Nigeria',
+                location: 'Nigeria',
                 weather: '32°C, Sunny'
             });
 
-            // NULL SAFETY GASKET: Verify response exists before reading properties
-            if (!response) throw new Error("Connection to Brain was interrupted.");
+            // NULL SAFETY GASKET: Robust check to prevent "reading 'text' of undefined"
+            if (!response || typeof response !== 'object') {
+                throw new Error("Handshake returned invalid response.");
+            }
 
-            // 3. Commit Sofia Response to Cloud
+            // 3. Commit Sofia Response
             const aiMsgId = ID.unique();
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, aiMsgId), {
                 chatId: chatId,
                 senderId: 'sofia_ai',
-                text: response.text || "I am currently syncing my technical records. Please try again.",
+                text: response.text || "Ina jin ka, amma akwai matsalar sadarwa. I hear you, but there is a sync issue.",
                 sender: 'ai',
                 action: response.action || 'none',
                 parameter: response.parameter || '',
@@ -126,11 +126,10 @@ export default function AiChatPage() {
 
         } catch (e: any) {
             console.error("Sofia Sync Failure:", e);
-            // Commit Error Log to Hub
             await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), {
                 chatId: chatId,
                 senderId: 'sofia_ai',
-                text: `[BRAIN_ERROR]: ${e.message || "Technical sync issue. Check GOOGLE_GENAI_API_KEY."}`,
+                text: `[BRAIN_ERROR]: ${e.message || "Brain synchronization interrupted."}`,
                 sender: 'ai',
                 isError: true,
                 timestamp: Date.now(),
@@ -144,9 +143,7 @@ export default function AiChatPage() {
     const handleDeleteMessage = async (msgId: string) => {
         try {
             await deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msgId));
-        } catch (e) {
-            console.error("Master Wipe Failed");
-        }
+        } catch (e) {}
     };
 
     const handlePaystackVerify = () => {
@@ -154,7 +151,6 @@ export default function AiChatPage() {
         setTimeout(async () => {
             setIsVerifying(false);
             if (!chatId) return;
-            // Commit Verification Success to Cloud
             await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), {
                 chatId: chatId,
                 senderId: 'sofia_ai',
@@ -176,12 +172,12 @@ export default function AiChatPage() {
                     <ArrowLeft className="h-5 w-5" />
                 </Button>
                 <div className="flex items-center gap-3">
-                    <div className="bg-primary p-2 rounded-xl shadow-lg animate-pulse">
+                    <div className="bg-primary p-2 rounded-xl shadow-lg">
                         <Bot className="h-5 w-5 text-white" />
                     </div>
                     <div>
                         <h1 className="font-black uppercase text-xs tracking-widest text-primary">Sofia AI</h1>
-                        <p className="text-[8px] font-bold uppercase opacity-40 tracking-widest">Polyglot Hub</p>
+                        <p className="text-[8px] font-bold uppercase opacity-40 tracking-widest">English & Hausa</p>
                     </div>
                 </div>
                 <div className="w-10"></div>
@@ -254,7 +250,7 @@ export default function AiChatPage() {
             <footer className="p-4 pb-10 border-t bg-background sticky bottom-0 z-50">
                 <div className="max-w-xl mx-auto flex items-center gap-3">
                     <Input 
-                        placeholder="Ask Sofia in your language..." 
+                        placeholder="English ko Hausa..." 
                         value={input} 
                         onChange={e => setInput(e.target.value)}
                         onKeyPress={e => e.key === 'Enter' && handleSend()}

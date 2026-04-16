@@ -5,9 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
 import { 
-    collection, query, where, onSnapshot, doc, 
-    serverTimestamp, setDoc, updateDoc, 
-    increment, getDocs, writeBatch, arrayUnion, arrayRemove, deleteDoc
+    collection, onSnapshot, doc, 
+    serverTimestamp, setDoc, 
+    increment, writeBatch
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } from '@/lib/data-service';
 import { 
@@ -28,9 +28,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Chat Thread.
- * VOICE: Implemented Preview-before-Send logic.
- * BADGES: Fixed unread badge clearing handshake.
- * PROTOCOL: Sender-only ticks, bilateral blocking, medium UI.
+ * INPUT: Reduced height to h-9 (Smaller Footer).
+ * TICKS: Sender-only visibility gate.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -42,7 +41,7 @@ const getChatId = (userId1?: string, userId2?: string) => {
 export default function ChatThreadPage() {
     const params = useParams();
     const router = useRouter();
-    const { user: currentUser, profile: currentProfile, allUsers, globalMessages, recheckUser, isUserActuallyOnline } = useUser();
+    const { user: currentUser, profile: currentProfile, allUsers, globalMessages, isUserActuallyOnline } = useUser();
     const { toast } = useToast();
 
     const otherUserId = params.id as string;
@@ -92,7 +91,6 @@ export default function ChatThreadPage() {
                 unread.forEach(m => batch.update(doc(db, COLLECTION_ID_MESSAGES, m.$id), { status: 'read' }));
                 await batch.commit().catch(() => {});
             }
-            // FORCE: Zero the unreadCount for the receiver instantly
             await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), { 
                 [`unreadCount.${currentUser.$id}`]: 0 
             }, { merge: true }).catch(() => {});
@@ -223,6 +221,14 @@ export default function ChatThreadPage() {
         }
     };
 
+    const handleForwardMessage = (targetUser: any) => {
+        if (!messageToForward) return;
+        handleSend(messageToForward.text, messageToForward.mediaUrl ? { url: messageToForward.mediaUrl, type: messageToForward.mediaType } : undefined, targetUser.$id);
+        setForwardDialogOpen(false);
+        setMessageToForward(null);
+        toast({ title: 'Message Forwarded' });
+    };
+
     const safeFormatTime = (createdAt: any, timestamp: any) => {
         const dateInput = createdAt || timestamp;
         if (!dateInput) return format(new Date(), 'HH:mm');
@@ -333,27 +339,27 @@ export default function ChatThreadPage() {
                     </p>
                 </footer>
             ) : (
-                <footer className="fixed bottom-0 left-0 right-0 p-4 border-t bg-background pb-10 z-50 shadow-2xl">
+                <footer className="fixed bottom-0 left-0 right-0 p-3 border-t bg-background pb-8 z-50 shadow-2xl">
                     <div className="max-w-xl mx-auto w-full flex items-center gap-2">
                         {recordedUrl ? (
                             <div className="flex-1 flex items-center gap-3 bg-muted/30 p-2 rounded-full border border-primary/10">
-                                <Button variant="ghost" size="icon" onClick={() => { setRecordedUrl(null); setRecordedBlob(null); }} className="h-8 w-8 rounded-full text-destructive"><X className="h-4 w-4"/></Button>
-                                <audio src={recordedUrl} controls className="h-8 flex-1" />
-                                <Button onClick={sendVoiceNote} size="icon" className="h-10 w-10 rounded-full shadow-lg bg-primary" disabled={isUploading}>
+                                <Button variant="ghost" size="icon" onClick={() => { setRecordedUrl(null); setRecordedBlob(null); }} className="h-7 w-7 rounded-full text-destructive"><X className="h-4 w-4"/></Button>
+                                <audio src={recordedUrl} controls className="h-7 flex-1" />
+                                <Button onClick={sendVoiceNote} size="icon" className="h-9 w-9 rounded-full shadow-lg bg-primary" disabled={isUploading}>
                                     {isUploading ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4 text-white" />}
                                 </Button>
                             </div>
                         ) : isRecording ? (
-                            <div className="flex-1 h-11 bg-red-50 text-red-600 rounded-full flex items-center px-6 gap-3 animate-pulse border border-red-100">
+                            <div className="flex-1 h-9 bg-red-50 text-red-600 rounded-full flex items-center px-4 gap-3 animate-pulse border border-red-100">
                                 <div className="h-2 w-2 bg-red-600 rounded-full"></div>
-                                <span className="font-black text-xs uppercase tracking-widest">{format(recordingDuration * 1000, 'mm:ss')}</span>
-                                <Button onClick={stopRecording} variant="ghost" size="sm" className="ml-auto font-black uppercase text-[9px] text-red-600">Stop Preview</Button>
+                                <span className="font-black text-[10px] uppercase tracking-widest">{format(recordingDuration * 1000, 'mm:ss')}</span>
+                                <Button onClick={stopRecording} variant="ghost" size="sm" className="ml-auto font-black uppercase text-[8px] text-red-600 h-7">Stop Preview</Button>
                             </div>
                         ) : (
                             <>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full bg-muted/50"><Paperclip className="h-5 w-5" /></Button>
+                                        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full bg-muted/50"><Paperclip className="h-4 w-4" /></Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="start" className="w-40 rounded-2xl p-2 font-black uppercase text-[9px] shadow-2xl">
                                         <DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><ImageIcon className="h-4 w-4" /> Image</DropdownMenuItem>
@@ -361,17 +367,17 @@ export default function ChatThreadPage() {
                                         <DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><FileText className="h-4 w-4" /> Document</DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
-                                <Input placeholder="Message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} className="flex-1 h-11 rounded-full bg-muted/50 border-none px-6 text-sm font-bold focus-visible:ring-1 focus-visible:ring-primary shadow-inner" />
+                                <Input placeholder="Message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} className="flex-1 h-9 rounded-full bg-muted/50 border-none px-4 text-xs font-bold focus-visible:ring-1 focus-visible:ring-primary shadow-inner" />
                             </>
                         )}
 
                         <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
                         
                         {!newMessage.trim() && !isRecording && !recordedUrl && (
-                            <Button onClick={startRecording} size="icon" className="h-11 w-11 rounded-full bg-primary shadow-lg"><Mic className="h-5 w-5 text-white" /></Button>
+                            <Button onClick={startRecording} size="icon" className="h-9 w-9 rounded-full bg-primary shadow-lg"><Mic className="h-4 w-4 text-white" /></Button>
                         )}
                         {newMessage.trim() && (
-                            <Button onClick={() => handleSend()} size="icon" className="h-11 w-11 rounded-full bg-primary shadow-xl"><Send className="h-4 w-4 text-white" /></Button>
+                            <Button onClick={() => handleSend()} size="icon" className="h-9 w-9 rounded-full bg-primary shadow-xl"><Send className="h-4 w-4 text-white" /></Button>
                         )}
                     </div>
                 </footer>
