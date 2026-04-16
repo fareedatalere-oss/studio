@@ -1,16 +1,16 @@
 'use client';
 
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, COLLECTION_ID_NOTIFICATIONS } from '@/lib/data-service';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, serverTimestamp, onSnapshot, collection, query, where, orderBy, updateDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, onSnapshot, collection, updateDoc } from 'firebase/firestore';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Global Memory Shield & Presence Engine.
  * PUSH FORCE: Native device notifications for calls and alerts.
- * BADGE SYNC: Global unread state for chats and notifications.
+ * BADGE SYNC: Total unread message count and notification tracking.
  */
 
 type UserContextType = {
@@ -22,6 +22,7 @@ type UserContextType = {
     allUsers: any[];
     recentChats: any[];
     unreadNotifications: number;
+    unreadMessages: number;
     globalMessages: Record<string, any[]>;
     recheckUser: () => Promise<void>;
     isUserActuallyOnline: (user: any) => boolean;
@@ -36,6 +37,7 @@ const UserContext = createContext<UserContextType>({
     allUsers: [],
     recentChats: [],
     unreadNotifications: 0,
+    unreadMessages: 0,
     globalMessages: {},
     recheckUser: async () => {},
     isUserActuallyOnline: () => false
@@ -52,6 +54,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const [allUsers, setAllUsers] = useState<any[]>([]);
     const [recentChats, setRecentChats] = useState<any[]>([]);
     const [unreadNotifications, setUnreadNotifications] = useState(0);
+    const [unreadMessages, setUnreadMessages] = useState(0);
     const [globalMessages, setGlobalMessages] = useState<Record<string, any[]>>({});
 
     const lastNotifiedRef = useRef<Set<string>>(new Set());
@@ -117,7 +120,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 const uid = firebaseUser.uid;
                 setUser({ $id: uid, uid, email: firebaseUser.email });
                 
-                // Native Permission Handshake
                 if ('Notification' in window && Notification.permission === 'default') {
                     Notification.requestPermission();
                 }
@@ -134,6 +136,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 unsubs.push(onSnapshot(collection(db, COLLECTION_ID_CHATS), (snap) => {
                     const chats = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
                     setRecentChats(chats.sort((a: any, b: any) => (b.lastMessageAt?.seconds || 0) - (a.lastMessageAt?.seconds || 0)));
+                    
+                    // FORCE: Badge Logic for Unread Messages
+                    let totalUnread = 0;
+                    chats.forEach((c: any) => {
+                        totalUnread += (c.unreadCount?.[uid] || 0);
+                    });
+                    setUnreadMessages(totalUnread);
                 }));
 
                 unsubs.push(onSnapshot(collection(db, COLLECTION_ID_NOTIFICATIONS), (snap) => {
@@ -156,8 +165,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                         if (!messagesByChat[m.chatId]) messagesByChat[m.chatId] = [];
                         messagesByChat[m.chatId].push(m);
                         
-                        // Push Force for incoming messages
-                        if (m.senderId !== uid && !lastNotifiedRef.current.has(m.$id)) {
+                        if (m.senderId !== uid && m.status !== 'read' && !lastNotifiedRef.current.has(m.$id)) {
                             lastNotifiedRef.current.add(m.$id);
                             showNativeNotification("New Message", m.text || "Shared an item", `/dashboard/chat/${m.senderId}`);
                         }
@@ -173,7 +181,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     else updatePresence(false);
                 };
                 document.addEventListener('visibilitychange', handleVisibilityChange);
-                window.addEventListener('beforeunload', () => updatePresence(false));
 
                 return () => {
                     document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -194,7 +201,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return (
         <UserContext.Provider value={{ 
             user, profile, config, proof, loading: isLoading, 
-            allUsers, recentChats, unreadNotifications, globalMessages, 
+            allUsers, recentChats, unreadNotifications, unreadMessages, globalMessages, 
             recheckUser: async () => { await fetchConfig(); },
             isUserActuallyOnline
         }}>

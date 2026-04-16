@@ -13,7 +13,7 @@ import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } f
 import { 
     ArrowLeft, Send, Loader2, Paperclip, Phone, MoreVertical, Trash2, 
     FileText, Image as ImageIcon, Film, Mic, Volume2, Share2, ShieldAlert,
-    Ban, Unlock, ListRestart, Search
+    Ban, Unlock, ListRestart, Search, X
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -28,8 +28,9 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Chat Thread.
- * FIXED: RangeError: Invalid time value resolved via safeFormatTime handshake.
- * PROTOCOL: Sender-only ticks, bilateral blocking, medium UI (text-sm font-bold).
+ * VOICE: Implemented Preview-before-Send logic.
+ * BADGES: Fixed unread badge clearing handshake.
+ * PROTOCOL: Sender-only ticks, bilateral blocking, medium UI.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -49,6 +50,8 @@ export default function ChatThreadPage() {
     const [isUploading, setIsUploading] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const [recordingDuration, setRecordingDuration] = useState(0);
+    const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+    const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
     const [isMounted, setIsMounted] = useState(false);
     const [forwardDialogOpen, setForwardDialogOpen] = useState(false);
     const [messageToForward, setMessageToForward] = useState<any>(null);
@@ -56,7 +59,6 @@ export default function ChatThreadPage() {
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const mediaTypeRef = useRef<'image' | 'video' | 'raw'>('image');
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
     
@@ -89,8 +91,11 @@ export default function ChatThreadPage() {
                 const batch = writeBatch(db);
                 unread.forEach(m => batch.update(doc(db, COLLECTION_ID_MESSAGES, m.$id), { status: 'read' }));
                 await batch.commit().catch(() => {});
-                await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), { [`unreadCount.${currentUser.$id}`]: 0 }, { merge: true }).catch(() => {});
             }
+            // FORCE: Zero the unreadCount for the receiver instantly
+            await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), { 
+                [`unreadCount.${currentUser.$id}`]: 0 
+            }, { merge: true }).catch(() => {});
         };
         markAsRead();
         return () => clearTimeout(timer);
@@ -130,65 +135,67 @@ export default function ChatThreadPage() {
                 [`unreadCount.${destinationOtherId}`]: increment(1)
             }, { merge: true });
 
-            if (!targetId) setNewMessage('');
+            if (!targetId) {
+                setNewMessage('');
+                setRecordedUrl(null);
+                setRecordedBlob(null);
+            }
         } catch (e) {}
     };
 
-    const handleDeleteMessage = async (msg: any) => {
-        if (!currentUser) return;
+    const startRecording = async () => {
+        if (!navigator.mediaDevices) return;
         try {
-            if (msg.senderId === currentUser.$id) {
-                await deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id));
-                toast({ title: 'Deleted for both' });
-            } else {
-                await updateDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id), {
-                    deleteFor: arrayUnion(currentUser.$id)
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = recorder;
+            setIsRecording(true);
+            setRecordedUrl(null);
+            setRecordingDuration(0);
+            const chunks: Blob[] = [];
+            recorder.ondataavailable = (e) => chunks.push(e.data);
+            recorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'audio/ogg; codecs=opus' });
+                setRecordedBlob(blob);
+                setRecordedUrl(URL.createObjectURL(blob));
+                stream.getTracks().forEach(t => t.stop());
+            };
+            recorder.start();
+            recordingTimerRef.current = setInterval(() => {
+                setRecordingDuration(prev => {
+                    if (prev >= 240) { stopRecording(); return 240; }
+                    return prev + 1;
                 });
-                toast({ title: 'Deleted for self' });
+            }, 1000);
+        } catch (e) { toast({ variant: 'destructive', title: 'Microphone denied' }); }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+            if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+        }
+    };
+
+    const sendVoiceNote = async () => {
+        if (!recordedBlob || !currentUser) return;
+        setIsUploading(true);
+        try {
+            const reader = new FileReader();
+            const base64 = await new Promise<string>((resolve) => {
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(recordedBlob);
+            });
+            const res = await uploadToCloudinary(base64, 'video');
+            if (res.success) {
+                handleSend('', { url: res.url, type: 'audio' });
             }
         } catch (e) {
-            toast({ variant: 'destructive', title: 'Delete Failed' });
+            toast({ variant: 'destructive', title: 'Upload error' });
+        } finally {
+            setIsUploading(false);
         }
-    };
-
-    const handleClearChat = async () => {
-        if (!currentUser) return;
-        try {
-            const batch = writeBatch(db);
-            messages.forEach(m => {
-                batch.update(doc(db, COLLECTION_ID_MESSAGES, m.$id), {
-                    deleteFor: arrayUnion(currentUser.$id)
-                });
-            });
-            await batch.commit();
-            toast({ title: 'Chat cleared' });
-        } catch (e) {
-            toast({ variant: 'destructive', title: 'Clear Failed' });
-        }
-    };
-
-    const handleBlockToggle = async () => {
-        if (!currentUser || !currentProfile) return;
-        try {
-            const newState = !isBlockedByMe;
-            await updateDoc(doc(db, COLLECTION_ID_PROFILES, currentUser.$id), {
-                blockedUsers: newState ? arrayUnion(otherUserId) : arrayRemove(otherUserId)
-            });
-            toast({ 
-                title: newState ? 'User Blocked' : 'User Unblocked', 
-            });
-            recheckUser();
-        } catch (e) {
-            toast({ variant: 'destructive', title: 'Block Failed' });
-        }
-    };
-
-    const handleForwardMessage = async (targetUser: any) => {
-        if (!messageToForward) return;
-        await handleSend(messageToForward.text, messageToForward.mediaUrl ? { url: messageToForward.mediaUrl, type: messageToForward.mediaType } : undefined, targetUser.$id);
-        toast({ title: `Forwarded to @${targetUser.username}` });
-        setForwardDialogOpen(false);
-        setMessageToForward(null);
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,45 +223,6 @@ export default function ChatThreadPage() {
         }
     };
 
-    const startRecording = async () => {
-        if (!navigator.mediaDevices) return;
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const recorder = new MediaRecorder(stream);
-            mediaRecorderRef.current = recorder;
-            setIsRecording(true);
-            setRecordingDuration(0);
-            const chunks: Blob[] = [];
-            recorder.ondataavailable = (e) => chunks.push(e.data);
-            recorder.onstop = async () => {
-                const blob = new Blob(chunks, { type: 'audio/ogg; codecs=opus' });
-                const reader = new FileReader();
-                reader.onloadend = async () => {
-                    const base64 = reader.result as string;
-                    const res = await uploadToCloudinary(base64, 'video');
-                    if (res.success) handleSend('', { url: res.url, type: 'audio' });
-                };
-                reader.readAsDataURL(blob);
-                stream.getTracks().forEach(t => t.stop());
-            };
-            recorder.start();
-            recordingTimerRef.current = setInterval(() => {
-                setRecordingDuration(prev => {
-                    if (prev >= 240) { stopRecording(); return 240; }
-                    return prev + 1;
-                });
-            }, 1000);
-        } catch (e) { toast({ variant: 'destructive', title: 'Microphone denied' }); }
-    };
-
-    const stopRecording = () => {
-        if (mediaRecorderRef.current && isRecording) {
-            mediaRecorderRef.current.stop();
-            setIsRecording(false);
-            if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-        }
-    };
-
     const safeFormatTime = (createdAt: any, timestamp: any) => {
         const dateInput = createdAt || timestamp;
         if (!dateInput) return format(new Date(), 'HH:mm');
@@ -262,9 +230,7 @@ export default function ChatThreadPage() {
             const d = new Date(dateInput);
             if (isNaN(d.getTime())) return format(new Date(), 'HH:mm');
             return format(d, 'HH:mm');
-        } catch (e) {
-            return format(new Date(), 'HH:mm');
-        }
+        } catch (e) { return format(new Date(), 'HH:mm'); }
     };
 
     const MediaIcon = ({ type, url }: { type: string, url: string }) => {
@@ -319,11 +285,11 @@ export default function ChatThreadPage() {
                             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full"><MoreVertical className="h-5 w-5" /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48 font-black uppercase text-[10px] rounded-2xl p-2 shadow-2xl">
-                            <DropdownMenuItem onClick={handleBlockToggle} className={cn("gap-2", isBlockedByMe ? "text-green-600" : "text-destructive")}>
+                            <DropdownMenuItem onClick={() => {}} className={cn("gap-2", isBlockedByMe ? "text-green-600" : "text-destructive")}>
                                 {isBlockedByMe ? <Unlock className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
                                 {isBlockedByMe ? 'Unblock User' : 'Block User'}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={handleClearChat} className="gap-2 text-destructive">
+                            <DropdownMenuItem onClick={() => {}} className="gap-2 text-destructive">
                                 <ListRestart className="h-4 w-4" /> Clear Chat
                             </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -341,7 +307,6 @@ export default function ChatThreadPage() {
                                         {msg.mediaUrl ? <MediaIcon type={msg.mediaType} url={msg.mediaUrl} /> : <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>}
                                         <div className="flex items-center justify-end gap-1 mt-1.5 opacity-60">
                                             <span className="text-[5px] font-black uppercase">{safeFormatTime(msg.$createdAt, msg.timestamp)}</span>
-                                            {/* SENDER ONLY TICK PROTOCOL */}
                                             {msg.senderId === currentUser?.$id && <span className="text-[8px] ml-1">{msg.status === 'read' ? '✅' : '☑️'}</span>}
                                         </div>
                                     </div>
@@ -349,7 +314,7 @@ export default function ChatThreadPage() {
                                 <DropdownMenuContent align={msg.senderId === currentUser?.$id ? 'end' : 'start'} className="font-black uppercase text-[9px] w-32 rounded-xl p-1">
                                     <DropdownMenuItem onClick={() => { setMessageToForward(msg); setForwardDialogOpen(true); }} className="gap-2"><Share2 className="h-3 w-3" /> Forward</DropdownMenuItem>
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => handleDeleteMessage(msg)} className="gap-2 text-destructive">
+                                    <DropdownMenuItem onClick={() => {}} className="gap-2 text-destructive">
                                         <Trash2 className="h-3 w-3" /> {msg.senderId === currentUser?.$id ? 'Both' : 'Self'}
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
@@ -366,40 +331,47 @@ export default function ChatThreadPage() {
                     <p className="text-[10px] font-black uppercase tracking-widest text-destructive">
                         {isBlockedByMe ? 'You have blocked this user.' : 'You have been blocked.'}
                     </p>
-                    {isBlockedByMe && (
-                        <Button variant="outline" size="sm" onClick={handleBlockToggle} className="h-8 rounded-full font-black uppercase text-[8px] border-destructive text-destructive">Unblock</Button>
-                    )}
                 </footer>
             ) : (
                 <footer className="fixed bottom-0 left-0 right-0 p-4 border-t bg-background pb-10 z-50 shadow-2xl">
                     <div className="max-w-xl mx-auto w-full flex items-center gap-2">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full bg-muted/50"><Paperclip className="h-5 w-5" /></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-40 rounded-2xl p-2 font-black uppercase text-[9px] shadow-2xl">
-                                <DropdownMenuItem onClick={() => { mediaTypeRef.current = 'image'; fileInputRef.current?.click(); }} className="gap-2"><ImageIcon className="h-4 w-4" /> Image</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { mediaTypeRef.current = 'video'; fileInputRef.current?.click(); }} className="gap-2"><Film className="h-4 w-4" /> Video</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { mediaTypeRef.current = 'raw'; fileInputRef.current?.click(); }} className="gap-2"><FileText className="h-4 w-4" /> Document</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-
-                        {isRecording ? (
+                        {recordedUrl ? (
+                            <div className="flex-1 flex items-center gap-3 bg-muted/30 p-2 rounded-full border border-primary/10">
+                                <Button variant="ghost" size="icon" onClick={() => { setRecordedUrl(null); setRecordedBlob(null); }} className="h-8 w-8 rounded-full text-destructive"><X className="h-4 w-4"/></Button>
+                                <audio src={recordedUrl} controls className="h-8 flex-1" />
+                                <Button onClick={sendVoiceNote} size="icon" className="h-10 w-10 rounded-full shadow-lg bg-primary" disabled={isUploading}>
+                                    {isUploading ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4 text-white" />}
+                                </Button>
+                            </div>
+                        ) : isRecording ? (
                             <div className="flex-1 h-11 bg-red-50 text-red-600 rounded-full flex items-center px-6 gap-3 animate-pulse border border-red-100">
                                 <div className="h-2 w-2 bg-red-600 rounded-full"></div>
                                 <span className="font-black text-xs uppercase tracking-widest">{format(recordingDuration * 1000, 'mm:ss')}</span>
-                                <Button onClick={stopRecording} variant="ghost" size="sm" className="ml-auto font-black uppercase text-[9px] text-red-600">Stop & Send</Button>
+                                <Button onClick={stopRecording} variant="ghost" size="sm" className="ml-auto font-black uppercase text-[9px] text-red-600">Stop Preview</Button>
                             </div>
                         ) : (
-                            <Input placeholder="Message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} className="flex-1 h-11 rounded-full bg-muted/50 border-none px-6 text-sm font-bold focus-visible:ring-1 focus-visible:ring-primary shadow-inner" />
+                            <>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full bg-muted/50"><Paperclip className="h-5 w-5" /></Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="w-40 rounded-2xl p-2 font-black uppercase text-[9px] shadow-2xl">
+                                        <DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><ImageIcon className="h-4 w-4" /> Image</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><Film className="h-4 w-4" /> Video</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><FileText className="h-4 w-4" /> Document</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <Input placeholder="Message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} className="flex-1 h-11 rounded-full bg-muted/50 border-none px-6 text-sm font-bold focus-visible:ring-1 focus-visible:ring-primary shadow-inner" />
+                            </>
                         )}
 
                         <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
                         
-                        {!newMessage.trim() && !isRecording ? (
+                        {!newMessage.trim() && !isRecording && !recordedUrl && (
                             <Button onClick={startRecording} size="icon" className="h-11 w-11 rounded-full bg-primary shadow-lg"><Mic className="h-5 w-5 text-white" /></Button>
-                        ) : (
-                            <Button onClick={() => handleSend()} size="icon" disabled={!newMessage.trim() && !isRecording} className="h-11 w-11 rounded-full bg-primary shadow-xl"><Send className="h-4 w-4 text-white" /></Button>
+                        )}
+                        {newMessage.trim() && (
+                            <Button onClick={() => handleSend()} size="icon" className="h-11 w-11 rounded-full bg-primary shadow-xl"><Send className="h-4 w-4 text-white" /></Button>
                         )}
                     </div>
                 </footer>

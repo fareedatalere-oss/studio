@@ -15,7 +15,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 /**
  * @fileOverview Master Dashboard Layout.
  * LABELS: Home, Chat, Media, Market, Profile.
- * AI REMOVAL: Sofia access point completely extracted.
+ * BADGES: Added real-time counters for Chat and Notifications.
  */
 
 export default function DashboardLayout({
@@ -25,7 +25,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const { toast } = useToast();
-  const { profile, unreadNotifications, proof } = useUser();
+  const { profile, unreadNotifications, unreadMessages, proof } = useUser();
   
   const [isMounted, setIsMounted] = useState(false);
 
@@ -83,13 +83,23 @@ export default function DashboardLayout({
           <div className="container grid h-full grid-cols-5 items-center justify-around text-center px-2">
             {[
                 { href: '/dashboard', label: 'Home', icon: Home, key: 'tab_home' },
-                { href: '/dashboard/chat', label: 'Chat', icon: MessageSquare, key: 'tab_chat' },
+                { href: '/dashboard/chat', label: 'Chat', icon: MessageSquare, key: 'tab_chat', badge: unreadMessages },
                 { href: '/dashboard/media', label: 'Media', icon: PlaySquare, key: 'tab_media' },
                 { href: '/dashboard/market', label: 'Market', icon: Store, key: 'tab_market' },
                 { href: '/dashboard/profile', label: 'Profile', icon: User, key: 'tab_profile' }
             ].map((tab) => (
-                <Link key={tab.key} href={tab.href} onClick={(e) => handleTabClick(e, tab.key)} className={cn("flex flex-col items-center gap-0.5 transition-all duration-300", pathname === tab.href ? "text-primary scale-110" : "text-muted-foreground opacity-60")}>
+                <Link 
+                  key={tab.key} 
+                  href={tab.href} 
+                  onClick={(e) => handleTabClick(e, tab.key)} 
+                  className={cn("flex flex-col items-center gap-0.5 transition-all duration-300 relative", pathname === tab.href ? "text-primary scale-110" : "text-muted-foreground opacity-60")}
+                >
                     <tab.icon className="h-4 w-4" />
+                    {tab.badge && tab.badge > 0 ? (
+                        <Badge variant="destructive" className="absolute -top-1 right-2 h-3.5 min-w-3.5 justify-center p-0 rounded-full text-[7px] font-black border border-white">
+                            {tab.badge > 9 ? '9+' : tab.badge}
+                        </Badge>
+                    ) : null}
                     <span className="text-[10px] font-black tracking-tight">{tab.label}</span>
                 </Link>
             ))}
