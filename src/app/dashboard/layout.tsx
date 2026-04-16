@@ -14,7 +14,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 
 /**
  * @fileOverview Master Dashboard Layout.
- * LABELS: Home, Chat, Media, Market, Profile (Title Case).
+ * LABELS: Home, Chat, Media, Market, Profile (Enforced Title Case).
  */
 
 export default function DashboardLayout({
@@ -90,9 +90,9 @@ export default function DashboardLayout({
                 { href: '/dashboard/market', label: 'Market', icon: Store, key: 'tab_market' },
                 { href: '/dashboard/profile', label: 'Profile', icon: User, key: 'tab_profile' }
             ].map((tab) => (
-                <Link key={tab.key} href={tab.href} onClick={(e) => handleTabClick(e, tab.key)} className={cn("flex flex-col items-center gap-0.5 transition-colors", pathname === tab.href ? "text-primary scale-110" : "text-muted-foreground")}>
+                <Link key={tab.key} href={tab.href} onClick={(e) => handleTabClick(e, tab.key)} className={cn("flex flex-col items-center gap-0.5 transition-colors", pathname === tab.href ? "text-primary" : "text-muted-foreground")}>
                     <tab.icon className="h-4 w-4" />
-                    <span className="text-[9px] font-bold tracking-tighter">{tab.label}</span>
+                    <span className="text-[10px] font-bold tracking-tighter">{tab.label}</span>
                 </Link>
             ))}
           </div>

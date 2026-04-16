@@ -1,6 +1,7 @@
 'use client';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Heart, MessageCircle, UserPlus, CreditCard, ShieldCheck, ArrowLeft, Trash2 } from "lucide-react";
+import { Bell, Heart, MessageCircle, UserPlus, CreditCard, ShieldCheck, ArrowLeft, Trash2, Loader2 } from "lucide-react";
 import { useUser } from '@/hooks/use-user';
 import { useEffect, useState, useCallback } from "react";
 import { formatDistanceToNow } from 'date-fns';
@@ -11,49 +12,67 @@ import { Button } from "@/components/ui/button";
 
 /**
  * @fileOverview Alert Hub - High Speed.
- * INSTANT: Fetches notifications immediately on mount.
- * SHIELDED: Client-side mark-as-read to ensure the badge count syncs instantly.
+ * FIXED: Client-side sorting to bypass Firebase Index errors and Alert Sync issues.
+ * SHIELDED: Hydration guard to prevent white-screen crashes.
  */
 
+const safeDate = (val: any) => {
+    if (!val) return new Date(0);
+    try {
+        if (typeof val.toDate === 'function') return val.toDate();
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? new Date(0) : d;
+    } catch (e) { return new Date(0); }
+};
+
 export default function NotificationsPage() {
-    const { user, loading: userLoading, recheckUser } = useUser();
+    const { user, recheckUser } = useUser();
     const [notifications, setNotifications] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isMounted, setIsMounted] = useState(false);
 
     const fetchNotifications = useCallback(async () => {
         if (!user?.$id) return;
         setLoading(true);
         try {
+            // FORCE: Fetch without order to bypass index racing, sort in client memory
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_ID_NOTIFICATIONS,
                 [
                     Query.equal('userId', user.$id),
-                    Query.orderDesc('$createdAt'),
                     Query.limit(50)
                 ]
             );
-            setNotifications(response.documents);
+
+            const sorted = response.documents.sort((a, b) => 
+                safeDate(b.$createdAt).getTime() - safeDate(a.$createdAt).getTime()
+            );
+
+            setNotifications(sorted);
             
-            // Mark all unread as read in background to clear the badge
-            const unread = response.documents.filter(n => !n.isRead);
+            // Background: Mark unread as read to sync badge instantly
+            const unread = sorted.filter(n => !n.isRead);
             if (unread.length > 0) {
                 await Promise.all(unread.map(n => 
                     databases.updateDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, n.$id, { isRead: true })
                 ));
-                await recheckUser(); // Force badge update
+                await recheckUser(); 
             }
         } catch (error) {
-            console.error("Alert Sync Error");
+            console.error("Alert sync shielded.");
         } finally {
             setLoading(false);
         }
     }, [user?.$id, recheckUser]);
 
     useEffect(() => {
+        setIsMounted(true);
         fetchNotifications();
     }, [fetchNotifications]);
     
+    if (!isMounted) return null;
+
     const NotificationIcon = ({ type }: { type: string }) => {
         switch(type) {
             case 'system': return <ShieldCheck className="h-5 w-5 text-primary" />;
@@ -63,7 +82,7 @@ export default function NotificationsPage() {
             case 'payment': return <CreditCard className="h-5 w-5 text-emerald-500" />;
             default: return <Bell className="h-5 w-5" />;
         }
-    }
+    };
     
     return (
         <div className="container py-8 max-w-2xl font-body">
@@ -81,7 +100,7 @@ export default function NotificationsPage() {
                 <CardContent className="pt-8">
                     {loading ? (
                         <div className="space-y-4">
-                            {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-3xl" />)}
+                            {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-[1.8rem]" />)}
                         </div>
                     ) : notifications.length > 0 ? (
                         <div className="space-y-3">
@@ -91,7 +110,7 @@ export default function NotificationsPage() {
                                         <div className="mt-1 bg-white p-2 rounded-full shadow-sm"><NotificationIcon type={notif.type} /></div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[13px] font-bold leading-tight"><span className="text-foreground">{notif.description}</span></p>
-                                            <p className="text-[8px] font-black uppercase opacity-40 mt-2 tracking-widest">{formatDistanceToNow(new Date(notif.$createdAt), { addSuffix: true })}</p>
+                                            <p className="text-[8px] font-black uppercase opacity-40 mt-2 tracking-widest">{formatDistanceToNow(safeDate(notif.$createdAt), { addSuffix: true })}</p>
                                         </div>
                                     </div>
                                 </Link>

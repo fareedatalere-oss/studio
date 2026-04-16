@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 
 /**
  * @file Overview Meeting Hub Landing.
- * LABELS: create a meeting, enter a meeting (lowercase).
+ * LABELS: create a meeting, enter a meeting (Enforced professional lowercase).
  */
 
 export default function MeetingLandingPage() {
@@ -30,7 +30,7 @@ export default function MeetingLandingPage() {
             <Link href="/dashboard/meeting/book">
               <div className="flex items-center gap-2 text-left">
                 <Video className="h-3 w-3 text-white" />
-                <p className="font-black tracking-widest text-[8px] text-white">create a meeting</p>
+                <p className="font-bold tracking-widest text-[8px] text-white">create a meeting</p>
               </div>
               <ArrowRight className="h-3 w-3 text-white/50" />
             </Link>
@@ -40,7 +40,7 @@ export default function MeetingLandingPage() {
             <Link href="/dashboard/meeting/enter">
               <div className="flex items-center gap-2 text-left text-foreground">
                 <Users className="h-3 w-3 text-primary" />
-                <p className="font-black tracking-widest text-[8px]">enter a meeting</p>
+                <p className="font-bold tracking-widest text-[8px]">enter a meeting</p>
               </div>
               <ArrowRight className="h-3 w-3 opacity-50" />
             </Link>

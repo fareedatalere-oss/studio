@@ -2,7 +2,7 @@
 /**
  * @fileOverview Sofia - High-Speed Technical Navigator.
  * OPTIMIZED: Instruction set hardened for extreme speed to prevent Vercel hangs.
- * NAVIGATION: Expanded to handle any device-level or app-level redirection.
+ * INTELLIGENCE: Full biography of Emir Suleiman Umar (Emir of Lere) included.
  */
 
 import { ai } from '@/ai/genkit';

@@ -15,14 +15,13 @@ import { Button } from "@/components/ui/button";
 /**
  * @fileOverview User Transaction History.
  * SHIELDED: Forced In-Memory sorting to bypass missing indexes and open instantly.
+ * FIXED: Hydration guard to prevent white-screen crashes during racing.
  */
 
 const safeDate = (val: any) => {
     if (!val) return new Date(0);
     try {
         if (typeof val.toDate === 'function') return val.toDate();
-        if (typeof val.toMillis === 'function') return new Date(val.toMillis());
-        if (val.seconds !== undefined) return new Date(val.seconds * 1000);
         const d = new Date(val);
         return isNaN(d.getTime()) ? new Date(0) : d;
     } catch (e) { return new Date(0); }
@@ -33,13 +32,14 @@ export default function HistoryPage() {
     const [transactions, setTransactions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isMounted, setIsMounted] = useState(false);
 
     const fetchTransactions = useCallback(async () => {
         if (!user?.$id) return;
         setLoading(true);
         setError(null);
         try {
-            // Master Force: Fetch all records and sort client-side to bypass Firebase index errors
+            // Master Force: Fetch and sort client-side to bypass Firebase index errors
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_ID_TRANSACTIONS,
@@ -55,7 +55,6 @@ export default function HistoryPage() {
 
             setTransactions(sorted);
         } catch (err: any) {
-            console.error("History Sync Fail:", err.message);
             setError("Ledger is updating. Try again in 5 seconds.");
         } finally {
             setLoading(false);
@@ -63,12 +62,15 @@ export default function HistoryPage() {
     }, [user?.$id]);
 
     useEffect(() => {
+        setIsMounted(true);
         if (user?.$id) {
             fetchTransactions();
         } else if (!userLoading) {
             setLoading(false);
         }
     }, [user?.$id, userLoading, fetchTransactions]);
+
+    if (!isMounted) return null;
 
     const getStatusVariant = (status: string) => {
         switch (status?.toLowerCase()) {

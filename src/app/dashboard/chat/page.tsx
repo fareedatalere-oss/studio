@@ -15,7 +15,8 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center - Zero Reload Sync.
- * INSTANT: Consumes global messages from UserProvider memory shield.
+ * INSTANT: Consumes global memory center to terminate crashes.
+ * LABELS: Recent, All (Title Case).
  */
 
 const safeDate = (ts: any) => {
