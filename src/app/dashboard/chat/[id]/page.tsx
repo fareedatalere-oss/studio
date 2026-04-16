@@ -26,6 +26,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
+/**
+ * @fileOverview Private Chat Thread.
+ * FIXED: RangeError: Invalid time value resolved via safeFormatTime handshake.
+ * PROTOCOL: Sender-only ticks, bilateral blocking, medium UI.
+ */
+
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
     const sortedIds = [userId1, userId2].sort();
@@ -250,6 +256,18 @@ export default function ChatThreadPage() {
         }
     };
 
+    const safeFormatTime = (createdAt: any, timestamp: any) => {
+        const dateInput = createdAt || timestamp;
+        if (!dateInput) return format(new Date(), 'HH:mm');
+        try {
+            const d = new Date(dateInput);
+            if (isNaN(d.getTime())) return format(new Date(), 'HH:mm');
+            return format(d, 'HH:mm');
+        } catch (e) {
+            return format(new Date(), 'HH:mm');
+        }
+    };
+
     const MediaIcon = ({ type, url }: { type: string, url: string }) => {
         const viewMedia = () => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(url)}&type=${type}`);
         switch (type) {
@@ -323,7 +341,7 @@ export default function ChatThreadPage() {
                                     <div className={cn("p-3 px-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold cursor-pointer", msg.senderId === currentUser?.$id ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
                                         {msg.mediaUrl ? <MediaIcon type={msg.mediaType} url={msg.mediaUrl} /> : <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>}
                                         <div className="flex items-center justify-end gap-1 mt-1.5 opacity-60">
-                                            <span className="text-[5px] font-black uppercase">{format(new Date(msg.$createdAt || msg.timestamp), 'HH:mm')}</span>
+                                            <span className="text-[5px] font-black uppercase">{safeFormatTime(msg.$createdAt, msg.timestamp)}</span>
                                             {/* SENDER ONLY TICK PROTOCOL */}
                                             {msg.senderId === currentUser?.$id && <span className="text-[8px] ml-1">{msg.status === 'read' ? '✅' : '☑️'}</span>}
                                         </div>
