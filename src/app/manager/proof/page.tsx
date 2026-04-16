@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { databases, DATABASE_ID, COLLECTION_ID_APP_CONFIG } from '@/lib/appwrite';
+import { databases, DATABASE_ID, COLLECTION_ID_APP_CONFIG } from '@/lib/data-service';
 import { useUser } from '@/hooks/use-appwrite';
 
 const PROOF_DOC_ID = 'proof';
@@ -40,7 +40,6 @@ export default function ProofControlPage() {
         feat_electric: true,
         feat_multipurpose: true,
         feat_traveling: true,
-        feat_ai: true,
         feat_refund: true,
         feat_news: true,
     });
@@ -59,10 +58,7 @@ export default function ProofControlPage() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            // We save everything as a single JSON string in the 'data' attribute
-            // This prevents "Unknown attribute" errors in Appwrite
             const payload = { data: JSON.stringify(toggles) };
-            
             try {
                 await databases.updateDocument(DATABASE_ID, COLLECTION_ID_APP_CONFIG, PROOF_DOC_ID, payload);
             } catch (e: any) {
@@ -159,7 +155,6 @@ export default function ProofControlPage() {
                         <FeatureToggle id="feat_electric" label="Electric Bill" />
                         <FeatureToggle id="feat_multipurpose" label="Multi-Purpose" />
                         <FeatureToggle id="feat_traveling" label="Travel Booking" />
-                        <FeatureToggle id="feat_ai" label="Sofia AI" />
                         <FeatureToggle id="feat_refund" label="Refund / Card" />
                         <FeatureToggle id="feat_news" label="News Hub" />
                     </div>
