@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 /**
  * @fileOverview Chat Center - Shadow List Protocol.
  * FORCE: Hydration Guard (500ms Freeze) to stop Vercel crashes.
- * MEMORY: Consumes global cache from useUser to eliminate racing.
+ * FIXED: Objects are not valid as React child error fixed with content type check.
  * FIXED: (c.lastMessage || "").toLowerCase() error handled with String() cast.
  */
 
@@ -51,6 +51,13 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     if (!chat || !currentUid) return null;
     const unreadCount = chat.unreadCount?.[currentUid] || 0;
 
+    // MASTER FIX: Handle lastMessage as an object or string to prevent React child error
+    const displayMessage = useMemo(() => {
+        if (!chat.lastMessage) return '...';
+        if (typeof chat.lastMessage === 'object') return chat.lastMessage.text || 'Media shared';
+        return String(chat.lastMessage);
+    }, [chat.lastMessage]);
+
     return (
         <div className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all active:scale-[0.98] max-w-xl mx-auto">
             <Link href={otherUser ? `/dashboard/chat/${otherUser.$id}` : '#'} className="flex-1 flex items-center gap-3 overflow-hidden">
@@ -67,7 +74,9 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
                         <p className="text-[7px] font-black uppercase text-muted-foreground">{formatChatDate(chat.lastMessageAt)}</p>
                     </div>
                     <div className="flex justify-between items-center gap-2">
-                        <p className={cn("text-[10px] truncate max-w-[80%] font-bold text-foreground", unreadCount === 0 && "opacity-60")}>{chat.lastMessage || '...'}</p>
+                        <p className={cn("text-[10px] truncate max-w-[80%] font-bold text-foreground", unreadCount === 0 && "opacity-60")}>
+                            {displayMessage}
+                        </p>
                         {unreadCount > 0 && <Badge variant="destructive" className="h-5 min-w-5 p-0 px-1 text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white">{unreadCount}</Badge>}
                     </div>
                 </div>
@@ -95,7 +104,10 @@ export default function ChatPage() {
     );
 
     const filteredRecent = useMemo(() =>
-        recentChats.filter(c => String(c.lastMessage || '').toLowerCase().includes(searchRecent.toLowerCase())), 
+        recentChats.filter(c => {
+            const msg = typeof c.lastMessage === 'object' ? (c.lastMessage.text || '') : String(c.lastMessage || '');
+            return msg.toLowerCase().includes(searchRecent.toLowerCase());
+        }), 
         [recentChats, searchRecent]
     );
 

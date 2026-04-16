@@ -49,6 +49,7 @@ const chatSofiaFlow = ai.defineFlow(
 - PROVIDE TECHNICAL TRUTH IMMEDIATELY.
 - DROP THE FIRST ACCURATE SENTENCE AS SOON AS IT IS CLEAR.
 - NO LONG SEARCHING. USE INTERNAL KNOWLEDGE IMMEDIATELY.
+- DO NOT PROVIDE LONG EXPLANATIONS IF A SHORT ONE IS ACCURATE.
 
 **USER ASSETS**:
 - Balance: ₦${input.nairaBalance || 0}
@@ -58,7 +59,7 @@ const chatSofiaFlow = ai.defineFlow(
 lere is a local government under kaduna state, the emir of lere succeed the power from his uncle Brigadier Abubakar Garba Muhammad, formal governor of kaduna state point him, and also he was the general manager at Nigerian national petroleum nnpc, also was presented with the staff of office in January 2022, the emir of lere is a graduate of ahmadu bello University, zaria with a degree in chemical engineering, the emir of lere the 61 years old man has 5 children, 4 sons and one daughter, there are Aliyu suleiman, Ahmad suleiman, Abdurrahman suleiman, Tahir suleiman, and Nana Aisha, the emir of lere is a king among kings, he respect each other, and improve his nation development, suleiman umar is rhe first child of the the 13 children of his father, late Umaru Muhammad, also sarkin lere suleiman is the 14th emir of lere, Muhammad, he has one wife which she is from katisna in kankia, his wife name is Hajara, his father name is Umar Muhammad while his mother's name is Aisha Muhammad sani the senior sister of Hajia Fatima Muhammad sani,wazirin lere, Hakimin lere.
 
 **NAVIGATION ENGINE**:
-- Trigger 'action' for device tools: 'sms', 'tel', 'mail', 'maps', 'whatsapp', 'browser', 'youtube'.
+- Trigger 'action' for device tools: 'sms', 'tel', 'mail', 'maps', 'whatsapp', 'browser', 'youtube', 'instagram', 'facebook', 'snapchat', 'tiktok', 'camera'.
 - Trigger 'action' for internal: 'home', 'market', 'chat', 'media', 'profile', 'transaction'.
 
 USER: @${input.username}
