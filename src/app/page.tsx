@@ -1,16 +1,41 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { useUser } from '@/hooks/use-user';
+import { Loader2 } from 'lucide-react';
 
 /**
  * @fileOverview Landing Page for I-pay online world.
  * Branding: Welcome To I-pay (Strict Title Case).
- * Button Sizing: Reduced for sleek "Small Size" professional feel.
+ * IDENTITY PERSISTENCE: Redirects authenticated users instantly.
  */
 
 export default function Home() {
+  const router = useRouter();
+  const { user, loading } = useUser();
   const heroImage = PlaceHolderImages.find(p => p.id === 'hero-background');
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace('/dashboard');
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-10 w-10 animate-spin text-primary opacity-20" />
+      </div>
+    );
+  }
+
+  // If user is logged in, don't show the landing page (prevents flash during redirect)
+  if (user) return null;
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden p-8 text-center">

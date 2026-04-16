@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -10,13 +9,14 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
-import { account, ID } from '@/lib/appwrite';
-import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { account, ID } from '@/lib/data-service';
+import { Eye, EyeOff, ShieldCheck, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useUser } from '@/hooks/use-user';
 
 /**
  * @fileOverview Sign Up Page.
- * Restored Appwrite SDK creation.
+ * REDIRECT: Auto-redirects if already authenticated.
  */
 
 const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager17@gmail.com'];
@@ -24,12 +24,20 @@ const MANAGER_EMAILS = ['i-paymanagerscare402@gmail.com', 'ipatmanager17@gmail.c
 export default function SignUpPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user, loading: userLoading } = useUser();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // REDIRECT FORCE: Prevent landing on Sign Up while logged in
+  useEffect(() => {
+    if (!userLoading && user) {
+        router.replace('/dashboard');
+    }
+  }, [user, userLoading, router]);
 
   const passwordsMatch = password === confirmPassword && password.length >= 6;
 
@@ -58,36 +66,34 @@ export default function SignUpPage() {
     }
     
     if (isAdmin) {
-      toast({ title: 'Reserved Email', description: 'This email is reserved for administrators.', variant: 'destructive' });
+      toast({ title: 'Reserved Email', description: 'Reserved for administrators.', variant: 'destructive' });
        setIsLoading(false);
       return;
     }
 
     try {
-      // 1. Create the Appwrite account
       await account.create(ID.unique(), email, password);
-      
-      // 2. Log them in to start the session
       await account.createEmailPasswordSession(email, password);
       
       localStorage.setItem('ipay_last_active', Date.now().toString());
       sessionStorage.setItem('ipay_pin_verified', 'true');
       
-      toast({ title: 'Account Created!', description: "Success! Now, let's setup your profile." });
+      toast({ title: 'Account Created!', description: "Setup your profile now." });
       router.push('/auth/signup/profile');
     } catch (error: any) {
-      console.error("Signup error:", error);
       let msg = error.message || 'An unexpected error occurred.';
-      
       if (error.code === 409) {
-          msg = "This email is already registered. Please Sign In instead.";
+          msg = "Email already registered. Sign In instead.";
       }
-      
       toast({ title: 'Sign Up Failed', description: msg, variant: 'destructive' });
     } finally {
         setIsLoading(false);
     }
   };
+
+  if (userLoading || user) {
+    return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary opacity-20" /></div>;
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
