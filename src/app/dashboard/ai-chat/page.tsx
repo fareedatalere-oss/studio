@@ -23,7 +23,7 @@ import { format } from 'date-fns';
 /**
  * @fileOverview Sofia AI Chat - Sequential Handshake logic.
  * FORCE: UI waits for Database Commit before rendering. 
- * UI: Medium size text (text-sm).
+ * UI: Medium size text (text-sm font-bold).
  */
 
 export const maxDuration = 120;
