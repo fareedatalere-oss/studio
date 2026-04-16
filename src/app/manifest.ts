@@ -1,9 +1,8 @@
-
 import { MetadataRoute } from 'next'
 
 /**
  * @fileOverview Dynamic PWA Manifest.
- * FORCE: Uses Admin logo if available.
+ * REMOVED: Sofia AI shortcut.
  */
 
 export default function manifest(): MetadataRoute.Manifest {
@@ -34,11 +33,6 @@ export default function manifest(): MetadataRoute.Manifest {
       {
         name: 'Dashboard',
         url: '/dashboard',
-        icons: [{ src: '/logo.png', sizes: '192x192' }]
-      },
-      {
-        name: 'Sofia AI',
-        url: '/dashboard/ai-chat',
         icons: [{ src: '/logo.png', sizes: '192x192' }]
       }
     ]

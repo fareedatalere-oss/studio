@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -20,14 +19,18 @@ import {
   Undo2,
   Tv,
   Lightbulb,
-  Bot,
   Eye,
   EyeOff,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useUser } from '@/hooks/use-appwrite';
+import { useUser } from '@/hooks/use-user';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+
+/**
+ * @fileOverview Master Dashboard.
+ * REMOVED: Sofia AI action entry.
+ */
 
 export default function DashboardPage() {
   const { user, profile: userProfile, loading: userLoading, proof, recheckUser } = useUser();
@@ -61,7 +64,6 @@ export default function DashboardPage() {
   };
 
   const actions = [
-    { key: 'feat_ai', label: 'Sofia AI', icon: Bot, href: '/dashboard/ai-chat' },
     { key: 'feat_send', label: 'Transfer', icon: Send, href: '/dashboard/transfer' },
     { key: 'feat_deposit', label: 'Deposit', icon: ArrowDownCircle, href: '/dashboard/deposit' },
     { key: 'feat_refresh', label: 'Refresh', icon: RefreshCw, onClick: handleRefresh },
@@ -159,7 +161,7 @@ export default function DashboardPage() {
                   className={cn(
                       "h-11 w-11 rounded-xl mx-auto flex items-center justify-center transition-all active:scale-90 shadow-sm border border-border/50 group-hover:border-emerald-500/20",
                       !isFeatOn(action.key) && "opacity-50 grayscale",
-                      action.label === 'Sofia AI' ? "bg-primary text-white shadow-md border-none" : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                      "bg-emerald-50 text-emerald-700 border-emerald-100"
                   )}
               >
                   {isProcessing && action.label === 'Refresh' ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <action.icon className="h-5 w-5" />}
