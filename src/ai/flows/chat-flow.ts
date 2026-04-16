@@ -1,8 +1,7 @@
 'use server';
 /**
  * @fileOverview Sofia - High-Speed Technical Navigator.
- * KNOWLEDGE: Emir of Lere (Suleiman Umar) biography integrated.
- * SPEED: Optimized protocol to bypass Vercel limits.
+ * OPTIMIZED: Instruction set hardened for extreme speed to prevent Vercel hangs.
  * NAVIGATION: Expanded to handle any device-level or app-level redirection.
  */
 
@@ -59,8 +58,8 @@ Lere is a local government under kaduna state. The emir of lere succeed the powe
 - External Apps: 'tiktok', 'youtube', 'instagram', 'facebook', 'snapchat', 'whatsapp'.
 
 **SPEED RULES**:
-- Give full, technical, and accurate answers in any kind of topic.
-- You use technical phrasing to stay efficient but never skip facts.
+- BE EXTREMELY FAST. Vercel has a 10-second limit. Answer immediately.
+- Use technical phrasing to stay efficient. Never skip facts but keep sentences direct.
 - Answer in the chosen language: ${input.language || 'English'}.
 
 USER: @${input.username}

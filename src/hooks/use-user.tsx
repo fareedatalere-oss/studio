@@ -5,7 +5,6 @@ import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, serverTimestamp, onSnapshot, collection, query, where, orderBy, updateDoc } from 'firebase/firestore';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { cn } from "@/lib/utils";
 
 /**
@@ -91,26 +90,30 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 const uid = firebaseUser.uid;
                 setUser({ $id: uid, uid, email: firebaseUser.email });
                 
+                // Profile & Network Force
                 unsubs.push(onSnapshot(doc(db, COLLECTION_ID_PROFILES, uid), (snap) => {
                     if (snap.exists()) setProfile({ $id: snap.id, ...snap.data() });
                     setIsLoading(false);
                 }));
 
+                // Global Users Pre-load
                 unsubs.push(onSnapshot(collection(db, COLLECTION_ID_PROFILES), (snap) => {
                     setAllUsers(snap.docs.map(d => ({ $id: d.id, ...d.data() })));
                 }));
 
+                // Recent Chats Sync
                 unsubs.push(onSnapshot(query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', uid)), (snap) => {
                     const chats = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
                     setRecentChats(chats.sort((a: any, b: any) => (b.lastMessageAt?.seconds || 0) - (a.lastMessageAt?.seconds || 0)));
                 }));
 
+                // Global Badge Sync
                 unsubs.push(onSnapshot(query(collection(db, COLLECTION_ID_NOTIFICATIONS), where('userId', '==', uid), where('isRead', '==', false)), (snap) => {
                     setUnreadNotifications(snap.size);
                 }));
 
-                // Global Message Sync to terminate white-screen crashes
-                unsubs.push(onSnapshot(query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '>=', ''), orderBy('chatId')), (snap) => {
+                // Background Message Sync to terminate white-screen crashes
+                unsubs.push(onSnapshot(collection(db, COLLECTION_ID_MESSAGES), (snap) => {
                     const messagesByChat: Record<string, any[]> = {};
                     snap.docs.forEach(d => {
                         const m = { $id: d.id, ...d.data() };
@@ -135,6 +138,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
             unsubs.forEach(u => u());
         };
     }, [fetchConfig, updatePresence]);
+
+    if (!isMounted) return null;
 
     return (
         <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, allUsers, recentChats, unreadNotifications, globalMessages, recheckUser: async () => { await fetchConfig(); } }}>

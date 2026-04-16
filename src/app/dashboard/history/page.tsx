@@ -39,7 +39,7 @@ export default function HistoryPage() {
         setLoading(true);
         setError(null);
         try {
-            // Master Force: Use raw fetch and client-side sort to bypass missing indexes
+            // Master Force: Fetch all records and sort client-side to bypass Firebase index errors
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_ID_TRANSACTIONS,

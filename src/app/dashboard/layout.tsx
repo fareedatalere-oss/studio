@@ -15,7 +15,6 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 /**
  * @fileOverview Master Dashboard Layout.
  * LABELS: Home, Chat, Media, Market, Profile (Title Case).
- * ICONS: Corrected for professional identity.
  */
 
 export default function DashboardLayout({

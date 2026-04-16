@@ -1,6 +1,6 @@
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Heart, MessageCircle, UserPlus, Store, CreditCard, ShieldCheck, ArrowLeft, Trash2 } from "lucide-react";
+import { Bell, Heart, MessageCircle, UserPlus, CreditCard, ShieldCheck, ArrowLeft, Trash2 } from "lucide-react";
 import { useUser } from '@/hooks/use-user';
 import { useEffect, useState, useCallback } from "react";
 import { formatDistanceToNow } from 'date-fns';
@@ -12,11 +12,11 @@ import { Button } from "@/components/ui/button";
 /**
  * @fileOverview Alert Hub - High Speed.
  * INSTANT: Fetches notifications immediately on mount.
- * SHIELDED: Client-side mark-as-read to keep unread counter accurate.
+ * SHIELDED: Client-side mark-as-read to ensure the badge count syncs instantly.
  */
 
 export default function NotificationsPage() {
-    const { user, loading: userLoading } = useUser();
+    const { user, loading: userLoading, recheckUser } = useUser();
     const [notifications, setNotifications] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -35,17 +35,20 @@ export default function NotificationsPage() {
             );
             setNotifications(response.documents);
             
-            // Mark all as read in background
+            // Mark all unread as read in background to clear the badge
             const unread = response.documents.filter(n => !n.isRead);
             if (unread.length > 0) {
-                unread.forEach(n => databases.updateDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, n.$id, { isRead: true }).catch(() => {}));
+                await Promise.all(unread.map(n => 
+                    databases.updateDocument(DATABASE_ID, COLLECTION_ID_NOTIFICATIONS, n.$id, { isRead: true })
+                ));
+                await recheckUser(); // Force badge update
             }
         } catch (error) {
             console.error("Alert Sync Error");
         } finally {
             setLoading(false);
         }
-    }, [user?.$id]);
+    }, [user?.$id, recheckUser]);
 
     useEffect(() => {
         fetchNotifications();
