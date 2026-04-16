@@ -14,9 +14,9 @@ import { isYesterday, isToday, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 /**
- * @fileOverview Chat Center - Zero Reload Sync.
- * INSTANT: Consumes global memory center to terminate crashes.
- * LABELS: Recent, All (Title Case).
+ * @fileOverview Chat Center - Shadow List Protocol.
+ * FORCE: Hydration Guard (500ms Freeze) to stop Vercel crashes.
+ * MEMORY: Consumes global cache from useUser to eliminate racing.
  */
 
 const safeDate = (ts: any) => {
@@ -51,7 +51,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     const unreadCount = chat.unreadCount?.[currentUid] || 0;
 
     return (
-        <div className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all group max-w-xl mx-auto">
+        <div className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all active:scale-[0.98] max-w-xl mx-auto">
             <Link href={otherUser ? `/dashboard/chat/${otherUser.$id}` : '#'} className="flex-1 flex items-center gap-3 overflow-hidden">
                 <div className="relative">
                     <Avatar className="h-12 w-12 border-2 border-primary/5 shadow-sm">
@@ -83,7 +83,9 @@ export default function ChatPage() {
     const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
-        setIsMounted(true);
+        // 500ms Freeze Guard to prevent Hydration Death
+        const timer = setTimeout(() => setIsMounted(true), 500);
+        return () => clearTimeout(timer);
     }, []);
 
     const filteredUsers = useMemo(() =>
@@ -108,7 +110,7 @@ export default function ChatPage() {
                 </div>
                 
                 <Tabs defaultValue="recent" className="w-full">
-                    <TabsList className="grid grid-cols-2 bg-muted h-12 rounded-2xl p-1 mb-6 border">
+                    <TabsList className="grid grid-cols-2 bg-muted h-12 rounded-2xl p-1 mb-6 border shadow-inner">
                         <TabsTrigger value="recent" className="rounded-xl font-black uppercase text-[10px] tracking-widest">Recent</TabsTrigger>
                         <TabsTrigger value="all" className="rounded-xl font-black uppercase text-[10px] tracking-widest">All</TabsTrigger>
                     </TabsList>
@@ -116,7 +118,7 @@ export default function ChatPage() {
                     <TabsContent value="recent" className="m-0 space-y-1">
                         <div className="relative w-full mb-4">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
-                            <Input placeholder="Search recent..." className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none font-bold" value={searchRecent} onChange={(e) => setSearchRecent(e.target.value)} />
+                            <Input placeholder="Search recent..." className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none font-bold shadow-none" value={searchRecent} onChange={(e) => setSearchRecent(e.target.value)} />
                         </div>
                         {loading && filteredRecent.length === 0 ? (
                             <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-primary/30" /></div>
@@ -128,9 +130,9 @@ export default function ChatPage() {
                     <TabsContent value="all" className="m-0 space-y-1">
                         <div className="relative w-full mb-4">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" />
-                            <Input placeholder="Search users..." className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none font-bold" value={searchAll} onChange={(e) => setSearchAll(e.target.value)} />
+                            <Input placeholder="Search users..." className="pl-11 h-11 text-xs rounded-2xl bg-muted/50 border-none font-bold shadow-none" value={searchAll} onChange={(e) => setSearchAll(e.target.value)} />
                         </div>
-                        <div className="grid gap-1">
+                        <div className="grid gap-1 h-[60vh] overflow-y-auto pr-1 scrollbar-visible">
                             {filteredUsers.map(u => (
                                 <Link key={u.$id} href={`/dashboard/chat/${u.$id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all active:scale-[0.98]">
                                     <div className="relative">

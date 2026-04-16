@@ -21,9 +21,9 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import { format } from 'date-fns';
 
 /**
- * @fileOverview Sofia AI Chat - Sequential Handshake logic.
- * FORCE: UI waits for Database Commit before rendering. 
- * UI: Medium size text (text-sm font-bold).
+ * @fileOverview Sofia AI Chat - Optimistic UI Injection.
+ * FORCE: UI updates instantly when Sofia finishes speaking.
+ * UI: Medium size text (text-sm font-bold) and Voice Bubbles as normal messages.
  */
 
 export const maxDuration = 120;
@@ -67,12 +67,12 @@ export default function AiChatPage() {
         const mapped = res.documents
             .map(doc => ({
                 $id: doc.$id,
-                role: doc.senderId === user?.$id ? 'user' : 'sofia',
+                role: (doc.senderId === 'sofia_system' || doc.senderId === 'sofia') ? 'sofia' : 'user',
                 text: doc.text || '',
                 image: doc.image,
                 mediaUrl: doc.mediaUrl,
                 mediaType: doc.mediaType,
-                timestamp: new Date(doc.$createdAt).getTime()
+                timestamp: new Date(doc.$createdAt || Date.now()).getTime()
             } as Message))
             .sort((a, b) => a.timestamp - b.timestamp);
 
@@ -81,10 +81,10 @@ export default function AiChatPage() {
     } finally {
         setDataLoading(false);
     }
-  }, [chatId, user?.$id]);
+  }, [chatId]);
 
   useEffect(() => {
-    setIsMounted(true);
+    const timer = setTimeout(() => setIsMounted(true), 500);
     if (!chatId) return;
     fetchHistory();
 
@@ -95,7 +95,7 @@ export default function AiChatPage() {
         }
     });
 
-    return () => unsub();
+    return () => { unsub(); clearTimeout(timer); };
   }, [chatId, fetchHistory]);
 
   useEffect(() => {
@@ -113,6 +113,16 @@ export default function AiChatPage() {
     setSelectedImage(null);
     setIsLoading(true);
 
+    // OPTIMISTIC USER MESSAGE
+    const tempUserMsg: Message = {
+        $id: `temp_${Date.now()}`,
+        role: 'user',
+        text: userMsg,
+        image: currentImgB64 || undefined,
+        timestamp: Date.now()
+    };
+    setMessages(prev => [...prev, tempUserMsg]);
+
     try {
       let finalImgUrl = '';
       if (currentImgB64) {
@@ -120,7 +130,7 @@ export default function AiChatPage() {
           if (uploadRes.success) finalImgUrl = uploadRes.url;
       }
 
-      // SEQUENTIAL HANDSHAKE: Ensure DB commit finishes first
+      // 1. Database Commit First
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
           chatId: chatId,
           senderId: user.$id,
@@ -129,6 +139,7 @@ export default function AiChatPage() {
           image: finalImgUrl || undefined
       });
 
+      // 2. Call Sofia
       const response = await chatSofia({
         message: userMsg,
         language: selectedLanguage,
@@ -139,19 +150,28 @@ export default function AiChatPage() {
         currentTime: new Date().toLocaleString(),
       });
 
-      // SEQUENTIAL HANDSHAKE: Wait for AI commit to database before UI update
-      await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
+      // 3. OPTIMISTIC SOFIA INJECTION (Instant Display)
+      const tempSofiaMsg: Message = {
+          $id: `temp_sofia_${Date.now()}`,
+          role: 'sofia',
+          text: response.text,
+          timestamp: Date.now()
+      };
+      setMessages(prev => [...prev, tempSofiaMsg]);
+
+      // 4. Background Silent Commit
+      databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
           chatId: chatId,
           senderId: 'sofia_system',
           text: response.text,
           status: 'sent'
-      });
+      }).catch(() => {});
       
       if (response.action && response.action !== 'none') {
           handleSofiaAction(response.action, response.parameter);
       }
     } catch (error: any) {
-      // Handshake Fail Protection
+      toast({ variant: 'destructive', title: 'Technical sync error' });
     } finally {
       setIsLoading(false);
     }
@@ -167,22 +187,12 @@ export default function AiChatPage() {
         case 'chat': router.push('/dashboard/chat'); break;
         case 'profile': router.push('/dashboard/profile'); break;
         case 'transaction': router.push('/dashboard/history'); break;
-        case 'tiktok': window.open('https://www.tiktok.com', '_blank'); break;
-        case 'youtube': window.open(param ? `https://www.youtube.com/search?q=${encodeURIComponent(param)}` : 'https://www.youtube.com', '_blank'); break;
-        case 'instagram': window.open(param ? `https://www.instagram.com/${param}` : 'https://www.instagram.com', '_blank'); break;
-        case 'facebook': window.open(param ? `https://www.facebook.com/${param}` : 'https://www.facebook.com', '_blank'); break;
         case 'whatsapp': window.open(param ? `https://wa.me/${param}` : 'https://web.whatsapp.com', '_blank'); break;
         case 'tel': window.location.href = `tel:${param || ''}`; break;
         case 'sms': window.location.href = `sms:${param || ''}`; break;
         case 'mail': window.location.href = `mailto:${param || ''}`; break;
         case 'maps': window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(param || '')}`, '_blank'); break;
         case 'browser': window.open(param || 'https://www.google.com', '_blank'); break;
-        case 'camera': 
-            if (navigator.mediaDevices) {
-                navigator.mediaDevices.getUserMedia({ video: true }).then(s => s.getTracks().forEach(t => t.stop()));
-                toast({ title: 'Camera Access Activated' });
-            }
-            break;
         default: break;
     }
   }
@@ -190,7 +200,7 @@ export default function AiChatPage() {
   if (!isMounted) return null;
 
   return (
-    <div className="flex flex-col h-screen bg-background scrollbar-hide overflow-hidden font-body">
+    <div className="flex flex-col h-screen bg-background overflow-hidden font-body">
       <header className="sticky top-0 bg-background/80 backdrop-blur-md border-b flex items-center justify-between p-3 pt-12 z-50">
         <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="h-8 w-8 rounded-full bg-muted/50">
@@ -219,27 +229,27 @@ export default function AiChatPage() {
         </Popover>
       </header>
 
-      <div className="flex-1 p-4 overflow-y-auto space-y-6 pb-40 scroll-smooth">
+      <div className="flex-1 p-4 overflow-y-auto space-y-6 pb-40 scrollbar-hide">
         {dataLoading ? (
             <div className="flex justify-center p-10"><Loader2 className="animate-spin h-8 w-8 text-primary/30" /></div>
         ) : messages.map((msg) => (
             <div key={msg.$id} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
-                <div className={cn("max-w-[85%] rounded-[1.5rem] p-4 text-sm shadow-sm relative", msg.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none border")}>
+                <div className={cn("max-w-[85%] rounded-[1.5rem] p-4 shadow-sm relative", msg.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none border")}>
                     {msg.image && (
                         <div className="mb-3 relative h-48 w-full rounded-xl overflow-hidden border">
                             <Image src={msg.image} alt="Upload" fill className="object-cover" unoptimized />
                         </div>
                     )}
                     {msg.mediaType === 'audio' && msg.mediaUrl ? (
-                        <div className="flex flex-col gap-2 min-w-[180px]">
-                            <div className="flex items-center gap-2">
+                        <div className="flex flex-col gap-2 min-w-[180px] p-1">
+                            <div className="flex items-center gap-2 mb-1">
                                 <Volume2 className="h-4 w-4 text-primary" />
-                                <span className="text-[9px] font-black uppercase">Voice Message</span>
+                                <span className="text-[9px] font-black uppercase">Voice Note</span>
                             </div>
                             <audio controls src={msg.mediaUrl} className="h-8 w-full" />
                         </div>
                     ) : (
-                        <p className="font-bold leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                        <p className="text-sm font-bold leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                     )}
                 </div>
                 <span className="text-[7px] font-black uppercase text-muted-foreground mt-2 px-2 tracking-widest">
@@ -261,12 +271,12 @@ export default function AiChatPage() {
 
       <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t pb-20 z-50 shadow-lg">
         <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 max-w-2xl mx-auto">
-          <Input placeholder="Ask Sofia..." value={input} onChange={e => setInput(e.target.value)} className="h-12 bg-muted/50 border-none rounded-2xl px-6 font-bold text-sm" />
+          <Input placeholder="Ask Sofia..." value={input} onChange={e => setInput(e.target.value)} className="h-12 bg-muted/50 border-none rounded-2xl px-6 font-bold text-sm shadow-inner" />
           <Button variant="ghost" size="icon" type="button" onClick={() => fileInputRef.current?.click()} className={cn("h-12 w-12 rounded-full", selectedImage && "text-primary bg-primary/10")}>
             <ImageIcon className="h-5 w-5" />
           </Button>
           <input type="file" className="hidden" ref={fileInputRef} accept="image/*" onChange={(e) => { if(e.target.files?.[0]) { const r = new FileReader(); r.onload = (ev) => setSelectedImage(ev.target?.result as string); r.readAsDataURL(e.target.files[0]); } }} />
-          <Button size="icon" type="submit" className="h-12 w-12 rounded-full shadow-xl bg-primary" disabled={isLoading || (!input.trim() && !selectedImage)}>
+          <Button size="icon" type="submit" className="h-12 w-12 rounded-full shadow-xl bg-primary active:scale-90 transition-transform" disabled={isLoading || (!input.trim() && !selectedImage)}>
             <Send className="h-4 w-4 text-white" />
           </Button>
         </form>

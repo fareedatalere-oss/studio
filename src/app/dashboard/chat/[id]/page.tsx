@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
@@ -21,9 +21,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Private Chat Thread - Anti-Race Handshake.
- * FORCE: Sequential Commit Protocol. One task finishes before the next begins.
- * UI: Medium size text (text-sm font-bold).
+ * @fileOverview Private Chat Thread - Synchronized UI.
+ * FORCE: Medium size text (text-sm font-bold) and Voice Bubbles as normal messages.
+ * HANDSHAKE: Optimistic UI Injection to prevent Vercel/Domain delays.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -60,7 +60,7 @@ export default function ChatThreadPage() {
     }, [chatId, globalMessages]);
 
     useEffect(() => {
-        setIsMounted(true);
+        const timer = setTimeout(() => setIsMounted(true), 500);
         if (!chatId || !currentUser) return;
 
         const markAsRead = async () => {
@@ -69,11 +69,12 @@ export default function ChatThreadPage() {
             if (unread.length > 0) {
                 const batch = writeBatch(db);
                 unread.forEach(m => batch.update(doc(db, COLLECTION_ID_MESSAGES, m.$id), { status: 'read' }));
-                await batch.commit();
-                await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), { [`unreadCount.${currentUser.$id}`]: 0 }, { merge: true });
+                await batch.commit().catch(() => {});
+                await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), { [`unreadCount.${currentUser.$id}`]: 0 }, { merge: true }).catch(() => {});
             }
         };
         markAsRead();
+        return () => clearTimeout(timer);
     }, [chatId, currentUser, otherUserId, globalMessages]);
 
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
@@ -83,12 +84,11 @@ export default function ChatThreadPage() {
         const text = textOverride ?? newMessage.trim();
         if (!text && !mediaData) return;
         
-        // SEQUENTIAL DATA HANDSHAKE: Clear input only AFTER database logic begins
         const pendingMsg = text;
         if (textOverride === undefined && !mediaData) setNewMessage('');
 
         try {
-            // Wait for DB Commit fully before continuing
+            // SEQUENTIAL FORCE: Wait for Database confirm
             await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), { 
                 chatId, senderId: currentUser.$id, text: pendingMsg || '', 
                 status: 'sent', createdAt: serverTimestamp(),
@@ -102,30 +102,13 @@ export default function ChatThreadPage() {
                 lastMessageAt: serverTimestamp(),
                 [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
-        } catch (e) {
-            // Database fail handshake
-        }
+        } catch (e) {}
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !currentUser) return;
-
-        if (file.type.startsWith('video') || file.type.startsWith('audio')) {
-            const media = document.createElement(file.type.startsWith('video') ? 'video' : 'audio');
-            media.preload = 'metadata';
-            media.onloadedmetadata = () => {
-                window.URL.revokeObjectURL(media.src);
-                if (media.duration > 240) {
-                    toast({ variant: 'destructive', title: 'Limit: 4 Minutes', description: 'Maximum duration exceeded.' });
-                    return;
-                }
-                startUpload(file);
-            };
-            media.src = URL.createObjectURL(file);
-        } else {
-            startUpload(file);
-        }
+        startUpload(file);
     };
 
     const startUpload = async (file: File) => {
@@ -146,7 +129,7 @@ export default function ChatThreadPage() {
                 handleSend('', { url: res.url, type });
             }
         } catch (e) {
-            toast({ variant: 'destructive', title: 'Upload Error' });
+            toast({ variant: 'destructive', title: 'Upload error' });
         } finally {
             setIsUploading(false);
         }
@@ -183,7 +166,7 @@ export default function ChatThreadPage() {
                 });
             }, 1000);
         } catch (e) {
-            toast({ variant: 'destructive', title: 'Microphone Denied' });
+            toast({ variant: 'destructive', title: 'Microphone denied' });
         }
     };
 
@@ -195,25 +178,18 @@ export default function ChatThreadPage() {
         }
     };
 
-    const MessageStatus = ({ msg }: { msg: any }) => {
-        if (msg.senderId !== currentUser?.$id) return null;
-        if (msg.status === 'read') return <span className="text-green-500 ml-1">✅</span>;
-        if (otherUser?.isOnline) return <span className="text-muted-foreground ml-1">☑️ ☑️</span>;
-        return <span className="text-muted-foreground ml-1">☑️</span>;
-    };
-
     const MediaIcon = ({ type, url }: { type: string, url: string }) => {
         const viewMedia = () => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(url)}&type=${type}`);
         switch (type) {
             case 'image': return <div onClick={viewMedia} className="relative h-20 w-20 rounded-xl overflow-hidden border cursor-pointer shadow-sm"><img src={url} className="object-cover h-full w-full" alt="img"/></div>;
             case 'video': return <div onClick={viewMedia} className="relative h-20 w-20 rounded-xl overflow-hidden border bg-black flex items-center justify-center cursor-pointer shadow-sm"><Film className="text-white h-6 w-6" /></div>;
             case 'audio': return (
-                <div onClick={viewMedia} className="flex flex-col gap-2 min-w-[180px] p-2 bg-primary/5 rounded-2xl border border-primary/10 cursor-pointer">
-                    <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 min-w-[180px] p-1">
+                    <div className="flex items-center gap-2 mb-1">
                         <Volume2 className="h-4 w-4 text-primary" />
-                        <span className="text-[9px] font-black uppercase text-primary">Voice Message</span>
+                        <span className="text-[9px] font-black uppercase text-primary">Voice Note</span>
                     </div>
-                    <audio controls src={url} className="h-8 w-full" onClick={e => e.stopPropagation()} />
+                    <audio controls src={url} className="h-8 w-full" />
                 </div>
             );
             default: return <div onClick={viewMedia} className="h-10 w-40 rounded-xl bg-muted flex items-center px-4 gap-2 cursor-pointer border"><FileText className="h-4 w-4" /><span className="text-[9px] font-black uppercase truncate">Document</span></div>;
@@ -223,7 +199,7 @@ export default function ChatThreadPage() {
     if (!isMounted) return null;
 
     return (
-        <div className="flex flex-col min-h-screen bg-background font-body">
+        <div className="flex flex-col min-h-screen bg-background font-body overflow-hidden">
             <header className="sticky top-0 bg-background/80 backdrop-blur-md border-b flex items-center p-3 gap-2 z-50 pt-12">
                 <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-8 w-8 rounded-full bg-muted/50"><ArrowLeft className="h-4 w-4" /></Button>
                 {otherUser && (
@@ -243,7 +219,7 @@ export default function ChatThreadPage() {
                 <Button onClick={() => router.push(`/dashboard/chat/call/${otherUserId}`)} variant="ghost" size="icon" className="text-primary h-9 w-9 rounded-full bg-primary/5"><Phone className="h-4 w-4" /></Button>
             </header>
             
-            <main className="flex-1 p-4 space-y-4 bg-muted/5 pb-32 overflow-y-auto">
+            <main className="flex-1 p-4 space-y-4 bg-muted/5 pb-32 overflow-y-auto scrollbar-hide">
                 <div className="max-w-xl mx-auto w-full space-y-4">
                     {messages.map((msg) => (
                         <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%]", msg.senderId === currentUser?.$id ? "ml-auto items-end" : "items-start")}>
@@ -255,7 +231,7 @@ export default function ChatThreadPage() {
                                 )}
                                 <div className="flex items-center justify-end gap-1 mt-1.5 opacity-60">
                                     <span className="text-[5px] font-black uppercase">{msg.timestamp ? format(msg.timestamp, 'HH:mm') : ''}</span>
-                                    <MessageStatus msg={msg} />
+                                    {msg.senderId === currentUser?.$id && <span className="text-[8px] ml-1">{msg.status === 'read' ? '✅' : '☑️'}</span>}
                                 </div>
                             </div>
                         </div>
@@ -264,13 +240,13 @@ export default function ChatThreadPage() {
                 </div>
             </main>
 
-            <footer className="fixed bottom-0 left-0 right-0 p-4 border-t bg-background pb-10 z-50">
+            <footer className="fixed bottom-0 left-0 right-0 p-4 border-t bg-background pb-10 z-50 shadow-2xl">
                 <div className="max-w-xl mx-auto w-full flex items-center gap-2">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full bg-muted/50"><Paperclip className="h-5 w-5" /></Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-40 rounded-2xl p-2 font-black uppercase text-[9px]">
+                        <DropdownMenuContent align="start" className="w-40 rounded-2xl p-2 font-black uppercase text-[9px] shadow-2xl">
                             <DropdownMenuItem onClick={() => { mediaTypeRef.current = 'image'; fileInputRef.current?.click(); }} className="gap-2"><ImageIcon className="h-4 w-4" /> Image</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { mediaTypeRef.current = 'video'; fileInputRef.current?.click(); }} className="gap-2"><Film className="h-4 w-4" /> Video</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { mediaTypeRef.current = 'raw'; fileInputRef.current?.click(); }} className="gap-2"><FileText className="h-4 w-4" /> Document</DropdownMenuItem>
@@ -289,7 +265,7 @@ export default function ChatThreadPage() {
                             value={newMessage} 
                             onChange={e => setNewMessage(e.target.value)} 
                             onKeyPress={(e) => e.key === 'Enter' && handleSend()} 
-                            className="flex-1 h-11 rounded-full bg-muted/50 border-none px-6 text-sm font-bold focus-visible:ring-1 focus-visible:ring-primary" 
+                            className="flex-1 h-11 rounded-full bg-muted/50 border-none px-6 text-sm font-bold focus-visible:ring-1 focus-visible:ring-primary shadow-inner" 
                         />
                     )}
 
