@@ -5,8 +5,8 @@ import { ArrowLeft, Video, Users, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 /**
- * @fileOverview Meeting Hub Landing.
- * SPELLING: create a meeting, enter a meeting (Lowercase Enforcement).
+ * @file Overview Meeting Hub Landing.
+ * SYNC: Enforces create a meeting and enter a meeting labels.
  */
 
 export default function MeetingLandingPage() {

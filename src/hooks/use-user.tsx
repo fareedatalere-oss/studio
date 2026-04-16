@@ -1,9 +1,9 @@
 'use client';
 
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_NOTIFICATIONS } from '@/lib/data-service';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, COLLECTION_ID_NOTIFICATIONS } from '@/lib/data-service';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, serverTimestamp, onSnapshot, collection, query, where, orderBy, limit, updateDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, onSnapshot, collection, query, where, orderBy, updateDoc } from 'firebase/firestore';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ type UserContextType = {
     allUsers: any[];
     recentChats: any[];
     unreadNotifications: number;
+    globalMessages: Record<string, any[]>;
     recheckUser: () => Promise<void>;
 };
 
@@ -35,6 +36,7 @@ const UserContext = createContext<UserContextType>({
     allUsers: [],
     recentChats: [],
     unreadNotifications: 0,
+    globalMessages: {},
     recheckUser: async () => {} 
 });
 
@@ -49,9 +51,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const [allUsers, setAllUsers] = useState<any[]>([]);
     const [recentChats, setRecentChats] = useState<any[]>([]);
     const [unreadNotifications, setUnreadNotifications] = useState(0);
+    const [globalMessages, setGlobalMessages] = useState<Record<string, any[]>>({});
     
     const router = useRouter();
-    const pathname = usePathname();
 
     const fetchConfig = useCallback(async () => {
         try {
@@ -84,50 +86,46 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setIsMounted(true);
         fetchConfig();
         
-        let unsubProfile: any = null;
-        let unsubUsers: any = null;
-        let unsubChats: any = null;
-        let unsubNotifs: any = null;
+        let unsubs: any[] = [];
 
         const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
                 const uid = firebaseUser.uid;
                 setUser({ $id: uid, uid, email: firebaseUser.email });
                 
-                unsubProfile = onSnapshot(doc(db, COLLECTION_ID_PROFILES, uid), (snap) => {
+                unsubs.push(onSnapshot(doc(db, COLLECTION_ID_PROFILES, uid), (snap) => {
                     if (snap.exists()) setProfile({ $id: snap.id, ...snap.data() });
                     setIsLoading(false);
-                });
+                }));
 
-                unsubUsers = onSnapshot(collection(db, COLLECTION_ID_PROFILES), (snap) => {
+                unsubs.push(onSnapshot(collection(db, COLLECTION_ID_PROFILES), (snap) => {
                     setAllUsers(snap.docs.map(d => ({ $id: d.id, ...d.data() })));
-                });
+                }));
 
-                unsubChats = onSnapshot(query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', uid)), (snap) => {
+                unsubs.push(onSnapshot(query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', uid)), (snap) => {
                     const chats = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
                     setRecentChats(chats.sort((a: any, b: any) => (b.lastMessageAt?.seconds || 0) - (a.lastMessageAt?.seconds || 0)));
-                });
+                }));
 
-                unsubNotifs = onSnapshot(query(collection(db, COLLECTION_ID_NOTIFICATIONS), where('userId', '==', uid), where('isRead', '==', false)), (snap) => {
+                unsubs.push(onSnapshot(query(collection(db, COLLECTION_ID_NOTIFICATIONS), where('userId', '==', uid), where('isRead', '==', false)), (snap) => {
                     setUnreadNotifications(snap.size);
-                });
+                }));
+
+                // Global Message Listener for ALL participant chats
+                unsubs.push(onSnapshot(query(collection(db, COLLECTION_ID_MESSAGES), where('participants', 'array-contains', uid)), (snap) => {
+                    const messagesByChat: Record<string, any[]> = {};
+                    snap.docs.forEach(d => {
+                        const m = { $id: d.id, ...d.data() };
+                        if (!messagesByChat[m.chatId]) messagesByChat[m.chatId] = [];
+                        messagesByChat[m.chatId].push(m);
+                    });
+                    setGlobalMessages(messagesByChat);
+                }));
 
                 updatePresence(true);
-                const handleVisibility = () => updatePresence(document.visibilityState === 'visible');
-                const handleOnline = () => updatePresence(true);
-                const handleOffline = () => updatePresence(false);
-                
-                window.addEventListener('visibilitychange', handleVisibility);
-                window.addEventListener('online', handleOnline);
-                window.addEventListener('offline', handleOffline);
-                window.addEventListener('beforeunload', handleOffline);
-
-                return () => {
-                    window.removeEventListener('visibilitychange', handleVisibility);
-                    window.removeEventListener('online', handleOnline);
-                    window.removeEventListener('offline', handleOffline);
-                    window.removeEventListener('beforeunload', handleOffline);
-                };
+                window.addEventListener('visibilitychange', () => updatePresence(document.visibilityState === 'visible'));
+                window.addEventListener('online', () => updatePresence(true));
+                window.addEventListener('offline', () => updatePresence(false));
 
             } else {
                 setUser(null); setProfile(null); setIsLoading(false);
@@ -135,12 +133,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
         });
 
         return () => { 
-            unsubAuth(); if(unsubProfile) unsubProfile(); if(unsubUsers) unsubUsers(); if(unsubChats) unsubChats(); if(unsubNotifs) unsubNotifs(); 
+            unsubAuth(); 
+            unsubs.forEach(u => u());
         };
     }, [fetchConfig, updatePresence]);
 
     return (
-        <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, allUsers, recentChats, unreadNotifications, recheckUser: async () => { await fetchConfig(); } }}>
+        <UserContext.Provider value={{ user, profile, config, proof, loading: isLoading, allUsers, recentChats, unreadNotifications, globalMessages, recheckUser: async () => { await fetchConfig(); } }}>
             <div className={cn("min-h-screen transition-opacity duration-300", isMounted ? "opacity-100" : "opacity-0")}>
                 {children}
             </div>

@@ -1,12 +1,12 @@
 'use client';
 import Link from 'next/link';
-import { Bell, Home, PlaySquare, Store, User, Bot, ShieldAlert, MessageSquare } from 'lucide-react';
+import { Bell, Home, PlaySquare, Store, User, Bot, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useUser } from '@/hooks/use-user';
 import { Badge } from '@/components/ui/badge';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -22,33 +22,11 @@ export default function DashboardLayout({
   const { profile, loading, unreadNotifications, proof } = useUser();
   
   const [isMounted, setIsMounted] = useState(false);
-  const [permissionState, setPermissionState] = useState<'granted' | 'prompt' | 'denied'>('prompt');
-  
-  const audioUnlocked = useRef(false);
 
   useEffect(() => {
     setIsMounted(true);
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-        setPermissionState(Notification.permission as any);
-    }
   }, []);
 
-  const requestMasterPermissions = async () => {
-    if (typeof window === 'undefined') return;
-    const silentAudio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-silent-fast-thud-2094.mp3');
-    await silentAudio.play().then(() => {
-        audioUnlocked.current = true;
-    }).catch(() => {});
-
-    if ('Notification' in window) {
-        const res = await Notification.requestPermission();
-        setPermissionState(res);
-        if (res === 'granted') {
-            toast({ title: "Security Engine Active" });
-        }
-    }
-  };
-  
   const isTabOn = (key: string) => (!proof) ? true : proof[key] !== false;
 
   const handleTabClick = (e: React.MouseEvent, key: string) => {
@@ -64,23 +42,8 @@ export default function DashboardLayout({
     <div className="flex min-h-screen flex-col font-body bg-background">
       <MeetingAlarm />
       
-      {isMounted && permissionState !== 'granted' && !isImmersive && (
-        <div className="bg-orange-500 text-white p-3 flex items-center justify-between shadow-2xl sticky top-0 z-[100] animate-in slide-in-from-top border-b-2 border-orange-600">
-            <div className="flex items-center gap-3">
-                <ShieldAlert className="h-5 w-5 animate-pulse" />
-                <div>
-                    <p className="text-[10px] font-black uppercase tracking-tighter leading-none">Security Handshake Required</p>
-                    <p className="text-[8px] font-bold opacity-90 leading-none mt-1">Allow notifications to enable alerts</p>
-                </div>
-            </div>
-            <Button size="sm" onClick={requestMasterPermissions} className="h-8 rounded-full bg-white text-orange-600 hover:bg-white/90 font-black uppercase text-[9px] tracking-widest px-4 shadow-xl">
-                Enable
-            </Button>
-        </div>
-      )}
-
       {!isImmersive && (
-        <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-md shadow-sm h-14">
+        <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-md h-14">
           <div className="container flex h-full items-center justify-between px-4">
             <div className="flex items-center gap-2">
               <Link href="/dashboard"><IPayLogo className="h-8 w-8" /></Link>
@@ -111,7 +74,7 @@ export default function DashboardLayout({
       </main>
 
       {!isImmersive && (
-        <footer className="fixed bottom-0 z-40 w-full border-t bg-background/95 backdrop-blur-md md:hidden shadow-lg h-14">
+        <footer className="fixed bottom-0 z-40 w-full border-t bg-background/95 backdrop-blur-md md:hidden h-14 shadow-lg">
           <div className="container grid h-full grid-cols-5 items-center justify-around text-center px-2">
             {[
                 { href: '/dashboard', label: 'Home', icon: Home, key: 'tab_home' },
