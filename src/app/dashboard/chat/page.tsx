@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
  * @fileOverview Chat Center - Shadow List Protocol.
  * FORCE: Hydration Guard (500ms Freeze) to stop Vercel crashes.
  * MEMORY: Consumes global cache from useUser to eliminate racing.
+ * FIXED: (c.lastMessage || "").toLowerCase() error handled with String() cast.
  */
 
 const safeDate = (ts: any) => {
@@ -94,7 +95,7 @@ export default function ChatPage() {
     );
 
     const filteredRecent = useMemo(() =>
-        recentChats.filter(c => (c.lastMessage || '').toLowerCase().includes(searchRecent.toLowerCase())), 
+        recentChats.filter(c => String(c.lastMessage || '').toLowerCase().includes(searchRecent.toLowerCase())), 
         [recentChats, searchRecent]
     );
 

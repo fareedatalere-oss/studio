@@ -21,9 +21,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Private Chat Thread - Synchronized UI.
+ * @fileOverview Private Chat Thread - Sequential UI.
  * FORCE: Medium size text (text-sm font-bold) and Voice Bubbles as normal messages.
- * HANDSHAKE: Optimistic UI Injection to prevent Vercel/Domain delays.
+ * HANDSHAKE: Strict database commit before UI render to stop racing.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -56,7 +56,11 @@ export default function ChatThreadPage() {
 
     const messages = useMemo(() => {
         if (!chatId || !globalMessages[chatId]) return [];
-        return [...globalMessages[chatId]].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        return [...globalMessages[chatId]].sort((a: any, b: any) => {
+            const timeA = new Date(a.$createdAt || a.timestamp || 0).getTime();
+            const timeB = new Date(b.$createdAt || b.timestamp || 0).getTime();
+            return timeA - timeB;
+        });
     }, [chatId, globalMessages]);
 
     useEffect(() => {
@@ -88,7 +92,7 @@ export default function ChatThreadPage() {
         if (textOverride === undefined && !mediaData) setNewMessage('');
 
         try {
-            // SEQUENTIAL FORCE: Wait for Database confirm
+            // SEQUENTIAL FORCE: Wait for Database confirm before clearing or updating
             await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), { 
                 chatId, senderId: currentUser.$id, text: pendingMsg || '', 
                 status: 'sent', createdAt: serverTimestamp(),
@@ -230,7 +234,7 @@ export default function ChatThreadPage() {
                                     <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
                                 )}
                                 <div className="flex items-center justify-end gap-1 mt-1.5 opacity-60">
-                                    <span className="text-[5px] font-black uppercase">{msg.timestamp ? format(msg.timestamp, 'HH:mm') : ''}</span>
+                                    <span className="text-[5px] font-black uppercase">{msg.timestamp || msg.$createdAt ? format(new Date(msg.$createdAt || msg.timestamp), 'HH:mm') : ''}</span>
                                     {msg.senderId === currentUser?.$id && <span className="text-[8px] ml-1">{msg.status === 'read' ? '✅' : '☑️'}</span>}
                                 </div>
                             </div>

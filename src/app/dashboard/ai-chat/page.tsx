@@ -21,32 +21,20 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import { format } from 'date-fns';
 
 /**
- * @fileOverview Sofia AI Chat - Optimistic UI Injection.
- * FORCE: UI updates instantly when Sofia finishes speaking.
+ * @fileOverview Sofia AI Chat - Sequential Handshake Logic.
+ * FORCE: UI waits for database commit before showing messages.
  * UI: Medium size text (text-sm font-bold) and Voice Bubbles as normal messages.
  */
 
 export const maxDuration = 120;
 
-type Message = {
-    $id: string;
-    role: 'user' | 'sofia';
-    text: string;
-    image?: string;
-    mediaUrl?: string;
-    mediaType?: string;
-    timestamp: number;
-}
-
 export default function AiChatPage() {
-  const { user, profile, loading: userLoading } = useUser();
+  const { user, profile, globalMessages } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
-  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [dataLoading, setDataLoading] = useState(true);
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
@@ -56,47 +44,19 @@ export default function AiChatPage() {
 
   const chatId = useMemo(() => user?.$id ? `ai_${user.$id}` : null, [user?.$id]);
 
-  const fetchHistory = useCallback(async () => {
-    if (!chatId) return;
-    try {
-        const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
-            Query.equal('chatId', chatId),
-            Query.limit(100)
-        ]);
-        
-        const mapped = res.documents
-            .map(doc => ({
-                $id: doc.$id,
-                role: (doc.senderId === 'sofia_system' || doc.senderId === 'sofia') ? 'sofia' : 'user',
-                text: doc.text || '',
-                image: doc.image,
-                mediaUrl: doc.mediaUrl,
-                mediaType: doc.mediaType,
-                timestamp: new Date(doc.$createdAt || Date.now()).getTime()
-            } as Message))
-            .sort((a, b) => a.timestamp - b.timestamp);
-
-        setMessages(mapped);
-    } catch (e) {
-    } finally {
-        setDataLoading(false);
-    }
-  }, [chatId]);
+  const messages = useMemo(() => {
+    if (!chatId || !globalMessages[chatId]) return [];
+    return [...globalMessages[chatId]].sort((a: any, b: any) => {
+        const timeA = new Date(a.$createdAt || a.timestamp || 0).getTime();
+        const timeB = new Date(b.$createdAt || b.timestamp || 0).getTime();
+        return timeA - timeB;
+    });
+  }, [chatId, globalMessages]);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsMounted(true), 500);
-    if (!chatId) return;
-    fetchHistory();
-
-    const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_MESSAGES}.documents`], response => {
-        const payload = response.payload as any;
-        if (payload.chatId === chatId) {
-            fetchHistory();
-        }
-    });
-
-    return () => { unsub(); clearTimeout(timer); };
-  }, [chatId, fetchHistory]);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -113,16 +73,6 @@ export default function AiChatPage() {
     setSelectedImage(null);
     setIsLoading(true);
 
-    // OPTIMISTIC USER MESSAGE
-    const tempUserMsg: Message = {
-        $id: `temp_${Date.now()}`,
-        role: 'user',
-        text: userMsg,
-        image: currentImgB64 || undefined,
-        timestamp: Date.now()
-    };
-    setMessages(prev => [...prev, tempUserMsg]);
-
     try {
       let finalImgUrl = '';
       if (currentImgB64) {
@@ -130,16 +80,17 @@ export default function AiChatPage() {
           if (uploadRes.success) finalImgUrl = uploadRes.url;
       }
 
-      // 1. Database Commit First
+      // 1. SEQUENTIAL FORCE: Finish User Commit
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
           chatId: chatId,
           senderId: user.$id,
           text: userMsg,
           status: 'sent',
-          image: finalImgUrl || undefined
+          image: finalImgUrl || undefined,
+          timestamp: Date.now()
       });
 
-      // 2. Call Sofia
+      // 2. Call Sofia (Zero-Wait Protocol)
       const response = await chatSofia({
         message: userMsg,
         language: selectedLanguage,
@@ -150,22 +101,14 @@ export default function AiChatPage() {
         currentTime: new Date().toLocaleString(),
       });
 
-      // 3. OPTIMISTIC SOFIA INJECTION (Instant Display)
-      const tempSofiaMsg: Message = {
-          $id: `temp_sofia_${Date.now()}`,
-          role: 'sofia',
-          text: response.text,
-          timestamp: Date.now()
-      };
-      setMessages(prev => [...prev, tempSofiaMsg]);
-
-      // 4. Background Silent Commit
-      databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
+      // 3. SEQUENTIAL FORCE: Finish Sofia Commit
+      await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
           chatId: chatId,
           senderId: 'sofia_system',
           text: response.text,
-          status: 'sent'
-      }).catch(() => {});
+          status: 'sent',
+          timestamp: Date.now()
+      });
       
       if (response.action && response.action !== 'none') {
           handleSofiaAction(response.action, response.parameter);
@@ -230,11 +173,9 @@ export default function AiChatPage() {
       </header>
 
       <div className="flex-1 p-4 overflow-y-auto space-y-6 pb-40 scrollbar-hide">
-        {dataLoading ? (
-            <div className="flex justify-center p-10"><Loader2 className="animate-spin h-8 w-8 text-primary/30" /></div>
-        ) : messages.map((msg) => (
-            <div key={msg.$id} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
-                <div className={cn("max-w-[85%] rounded-[1.5rem] p-4 shadow-sm relative", msg.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none border")}>
+        {messages.map((msg) => (
+            <div key={msg.$id} className={cn("flex flex-col", (msg.role === 'user' || msg.senderId === user?.$id) ? "items-end" : "items-start")}>
+                <div className={cn("max-w-[85%] rounded-[1.5rem] p-4 shadow-sm relative", (msg.role === 'user' || msg.senderId === user?.$id) ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none border")}>
                     {msg.image && (
                         <div className="mb-3 relative h-48 w-full rounded-xl overflow-hidden border">
                             <Image src={msg.image} alt="Upload" fill className="object-cover" unoptimized />
@@ -253,7 +194,7 @@ export default function AiChatPage() {
                     )}
                 </div>
                 <span className="text-[7px] font-black uppercase text-muted-foreground mt-2 px-2 tracking-widest">
-                    {format(new Date(msg.timestamp), 'HH:mm')}
+                    {format(new Date(msg.$createdAt || msg.timestamp || Date.now()), 'HH:mm')}
                 </span>
             </div>
         ))}
