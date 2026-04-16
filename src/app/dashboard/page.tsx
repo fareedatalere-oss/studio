@@ -76,7 +76,7 @@ export default function DashboardPage() {
     { key: 'feat_electric', label: 'Electricity', icon: Lightbulb, href: '/dashboard/electric-bill' },
     { key: 'feat_multipurpose', label: 'Multi-pay', icon: CreditCard, href: '/dashboard/multi-purpose' },
     { key: 'feat_refund', label: 'Refund', icon: Undo2, href: '/dashboard/deposit' },
-    { key: 'feat_ai', label: 'Sofia AI', icon: Bot, href: '/dashboard/ai-chat', color: 'bg-primary text-white' },
+    { key: 'feat_ai', label: 'Sofia AI', icon: Bot, href: '/dashboard/ai-chat', color: 'bg-primary text-white shadow-xl' },
   ];
 
   return (

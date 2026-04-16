@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Chat Center - Shadow List Protocol.
- * FORCE: Only show users in Recent if a real message exists and the user identity is valid.
+ * FORCE: Only show unique users in Recent list. Duplicate entries are terminated.
  * PRESENCE: Hardened heartbeat check from Global Memory Shield.
  */
 
@@ -47,7 +47,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
         return format(date, 'dd/MM/yy');
     };
 
-    if (!chat || !currentUid || !otherUser) return null; // SHIELD: Hide if user is "Fake" or missing
+    if (!chat || !currentUid || !otherUser) return null; 
     
     const unreadCount = chat.unreadCount?.[currentUid] || 0;
     const online = isUserActuallyOnline(otherUser);
@@ -102,20 +102,35 @@ export default function ChatPage() {
         [allUsers, searchAll, currentUser?.$id]
     );
 
-    const filteredRecent = useMemo(() =>
-        recentChats.filter(c => {
+    const filteredRecent = useMemo(() => {
+        // Master Logic: Enforce Uniqueness per user pair
+        const uniqueMap = new Map();
+        const currentUid = currentUser?.$id || currentUser?.uid;
+
+        recentChats.forEach(c => {
+            const otherId = c.participants?.find((p: string) => p !== currentUid);
+            if (!otherId) return;
+
+            const existing = uniqueMap.get(otherId);
+            const currentMs = safeDate(c.lastMessageAt)?.getTime() || 0;
+            const existingMs = existing ? (safeDate(existing.lastMessageAt)?.getTime() || 0) : 0;
+
+            if (!existing || currentMs > existingMs) {
+                uniqueMap.set(otherId, c);
+            }
+        });
+
+        return Array.from(uniqueMap.values()).filter((c: any) => {
             if (!c.lastMessage) return false; 
             
-            // FORCE: Wipe out ghost accounts from Recent list
-            const otherId = c.participants?.find((p: string) => p !== (currentUser?.$id || currentUser?.uid));
+            const otherId = c.participants?.find((p: string) => p !== currentUid);
             const exists = allUsers.some(u => u.$id === otherId);
             if (!exists) return false;
 
             const msg = typeof c.lastMessage === 'object' ? (c.lastMessage.text || '') : String(c.lastMessage || '');
             return msg.toLowerCase().includes(searchRecent.toLowerCase());
-        }), 
-        [recentChats, searchRecent, allUsers, currentUser]
-    );
+        });
+    }, [recentChats, searchRecent, allUsers, currentUser]);
 
     if (!isMounted) return null;
 
@@ -142,7 +157,7 @@ export default function ChatPage() {
                         {loading && filteredRecent.length === 0 ? (
                             <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-primary/30" /></div>
                         ) : filteredRecent.length > 0 ? (
-                            <div className="space-y-1">{filteredRecent.map(chat => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} />)}</div>
+                            <div className="space-y-1">{filteredRecent.map((chat: any) => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} />)}</div>
                         ) : <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-widest opacity-30">No recent chats</div>}
                     </TabsContent>
 
