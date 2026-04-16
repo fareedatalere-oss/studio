@@ -66,7 +66,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
                         <p className="text-[7px] font-black uppercase text-muted-foreground">{formatChatDate(chat.lastMessageAt)}</p>
                     </div>
                     <div className="flex justify-between items-center gap-2">
-                        <p className={cn("text-[10px] truncate max-w-[80%]", unreadCount > 0 ? "font-bold text-foreground" : "text-muted-foreground")}>{chat.lastMessage || '...'}</p>
+                        <p className={cn("text-[10px] truncate max-w-[80%] font-bold text-foreground", unreadCount === 0 && "opacity-60")}>{chat.lastMessage || '...'}</p>
                         {unreadCount > 0 && <Badge variant="destructive" className="h-5 min-w-5 p-0 px-1 text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white">{unreadCount}</Badge>}
                     </div>
                 </div>
@@ -109,8 +109,8 @@ export default function ChatPage() {
                 
                 <Tabs defaultValue="recent" className="w-full">
                     <TabsList className="grid grid-cols-2 bg-muted h-12 rounded-2xl p-1 mb-6 border">
-                        <TabsTrigger value="recent" className="rounded-xl font-bold text-xs">Recent</TabsTrigger>
-                        <TabsTrigger value="all" className="rounded-xl font-bold text-xs">All</TabsTrigger>
+                        <TabsTrigger value="recent" className="rounded-xl font-black uppercase text-[10px] tracking-widest">Recent</TabsTrigger>
+                        <TabsTrigger value="all" className="rounded-xl font-black uppercase text-[10px] tracking-widest">All</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="recent" className="m-0 space-y-1">

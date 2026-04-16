@@ -121,9 +121,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 }));
 
                 updatePresence(true);
-                window.addEventListener('visibilitychange', () => updatePresence(document.visibilityState === 'visible'));
-                window.addEventListener('online', () => updatePresence(true));
-                window.addEventListener('offline', () => updatePresence(false));
+                if (typeof window !== 'undefined') {
+                    window.addEventListener('visibilitychange', () => updatePresence(document.visibilityState === 'visible'));
+                    window.addEventListener('online', () => updatePresence(true));
+                    window.addEventListener('offline', () => updatePresence(false));
+                }
 
             } else {
                 setUser(null); setProfile(null); setIsLoading(false);

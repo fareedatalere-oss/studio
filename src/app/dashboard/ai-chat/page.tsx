@@ -9,7 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Globe, Loader2, ImageIcon, Send, ArrowLeft } from 'lucide-react';
+import { Globe, Loader2, ImageIcon, Send, ArrowLeft, Volume2 } from 'lucide-react';
 import { chatSofia } from '@/ai/flows/chat-flow';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/use-user';
@@ -33,6 +33,8 @@ type Message = {
     role: 'user' | 'sofia';
     text: string;
     image?: string;
+    mediaUrl?: string;
+    mediaType?: string;
     timestamp: number;
 }
 
@@ -68,6 +70,8 @@ export default function AiChatPage() {
                 role: doc.senderId === user?.$id ? 'user' : 'sofia',
                 text: doc.text || '',
                 image: doc.image,
+                mediaUrl: doc.mediaUrl,
+                mediaType: doc.mediaType,
                 timestamp: new Date(doc.$createdAt).getTime()
             } as Message))
             .sort((a, b) => a.timestamp - b.timestamp);
@@ -135,7 +139,7 @@ export default function AiChatPage() {
         currentTime: new Date().toLocaleString(),
       });
 
-      // SEQUENTIAL HANDSHAKE: Wait for AI commit
+      // SEQUENTIAL HANDSHAKE: Wait for AI commit to database before UI update
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
           chatId: chatId,
           senderId: 'sofia_system',
@@ -147,7 +151,7 @@ export default function AiChatPage() {
           handleSofiaAction(response.action, response.parameter);
       }
     } catch (error: any) {
-      // Catching timeout or sync issues
+      // Handshake Fail Protection
     } finally {
       setIsLoading(false);
     }
@@ -198,7 +202,7 @@ export default function AiChatPage() {
             </Avatar>
             <div>
                 <h2 className="font-black text-xs uppercase tracking-widest text-primary leading-none">Sofia Hub</h2>
-                <p className="text-[7px] font-bold text-muted-foreground uppercase tracking-widest mt-1">First-Burst Intelligence</p>
+                <p className="text-[7px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Direct Technical Intelligence</p>
             </div>
         </div>
         <Popover>
@@ -226,7 +230,17 @@ export default function AiChatPage() {
                             <Image src={msg.image} alt="Upload" fill className="object-cover" unoptimized />
                         </div>
                     )}
-                    <p className="font-bold leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                    {msg.mediaType === 'audio' && msg.mediaUrl ? (
+                        <div className="flex flex-col gap-2 min-w-[180px]">
+                            <div className="flex items-center gap-2">
+                                <Volume2 className="h-4 w-4 text-primary" />
+                                <span className="text-[9px] font-black uppercase">Voice Message</span>
+                            </div>
+                            <audio controls src={msg.mediaUrl} className="h-8 w-full" />
+                        </div>
+                    ) : (
+                        <p className="font-bold leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                    )}
                 </div>
                 <span className="text-[7px] font-black uppercase text-muted-foreground mt-2 px-2 tracking-widest">
                     {format(new Date(msg.timestamp), 'HH:mm')}
@@ -238,7 +252,7 @@ export default function AiChatPage() {
             <div className="flex justify-start">
                 <div className="bg-muted border rounded-full px-6 py-2 text-[8px] font-black uppercase tracking-widest flex items-center gap-3 animate-pulse">
                     <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                    Synchronizing...
+                    Committing Intelligence...
                 </div>
             </div>
         )}
@@ -247,7 +261,7 @@ export default function AiChatPage() {
 
       <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t pb-20 z-50 shadow-lg">
         <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 max-w-2xl mx-auto">
-          <Input placeholder="Ask Sofia anything..." value={input} onChange={e => setInput(e.target.value)} className="h-12 bg-muted/50 border-none rounded-2xl px-6 font-bold text-sm" />
+          <Input placeholder="Ask Sofia..." value={input} onChange={e => setInput(e.target.value)} className="h-12 bg-muted/50 border-none rounded-2xl px-6 font-bold text-sm" />
           <Button variant="ghost" size="icon" type="button" onClick={() => fileInputRef.current?.click()} className={cn("h-12 w-12 rounded-full", selectedImage && "text-primary bg-primary/10")}>
             <ImageIcon className="h-5 w-5" />
           </Button>

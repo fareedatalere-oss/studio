@@ -10,7 +10,7 @@ import {
     increment, getDocs, writeBatch, arrayUnion
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, DATABASE_ID } from '@/lib/data-service';
-import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, FileText, Image as ImageIcon, Film, Music, Mic, X } from 'lucide-react';
+import { ArrowLeft, Send, ShieldCheck, Loader2, Paperclip, Phone, MoreVertical, Trash2, FileText, Image as ImageIcon, Film, Music, Mic, X, Volume2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -207,7 +207,15 @@ export default function ChatThreadPage() {
         switch (type) {
             case 'image': return <div onClick={viewMedia} className="relative h-20 w-20 rounded-xl overflow-hidden border cursor-pointer shadow-sm"><img src={url} className="object-cover h-full w-full" alt="img"/></div>;
             case 'video': return <div onClick={viewMedia} className="relative h-20 w-20 rounded-xl overflow-hidden border bg-black flex items-center justify-center cursor-pointer shadow-sm"><Film className="text-white h-6 w-6" /></div>;
-            case 'audio': return <div onClick={viewMedia} className="h-10 w-40 rounded-full bg-primary/10 flex items-center px-4 gap-2 cursor-pointer border border-primary/20"><Music className="h-4 w-4 text-primary" /><span className="text-[9px] font-black uppercase">Voice Message</span></div>;
+            case 'audio': return (
+                <div onClick={viewMedia} className="flex flex-col gap-2 min-w-[180px] p-2 bg-primary/5 rounded-2xl border border-primary/10 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                        <Volume2 className="h-4 w-4 text-primary" />
+                        <span className="text-[9px] font-black uppercase text-primary">Voice Message</span>
+                    </div>
+                    <audio controls src={url} className="h-8 w-full" onClick={e => e.stopPropagation()} />
+                </div>
+            );
             default: return <div onClick={viewMedia} className="h-10 w-40 rounded-xl bg-muted flex items-center px-4 gap-2 cursor-pointer border"><FileText className="h-4 w-4" /><span className="text-[9px] font-black uppercase truncate">Document</span></div>;
         }
     };
