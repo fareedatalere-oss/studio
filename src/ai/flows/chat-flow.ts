@@ -3,6 +3,7 @@
  * @fileOverview Sofia - Extreme Speed Intelligence Navigator.
  * PROTOCOL: Zero-Wait First-Burst logic for instant rendering.
  * MEMORY: Full Biography of Emir Suleiman Umar integrated for 100% accuracy.
+ * SPEED: Instructions strictly tell the AI to skip thinking and drop the first sentence immediately.
  */
 
 import { ai } from '@/ai/genkit';
