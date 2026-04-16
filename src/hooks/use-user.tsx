@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Global Memory Shield.
- * SYNC: Pre-loads all critical data in background to terminate white-screen crashes.
- * HYDRATION: Removed return null to ensure server/client HTML match.
+ * SYNC: Pre-loads all critical data in background.
+ * SEQUENTIAL: Enforces data-handshake before rendering complex pages.
  */
 
 type UserContextType = {
@@ -101,6 +101,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
                 unsubs.push(onSnapshot(query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', uid)), (snap) => {
                     const chats = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
+                    // Client-side sort to avoid index errors
                     setRecentChats(chats.sort((a: any, b: any) => (b.lastMessageAt?.seconds || 0) - (a.lastMessageAt?.seconds || 0)));
                 }));
 

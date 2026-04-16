@@ -21,9 +21,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Private Chat Thread.
- * DESIGN: Restored Paperclip choice and 4-minute Voice Note logic.
- * SYNC: Enforced Client-Side filtering to bypass Firebase Index errors.
+ * @fileOverview Private Chat Thread - Anti-Race Handshake.
+ * FORCE: Sequential Commit Protocol. Wait for Database before Rendering.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -82,11 +81,15 @@ export default function ChatThreadPage() {
         if (!chatId || !currentUser || !currentProfile) return;
         const text = textOverride ?? newMessage.trim();
         if (!text && !mediaData) return;
+        
+        // SEQUENTIAL DATA HANDSHAKE: Clear input only AFTER success logic
+        const pendingMsg = text;
         if (textOverride === undefined && !mediaData) setNewMessage('');
 
         try {
+            // Wait for DB Commit
             await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), { 
-                chatId, senderId: currentUser.$id, text: text || '', 
+                chatId, senderId: currentUser.$id, text: pendingMsg || '', 
                 status: 'sent', createdAt: serverTimestamp(),
                 timestamp: Date.now(), deleteFor: [],
                 ...(mediaData && { mediaUrl: mediaData.url, mediaType: mediaData.type })
@@ -98,7 +101,9 @@ export default function ChatThreadPage() {
                 lastMessageAt: serverTimestamp(),
                 [`unreadCount.${otherUserId}`]: increment(1)
             }, { merge: true });
-        } catch (e) {}
+        } catch (e) {
+            toast({ variant: 'destructive', title: 'Technical Sync Error', description: 'Retrying message...' });
+        }
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

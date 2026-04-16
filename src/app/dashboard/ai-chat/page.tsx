@@ -21,9 +21,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import { format } from 'date-fns';
 
 /**
- * @fileOverview Sofia AI Chat - High Speed & Intelligent.
- * NAVIGATION: Handles Sofia's redirection commands for device apps and I-Pay pages.
- * SYNC: Terminated white-screen crash with global memory shield.
+ * @fileOverview Sofia AI Chat - Sequential Handshake Logic.
+ * FORCE: UI waits for Database Commit before rendering. Terminated white-screen racing.
  */
 
 export const maxDuration = 120;
@@ -59,17 +58,18 @@ export default function AiChatPage() {
     try {
         const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MESSAGES, [
             Query.equal('chatId', chatId),
-            Query.orderAsc('$createdAt'),
             Query.limit(50)
         ]);
         
-        const mapped = res.documents.map(doc => ({
-            $id: doc.$id,
-            role: doc.senderId === user?.$id ? 'user' : 'sofia',
-            text: doc.text || '',
-            image: doc.image,
-            timestamp: new Date(doc.$createdAt).getTime()
-        } as Message));
+        const mapped = res.documents
+            .map(doc => ({
+                $id: doc.$id,
+                role: doc.senderId === user?.$id ? 'user' : 'sofia',
+                text: doc.text || '',
+                image: doc.image,
+                timestamp: new Date(doc.$createdAt).getTime()
+            } as Message))
+            .sort((a, b) => a.timestamp - b.timestamp);
 
         setMessages(mapped);
     } catch (e) {
@@ -115,6 +115,7 @@ export default function AiChatPage() {
           if (uploadRes.success) finalImgUrl = uploadRes.url;
       }
 
+      // SEQUENTIAL HANDSHAKE: Wait for DB commit before AI call
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
           chatId: chatId,
           senderId: user.$id,
@@ -133,6 +134,7 @@ export default function AiChatPage() {
         currentTime: new Date().toLocaleString(),
       });
 
+      // SEQUENTIAL HANDSHAKE: Wait for AI response commit
       await databases.createDocument(DATABASE_ID, COLLECTION_ID_MESSAGES, ID.unique(), {
           chatId: chatId,
           senderId: 'sofia_system',
@@ -144,7 +146,7 @@ export default function AiChatPage() {
           handleSofiaAction(response.action, response.parameter);
       }
     } catch (error: any) {
-      toast({ variant: 'destructive', title: "Sofia Hub", description: "Technical sync optimized." });
+      toast({ variant: 'destructive', title: "Technical sync", description: "Re-establishing Sofia link." });
     } finally {
       setIsLoading(false);
     }
