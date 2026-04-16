@@ -342,11 +342,11 @@ export default function ChatThreadPage() {
                 <footer className="fixed bottom-0 left-0 right-0 p-3 border-t bg-background pb-8 z-50 shadow-2xl">
                     <div className="max-w-xl mx-auto w-full flex items-center gap-2">
                         {recordedUrl ? (
-                            <div className="flex-1 flex items-center gap-3 bg-muted/30 p-2 rounded-full border border-primary/10">
-                                <Button variant="ghost" size="icon" onClick={() => { setRecordedUrl(null); setRecordedBlob(null); }} className="h-7 w-7 rounded-full text-destructive"><X className="h-4 w-4"/></Button>
-                                <audio src={recordedUrl} controls className="h-7 flex-1" />
-                                <Button onClick={sendVoiceNote} size="icon" className="h-9 w-9 rounded-full shadow-lg bg-primary" disabled={isUploading}>
-                                    {isUploading ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4 text-white" />}
+                            <div className="flex-1 flex items-center gap-2 bg-muted/30 p-1.5 rounded-full border border-primary/10 overflow-hidden">
+                                <Button variant="ghost" size="icon" onClick={() => { setRecordedUrl(null); setRecordedBlob(null); }} className="h-7 w-7 rounded-full text-destructive shrink-0"><X className="h-4 w-4"/></Button>
+                                <audio src={recordedUrl} controls className="h-7 flex-1 min-w-0" />
+                                <Button onClick={sendVoiceNote} size="icon" className="h-8 w-8 rounded-full shadow-lg bg-primary shrink-0" disabled={isUploading}>
+                                    {isUploading ? <Loader2 className="animate-spin h-3 w-3" /> : <Send className="h-3.5 w-3.5 text-white" />}
                                 </Button>
                             </div>
                         ) : isRecording ? (

@@ -3,8 +3,7 @@ import { googleAI } from '@genkit-ai/google-genai';
 
 /**
  * @fileOverview Sofia AI Engine configuration.
- * SECURITY NOTICE: Listening strictly to environment variables.
- * This configuration uses GOOGLE_GENAI_API_KEY set in Vercel/Hosting settings.
+ * SECURITY NOTICE: Using GOOGLE_GENAI_API_KEY from environment variables.
  */
 
 export const ai = genkit({

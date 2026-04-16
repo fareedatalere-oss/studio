@@ -2,7 +2,7 @@
 /**
  * @fileOverview Sofia - Technical AI Partner for I-Pay.
  * PROTOCOL: Zero-Wait Knowledge Force.
- * LANGUAGES: STRICTLY English and Hausa only.
+ * LANGUAGES: STRICTLY English and Hausa only. No other languages allowed.
  * IDENTITY: Prompts user for Paystack verification on sensitive requests.
  */
 
@@ -44,7 +44,7 @@ export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
   } catch (e: any) {
     console.error("Sofia Brain Failure:", e.message);
     return {
-        text: `I-Pay Brain technical sync issue: ${e.message}.`,
+        text: `I-Pay Brain technical sync issue: ${e.message}. Please check API key configuration.`,
         action: 'none'
     };
   }
@@ -62,10 +62,10 @@ const chatSofiaFlow = ai.defineFlow(
 **STRICT LANGUAGE PROTOCOL**:
 - YOU MUST ONLY USE English or Hausa.
 - Detect if the user is speaking English or Hausa and respond in the same language.
-- DO NOT use any other languages.
+- DO NOT use any other regional or foreign languages.
 
 **STRICT ZERO-WAIT PROTOCOL**:
-- Answer immediately.
+- Answer immediately and accurately based on the question asked.
 - Use few data/short answers.
 - Skip "thinking" cycles.
 
@@ -96,7 +96,6 @@ MESSAGE: ${input.message}`;
       output: { schema: SofiaOutputSchema }
     });
     
-    // Safety Force: Fallback if JSON parsing failed but text is present
     if (!response.output && response.text) {
         return {
             text: response.text,
