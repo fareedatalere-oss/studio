@@ -1,16 +1,17 @@
+
 'use client';
 
-import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, COLLECTION_ID_NOTIFICATIONS } from '@/lib/data-service';
+import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, COLLECTION_ID_NOTIFICATIONS, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, serverTimestamp, onSnapshot, collection, query, where, orderBy, updateDoc } from 'firebase/firestore';
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { cn } from "@/lib/utils";
 
 /**
  * @fileOverview Global Memory Shield & Presence Engine.
+ * PUSH FORCE: Native device notifications for calls and alerts.
  * HEARTBEAT: Sends signal every 60s to ensure accurate Online status.
- * CONSISTENCY: Centralizes isUserActuallyOnline for the entire app.
  */
 
 type UserContextType = {
@@ -54,14 +55,30 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const [unreadNotifications, setUnreadNotifications] = useState(0);
     const [globalMessages, setGlobalMessages] = useState<Record<string, any[]>>({});
 
+    const lastNotifiedRef = useRef<Set<string>>(new Set());
+
+    const showNativeNotification = useCallback((title: string, body: string, link?: string) => {
+        if (typeof window === 'undefined' || !('Notification' in window)) return;
+        if (Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+            const n = new Notification(title, {
+                body,
+                icon: '/logo.png',
+                badge: '/logo.png',
+                tag: 'ipay-alert'
+            });
+            n.onclick = () => {
+                window.focus();
+                if (link) window.location.href = link;
+                n.close();
+            };
+        }
+    }, []);
+
     const isUserActuallyOnline = useCallback((u: any) => {
         if (!u?.isOnline) return false;
         if (!u?.lastSeen) return false;
-        
-        // Use either Firestore timestamp or raw ISO string
         const lastSeenDate = u.lastSeen?.toDate ? u.lastSeen.toDate() : new Date(u.lastSeen);
         const now = new Date();
-        // FORCE: Consider offline if heartbeat was more than 3 minutes ago
         return (now.getTime() - lastSeenDate.getTime()) < 180000; 
     }, []);
 
@@ -93,6 +110,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setIsMounted(true);
         fetchConfig();
         
+        // PWA Push Handshake
+        if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/firebase-messaging-sw.js').catch(() => {});
+        }
+
         let unsubs: any[] = [];
         let heartbeatInterval: NodeJS.Timeout | null = null;
 
@@ -101,6 +123,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 const uid = firebaseUser.uid;
                 setUser({ $id: uid, uid, email: firebaseUser.email });
                 
+                // Request Permission Gate
+                if ('Notification' in window && Notification.permission === 'default') {
+                    Notification.requestPermission();
+                }
+
                 unsubs.push(onSnapshot(doc(db, COLLECTION_ID_PROFILES, uid), (snap) => {
                     if (snap.exists()) setProfile({ $id: snap.id, ...snap.data() });
                     setIsLoading(false);
@@ -115,9 +142,36 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     setRecentChats(chats.sort((a: any, b: any) => (b.lastMessageAt?.seconds || 0) - (a.lastMessageAt?.seconds || 0)));
                 }));
 
+                // Push Alert Handshake: Notifications
                 unsubs.push(onSnapshot(collection(db, COLLECTION_ID_NOTIFICATIONS), (snap) => {
-                    const myAlerts = snap.docs.filter(d => d.data().userId === uid && !d.data().isRead);
+                    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    const myAlerts = docs.filter((d: any) => d.userId === uid && !d.isRead);
                     setUnreadNotifications(myAlerts.length);
+
+                    myAlerts.forEach((alert: any) => {
+                        if (!lastNotifiedRef.current.has(alert.id)) {
+                            lastNotifiedRef.current.add(alert.id);
+                            showNativeNotification("I-Pay Alert", alert.description, alert.link);
+                        }
+                    });
+                }));
+
+                // Push Alert Handshake: Meetings / Calls
+                unsubs.push(onSnapshot(collection(db, COLLECTION_ID_MEETINGS), (snap) => {
+                    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    const incomingCall = docs.find((m: any) => 
+                        m.status === 'pending' && 
+                        m.invitees?.includes(uid) && 
+                        !lastNotifiedRef.current.has(m.id)
+                    );
+                    if (incomingCall) {
+                        lastNotifiedRef.current.add(incomingCall.id);
+                        showNativeNotification(
+                            "Incoming I-Pay Call", 
+                            `You have a new invitation: ${incomingCall.name}`,
+                            `/dashboard/meeting/join/${incomingCall.id}`
+                        );
+                    }
                 }));
 
                 unsubs.push(onSnapshot(collection(db, COLLECTION_ID_MESSAGES), (snap) => {
@@ -154,7 +208,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             unsubs.forEach(u => u());
             if (heartbeatInterval) clearInterval(heartbeatInterval);
         };
-    }, [fetchConfig, updatePresence]);
+    }, [fetchConfig, updatePresence, showNativeNotification]);
 
     return (
         <UserContext.Provider value={{ 

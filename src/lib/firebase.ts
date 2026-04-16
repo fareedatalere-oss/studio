@@ -2,10 +2,11 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getMessaging, isSupported } from "firebase/messaging";
 
 /**
  * @fileOverview Master Firebase Configuration.
- * UPDATED with provided credentials.
+ * UPDATED with Messaging support for Native Pushes.
  */
 
 const firebaseConfig = {
@@ -24,4 +25,10 @@ const app = getApps().length > 0
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-export { app, auth, db };
+// Messaging is only supported in browser environments
+const messaging = typeof window !== 'undefined' ? async () => {
+    const supported = await isSupported();
+    return supported ? getMessaging(app) : null;
+} : async () => null;
+
+export { app, auth, db, messaging };
