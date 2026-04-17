@@ -10,10 +10,10 @@ import { useRouter } from 'next/navigation';
 import { collection, query, where, onSnapshot, doc, updateDoc, setDoc, serverTimestamp, increment } from 'firebase/firestore';
 
 /**
- * @fileOverview Master Alarm Engine v7.0.
- * FORCE: Real-time Firestore Listeners. No more intervals.
- * SHIELD: Sender remains silent; Receiver rings with identity preview.
- * LOGGING: Missed Call recorded in chat ledger upon cancellation/timeout.
+ * @fileOverview Master Alarm Engine v8.0.
+ * FORCE: Accept takes users directly to Call Chat Hub.
+ * SHIELD: Receiver rings with identity preview; Sender remains silent.
+ * LOGGING: 30s Timeout logs Missed Call in private chat ledger.
  */
 
 const getChatId = (userId1: string, userId2: string) => {
@@ -49,7 +49,6 @@ export function MeetingAlarm() {
       const chatId = getChatId(meeting.hostId, user.$id);
       
       try {
-          // Log missed call in messages
           await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), {
               chatId,
               senderId: meeting.hostId,
@@ -59,7 +58,6 @@ export function MeetingAlarm() {
               createdAt: serverTimestamp()
           });
 
-          // Update chat for unread badge
           await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
               participants: [meeting.hostId, user.$id],
               lastMessage: "📞 Missed Call",
@@ -112,10 +110,10 @@ export function MeetingAlarm() {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
-    // 30 SECOND AUTO-CUT FORCE
     ringTimeoutRef.current = setTimeout(async () => {
         try {
-            await updateDoc(doc(db, COLLECTION_ID_MEETINGS, meeting.$id), { status: 'cancelled' });
+            const meetingRef = doc(db, COLLECTION_ID_MEETINGS, meeting.$id);
+            await updateDoc(meetingRef, { status: 'cancelled' });
             await logMissedCall(meeting);
             stopRinging();
             setActiveCall(null);
@@ -140,7 +138,10 @@ export function MeetingAlarm() {
 
   const handleAccept = async () => {
     if (activeCall?.$id) {
-        await updateDoc(doc(db, COLLECTION_ID_MEETINGS, activeCall.$id), { status: 'connected' });
+        await updateDoc(doc(db, COLLECTION_ID_MEETINGS, activeCall.$id), { 
+            status: 'connected',
+            activeMode: 'chat' // FORCE: Take both users to the chat functionality instantly
+        });
         router.push(`/dashboard/chat/call/${activeCall.$id}`);
     }
     stopRinging(); 

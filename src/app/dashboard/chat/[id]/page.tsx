@@ -27,10 +27,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Private Chat Thread.
- * FORCE: Full Text Visibility Protocol. All text appears without truncation.
- * BADGE: Bilateral Read Handshake - clears unreadCount on preview.
- * UI: Professional Compact Footer (h-9 sizing).
+ * @fileOverview Private Chat Hub v4.0.
+ * FORCE: Full Text Visibility Protocol. All text wraps and scrolls correctly on mobile.
+ * BADGE: Bilateral Read Handshake - clears specific user badges on entry.
+ * UI: Compact Footer (h-9) with fixed width bubbles (75%).
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -80,7 +80,6 @@ export default function ChatThreadPage() {
         setIsMounted(true);
         if (!chatId || !currentUser) return;
 
-        // BILATERAL READ HANDSHAKE: Clear unread badge for receiver on entry
         const markAsRead = async () => {
             const chatMessages = globalMessages[chatId] || [];
             const unread = chatMessages.filter(m => m.senderId === otherUserId && m.status !== 'read');
@@ -91,7 +90,6 @@ export default function ChatThreadPage() {
                 await batch.commit().catch(() => {});
             }
             
-            // Wipe THIS user's unread count for this specific chat
             await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), { 
                 [`unreadCount.${currentUser.$id}`]: 0 
             }, { merge: true }).catch(() => {});
@@ -130,7 +128,6 @@ export default function ChatThreadPage() {
                 ...(mediaData && { mediaUrl: mediaData.url, mediaType: mediaData.type })
             });
 
-            // INCREMENT RECEIVER BADGE HANDSHAKE
             await setDoc(doc(db, COLLECTION_ID_CHATS, destinationChatId), {
                 participants: [currentUser.$id, destinationOtherId],
                 lastMessage: text ? text : `Shared a ${mediaData?.type}`,
@@ -294,7 +291,7 @@ export default function ChatThreadPage() {
             <main className="flex-1 p-4 space-y-4 bg-muted/5 pb-32 overflow-y-auto scrollbar-hide">
                 <div className="max-w-xl mx-auto w-full space-y-4">
                     {messages.map((msg) => (
-                        <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[80%]", msg.senderId === currentUser?.$id ? "ml-auto items-end" : "items-start")}>
+                        <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[75%]", msg.senderId === currentUser?.$id ? "ml-auto items-end" : "items-start")}>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <div className={cn(

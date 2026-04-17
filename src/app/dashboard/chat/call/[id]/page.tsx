@@ -18,9 +18,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Private Synchronized Call Hub.
- * FORCE: Global Audio Handshake. Both hear each other instantly.
- * COMMAND: "X" closes visual mode for BOTH participants.
+ * @fileOverview Private Synchronized Call Hub v2.0.
+ * FORCE: Accept takes both users directly to 'chat' functionality.
+ * SYNC: clicking on 'X' closes visual mode and resets to 'audio' for both users.
  */
 
 export default function PrivateCallPage() {
@@ -39,10 +39,10 @@ export default function PrivateCallPage() {
     const videoRef = useRef<HTMLVideoElement>(null);
     const localStream = useRef<MediaStream | null>(null);
     const mediaInputRef = useRef<HTMLInputElement>(null);
+    const chatEndRef = useRef<HTMLDivElement>(null);
 
     const startAudio = async () => {
         try {
-            // FORCE AUDIO HANDSHAKE: Ensure both hear each other
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             localStream.current = stream;
         } catch (e) {
@@ -68,7 +68,6 @@ export default function PrivateCallPage() {
     useEffect(() => {
         if (!callId) return;
 
-        // REAL-TIME CALL SYNC (FORCE BOTH DEVICES)
         const unsubCall = onSnapshot(doc(db, COLLECTION_ID_MEETINGS, callId), async (snap) => {
             if (!snap.exists()) {
                 router.replace('/dashboard/chat');
@@ -82,7 +81,6 @@ export default function PrivateCallPage() {
             setCall(data);
             if (data.activeMode) setMode(data.activeMode);
 
-            // Fetch partner profile once
             if (!partner) {
                 const partnerId = data.hostId === user?.$id ? data.invitedUsers[0] : data.hostId;
                 if (partnerId) {
@@ -92,14 +90,13 @@ export default function PrivateCallPage() {
             }
         });
 
-        // Chat Sync
-        const q = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', `call_${callId}`), limit(50));
+        const q = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', `call_${callId}`), limit(100));
         const unsubMessages = onSnapshot(q, (snap) => {
             const mapped = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
             setMessages(mapped.sort((a: any, b: any) => (a.timestamp || 0) - (b.timestamp || 0)));
         });
 
-        startAudio(); // Force audio on entry
+        startAudio(); 
 
         return () => { unsubCall(); unsubMessages(); stopCamera(); };
     }, [callId, user?.$id, partner, router]);
@@ -107,8 +104,10 @@ export default function PrivateCallPage() {
     useEffect(() => {
         if (mode === 'video') startCamera();
         else {
-            // Keep audio stream alive if not in video mode
             if (!localStream.current) startAudio();
+        }
+        if (mode === 'chat') {
+            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }
     }, [mode]);
 
@@ -195,13 +194,14 @@ export default function PrivateCallPage() {
                             <div className="space-y-4">
                                 {messages.map((m, i) => (
                                     <div key={i} className={cn("flex", m.senderId === user?.$id ? "justify-end" : "justify-start")}>
-                                        <div className={cn("p-4 rounded-[1.8rem] text-sm font-bold shadow-sm", m.senderId === user?.$id ? "bg-primary text-white rounded-tr-none" : "bg-muted rounded-tl-none")}>{m.text}</div>
+                                        <div className={cn("p-4 rounded-[1.8rem] text-sm font-bold shadow-sm max-w-[80%]", m.senderId === user?.$id ? "bg-primary text-white rounded-tr-none" : "bg-muted rounded-tl-none")}>{m.text}</div>
                                     </div>
                                 ))}
+                                <div ref={chatEndRef} />
                             </div>
                         </ScrollArea>
                         <div className="p-4 border-t bg-muted/30 pb-10">
-                            <div className="flex flex-wrap gap-2 justify-center mb-4 max-h-24 overflow-y-auto p-1">
+                            <div className="flex flex-wrap gap-2 justify-center mb-4 max-h-24 overflow-y-auto p-1 scrollbar-hide">
                                 {loveEmojis.map((e, i) => (
                                     <button key={i} onClick={() => handleSendEmoji(e)} className="text-3xl hover:scale-125 transition-transform">{e}</button>
                                 ))}
@@ -219,7 +219,9 @@ export default function PrivateCallPage() {
                         <Button onClick={() => handleSwitchMode('audio')} variant="ghost" size="icon" className="absolute top-4 right-4 z-[100] rounded-full"><X className="h-6 w-6"/></Button>
                         {call.displayUrl ? (
                             <div className="flex-1 flex flex-col items-center justify-center relative">
-                                <Button onClick={() => updateDoc(doc(db, COLLECTION_ID_MEETINGS, callId), { displayUrl: null })} variant="destructive" size="icon" className="absolute top-0 right-0 z-50 rounded-full h-8 w-8"><Trash2 className="h-4 w-4"/></Button>
+                                {call.hostId === user?.$id && (
+                                    <Button onClick={() => updateDoc(doc(db, COLLECTION_ID_MEETINGS, callId), { displayUrl: null })} variant="destructive" size="icon" className="absolute top-0 right-0 z-50 rounded-full h-8 w-8"><Trash2 className="h-4 w-4"/></Button>
+                                )}
                                 {call.displayType === 'image' && <img src={call.displayUrl} className="max-h-full max-w-full rounded-2xl shadow-2xl" alt="Display" />}
                                 {call.displayType === 'video' && <video src={call.displayUrl} controls autoPlay className="max-h-full max-w-full rounded-2xl" />}
                                 {call.displayType === 'audio' && (
