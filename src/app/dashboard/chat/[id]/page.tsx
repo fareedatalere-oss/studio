@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -30,7 +29,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 /**
  * @fileOverview Private Chat Thread.
  * FORCE: Full Text Visibility Protocol. All text appears without truncation.
- * UI: Professional Compact Footer.
+ * BADGE: Bilateral Read Handshake - clears unreadCount on preview.
+ * UI: Professional Compact Footer (h-9 sizing).
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -80,14 +80,18 @@ export default function ChatThreadPage() {
         setIsMounted(true);
         if (!chatId || !currentUser) return;
 
+        // BILATERAL READ HANDSHAKE: Clear unread badge for receiver on entry
         const markAsRead = async () => {
             const chatMessages = globalMessages[chatId] || [];
             const unread = chatMessages.filter(m => m.senderId === otherUserId && m.status !== 'read');
+            
             if (unread.length > 0) {
                 const batch = writeBatch(db);
                 unread.forEach(m => batch.update(doc(db, COLLECTION_ID_MESSAGES, m.$id), { status: 'read' }));
                 await batch.commit().catch(() => {});
             }
+            
+            // Wipe THIS user's unread count for this specific chat
             await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), { 
                 [`unreadCount.${currentUser.$id}`]: 0 
             }, { merge: true }).catch(() => {});
@@ -122,6 +126,7 @@ export default function ChatThreadPage() {
                 ...(mediaData && { mediaUrl: mediaData.url, mediaType: mediaData.type })
             });
 
+            // INCREMENT RECEIVER BADGE HANDSHAKE
             await setDoc(doc(db, COLLECTION_ID_CHATS, destinationChatId), {
                 participants: [currentUser.$id, destinationOtherId],
                 lastMessage: text ? text : `Shared a ${mediaData?.type}`,
@@ -242,7 +247,7 @@ export default function ChatThreadPage() {
         if (!ts) return format(new Date(), 'HH:mm');
         try {
             const d = ts.toDate ? ts.toDate() : new Date(ts);
-            return format(d, 'HH:mm');
+            return isNaN(d.getTime()) ? format(new Date(), 'HH:mm') : format(d, 'HH:mm');
         } catch (e) { return format(new Date(), 'HH:mm'); }
     };
 
@@ -288,10 +293,10 @@ export default function ChatThreadPage() {
                         <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[75%]", msg.senderId === currentUser?.$id ? "ml-auto items-end" : "items-start")}>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <div className={cn("p-3 px-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold cursor-pointer break-words", msg.senderId === currentUser?.$id ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
-                                        {msg.mediaUrl ? <MediaIcon type={msg.mediaType} url={msg.mediaUrl} /> : <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>}
+                                    <div className={cn("p-3 px-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold cursor-pointer break-words whitespace-pre-wrap leading-relaxed", msg.senderId === currentUser?.$id ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
+                                        {msg.mediaUrl ? <MediaIcon type={msg.mediaType} url={msg.mediaUrl} /> : <p>{msg.text}</p>}
                                         <div className="flex items-center justify-end gap-1 mt-1.5 opacity-60">
-                                            <span className="text-[5px] font-black uppercase">{safeFormatTime(msg.timestamp)}</span>
+                                            <span className="text-[5px] font-black uppercase">{safeFormatTime(msg.timestamp || msg.createdAt)}</span>
                                             {msg.senderId === currentUser?.$id && <span className="text-[8px] ml-1">{msg.status === 'read' ? '✅' : '☑️'}</span>}
                                         </div>
                                     </div>

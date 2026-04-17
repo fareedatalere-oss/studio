@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 /**
  * @fileOverview Chat Center - Unique Participant Protocol.
  * FORCE: Only show unique users in Recent list. Duplicate entries are terminated.
- * BADGE: Shows real-time unread counts per account.
+ * BADGE: Shows real-time unread counts per account. (Sender to Receiver Handshake).
  */
 
 const safeDate = (ts: any) => {
@@ -49,6 +49,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
 
     if (!chat || !currentUid || !otherUser) return null; 
     
+    // IDENTITY BADGE FORCE: Receiver sees the count, Sender remains clean.
     const unreadCount = chat.unreadCount?.[currentUid] || 0;
     const online = isUserActuallyOnline(otherUser);
 
@@ -61,23 +62,27 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
     return (
         <div className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all active:scale-[0.98] max-w-xl mx-auto">
             <Link href={`/dashboard/chat/${otherUser.$id}`} className="flex-1 flex items-center gap-3 overflow-hidden">
-                <div className="relative">
+                <div className="relative shrink-0">
                     <Avatar className="h-12 w-12 border-2 border-primary/5 shadow-sm">
                         <AvatarImage src={otherUser?.avatar} className="object-cover" />
                         <AvatarFallback className="font-black bg-primary text-white">{otherUser?.username?.charAt(0).toUpperCase() || '?'}</AvatarFallback>
                     </Avatar>
                     {online && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>}
                 </div>
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-center mb-0.5">
-                        <p className="font-bold text-xs">@{otherUser?.username || 'user'}</p>
-                        <p className="text-[7px] font-black uppercase text-muted-foreground">{formatChatDate(chat.lastMessageAt)}</p>
+                        <p className="font-black text-xs uppercase truncate pr-2">@{otherUser?.username || 'user'}</p>
+                        <p className="text-[7px] font-black uppercase text-muted-foreground whitespace-nowrap">{formatChatDate(chat.lastMessageAt)}</p>
                     </div>
                     <div className="flex justify-between items-center gap-2">
-                        <p className={cn("text-[10px] truncate max-w-[80%] font-bold text-foreground", unreadCount === 0 && "opacity-60")}>
+                        <p className={cn("text-[10px] truncate max-w-[85%] font-bold", unreadCount > 0 ? "text-foreground" : "text-muted-foreground opacity-70")}>
                             {displayMessage}
                         </p>
-                        {unreadCount > 0 && <Badge variant="destructive" className="h-5 min-w-5 p-0 px-1 text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white">{unreadCount}</Badge>}
+                        {unreadCount > 0 && (
+                            <Badge variant="destructive" className="h-5 min-w-5 p-0 px-1.5 text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm animate-in zoom-in">
+                                {unreadCount > 99 ? '99+' : unreadCount}
+                            </Badge>
+                        )}
                     </div>
                 </div>
             </Link>
@@ -103,7 +108,6 @@ export default function ChatPage() {
     );
 
     const filteredRecent = useMemo(() => {
-        // Master Logic: Enforce Uniqueness per user pair
         const uniqueMap = new Map();
         const currentUid = currentUser?.$id || currentUser?.uid;
 
@@ -112,8 +116,10 @@ export default function ChatPage() {
             if (!otherId) return;
 
             const existing = uniqueMap.get(otherId);
-            const currentMs = safeDate(c.lastMessageAt)?.getTime() || 0;
-            const existingMs = existing ? (safeDate(existing.lastMessageAt)?.getTime() || 0) : 0;
+            const currentDate = safeDate(c.lastMessageAt);
+            const currentMs = currentDate ? currentDate.getTime() : 0;
+            const existingDate = existing ? safeDate(existing.lastMessageAt) : null;
+            const existingMs = existingDate ? existingDate.getTime() : 0;
 
             if (!existing || currentMs > existingMs) {
                 uniqueMap.set(otherId, c);
@@ -169,11 +175,11 @@ export default function ChatPage() {
                         <div className="grid gap-1 h-[60vh] overflow-y-auto pr-1 scrollbar-visible">
                             {filteredUsers.map(u => (
                                 <Link key={u.$id} href={`/dashboard/chat/${u.$id}`} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-muted transition-all active:scale-[0.98]">
-                                    <div className="relative">
+                                    <div className="relative shrink-0">
                                         <Avatar className="h-12 w-12 border-2 border-primary/10 shadow-sm"><AvatarImage src={u.avatar} /><AvatarFallback className="font-black bg-muted">{u.username?.charAt(0) || '?'}</AvatarFallback></Avatar>
                                         {isUserActuallyOnline(u) && <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 rounded-full border-2 border-white"></div>}
                                     </div>
-                                    <div className="flex-1 overflow-hidden"><p className="font-bold text-xs tracking-tight">@{u.username}</p><p className="text-[8px] font-bold uppercase text-primary/60">{isUserActuallyOnline(u) ? 'Online now' : 'Offline'}</p></div>
+                                    <div className="flex-1 overflow-hidden"><p className="font-black text-xs uppercase tracking-tight">@{u.username}</p><p className="text-[8px] font-bold uppercase text-primary/60">{isUserActuallyOnline(u) ? 'Online now' : 'Offline'}</p></div>
                                 </Link>
                             ))}
                         </div>

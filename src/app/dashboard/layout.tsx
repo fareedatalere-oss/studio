@@ -15,7 +15,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 /**
  * @fileOverview Master Dashboard Layout.
  * LABELS: Home, Chat, Media, Market, Profile.
- * BADGES: Added real-time counters for Chat and Notifications.
+ * BADGES: Real-time cumulative counters for Chat and Notifications.
  */
 
 export default function DashboardLayout({
@@ -60,7 +60,11 @@ export default function DashboardLayout({
               <Button asChild variant="ghost" size="icon" className="relative h-9 w-9">
                 <Link href="/dashboard/notifications">
                   <Bell className="h-4 w-4" />
-                   {unreadNotifications > 0 && <Badge variant="destructive" className="absolute -top-0.5 -right-0.5 h-4 w-4 justify-center p-0 rounded-full text-[8px] font-black border-2 border-white">{unreadNotifications > 9 ? '9+' : unreadNotifications}</Badge>}
+                   {unreadNotifications > 0 && (
+                     <Badge variant="destructive" className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center p-0 rounded-full text-[8px] font-black border-2 border-white shadow-sm">
+                       {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                     </Badge>
+                   )}
                 </Link>
               </Button>
               <Link href="/dashboard/profile" onClick={(e) => handleTabClick(e, 'tab_profile')}>
@@ -96,7 +100,7 @@ export default function DashboardLayout({
                 >
                     <tab.icon className="h-4 w-4" />
                     {tab.badge && tab.badge > 0 ? (
-                        <Badge variant="destructive" className="absolute -top-1 right-2 h-3.5 min-w-3.5 justify-center p-0 rounded-full text-[7px] font-black border border-white">
+                        <Badge variant="destructive" className="absolute -top-1.5 right-1.5 h-3.5 min-w-3.5 flex items-center justify-center p-0 rounded-full text-[7px] font-black border border-white shadow-sm">
                             {tab.badge > 9 ? '9+' : tab.badge}
                         </Badge>
                     ) : null}
