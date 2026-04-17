@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -8,12 +7,11 @@ import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, Query, client, ID } fro
 import { useUser } from '@/hooks/use-user';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter } from 'next/navigation';
-import { parseISO, isBefore } from 'date-fns';
 
 /**
  * @fileOverview Master Alarm Engine.
- * FORCE: Receiver rings ONLY. Sender device is silent.
- * TIMEOUT: 30 Seconds Ring Force - Auto-cancelled if not picked up.
+ * FORCE: 30 Second Ring Auto-Cut. No automatic redial.
+ * SHIELD: Sender remains silent; Receiver rings with identity preview.
  */
 
 export function MeetingAlarm() {
@@ -58,14 +56,13 @@ export function MeetingAlarm() {
         ]);
 
         const allDocs = [...hostRes.documents, ...inviteRes.documents];
-        const now = new Date();
 
         const target = allDocs.find(m => {
             if (rungIds.current.has(m.$id)) return false;
             if (m.status !== 'pending') return false;
 
-            // RING SHIELD: Sender is silent on private calls
-            if (m.hostId === user.$id && m.type === 'private_call') return false;
+            // SENDER SILENCE: If I am the one calling, do not ring my device
+            if (m.hostId === user.$id) return false;
             
             return true;
         });
@@ -109,12 +106,13 @@ export function MeetingAlarm() {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
-    // 30 SECOND AUTO-CUT FORCE
+    // 30 SECOND AUTO-CUT FORCE (NO REDIAL)
     ringTimeoutRef.current = setTimeout(async () => {
         try {
             await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'cancelled' });
             stopRinging();
             setActiveCall(null);
+            rungIds.current.add(meetingId);
         } catch (e) {}
     }, 30000);
 
@@ -170,7 +168,7 @@ export function MeetingAlarm() {
         </div>
       </div>
 
-      <div className="flex items-center justify-center gap-16 w-full max-w-sm px-10">
+      <div className="flex items-center justify-center gap-16 w-full max-sm px-10">
           <div className="flex flex-col items-center gap-4">
               <Button onClick={handleDecline} size="icon" variant="destructive" className="h-20 w-20 rounded-full shadow-2xl bg-red-500 hover:bg-red-600 active:scale-90 transition-transform"><PhoneOff className="h-10 w-10 text-white" /></Button>
               <span className="text-[10px] font-black uppercase text-red-600 tracking-widest">Decline</span>

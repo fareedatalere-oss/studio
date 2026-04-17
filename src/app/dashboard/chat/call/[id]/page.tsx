@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -20,8 +19,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Synchronized Call Hub.
- * FORCE: Bilateral Mode Sync. Both devices switch modes (Chat, Video, Display) together.
- * MEDIA: Shared board for Image, Video, and Music.
+ * FORCE: Global Audio Handshake. Both hear each other instantly.
+ * COMMAND: "X" closes visual mode for BOTH participants.
  */
 
 export default function PrivateCallPage() {
@@ -40,6 +39,31 @@ export default function PrivateCallPage() {
     const videoRef = useRef<HTMLVideoElement>(null);
     const localStream = useRef<MediaStream | null>(null);
     const mediaInputRef = useRef<HTMLInputElement>(null);
+
+    const startAudio = async () => {
+        try {
+            // FORCE AUDIO HANDSHAKE: Ensure both hear each other
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            localStream.current = stream;
+        } catch (e) {
+            console.error("Audio Handshake Denied.");
+        }
+    };
+
+    const startCamera = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            localStream.current = stream;
+            if (videoRef.current) videoRef.current.srcObject = stream;
+        } catch (e) {}
+    };
+
+    const stopCamera = () => {
+        if (localStream.current) {
+            localStream.current.getTracks().forEach(t => t.stop());
+            localStream.current = null;
+        }
+    };
 
     useEffect(() => {
         if (!callId) return;
@@ -75,27 +99,17 @@ export default function PrivateCallPage() {
             setMessages(mapped.sort((a: any, b: any) => (a.timestamp || 0) - (b.timestamp || 0)));
         });
 
+        startAudio(); // Force audio on entry
+
         return () => { unsubCall(); unsubMessages(); stopCamera(); };
     }, [callId, user?.$id, partner, router]);
 
-    const startCamera = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            localStream.current = stream;
-            if (videoRef.current) videoRef.current.srcObject = stream;
-        } catch (e) {}
-    };
-
-    const stopCamera = () => {
-        if (localStream.current) {
-            localStream.current.getTracks().forEach(t => t.stop());
-            localStream.current = null;
-        }
-    };
-
     useEffect(() => {
         if (mode === 'video') startCamera();
-        else stopCamera();
+        else {
+            // Keep audio stream alive if not in video mode
+            if (!localStream.current) startAudio();
+        }
     }, [mode]);
 
     const handleSwitchMode = async (newMode: any) => {
@@ -165,13 +179,18 @@ export default function PrivateCallPage() {
                 )}
 
                 {mode === 'video' && (
-                    <div className="h-full w-full bg-black animate-in zoom-in duration-500">
+                    <div className="h-full w-full bg-black animate-in zoom-in duration-500 relative">
+                        <Button onClick={() => handleSwitchMode('audio')} variant="ghost" size="icon" className="absolute top-4 right-4 z-[100] bg-black/20 hover:bg-black/40 text-white rounded-full"><X className="h-6 w-6"/></Button>
                         <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover scale-x-[-1]" />
                     </div>
                 )}
 
                 {mode === 'chat' && (
                     <div className="h-full flex flex-col animate-in slide-in-from-bottom-4">
+                        <header className="p-4 border-b flex items-center justify-between bg-muted/20">
+                            <span className="text-[10px] font-black uppercase tracking-widest opacity-50">Private Hub</span>
+                            <Button onClick={() => handleSwitchMode('audio')} variant="ghost" size="icon" className="h-8 w-8 rounded-full"><X className="h-4 w-4"/></Button>
+                        </header>
                         <ScrollArea className="flex-1 p-6">
                             <div className="space-y-4">
                                 {messages.map((m, i) => (
@@ -196,10 +215,11 @@ export default function PrivateCallPage() {
                 )}
 
                 {mode === 'display' && (
-                    <div className="h-full flex flex-col p-6 animate-in fade-in">
+                    <div className="h-full flex flex-col p-6 animate-in fade-in relative">
+                        <Button onClick={() => handleSwitchMode('audio')} variant="ghost" size="icon" className="absolute top-4 right-4 z-[100] rounded-full"><X className="h-6 w-6"/></Button>
                         {call.displayUrl ? (
                             <div className="flex-1 flex flex-col items-center justify-center relative">
-                                <Button onClick={() => updateDoc(doc(db, COLLECTION_ID_MEETINGS, callId), { displayUrl: null })} variant="destructive" size="icon" className="absolute top-0 right-0 z-50 rounded-full h-8 w-8"><X className="h-4 w-4"/></Button>
+                                <Button onClick={() => updateDoc(doc(db, COLLECTION_ID_MEETINGS, callId), { displayUrl: null })} variant="destructive" size="icon" className="absolute top-0 right-0 z-50 rounded-full h-8 w-8"><Trash2 className="h-4 w-4"/></Button>
                                 {call.displayType === 'image' && <img src={call.displayUrl} className="max-h-full max-w-full rounded-2xl shadow-2xl" alt="Display" />}
                                 {call.displayType === 'video' && <video src={call.displayUrl} controls autoPlay className="max-h-full max-w-full rounded-2xl" />}
                                 {call.displayType === 'audio' && (
