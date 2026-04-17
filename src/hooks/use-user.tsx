@@ -137,7 +137,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     const chats = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
                     setRecentChats(chats.sort((a: any, b: any) => (b.lastMessageAt?.seconds || 0) - (a.lastMessageAt?.seconds || 0)));
                     
-                    // FORCE: Badge Logic for Unread Messages
                     let totalUnread = 0;
                     chats.forEach((c: any) => {
                         totalUnread += (c.unreadCount?.[uid] || 0);
@@ -167,7 +166,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                         
                         if (m.senderId !== uid && m.status !== 'read' && !lastNotifiedRef.current.has(m.$id)) {
                             lastNotifiedRef.current.add(m.$id);
-                            showNativeNotification("New Message", m.text || "Shared an item", `/dashboard/chat/${m.senderId}`);
+                            showNativeNotification("I-Pay", m.text || "Shared a file", `/dashboard/chat/${m.senderId}`);
                         }
                     });
                     setGlobalMessages(messagesByChat);

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useRef, useEffect, Suspense } from 'react';
@@ -9,18 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, ID, Query } from '@/lib/data-service';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, client, ID, Query, db } from '@/lib/data-service';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { useUser } from '@/hooks/use-user';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
-
-/**
- * @fileOverview Meeting Identity Setup.
- * APPROVAL SHIELD: Admin (Host) bypasses waiting screen. All others MUST wait for approval.
- * SELFIE FORCE: "Front" button specifically forces user-facing camera and mirrors logic.
- */
 
 function MeetingJoinContent() {
     const params = useParams();
@@ -34,7 +29,7 @@ function MeetingJoinContent() {
     const [meeting, setMeeting] = useState<any>(null);
     const [name, setName] = useState('');
     const [avatar, setAvatar] = useState<string | null>(null);
-    const [useLiveCamera, setUseLiveCamera] = useState(false);
+    const [useLiveCamera, setUseLiveCamera] = useState(true);
     const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
     const [step, setStep] = useState<'info' | 'waiting' | 'expired' | 'full'>('info');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,11 +37,18 @@ function MeetingJoinContent() {
     const [loadingMeeting, setLoadingMeeting] = useState(true);
     
     const videoRef = useRef<HTMLVideoElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const localStream = useRef<MediaStream | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const stopCamera = () => {
+        if (localStream.current) {
+            localStream.current.getTracks().forEach(t => t.stop());
+            localStream.current = null;
+        }
+    };
+
     const startCamera = async (mode: 'user' | 'environment') => {
-        if (!navigator?.mediaDevices) return;
+        stopCamera();
         setFacingMode(mode);
         setUseLiveCamera(true);
         setAvatar(null);
@@ -55,65 +57,53 @@ function MeetingJoinContent() {
                 video: { facingMode: mode }, 
                 audio: true 
             });
+            localStream.current = stream;
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
                 setHasCamera(true);
             }
         } catch (e) {
             setHasCamera(false);
-            toast({ variant: 'destructive', title: 'Camera Error' });
+            toast({ variant: 'destructive', title: 'Camera Error', description: 'Please allow access.' });
         }
     };
 
     useEffect(() => {
-        if (typeof window === 'undefined') return;
+        if (!meetingId) return;
+        setLoadingMeeting(true);
+        databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId).then(doc => {
+            setMeeting(doc);
+            if (doc.status === 'ended' || doc.status === 'cancelled') setStep('expired');
+        }).catch(() => setStep('expired')).finally(() => setLoadingMeeting(false));
 
-        const checkMeeting = async () => {
-            if (!meetingId) return;
-            setLoadingMeeting(true);
-            try {
-                const doc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId);
-                setMeeting(doc);
-                
-                if (doc.type === 'personal') {
-                    const attendees = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_ATTENDEES, [
-                        Query.equal('meetingId', meetingId),
-                        Query.equal('status', 'approved')
-                    ]);
-                    if (attendees.total >= 5 && !isAdminLink && authUser?.$id !== doc.hostId) {
-                        setStep('full');
-                    }
-                }
-
-                if (doc.status === 'ended' || doc.status === 'cancelled') {
-                    setStep('expired');
-                }
-            } catch (e: any) {
-                if (e.code === 404) setStep('expired');
-            } finally {
-                setLoadingMeeting(false);
-            }
-        };
-        checkMeeting();
         startCamera('user');
-    }, [meetingId, authUser?.$id, isAdminLink]);
+        return () => stopCamera();
+    }, [meetingId]);
 
     useEffect(() => {
         if (authProfile) {
             setName(authProfile.username || '');
-            if (!useLiveCamera) setAvatar(authProfile.avatar || null);
+            if (!avatar) setAvatar(authProfile.avatar || null);
         }
-    }, [authProfile, useLiveCamera]);
+    }, [authProfile]);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setIsSubmitting(true);
+        try {
             const reader = new FileReader();
-            reader.onload = (ev) => {
-                setAvatar(ev.target?.result as string);
+            const b64 = await new Promise<string>((resolve) => {
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(file);
+            });
+            const res = await uploadToCloudinary(b64);
+            if (res.success) {
+                setAvatar(res.url);
                 setUseLiveCamera(false);
-            };
-            reader.readAsDataURL(e.target.files[0]);
-        }
+                stopCamera();
+            }
+        } finally { setIsSubmitting(false); }
     };
 
     const handleRequestJoin = async () => {
@@ -136,26 +126,23 @@ function MeetingJoinContent() {
                 createdAt: new Date().toISOString()
             });
 
-            if (typeof window !== 'undefined') {
-                sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ 
-                    name, avatar, requestId, isHost: isActuallyHost, useCamera: useLiveCamera, facingMode 
-                }));
-            }
+            sessionStorage.setItem(`meeting_guest_${meetingId}`, JSON.stringify({ 
+                name, avatar, requestId, isHost: isActuallyHost, useCamera: useLiveCamera, facingMode 
+            }));
 
-            // ADMIN BYPASS: Instantly enter if Host
             if (isActuallyHost) {
                 router.replace(`/dashboard/meeting/room/${meetingId}`);
             } else {
-                // GUEST WAIT: Stay on verifying screen until approved
                 setStep('waiting');
-                const unsub = client.subscribe([`databases.${DATABASE_ID}.collections.${COLLECTION_ID_ATTENDEES}.documents`], response => {
-                    const payload = response.payload as any;
-                    if (payload.$id === requestId) {
-                        if (payload.status === 'approved') router.replace(`/dashboard/meeting/room/${meetingId}`);
-                        else if (payload.status === 'declined') {
-                            toast({ variant: 'destructive', title: 'Entry Denied' });
+                // MASTER REDIRECT LISTEN
+                const unsub = onSnapshot(doc(db, COLLECTION_ID_ATTENDEES, requestId), (snap) => {
+                    if (snap.exists()) {
+                        const data = snap.data();
+                        if (data.status === 'approved') router.replace(`/dashboard/meeting/room/${meetingId}`);
+                        else if (data.status === 'declined') {
                             setStep('info');
                             setIsSubmitting(false);
+                            toast({ variant: 'destructive', title: 'Denied' });
                         }
                     }
                 });
@@ -175,7 +162,7 @@ function MeetingJoinContent() {
                 <div className="relative mb-10">
                     <div className="h-32 w-32 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
                     <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="h-24 w-24 rounded-full overflow-hidden border-2 border-white/20">
+                        <div className="h-24 w-24 rounded-full overflow-hidden border-2 border-white/20 bg-muted">
                             {useLiveCamera ? (
                                 <video ref={videoRef} autoPlay muted playsInline className={cn("h-full w-full object-cover", facingMode === 'user' && "scale-x-[-1]")} />
                             ) : (
@@ -213,7 +200,6 @@ function MeetingJoinContent() {
                             ) : (
                                 <video ref={videoRef} autoPlay muted playsInline className={cn("h-full w-full object-cover", facingMode === 'user' && "scale-x-[-1]")} />
                             )}
-                            <canvas ref={canvasRef} className="hidden" />
                             <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-4">
                                 <Button onClick={() => startCamera('user')} variant={facingMode === 'user' && useLiveCamera ? "default" : "secondary"} size="sm" className="flex-1 h-8 rounded-full text-[8px] font-black uppercase"><VideoIcon className="mr-1 h-3 w-3" /> Front</Button>
                                 <Button onClick={() => startCamera('environment')} variant={facingMode === 'environment' && useLiveCamera ? "default" : "secondary"} size="sm" className="flex-1 h-8 rounded-full text-[8px] font-black uppercase"><Smartphone className="mr-1 h-3 w-3" /> Back</Button>

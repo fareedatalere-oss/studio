@@ -9,7 +9,7 @@ import {
     serverTimestamp, setDoc, deleteDoc,
     increment, writeBatch
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } from '@/lib/data-service';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
 import { 
     ArrowLeft, Send, Loader2, Paperclip, Phone, MoreVertical, Trash2, 
     FileText, Image as ImageIcon, Film, Mic, Volume2, Share2, ShieldAlert,
@@ -25,12 +25,6 @@ import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
-
-/**
- * @fileOverview Private Chat Thread.
- * FIXED: Message deletion in private chat.
- * SILENT: Voice notes drop instantly with no upload toasts.
- */
 
 const getChatId = (userId1?: string, userId2?: string) => {
     if (!userId1 || !userId2) return 'invalid_chat';
@@ -142,6 +136,24 @@ export default function ChatThreadPage() {
         }
     };
 
+    const handleCall = async () => {
+        if (!currentUser || !otherUserId) return;
+        try {
+            const meetingId = doc(collection(db, COLLECTION_ID_MEETINGS)).id;
+            await setDoc(doc(db, COLLECTION_ID_MEETINGS, meetingId), {
+                hostId: currentUser.$id,
+                invitedUsers: [otherUserId],
+                status: 'pending',
+                type: 'private_call',
+                createdAt: serverTimestamp(),
+                scheduledAt: new Date().toISOString()
+            });
+            router.push(`/dashboard/chat/call/${meetingId}`);
+        } catch (e) {
+            toast({ variant: 'destructive', title: 'Call Failed' });
+        }
+    };
+
     const handleDeleteMessage = async (msgId: string) => {
         try {
             await deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msgId));
@@ -186,8 +198,6 @@ export default function ChatThreadPage() {
     const sendVoiceNote = async () => {
         if (!recordedBlob || !currentUser) return;
         setIsUploading(true);
-        // SILENT DROP: No toasts.
-        
         try {
             const reader = new FileReader();
             const base64 = await new Promise<string>((resolve, reject) => {
@@ -289,7 +299,7 @@ export default function ChatThreadPage() {
                 )}
                 
                 <div className="flex items-center gap-1">
-                    <Button onClick={() => router.push(`/dashboard/chat/call/${otherUserId}`)} variant="ghost" size="icon" className="text-primary h-9 w-9 rounded-full bg-primary/5"><Phone className="h-4 w-4" /></Button>
+                    <Button onClick={handleCall} variant="ghost" size="icon" className="text-primary h-9 w-9 rounded-full bg-primary/5"><Phone className="h-4 w-4" /></Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full"><MoreVertical className="h-5 w-5" /></Button>
@@ -310,10 +320,10 @@ export default function ChatThreadPage() {
             <main className="flex-1 p-4 space-y-4 bg-muted/5 pb-32 overflow-y-auto scrollbar-hide">
                 <div className="max-w-xl mx-auto w-full space-y-4">
                     {messages.map((msg) => (
-                        <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[85%]", msg.senderId === currentUser?.$id ? "ml-auto items-end" : "items-start")}>
+                        <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[75%]", msg.senderId === currentUser?.$id ? "ml-auto items-end" : "items-start")}>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <div className={cn("p-3 px-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold cursor-pointer", msg.senderId === currentUser?.$id ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
+                                    <div className={cn("p-3 px-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold cursor-pointer break-words", msg.senderId === currentUser?.$id ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
                                         {msg.mediaUrl ? <MediaIcon type={msg.mediaType} url={msg.mediaUrl} /> : <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>}
                                         <div className="flex items-center justify-end gap-1 mt-1.5 opacity-60">
                                             <span className="text-[5px] font-black uppercase">{safeFormatTime(msg.$createdAt, msg.timestamp)}</span>
