@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -12,7 +13,7 @@ import { parseISO, isBefore } from 'date-fns';
 /**
  * @fileOverview Master Alarm Engine.
  * FORCE: Receiver rings ONLY. Sender device is silent.
- * EXPIRY: Strictly respects Personal (1hr) and General (3hr) time limits.
+ * TIMEOUT: 30 Seconds Ring Force - Auto-cancelled if not picked up.
  */
 
 export function MeetingAlarm() {
@@ -21,6 +22,7 @@ export function MeetingAlarm() {
   const [activeCall, setActiveCall] = useState<any>(null);
   const [isRinging, setIsRinging] = useState(false);
   const vibrationInterval = useRef<NodeJS.Timeout | null>(null);
+  const ringTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const rungIds = useRef<Set<string>>(new Set());
 
   const stopRinging = () => {
@@ -28,6 +30,10 @@ export function MeetingAlarm() {
     if (vibrationInterval.current) {
         clearInterval(vibrationInterval.current);
         vibrationInterval.current = null;
+    }
+    if (ringTimeoutRef.current) {
+        clearTimeout(ringTimeoutRef.current);
+        ringTimeoutRef.current = null;
     }
     if (typeof window !== 'undefined' && navigator.vibrate) {
         navigator.vibrate(0);
@@ -41,8 +47,8 @@ export function MeetingAlarm() {
       try {
         const inviteRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
           Query.equal('status', 'pending'),
-          Query.contains('invitees', user.$id),
-          Query.limit(10)
+          Query.contains('invitedUsers', user.$id),
+          Query.limit(5)
         ]);
 
         const hostRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_MEETINGS, [
@@ -58,19 +64,10 @@ export function MeetingAlarm() {
             if (rungIds.current.has(m.$id)) return false;
             if (m.status !== 'pending') return false;
 
-            // RING SHIELD: Never ring for the person who started the call
+            // RING SHIELD: Sender is silent on private calls
             if (m.hostId === user.$id && m.type === 'private_call') return false;
             
-            if (m.expiresAt) {
-                const expiry = parseISO(m.expiresAt);
-                if (isBefore(expiry, now)) return false;
-            }
-
-            if (m.scheduledAt) {
-                const sched = parseISO(m.scheduledAt);
-                return isBefore(sched, now);
-            }
-            return false;
+            return true;
         });
         
         if (target && !isRinging) {
@@ -84,7 +81,7 @@ export function MeetingAlarm() {
             callerAvatar: caller?.avatar, 
             callerName: caller?.username || 'I-Pay User'
           });
-          startRinging();
+          startRinging(target.$id);
         }
       } catch (e) {}
     };
@@ -104,14 +101,23 @@ export function MeetingAlarm() {
     return () => { 
         clearInterval(interval); 
         unsub(); 
-        if (vibrationInterval.current) clearInterval(vibrationInterval.current);
+        stopRinging();
     };
   }, [user, isRinging, activeCall]);
 
-  const startRinging = () => {
+  const startRinging = (meetingId: string) => {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
+    // 30 SECOND AUTO-CUT FORCE
+    ringTimeoutRef.current = setTimeout(async () => {
+        try {
+            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, meetingId, { status: 'cancelled' });
+            stopRinging();
+            setActiveCall(null);
+        } catch (e) {}
+    }, 30000);
+
     if (navigator.vibrate) {
         const pattern = [2000, 500, 2000, 500];
         navigator.vibrate(pattern);
@@ -122,9 +128,7 @@ export function MeetingAlarm() {
   const handleDecline = async () => {
     if (activeCall?.$id) {
         rungIds.current.add(activeCall.$id);
-        if (activeCall.type === 'private_call') {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'cancelled' });
-        }
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'cancelled' });
     }
     stopRinging(); 
     setActiveCall(null);
@@ -133,12 +137,8 @@ export function MeetingAlarm() {
   const handleAccept = async () => {
     if (activeCall?.$id) {
         rungIds.current.add(activeCall.$id);
-        if (activeCall.type === 'private_call') {
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'connected' });
-            router.push(`/dashboard/chat/call/${activeCall.$id}`);
-        } else {
-            router.push(`/dashboard/meeting/join/${activeCall.$id}${activeCall.isHostAlert ? '?role=admin' : ''}`);
-        }
+        await databases.updateDocument(DATABASE_ID, COLLECTION_ID_MEETINGS, activeCall.$id, { status: 'connected' });
+        router.push(`/dashboard/chat/call/${activeCall.$id}`);
     }
     stopRinging(); 
     setActiveCall(null);
@@ -149,9 +149,7 @@ export function MeetingAlarm() {
   return (
     <div className="fixed inset-0 z-[1000] bg-white flex flex-col items-center justify-between py-24 animate-in fade-in zoom-in duration-500 font-body overflow-hidden">
       <div className="text-center space-y-2">
-          <p className="text-primary font-black uppercase tracking-[0.4em] text-2xl animate-pulse">
-            {activeCall?.type === 'private_call' ? 'Incoming Call' : 'Session Ready'}
-          </p>
+          <p className="text-primary font-black uppercase tracking-[0.4em] text-2xl animate-pulse">Incoming Call</p>
           <div className="flex items-center justify-center gap-2 text-primary/60">
             <Volume2 className="h-4 w-4 animate-bounce" />
             <p className="text-[10px] font-black uppercase tracking-widest">Secure Handshake</p>
@@ -167,10 +165,8 @@ export function MeetingAlarm() {
             </Avatar>
         </div>
         <div>
-            <h2 className="text-black text-3xl font-black tracking-tighter uppercase leading-tight">
-                {activeCall?.type === 'private_call' ? `@${activeCall?.callerName}` : activeCall?.name}
-            </h2>
-            <p className="text-muted-foreground font-bold text-xs mt-2 uppercase opacity-60">Identity setup required</p>
+            <h2 className="text-black text-3xl font-black tracking-tighter uppercase leading-tight">@{activeCall?.callerName}</h2>
+            <p className="text-muted-foreground font-bold text-xs mt-2 uppercase opacity-60">Handshake in progress...</p>
         </div>
       </div>
 
