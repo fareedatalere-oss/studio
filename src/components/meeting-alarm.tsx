@@ -3,18 +3,23 @@
 import { useState, useEffect, useRef } from 'react';
 import { PhoneOff, Volume2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, db } from '@/lib/data-service';
+import { databases, DATABASE_ID, COLLECTION_ID_MEETINGS, db, ID, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS } from '@/lib/data-service';
 import { useUser } from '@/hooks/use-user';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useRouter } from 'next/navigation';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, setDoc, serverTimestamp, increment } from 'firebase/firestore';
 
 /**
- * @fileOverview Master Alarm Engine v6.0.
+ * @fileOverview Master Alarm Engine v7.0.
  * FORCE: Real-time Firestore Listeners. No more intervals.
  * SHIELD: Sender remains silent; Receiver rings with identity preview.
- * TIMEOUT: 30 Second Ring Auto-Cut.
+ * LOGGING: Missed Call recorded in chat ledger upon cancellation/timeout.
  */
+
+const getChatId = (userId1: string, userId2: string) => {
+    const sortedIds = [userId1, userId2].sort();
+    return `${sortedIds[0]}_${sortedIds[1]}`;
+};
 
 export function MeetingAlarm() {
   const { user } = useUser();
@@ -23,7 +28,6 @@ export function MeetingAlarm() {
   const [isRinging, setIsRinging] = useState(false);
   const vibrationInterval = useRef<NodeJS.Timeout | null>(null);
   const ringTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const stopRinging = () => {
     setIsRinging(false);
@@ -35,19 +39,39 @@ export function MeetingAlarm() {
         clearTimeout(ringTimeoutRef.current);
         ringTimeoutRef.current = null;
     }
-    if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-    }
     if (typeof window !== 'undefined' && navigator.vibrate) {
         navigator.vibrate(0);
     }
   };
 
+  const logMissedCall = async (meeting: any) => {
+      if (!user?.$id) return;
+      const chatId = getChatId(meeting.hostId, user.$id);
+      
+      try {
+          // Log missed call in messages
+          await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), {
+              chatId,
+              senderId: meeting.hostId,
+              text: "📞 Missed Call",
+              status: 'sent',
+              timestamp: Date.now(),
+              createdAt: serverTimestamp()
+          });
+
+          // Update chat for unread badge
+          await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
+              participants: [meeting.hostId, user.$id],
+              lastMessage: "📞 Missed Call",
+              lastMessageAt: serverTimestamp(),
+              [`unreadCount.${user.$id}`]: increment(1)
+          }, { merge: true });
+      } catch (e) {}
+  };
+
   useEffect(() => {
     if (!user?.$id) return;
 
-    // REAL-TIME LISTENER FOR INCOMING CALLS (FORCE)
     const q = query(
         collection(db, COLLECTION_ID_MEETINGS),
         where('status', '==', 'pending'),
@@ -55,13 +79,9 @@ export function MeetingAlarm() {
     );
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-        const docChanges = snapshot.docChanges();
-        
-        docChanges.forEach(async (change) => {
+        snapshot.docChanges().forEach(async (change) => {
             if (change.type === 'added') {
                 const meeting = { $id: change.doc.id, ...change.doc.data() };
-                
-                // SENDER SILENCE PROTOCOL: Only ring if not the host
                 if (meeting.hostId === user.$id) return;
 
                 const caller = await databases.getDocument(DATABASE_ID, 'profiles', meeting.hostId).catch(() => null);
@@ -72,11 +92,10 @@ export function MeetingAlarm() {
                     callerName: caller?.username || 'I-Pay User'
                 });
                 
-                startRinging(meeting.$id);
+                startRinging(meeting);
             }
         });
 
-        // Detect if call was cancelled by sender or timeout
         if (snapshot.empty && isRinging) {
             stopRinging();
             setActiveCall(null);
@@ -89,14 +108,15 @@ export function MeetingAlarm() {
     };
   }, [user?.$id, isRinging]);
 
-  const startRinging = (meetingId: string) => {
+  const startRinging = (meeting: any) => {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
     // 30 SECOND AUTO-CUT FORCE
     ringTimeoutRef.current = setTimeout(async () => {
         try {
-            await updateDoc(doc(db, COLLECTION_ID_MEETINGS, meetingId), { status: 'cancelled' });
+            await updateDoc(doc(db, COLLECTION_ID_MEETINGS, meeting.$id), { status: 'cancelled' });
+            await logMissedCall(meeting);
             stopRinging();
             setActiveCall(null);
         } catch (e) {}
@@ -112,6 +132,7 @@ export function MeetingAlarm() {
   const handleDecline = async () => {
     if (activeCall?.$id) {
         await updateDoc(doc(db, COLLECTION_ID_MEETINGS, activeCall.$id), { status: 'cancelled' });
+        await logMissedCall(activeCall);
     }
     stopRinging(); 
     setActiveCall(null);

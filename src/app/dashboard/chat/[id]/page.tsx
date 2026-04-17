@@ -99,7 +99,11 @@ export default function ChatThreadPage() {
         markAsRead();
     }, [chatId, currentUser, otherUserId, globalMessages]);
 
-    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+    useEffect(() => { 
+        if (isMounted) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [messages, isMounted]);
 
     const handleSend = async (textOverride?: string, mediaData?: any, targetId?: string) => {
         if (!chatId || !currentUser || !currentProfile) return;
@@ -267,7 +271,7 @@ export default function ChatThreadPage() {
     const online = otherUser && isUserActuallyOnline(otherUser);
 
     return (
-        <div className="flex flex-col min-h-screen bg-background font-body overflow-hidden">
+        <div className="flex flex-col h-screen bg-background font-body overflow-hidden">
             <header className="sticky top-0 bg-background/80 backdrop-blur-md border-b flex items-center p-3 gap-2 z-50 pt-12">
                 <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/chat')} className="h-8 w-8 rounded-full bg-muted/50"><ArrowLeft className="h-4 w-4" /></Button>
                 {otherUser && (
@@ -275,8 +279,8 @@ export default function ChatThreadPage() {
                         <Avatar className="h-10 w-10 border-2 border-primary/5 shadow-sm">
                             <AvatarImage src={otherUser.avatar}/><AvatarFallback className="font-black bg-primary text-white">{otherUser.username?.charAt(0).toUpperCase()}</AvatarFallback>
                         </Avatar>
-                        <div>
-                            <h2 className="font-black text-xs">@{otherUser.username}</h2>
+                        <div className="min-w-0">
+                            <h2 className="font-black text-xs truncate">@{otherUser.username}</h2>
                             <p className={cn("text-[7px] font-black uppercase", online ? "text-green-500" : "text-muted-foreground")}>{online ? 'Online' : 'Offline'}</p>
                         </div>
                     </div>
@@ -290,10 +294,13 @@ export default function ChatThreadPage() {
             <main className="flex-1 p-4 space-y-4 bg-muted/5 pb-32 overflow-y-auto scrollbar-hide">
                 <div className="max-w-xl mx-auto w-full space-y-4">
                     {messages.map((msg) => (
-                        <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[75%]", msg.senderId === currentUser?.$id ? "ml-auto items-end" : "items-start")}>
+                        <div key={msg.$id} className={cn("flex flex-col gap-1 max-w-[80%]", msg.senderId === currentUser?.$id ? "ml-auto items-end" : "items-start")}>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <div className={cn("p-3 px-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold cursor-pointer break-words whitespace-pre-wrap leading-relaxed", msg.senderId === currentUser?.$id ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border")}>
+                                    <div className={cn(
+                                        "p-3 px-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold cursor-pointer break-words whitespace-pre-wrap leading-relaxed", 
+                                        msg.senderId === currentUser?.$id ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border"
+                                    )}>
                                         {msg.mediaUrl ? <MediaIcon type={msg.mediaType} url={msg.mediaUrl} /> : <p>{msg.text}</p>}
                                         <div className="flex items-center justify-end gap-1 mt-1.5 opacity-60">
                                             <span className="text-[5px] font-black uppercase">{safeFormatTime(msg.timestamp || msg.createdAt)}</span>
