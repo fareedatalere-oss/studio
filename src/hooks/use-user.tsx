@@ -8,9 +8,9 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback,
 import { cn } from "@/lib/utils";
 
 /**
- * @fileOverview Global Memory Shield & Presence Engine.
- * PUSH FORCE: Native device notifications for calls and alerts.
- * BADGE SYNC: Total unread message count and notification tracking.
+ * @fileOverview Global Memory Shield & Presence Engine v4.0.
+ * PUSH FORCE: Native device notifications for background communications.
+ * BADGE SYNC: Cumulative atomic counters for real-time visibility.
  */
 
 type UserContextType = {
@@ -58,6 +58,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const [globalMessages, setGlobalMessages] = useState<Record<string, any[]>>({});
 
     const lastNotifiedRef = useRef<Set<string>>(new Set());
+    const sessionStartTimeRef = useRef(Date.now());
 
     const showNativeNotification = useCallback((title: string, body: string, link?: string) => {
         if (typeof window === 'undefined' || !('Notification' in window)) return;
@@ -66,7 +67,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 body,
                 icon: '/logo.png',
                 badge: '/logo.png',
-                tag: 'ipay-alert'
+                tag: 'ipay-alert',
+                renotify: true
             });
             n.onclick = () => {
                 window.focus();
@@ -150,7 +152,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     setUnreadNotifications(myAlerts.length);
 
                     myAlerts.forEach((alert: any) => {
-                        if (!lastNotifiedRef.current.has(alert.id)) {
+                        const alertTime = alert.createdAt?.seconds ? alert.createdAt.seconds * 1000 : Date.now();
+                        if (!lastNotifiedRef.current.has(alert.id) && alertTime > sessionStartTimeRef.current) {
                             lastNotifiedRef.current.add(alert.id);
                             showNativeNotification("I-Pay Alert", alert.description, alert.link);
                         }
@@ -164,7 +167,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
                         if (!messagesByChat[m.chatId]) messagesByChat[m.chatId] = [];
                         messagesByChat[m.chatId].push(m);
                         
-                        if (m.senderId !== uid && m.status !== 'read' && !lastNotifiedRef.current.has(m.$id)) {
+                        const msgTime = m.timestamp || (m.createdAt?.seconds ? m.createdAt.seconds * 1000 : Date.now());
+                        if (m.senderId !== uid && m.status !== 'read' && !lastNotifiedRef.current.has(m.$id) && msgTime > sessionStartTimeRef.current) {
                             lastNotifiedRef.current.add(m.$id);
                             showNativeNotification("I-Pay", m.text || "Shared a file", `/dashboard/chat/${m.senderId}`);
                         }

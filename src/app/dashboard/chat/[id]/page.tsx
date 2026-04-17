@@ -27,10 +27,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Private Chat Hub v4.0.
- * FORCE: Full Text Visibility Protocol. All text wraps and scrolls correctly on mobile.
- * BADGE: Bilateral Read Handshake - clears specific user badges on entry.
- * UI: Compact Footer (h-9) with fixed width bubbles (75%).
+ * @fileOverview Private Chat Hub v5.0.
+ * FORCE: Instant Voice Drop. Messages land optimistically before cloud processing.
+ * UI: Extra-Small Audio footprints. Full text visibility with forced wrapping.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -105,10 +104,7 @@ export default function ChatThreadPage() {
 
     const handleSend = async (textOverride?: string, mediaData?: any, targetId?: string) => {
         if (!chatId || !currentUser || !currentProfile) return;
-        if (anyBlockActive) {
-            toast({ variant: 'destructive', title: 'Action Denied', description: 'Cannot send messages while blocked.' });
-            return;
-        }
+        if (anyBlockActive) return;
 
         const text = textOverride ?? newMessage.trim();
         if (!text && !mediaData) return;
@@ -117,7 +113,8 @@ export default function ChatThreadPage() {
         const destinationOtherId = targetId || otherUserId;
 
         try {
-            await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), { 
+            const msgId = ID.unique();
+            await setDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), { 
                 chatId: destinationChatId, 
                 senderId: currentUser.$id, 
                 text: text || '', 
@@ -140,31 +137,6 @@ export default function ChatThreadPage() {
                 setRecordedUrl(null);
                 setRecordedBlob(null);
             }
-        } catch (e) {}
-    };
-
-    const handleCall = async () => {
-        if (!currentUser || !otherUserId) return;
-        try {
-            const meetingId = doc(collection(db, COLLECTION_ID_MEETINGS)).id;
-            await setDoc(doc(db, COLLECTION_ID_MEETINGS, meetingId), {
-                hostId: currentUser.$id,
-                invitedUsers: [otherUserId],
-                status: 'pending',
-                type: 'private_call',
-                activeMode: 'audio',
-                createdAt: serverTimestamp(),
-                scheduledAt: new Date().toISOString()
-            });
-            router.push(`/dashboard/chat/call/${meetingId}`);
-        } catch (e) {
-            toast({ variant: 'destructive', title: 'Call Failed' });
-        }
-    };
-
-    const handleDeleteMessage = async (msgId: string) => {
-        try {
-            await deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msgId));
         } catch (e) {}
     };
 
@@ -205,7 +177,13 @@ export default function ChatThreadPage() {
 
     const sendVoiceNote = async () => {
         if (!recordedBlob || !currentUser) return;
+        
+        // INSTANT DROP FORCE: Clear the preview instantly so it feels fast
+        const tempBlobUrl = recordedUrl;
+        setRecordedUrl(null);
+        setRecordedBlob(null);
         setIsUploading(true);
+
         try {
             const reader = new FileReader();
             const base64 = await new Promise<string>((resolve) => {
@@ -218,8 +196,6 @@ export default function ChatThreadPage() {
             }
         } finally {
             setIsUploading(false);
-            setRecordedUrl(null);
-            setRecordedBlob(null);
         }
     };
 
@@ -255,10 +231,18 @@ export default function ChatThreadPage() {
     const MediaIcon = ({ type, url }: { type: string, url: string }) => {
         const viewMedia = () => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(url)}&type=${type}`);
         switch (type) {
-            case 'image': return <div onClick={viewMedia} className="relative h-20 w-20 rounded-xl overflow-hidden border cursor-pointer shadow-sm"><img src={url} className="object-cover h-full w-full" alt="img"/></div>;
-            case 'video': return <div onClick={viewMedia} className="relative h-20 w-20 rounded-xl overflow-hidden border bg-black flex items-center justify-center cursor-pointer shadow-sm"><Film className="text-white h-6 w-6" /></div>;
-            case 'audio': return <div className="flex flex-col gap-2 min-w-[150px] p-1"><div className="flex items-center gap-2 mb-1"><Volume2 className="h-4 w-4 text-primary" /><span className="text-[9px] font-black uppercase text-primary">Voice Note</span></div><audio controls src={url} className="h-7 w-full" /></div>;
-            default: return <div onClick={viewMedia} className="h-10 w-40 rounded-xl bg-muted flex items-center px-4 gap-2 cursor-pointer border"><FileText className="h-4 w-4" /><span className="text-[9px] font-black uppercase truncate">Document</span></div>;
+            case 'image': return <div onClick={viewMedia} className="relative h-24 w-24 rounded-xl overflow-hidden border cursor-pointer shadow-sm"><img src={url} className="object-cover h-full w-full" alt="img"/></div>;
+            case 'video': return <div onClick={viewMedia} className="relative h-24 w-24 rounded-xl overflow-hidden border bg-black flex items-center justify-center cursor-pointer shadow-sm"><Film className="text-white h-6 w-6" /></div>;
+            case 'audio': return (
+                <div className="flex flex-col gap-1 min-w-[120px] p-0.5">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                        <Volume2 className="h-3 w-3 text-primary" />
+                        <span className="text-[8px] font-black uppercase text-primary tracking-tighter">Audio</span>
+                    </div>
+                    <audio controls src={url} className="h-6 w-full scale-90 -ml-2" />
+                </div>
+            );
+            default: return <div onClick={viewMedia} className="h-10 w-40 rounded-xl bg-muted flex items-center px-4 gap-2 cursor-pointer border"><FileText className="h-4 w-4" /><span className="text-[9px] font-black uppercase truncate">File</span></div>;
         }
     };
 
@@ -283,8 +267,13 @@ export default function ChatThreadPage() {
                     </div>
                 )}
                 <div className="flex items-center gap-1">
-                    <Button onClick={handleCall} variant="ghost" size="icon" className="text-primary h-9 w-9 rounded-full bg-primary/5"><Phone className="h-4 w-4" /></Button>
-                    <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9 rounded-full"><MoreVertical className="h-5 w-5" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48 font-black uppercase text-[10px] rounded-2xl p-2 shadow-2xl"><DropdownMenuItem className="gap-2 text-destructive"><Ban className="h-4 w-4" /> Block User</DropdownMenuItem><DropdownMenuItem className="gap-2 text-destructive"><ListRestart className="h-4 w-4" /> Clear Chat</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+                    <Button onClick={async () => {
+                        if (!currentUser || !otherUserId) return;
+                        const mid = doc(collection(db, COLLECTION_ID_MEETINGS)).id;
+                        await setDoc(doc(db, COLLECTION_ID_MEETINGS, mid), { hostId: currentUser.$id, invitedUsers: [otherUserId], status: 'pending', type: 'private_call', activeMode: 'audio', createdAt: serverTimestamp(), timestamp: Date.now() });
+                        router.push(`/dashboard/chat/call/${mid}`);
+                    }} variant="ghost" size="icon" className="text-primary h-9 w-9 rounded-full bg-primary/5"><Phone className="h-4 w-4" /></Button>
+                    <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9 rounded-full"><MoreVertical className="h-5 w-5" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48 font-black uppercase text-[10px] rounded-2xl p-2 shadow-2xl"><DropdownMenuItem className="gap-2 text-destructive"><Ban className="h-4 w-4" /> Block Account</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
                 </div>
             </header>
             
@@ -295,11 +284,11 @@ export default function ChatThreadPage() {
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <div className={cn(
-                                        "p-3 px-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold cursor-pointer break-words whitespace-pre-wrap leading-relaxed", 
+                                        "p-3 px-4 rounded-[1.5rem] shadow-sm relative text-sm font-bold cursor-pointer break-all whitespace-pre-wrap leading-relaxed", 
                                         msg.senderId === currentUser?.$id ? "bg-primary text-white rounded-tr-none" : "bg-white text-foreground rounded-tl-none border"
                                     )}>
                                         {msg.mediaUrl ? <MediaIcon type={msg.mediaType} url={msg.mediaUrl} /> : <p>{msg.text}</p>}
-                                        <div className="flex items-center justify-end gap-1 mt-1.5 opacity-60">
+                                        <div className="flex items-center justify-end gap-1 mt-1 opacity-60">
                                             <span className="text-[5px] font-black uppercase">{safeFormatTime(msg.timestamp || msg.createdAt)}</span>
                                             {msg.senderId === currentUser?.$id && <span className="text-[8px] ml-1">{msg.status === 'read' ? '✅' : '☑️'}</span>}
                                         </div>
@@ -307,7 +296,7 @@ export default function ChatThreadPage() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align={msg.senderId === currentUser?.$id ? 'end' : 'start'} className="font-black uppercase text-[9px] w-32 rounded-xl p-1">
                                     <DropdownMenuItem onClick={() => { setMessageToForward(msg); setForwardDialogOpen(true); }} className="gap-2"><Share2 className="h-3 w-3" /> Forward</DropdownMenuItem>
-                                    <DropdownMenuSeparator /><DropdownMenuItem onClick={() => handleDeleteMessage(msg.$id)} className="gap-2 text-destructive"><Trash2 className="h-3 w-3" /> Delete</DropdownMenuItem>
+                                    <DropdownMenuSeparator /><DropdownMenuItem onClick={() => deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id))} className="gap-2 text-destructive"><Trash2 className="h-3 w-3" /> Delete Permanently</DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         </div>
@@ -316,12 +305,12 @@ export default function ChatThreadPage() {
                 </div>
             </main>
 
-            <footer className="fixed bottom-0 left-0 right-0 p-2 border-t bg-background pb-8 z-50 shadow-2xl">
+            <footer className="fixed bottom-0 left-0 right-0 p-2 border-t bg-background pb-8 z-[60] shadow-2xl">
                 <div className="max-w-xl mx-auto w-full flex items-center gap-2">
                     {recordedUrl ? (
                         <div className="flex-1 flex items-center gap-2 bg-muted/30 p-1 rounded-full border border-primary/10 overflow-hidden">
                             <Button variant="ghost" size="icon" onClick={() => { setRecordedUrl(null); setRecordedBlob(null); }} className="h-7 w-7 rounded-full text-destructive shrink-0"><X className="h-4 w-4"/></Button>
-                            <audio src={recordedUrl} controls className="h-7 flex-1" />
+                            <audio src={recordedUrl} controls className="h-7 flex-1 scale-90" />
                             <Button onClick={sendVoiceNote} size="icon" className="h-9 w-9 rounded-full shadow-lg bg-primary shrink-0" disabled={isUploading}>{isUploading ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="h-4 w-4 text-white" />}</Button>
                         </div>
                     ) : isRecording ? (
