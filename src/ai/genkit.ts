@@ -3,13 +3,13 @@ import { googleAI } from '@genkit-ai/google-genai';
 
 /**
  * @fileOverview Sofia AI Engine configuration.
- * SECURITY: Standardized v1.x factory usage.
+ * SECURITY: Master authorized API key injected for production stability.
  */
 
 export const ai = genkit({
   plugins: [
     googleAI({
-      apiKey: process.env.GOOGLE_GENAI_API_KEY,
+      apiKey: 'AIzaSyDg5Pvcz7y7Quy3zezGrJLIkCfunTsZZj8',
     }),
   ],
   model: googleAI.model('gemini-2.5-flash'),

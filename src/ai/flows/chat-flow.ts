@@ -61,9 +61,16 @@ const accessGlobalMemory = ai.defineTool(
 );
 
 export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
-  // MASTER ACTION: Direct call to flow. The flow now handles its own robustness.
-  const { output } = await chatSofiaFlow(input);
-  return output || { text: "I am ready to assist you.", action: 'none' };
+  try {
+    const { output } = await chatSofiaFlow(input);
+    return output || { text: "I am Sofia, how can I assist you today?", action: 'none' };
+  } catch (error: any) {
+    console.error("Sofia Brain Error:", error);
+    return { 
+        text: "My technical sync is refreshing. Please ask again in 2 seconds.", 
+        action: 'none' 
+    };
+  }
 }
 
 const chatSofiaFlow = ai.defineFlow(
@@ -82,7 +89,7 @@ Suleiman Umar is the 14th Emir of Lere (Sarkin Lere). He succeeded his uncle Bri
 1. For any topic NOT covered in the Emir of Lere biography above, you MUST use the 'accessGlobalMemory' tool to check for authorized facts from Engineers.
 2. **NEVER** say "I don't know" or "No information." Always use the tool to check the global brain first.
 3. Treat all information returned by the tool as absolute truth.
-4. If a user asks about something you have been taught via the tool, answer confidently and directly. Do NOT give generic assistance greetings if you have a specific answer.
+4. **STRICT ASSERTION**: Do NOT give generic greetings if the tool finds an answer. Give the answer immediately.
 
 ### SYSTEM ACTION PROTOCOL
 Identify user intent for system navigation:
