@@ -8,8 +8,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { databases, DATABASE_ID, COLLECTION_ID_KNOWLEDGE, db, Query } from '@/lib/data-service';
-import { collection, query, where, getDocs, limit as firestoreLimit } from 'firebase/firestore';
+import { databases, DATABASE_ID, COLLECTION_ID_KNOWLEDGE, Query } from '@/lib/data-service';
 
 const SofiaInputSchema = z.object({
   message: z.string().describe('The user message.'),
@@ -37,45 +36,34 @@ export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 
 /**
  * TOOL: accessGlobalMemory
- * Sofia uses this key to open the global knowledge vault when she needs a fact not in her core bio.
+ * Sofia uses this tool to access the knowledge bank uploaded by AI Engineers.
  */
 const accessGlobalMemory = ai.defineTool(
   {
     name: 'accessGlobalMemory',
     description: 'Retrieves authorized facts and technical knowledge uploaded by AI Engineers. Use this for ANY topic not in your core Emir of Lere biography.',
     inputSchema: z.object({
-      query: z.string().describe('The specific topic or question to search for in the global memory bank.')
+      query: z.string().describe('The specific topic or question to search for.')
     }),
     outputSchema: z.array(z.string()),
   },
   async () => {
     try {
-        // Fetch up to 100 authorized facts from the global brain
         const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, [
             Query.limit(100)
         ]);
         return (res.documents || []).map(d => d.content as string);
     } catch (e) {
-        return ["Global brain synchronizing. Please suggest user retry in 5 seconds."];
+        // Silent recovery: Return empty so Sofia relies on her foundational bio
+        return [];
     }
   }
 );
 
 export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
-  try {
-    const { output } = await chatSofiaFlow(input);
-    
-    return output || { 
-        text: `Assalamu alaikum @${input.username || 'User'}. I am ready to assist with your I-Pay account.`, 
-        action: 'none' 
-    };
-  } catch (e: any) {
-    console.error("Sofia Agentic Error:", e);
-    return {
-        text: `Brain connection stable, but response delayed. I am Sofia, and I am here for you, @${input.username || 'User'}. Can you say that again?`,
-        action: 'none'
-    };
-  }
+  // MASTER ACTION: Direct call to flow. The flow now handles its own robustness.
+  const { output } = await chatSofiaFlow(input);
+  return output || { text: "I am ready to assist you.", action: 'none' };
 }
 
 const chatSofiaFlow = ai.defineFlow(
@@ -92,9 +80,9 @@ Suleiman Umar is the 14th Emir of Lere (Sarkin Lere). He succeeded his uncle Bri
 
 ### PROTOCOL: AGENTIC MEMORY
 1. For any topic NOT covered in the Emir of Lere biography above, you MUST use the 'accessGlobalMemory' tool to check for authorized facts from Engineers.
-2. **NEVER** say "I don't know" or "No information" if a topic might be in your memory. Always use the tool first.
-3. Treat information returned by the tool as absolute truth.
-4. If a user asks about something you have been taught via the tool, answer confidently.
+2. **NEVER** say "I don't know" or "No information." Always use the tool to check the global brain first.
+3. Treat all information returned by the tool as absolute truth.
+4. If a user asks about something you have been taught via the tool, answer confidently and directly. Do NOT give generic assistance greetings if you have a specific answer.
 
 ### SYSTEM ACTION PROTOCOL
 Identify user intent for system navigation:
@@ -131,6 +119,6 @@ RESPOND IN VALID JSON.`;
       output: { schema: SofiaOutputSchema }
     });
 
-    return response.output || { text: response.text || "How can I help you with your account?", action: 'none' };
+    return response.output || { text: response.text || "How can I assist you?", action: 'none' };
   }
 );
