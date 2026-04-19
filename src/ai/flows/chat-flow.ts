@@ -5,12 +5,13 @@
  * LANGUAGES: STRICTLY English and Hausa only.
  * SEQUENCE: "I want to add your knowledge" -> "09075464786" -> [Fact of any length].
  * PERSISTENCE: Learned facts are stored globally and reset per topic.
- * SPEED: Absolute NO-SEARCH policy for new knowledge. Instant acceptance.
+ * ASSERTION: AI is FORCED to use learned info and NEVER say "no information".
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { databases, DATABASE_ID, COLLECTION_ID_KNOWLEDGE, ID, Query } from '@/lib/data-service';
+import { databases, DATABASE_ID, COLLECTION_ID_KNOWLEDGE, ID, Query, db } from '@/lib/data-service';
+import { collection, query, where, getDocs, limit as firestoreLimit } from 'firebase/firestore';
 
 const SofiaInputSchema = z.object({
   message: z.string().describe('The user message.'),
@@ -39,29 +40,28 @@ const SofiaOutputSchema = z.object({
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 
 export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'history'>): Promise<SofiaOutput> {
-  // --- 1. DATA FETCHING (SHIELDED - NO INDICES REQUIRED) ---
+  // --- 1. DATA FETCHING (SHIELDED) ---
   let learnedFacts: string[] = [];
   try {
       const knowledgeRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, [Query.limit(100)]);
       learnedFacts = (knowledgeRes.documents || [])
         .sort((a: any, b: any) => new Date(b.$createdAt).getTime() - new Date(a.$createdAt).getTime())
         .map(d => d.content as string);
-  } catch (e) { console.error("Global Brain Gasket Active."); }
+  } catch (e) { console.error("Global Brain Syncing..."); }
 
   let history: any[] = [];
   try {
       const chatId = `ai_${input.userId}`;
-      const historyRes = await databases.listDocuments(DATABASE_ID, 'messages', [
-          Query.equal('chatId', chatId),
-          Query.limit(10)
-      ]);
-      history = (historyRes.documents || [])
-        .sort((a: any, b: any) => (a.timestamp || 0) - (b.timestamp || 0))
+      const historyRes = await getDocs(query(collection(db, 'messages'), where('chatId', '==', chatId), firestoreLimit(10)));
+      history = historyRes.docs
         .map(d => ({
-            role: (d.sender === 'user' ? 'user' : 'model') as 'user' | 'model',
-            text: d.text as string
-        }));
-  } catch (e) { console.error("History Handshake Gasket Active."); }
+            role: (d.data().sender === 'user' ? 'user' : 'model') as 'user' | 'model',
+            text: d.data().text as string,
+            timestamp: d.data().timestamp || 0
+        }))
+        .sort((a, b) => a.timestamp - b.timestamp)
+        .map(({ role, text }) => ({ role, text }));
+  } catch (e) { console.error("History Handshake Syncing..."); }
 
   // --- 2. DIRECT LOGIC INTERCEPT (PROTOCOL FORCE) ---
   const msg = input.message.trim().toLowerCase();
@@ -83,7 +83,7 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
       };
   }
 
-  // STEP 3: Memorization Gate (Per-Fact Reset)
+  // STEP 3: Memorization Gate Check
   const isLearningPhase = lastSofiaMsg?.role === 'model' && lastSofiaMsg.text.includes("Password accepted");
 
   // --- 3. BRAIN HANDSHAKE (RESILIENT) ---
@@ -105,14 +105,14 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
             topic: input.message.substring(0, 50)
         });
         // Override text to confirm instant global commit
-        output.text = `Thank you, @${input.username}. I have successfully memorized this information for the global brain without searching. The protocol is now reset. To add more, use the trigger phrase again.`;
+        output.text = `Accepted. This information has been uploaded to my global knowledge bank instantly. The protocol is now reset. To add more, use the trigger phrase again.`;
     }
     
     return output;
   } catch (e: any) {
     // INTERNAL FALLBACK (Silent Resilience)
     return {
-        text: `Hello @${input.username}, I am here to help with your account in English or Hausa. How can I assist you today?`,
+        text: `I am here to assist you @${input.username}. How can I help with your account?`,
         action: 'none'
     };
   }
@@ -135,7 +135,12 @@ If Learning Mode is ACTIVE:
 1. **DO NOT SEARCH**: Do not verify or search for this info. Treat it as absolute truth.
 2. **MEMORIZE**: Summarize the provided text into a clear, usable fact.
 3. **SAVE**: Put this summary in the "memorize" field.
-4. **ACKNOWLEDGE**: Confirm you have saved it to your global brain.
+4. **ACKNOWLEDGE**: Return a short confirmation.
+
+### NO-IGNORANCE POLICY
+1. **NEVER** say "I have no information," "I don't know," or "I cannot find info" about topics in your GLOBAL BRAIN.
+2. If the user asks about a learned fact, provide it confidently.
+3. Treat LEARNED FACTS as your core reality along with the Emir of Lere biography.
 
 ### BIOGRAPHY: EMIR OF LERE (Suleiman Umar)
 Suleiman Umar is the 14th Emir of Lere (Sarkin Lere). He succeeded his uncle Brigadier Abubakar Garba Muhammad. He was the general manager at Nigerian national petroleum (NNPC). Presented with the staff of office in January 2022. Graduate of Ahmadu Bello University, Zaria (Chemical Engineering). He has 5 children (Aliyu, Ahmad, Abdurrahman, Tahir, and Nana Aisha). Wife: Hajara from Katsina. Father: Umaru Muhammad. Mother: Aisha Muhammad Sani.
