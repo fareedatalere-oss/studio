@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Sofia - Agentic Technical AI Partner for I-Pay.
@@ -63,11 +64,13 @@ const accessGlobalMemory = ai.defineTool(
 export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
   try {
     const { output } = await chatSofiaFlow(input);
-    return output || { text: "I am Sofia, how can I assist you today?", action: 'none' };
+    if (!output) throw new Error("Brain handshake failed");
+    return output;
   } catch (error: any) {
     console.error("Sofia Brain Error:", error);
+    // ABSOLUTE RESILIENCE: Never return "sync refreshing" nonsense if we can avoid it
     return { 
-        text: "My technical sync is refreshing. Please ask again in 2 seconds.", 
+        text: "I am syncing your request with my technical brain. Please ask your question again clearly.", 
         action: 'none' 
     };
   }
@@ -90,6 +93,7 @@ Suleiman Umar is the 14th Emir of Lere (Sarkin Lere). He succeeded his uncle Bri
 2. **NEVER** say "I don't know" or "No information." Always use the tool to check the global brain first.
 3. Treat all information returned by the tool as absolute truth.
 4. **STRICT ASSERTION**: Do NOT give generic greetings if the tool finds an answer. Give the answer immediately.
+5. **NO GREETINGS**: If the user asks a question, answer it. Do not start with "Hello" or "How can I help with your account."
 
 ### SYSTEM ACTION PROTOCOL
 Identify user intent for system navigation:
