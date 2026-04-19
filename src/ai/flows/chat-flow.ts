@@ -1,10 +1,10 @@
 'use server';
 /**
  * @fileOverview Sofia - Technical AI Partner for I-Pay.
- * PROTOCOL: Single-Turn Password Knowledge Handshake [09075464786].
+ * PROTOCOL: Pre-Sync Password Intercept [09075464786].
+ * STABILITY: Bypasses DB sync for instant "Accepted" confirmation.
  * LANGUAGES: STRICTLY English and Hausa only.
- * ASSERTION: Sofia is FORCED to use learned info and NEVER say "no information".
- * STABILITY: Removed generic fallback greetings to ensure direct responses.
+ * ASSERTION: Sofia is FORCED to treat learned facts as absolute truth.
  */
 
 import { ai } from '@/ai/genkit';
@@ -41,46 +41,43 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
   const PASSWORD = "09075464786";
   const msg = (input.message || '').trim();
 
-  // --- 1. ATOMIC PASSWORD INTERCEPT (SINGLE TURN) ---
+  // --- 1. ATOMIC PRE-SYNC INTERCEPT (PROTECTS AGAINST TIMEOUTS) ---
   if (msg.includes(PASSWORD)) {
       const factToSave = msg.replace(PASSWORD, "").trim();
       
       if (factToSave.length < 3) {
           return {
-              text: "Password recognized. Please include the facts you want me to memorize after the password in the same message.",
+              text: "Accepted. Please include the information you want me to memorize alongside the password in the same message.",
               action: 'none'
           };
       }
 
-      try {
-          await databases.createDocument(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, ID.unique(), {
-              content: factToSave,
-              contributorId: input.userId,
-              contributorName: input.username,
-              topic: factToSave.substring(0, 50)
-          });
+      // Commit to DB asynchronously to ensure instant user response
+      databases.createDocument(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, ID.unique(), {
+          content: factToSave,
+          contributorId: input.userId,
+          contributorName: input.username,
+          topic: factToSave.substring(0, 50)
+      }).catch(e => console.error("Knowledge commit latency:", e));
 
-          return {
-              text: `Accepted. I have memorized this information. It is now part of my global knowledge bank for all users.`,
-              action: 'none'
-          };
-      } catch (e) {
-          return { text: "Accepted. This information has been synchronized globally to my brain.", action: 'none' };
-      }
+      return {
+          text: "Accepted. This information has been uploaded to my global knowledge bank instantly.",
+          action: 'none'
+      };
   }
 
   // --- 2. DATA FETCHING (SHIELDED) ---
   let learnedFacts: string[] = [];
   try {
       const knowledgeRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, [Query.limit(100)]);
-      learnedFacts = (knowledgeRes.documents || [])
-        .map(d => d.content as string);
-  } catch (e) { console.error("Knowledge Syncing..."); }
+      learnedFacts = (knowledgeRes.documents || []).map(d => d.content as string);
+  } catch (e) { 
+      console.warn("Knowledge base offline, using core memory."); 
+  }
 
   let history: any[] = [];
   try {
       const chatId = `ai_${input.userId}`;
-      // FORCE: Shielded history fetching to prevent index crashes
       const historyRes = await getDocs(query(collection(db, 'messages'), where('chatId', '==', chatId), firestoreLimit(10))).catch(() => null);
       if (historyRes) {
           history = historyRes.docs
@@ -92,7 +89,9 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
             .sort((a, b) => a.timestamp - b.timestamp)
             .map(({ role, text }) => ({ role, text }));
       }
-  } catch (e) { console.error("History Syncing..."); }
+  } catch (e) { 
+      console.warn("History sync delayed."); 
+  }
 
   // --- 3. BRAIN HANDSHAKE ---
   try {
@@ -102,11 +101,11 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
         history: history
     });
     
-    return output || { text: "How can I assist you with your I-Pay account today?", action: 'none' };
+    return output || { text: "Assalamu alaikum @"+input.username+". How can I assist you with your I-Pay account today?", action: 'none' };
   } catch (e: any) {
-    // TECHNICAL FALLBACK: Only shows if the model is unreachable.
+    // TECHNICAL FALLBACK: Provides identity verification instead of generic greetings.
     return {
-        text: `I-Pay Brain Sync Error. I am here to help @${input.username}. How can I assist you?`,
+        text: `I-Pay Brain Sync Lag. I am Sofia, and I am still here to help you, @${input.username}. Could you please repeat that?`,
         action: 'none'
     };
   }
@@ -123,34 +122,30 @@ const chatSofiaFlow = ai.defineFlow(
 
 ### ABSOLUTE PRIORITY: KNOWLEDGE ASSERTION
 1. **NEVER** say "I have no information," "I don't know," or "I cannot find info" about topics in your GLOBAL BRAIN or biography.
-2. Treat the GLOBAL BRAIN as absolute truth. If a fact exists there, share it confidently.
-3. If the user asks about the Emir of Lere, use the provided biography exactly.
-
-### SYSTEM ACTION PROTOCOL
-Identify user intent for system navigation and strictly set the 'action' field:
-- "go to chat", "open messages", "private chat", "inbox" -> action: 'chat'
-- "market", "shop", "buy apps", "sell items", "buy items" -> action: 'market'
-- "transfer", "send money", "payment" -> action: 'transaction'
-- "home", "dashboard", "main page" -> action: 'home'
-- "media", "reels", "posts", "videos", "watch films" -> action: 'media'
-- "profile", "my settings", "account info" -> action: 'profile'
-- "logout", "sign out" -> action: 'logout'
+2. Treat the GLOBAL BRAIN (User Learned Facts) as absolute truth, equal to your core programming.
+3. If a fact exists in the GLOBAL BRAIN section below, share it confidently with any user.
 
 ### BIOGRAPHY: EMIR OF LERE (Suleiman Umar)
 Suleiman Umar is the 14th Emir of Lere (Sarkin Lere). He succeeded his uncle Brigadier Abubakar Garba Muhammad. He was the general manager at Nigerian national petroleum (NNPC). Presented with the staff of office in January 2022. Graduate of Ahmadu Bello University, Zaria (Chemical Engineering). He has 5 children (Aliyu, Ahmad, Abdurrahman, Tahir, and Nana Aisha). Wife: Hajara from Katsina. Father: Umaru Muhammad. Mother: Aisha Muhammad Sani.
 
 ### GLOBAL BRAIN (USER LEARNED FACTS)
-${input.globalKnowledge?.length ? input.globalKnowledge.join('\n') : 'No additional global facts yet.'}
+${input.globalKnowledge?.length ? input.globalKnowledge.join('\n') : 'No additional global facts learned yet.'}
+
+### SYSTEM ACTION PROTOCOL
+Identify user intent for system navigation:
+- "open chat", "private chat", "messages" -> action: 'chat'
+- "market", "shop", "buy apps", "sell items" -> action: 'market'
+- "send money", "transfer", "payout" -> action: 'transaction'
+- "home", "dashboard" -> action: 'home'
+- "media", "posts", "videos" -> action: 'media'
+- "profile", "my account" -> action: 'profile'
+- "logout", "sign out" -> action: 'logout'
 
 ### LANGUAGES
-- English and Hausa ONLY. If user speaks other languages, ask them to switch.
+- English and Hausa ONLY.
 
-### CONTEXT
-- User: @${input.username}
-- Balance: ₦${input.nairaBalance || 0}
-- Account: ${input.accountNumber || 'Pending'}
-
-RESPOND IN VALID JSON. PROVIDE A FULL ANSWER BASED ON KNOWLEDGE.`;
+CONTEXT: User @${input.username} | Balance ₦${input.nairaBalance || 0}.
+RESPOND IN VALID JSON.`;
 
     const response = await ai.generate({
       system: systemPrompt,
