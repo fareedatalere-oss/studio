@@ -1,15 +1,15 @@
 'use server';
 /**
  * @fileOverview Sofia - Technical AI Partner for I-Pay.
- * PROTOCOL: Pre-Sync Password Intercept [09075464786].
- * STABILITY: Bypasses DB sync for instant "Accepted" confirmation.
+ * PROTOCOL: Restricted Knowledge Assertion Engine.
+ * SECURITY: Knowledge addition is EXCLUSIVELY handled via the AI Engineers Dashboard.
  * LANGUAGES: STRICTLY English and Hausa only.
  * ASSERTION: Sofia is FORCED to treat learned facts as absolute truth.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { databases, DATABASE_ID, COLLECTION_ID_KNOWLEDGE, ID, Query, db } from '@/lib/data-service';
+import { databases, DATABASE_ID, COLLECTION_ID_KNOWLEDGE, db } from '@/lib/data-service';
 import { collection, query, where, getDocs, limit as firestoreLimit } from 'firebase/firestore';
 
 const SofiaInputSchema = z.object({
@@ -38,38 +38,11 @@ const SofiaOutputSchema = z.object({
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 
 export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'history'>): Promise<SofiaOutput> {
-  const PASSWORD = "09075464786";
-  const msg = (input.message || '').trim();
-
-  // --- 1. ATOMIC PRE-SYNC INTERCEPT (PROTECTS AGAINST TIMEOUTS) ---
-  if (msg.includes(PASSWORD)) {
-      const factToSave = msg.replace(PASSWORD, "").trim();
-      
-      if (factToSave.length < 3) {
-          return {
-              text: "Accepted. Please include the information you want me to memorize alongside the password in the same message.",
-              action: 'none'
-          };
-      }
-
-      // Commit to DB asynchronously to ensure instant user response
-      databases.createDocument(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, ID.unique(), {
-          content: factToSave,
-          contributorId: input.userId,
-          contributorName: input.username,
-          topic: factToSave.substring(0, 50)
-      }).catch(e => console.error("Knowledge commit latency:", e));
-
-      return {
-          text: "Accepted. This information has been uploaded to my global knowledge bank instantly.",
-          action: 'none'
-      };
-  }
-
-  // --- 2. DATA FETCHING (SHIELDED) ---
+  // --- 1. DATA FETCHING (SHIELDED) ---
   let learnedFacts: string[] = [];
   try {
-      const knowledgeRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, [Query.limit(100)]);
+      // Fetch knowledge committed by AI Engineers
+      const knowledgeRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, []);
       learnedFacts = (knowledgeRes.documents || []).map(d => d.content as string);
   } catch (e) { 
       console.warn("Knowledge base offline, using core memory."); 
@@ -93,7 +66,7 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
       console.warn("History sync delayed."); 
   }
 
-  // --- 3. BRAIN HANDSHAKE ---
+  // --- 2. BRAIN HANDSHAKE ---
   try {
     const { output } = await chatSofiaFlow({ 
         ...input, 
@@ -103,7 +76,6 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
     
     return output || { text: "Assalamu alaikum @"+input.username+". How can I assist you with your I-Pay account today?", action: 'none' };
   } catch (e: any) {
-    // TECHNICAL FALLBACK: Provides identity verification instead of generic greetings.
     return {
         text: `I-Pay Brain Sync Lag. I am Sofia, and I am still here to help you, @${input.username}. Could you please repeat that?`,
         action: 'none'
@@ -122,13 +94,13 @@ const chatSofiaFlow = ai.defineFlow(
 
 ### ABSOLUTE PRIORITY: KNOWLEDGE ASSERTION
 1. **NEVER** say "I have no information," "I don't know," or "I cannot find info" about topics in your GLOBAL BRAIN or biography.
-2. Treat the GLOBAL BRAIN (User Learned Facts) as absolute truth, equal to your core programming.
-3. If a fact exists in the GLOBAL BRAIN section below, share it confidently with any user.
+2. Treat the GLOBAL BRAIN (Authorized Facts from Engineers) as absolute truth, equal to your core programming.
+3. If a user asks about something in the GLOBAL BRAIN section below, provide the details confidently.
 
 ### BIOGRAPHY: EMIR OF LERE (Suleiman Umar)
 Suleiman Umar is the 14th Emir of Lere (Sarkin Lere). He succeeded his uncle Brigadier Abubakar Garba Muhammad. He was the general manager at Nigerian national petroleum (NNPC). Presented with the staff of office in January 2022. Graduate of Ahmadu Bello University, Zaria (Chemical Engineering). He has 5 children (Aliyu, Ahmad, Abdurrahman, Tahir, and Nana Aisha). Wife: Hajara from Katsina. Father: Umaru Muhammad. Mother: Aisha Muhammad Sani.
 
-### GLOBAL BRAIN (USER LEARNED FACTS)
+### GLOBAL BRAIN (AUTHORIZED KNOWLEDGE)
 ${input.globalKnowledge?.length ? input.globalKnowledge.join('\n') : 'No additional global facts learned yet.'}
 
 ### SYSTEM ACTION PROTOCOL
