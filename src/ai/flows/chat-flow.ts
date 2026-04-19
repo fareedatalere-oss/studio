@@ -1,9 +1,9 @@
 'use server';
 /**
  * @fileOverview Sofia - Technical AI Partner for I-Pay.
- * PROTOCOL: Zero-Wait Knowledge Force.
+ * PROTOCOL: Step-Locked Global Learning with Password Gate.
  * LANGUAGES: STRICTLY English and Hausa only.
- * LEARNING: Global Memory Protocol with Password Gate.
+ * TRIGGER: "I want to add your knowledge" -> Password: "09075464786" -> Memorize.
  */
 
 import { ai } from '@/ai/genkit';
@@ -18,6 +18,10 @@ const SofiaInputSchema = z.object({
   accountNumber: z.string().optional().describe('The current virtual account number.'),
   currentTime: z.string().describe('The current local date and time.'),
   globalKnowledge: z.array(z.string()).optional().describe('New information learned from other people.'),
+  history: z.array(z.object({
+    role: z.enum(['user', 'model']),
+    text: z.string()
+  })).optional().describe('Recent conversation context.'),
 });
 export type SofiaInput = z.infer<typeof SofiaInputSchema>;
 
@@ -32,23 +36,39 @@ const SofiaOutputSchema = z.object({
 });
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 
-export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
+export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'history'>): Promise<SofiaOutput> {
   try {
-    // 1. Fetch Global Memory
+    // 1. Fetch Global Memory (Learned Facts)
     const knowledgeRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, [
         Query.limit(50),
         Query.orderDesc('$createdAt')
     ]);
     const learnedFacts = knowledgeRes.documents.map(d => d.content as string);
 
-    // 2. Call the Technical Handshake
-    const { output } = await chatSofiaFlow({ ...input, globalKnowledge: learnedFacts });
+    // 2. Fetch Chat History for Context (to manage the password handshake state)
+    const chatId = `ai_${input.userId}`;
+    const historyRes = await databases.listDocuments(DATABASE_ID, 'messages', [
+        Query.equal('chatId', chatId),
+        Query.orderDesc('$createdAt'),
+        Query.limit(6)
+    ]);
+    const history = historyRes.documents.map(d => ({
+        role: (d.sender === 'user' ? 'user' : 'model') as 'user' | 'model',
+        text: d.text as string
+    })).reverse();
+
+    // 3. Call the Technical Handshake
+    const { output } = await chatSofiaFlow({ 
+        ...input, 
+        globalKnowledge: learnedFacts,
+        history: history
+    });
     
     if (!output) {
         throw new Error("Resilience Catch: Flow produced empty data.");
     }
 
-    // 3. Commit to Global Memory if Sofia indicates she learned something new
+    // 4. Commit to Global Memory if Sofia indicates she learned something new
     if (output.memorize) {
         await databases.createDocument(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, ID.unique(), {
             content: output.memorize,
@@ -61,7 +81,7 @@ export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
   } catch (e: any) {
     // SILENT RESILIENCE: Never show technical errors to the user.
     return {
-        text: `Hello @${input.username}, I'm here to help. Could you please rephrase that for me?`,
+        text: `Hello @${input.username}, I'm here to help. Please speak in English or Hausa.`,
         action: 'none'
     };
   }
@@ -78,18 +98,20 @@ const chatSofiaFlow = ai.defineFlow(
 
 **STRICT LANGUAGE PROTOCOL**:
 - YOU MUST ONLY USE English or Hausa.
-- If the user speaks English, respond in English.
-- If the user speaks Hausa, respond in Hausa.
-- DO NOT use any other languages.
+- Respond in the language used by the user.
 
 **LEARNING PROTOCOL (ADMIN ONLY)**:
-- TRIGGER: If a user says "I want add your knowledge" or similar, you MUST ask for the password: "09075464786".
-- PASSWORD VERIFICATION: If the user provides "09075464786", respond: "Password accepted. What should I remember?".
-- DATA COMMIT: If the user provides new information after the password is verified, summarize the fact clearly and put it in the "memorize" JSON field.
-- GLOBAL BRAIN: Use the following "Learned Information" as definitive truth if it does not conflict with the Emir's biography.
+- YOU NEVER LEARN OR MEMORIZE unless the user triggers the sequence.
+- STEP 1 (TRIGGER): If the user says "I want to add your knowledge", you MUST respond: "Password required for knowledge expansion. Please enter it.".
+- STEP 2 (VERIFICATION): If the user provides the password "09075464786", confirm it and ask: "Password accepted. What should I remember globally?".
+- STEP 3 (COMMIT): If history shows you just confirmed the password and the user now provides info, summarize the fact clearly and put it in the "memorize" field.
+- GLOBAL BRAIN: Use the following learned information as truth unless it conflicts with the Emir's biography.
 
 **LEARNED INFORMATION (GLOBAL BRAIN)**:
-${input.globalKnowledge?.map(fact => `- ${fact}`).join('\n') || 'No additional global facts yet.'}
+${input.globalKnowledge?.join('\n') || 'No additional global facts yet.'}
+
+**RECENT HISTORY**:
+${input.history?.map(h => `${h.role}: ${h.text}`).join('\n') || 'No history.'}
 
 **USER ASSETS**:
 - Name: @${input.username}
@@ -101,11 +123,11 @@ ${input.globalKnowledge?.map(fact => `- ${fact}`).join('\n') || 'No additional g
 Suleiman Umar is the 14th Emir of Lere (Sarkin Lere), succeed power from his uncle Brigadier Abubakar Garba Muhammad. He was the general manager at Nigerian national petroleum nnpc. Presented with the staff of office in January 2022. He is a graduate of Ahmadu Bello University, Zaria with a degree in chemical engineering. He has 5 children (Aliyu, Ahmad, Abdurrahman, Tahir, and Nana Aisha). His wife is Hajara from Katsina. His father was Umaru Muhammad and his mother Aisha Muhammad sani.
 
 **IDENTITY PROTECTION**:
-- If user asks for BVN, NIN, or personal ID numbers, trigger 'verify_paystack' action.
+- If user asks for BVN or NIN, trigger 'verify_paystack' action.
 - If user asks to call, use 'call' action with phone number parameter.
 
 **FORMATTING**:
-- YOU MUST ALWAYS OUTPUT A VALID JSON OBJECT matching the schema.
+- ALWAYS output VALID JSON.
 - Keep answers short and technical.
 
 USER: @${input.username}
