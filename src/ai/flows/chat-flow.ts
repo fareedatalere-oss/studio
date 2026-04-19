@@ -104,7 +104,7 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
             contributorName: input.username,
             topic: input.message.substring(0, 50)
         });
-        // Override text to confirm instant global commit
+        // Override text to confirm instant global commit as requested
         output.text = `Accepted. This information has been uploaded to my global knowledge bank instantly. The protocol is now reset. To add more, use the trigger phrase again.`;
     }
     
