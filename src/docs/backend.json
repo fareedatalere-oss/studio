@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "UserProfile": {
@@ -50,6 +49,17 @@
             "email1": { "type": "string" },
             "email2": { "type": "string" },
             "logoUrl": { "type": "string", "format": "uri" }
+        }
+    },
+    "GlobalKnowledge": {
+        "title": "Global Knowledge Base",
+        "description": "Information learned by the AI from users with permission.",
+        "type": "object",
+        "properties": {
+            "content": { "type": "string", "description": "The information learned." },
+            "contributorId": { "type": "string" },
+            "contributorName": { "type": "string" },
+            "createdAt": { "type": "string", "format": "date-time" }
         }
     },
     "Notification": {

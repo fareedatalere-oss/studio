@@ -3,11 +3,12 @@
  * @fileOverview Sofia - Technical AI Partner for I-Pay.
  * PROTOCOL: Zero-Wait Knowledge Force.
  * LANGUAGES: STRICTLY English and Hausa only.
- * SILENCE: Never display technical errors to the user.
+ * LEARNING: Global Memory Protocol with Password Gate.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { databases, DATABASE_ID, COLLECTION_ID_KNOWLEDGE, ID, Query } from '@/lib/data-service';
 
 const SofiaInputSchema = z.object({
   message: z.string().describe('The user message.'),
@@ -16,8 +17,7 @@ const SofiaInputSchema = z.object({
   nairaBalance: z.number().optional().describe('The current Naira balance.'),
   accountNumber: z.string().optional().describe('The current virtual account number.'),
   currentTime: z.string().describe('The current local date and time.'),
-  location: z.string().optional().describe('User current location.'),
-  weather: z.string().optional().describe('Current weather data.'),
+  globalKnowledge: z.array(z.string()).optional().describe('New information learned from other people.'),
 });
 export type SofiaInput = z.infer<typeof SofiaInputSchema>;
 
@@ -28,27 +28,38 @@ const SofiaOutputSchema = z.object({
     'home', 'media', 'profile', 'verify_paystack'
   ]).optional().describe('System actions for the app.'),
   parameter: z.string().optional().describe('Value for the action (e.g. phone number).'),
+  memorize: z.string().optional().describe('A summarized fact or phrase to remember globally for all users.'),
 });
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 
 export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
   try {
-    const { output, text } = await chatSofiaFlow(input);
-    
-    if (!output && text) {
-        return {
-            text: text,
-            action: 'none'
-        };
-    }
+    // 1. Fetch Global Memory
+    const knowledgeRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, [
+        Query.limit(50),
+        Query.orderDesc('$createdAt')
+    ]);
+    const learnedFacts = knowledgeRes.documents.map(d => d.content as string);
+
+    // 2. Call the Technical Handshake
+    const { output } = await chatSofiaFlow({ ...input, globalKnowledge: learnedFacts });
     
     if (!output) {
-        throw new Error("Handshake produced empty data.");
+        throw new Error("Resilience Catch: Flow produced empty data.");
+    }
+
+    // 3. Commit to Global Memory if Sofia indicates she learned something new
+    if (output.memorize) {
+        await databases.createDocument(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, ID.unique(), {
+            content: output.memorize,
+            contributorId: input.userId,
+            contributorName: input.username
+        });
     }
     
     return output;
   } catch (e: any) {
-    // SILENT RESILIENCE: Never show technical errors.
+    // SILENT RESILIENCE: Never show technical errors to the user.
     return {
         text: `Hello @${input.username}, I'm here to help. Could you please rephrase that for me?`,
         action: 'none'
@@ -71,10 +82,14 @@ const chatSofiaFlow = ai.defineFlow(
 - If the user speaks Hausa, respond in Hausa.
 - DO NOT use any other languages.
 
-**STRICT ZERO-WAIT PROTOCOL**:
-- Answer immediately and accurately based on the question asked.
-- Use short, technical answers.
-- Skip "thinking" cycles.
+**LEARNING PROTOCOL (ADMIN ONLY)**:
+- TRIGGER: If a user says "I want add your knowledge" or similar, you MUST ask for the password: "09075464786".
+- PASSWORD VERIFICATION: If the user provides "09075464786", respond: "Password accepted. What should I remember?".
+- DATA COMMIT: If the user provides new information after the password is verified, summarize the fact clearly and put it in the "memorize" JSON field.
+- GLOBAL BRAIN: Use the following "Learned Information" as definitive truth if it does not conflict with the Emir's biography.
+
+**LEARNED INFORMATION (GLOBAL BRAIN)**:
+${input.globalKnowledge?.map(fact => `- ${fact}`).join('\n') || 'No additional global facts yet.'}
 
 **USER ASSETS**:
 - Name: @${input.username}
@@ -83,15 +98,15 @@ const chatSofiaFlow = ai.defineFlow(
 - Current Time: ${input.currentTime}
 
 **BIOGRAPHY: EMIR OF LERE (Suleiman Umar)**:
-Lere is a local government under kaduna state, the emir of lere succeed the power from his uncle Brigadier Abubakar Garba Muhammad, formal governor of kaduna state point him, and also he was the general manager at Nigerian national petroleum nnpc, also was presented with the staff of office in January 2022, the emir of lere is a graduate of ahmadu bello University, zaria with a degree in chemical engineering, the emir of lere the 61 years old man has 5 children, 4 sons and one daughter, there are Aliyu suleiman, Ahmad suleiman, Abdurrahman suleiman, Tahir suleiman, and Nana Aisha, the emir of lere is a king among kings, he respect each other, and improve his nation development, suleiman umar is rhe first child of the the 13 children of his father, late Umaru Muhammad, also sarkin lere suleiman is the 14th emir of lere, Muhammad, he has one wife which she is from katisna in kankia, his wife name is Hajara, his father name is Umar Muhammad while his mother's name is Aisha Muhammad sani.
+Suleiman Umar is the 14th Emir of Lere (Sarkin Lere), succeed power from his uncle Brigadier Abubakar Garba Muhammad. He was the general manager at Nigerian national petroleum nnpc. Presented with the staff of office in January 2022. He is a graduate of Ahmadu Bello University, Zaria with a degree in chemical engineering. He has 5 children (Aliyu, Ahmad, Abdurrahman, Tahir, and Nana Aisha). His wife is Hajara from Katsina. His father was Umaru Muhammad and his mother Aisha Muhammad sani.
 
 **IDENTITY PROTECTION**:
 - If user asks for BVN, NIN, or personal ID numbers, trigger 'verify_paystack' action.
 - If user asks to call, use 'call' action with phone number parameter.
-- If user asks to go somewhere (Market, Media, Profile), trigger the appropriate navigation action.
 
 **FORMATTING**:
 - YOU MUST ALWAYS OUTPUT A VALID JSON OBJECT matching the schema.
+- Keep answers short and technical.
 
 USER: @${input.username}
 MESSAGE: ${input.message}`;
