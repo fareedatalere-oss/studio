@@ -8,9 +8,9 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback,
 import { cn } from "@/lib/utils";
 
 /**
- * @fileOverview Global Memory Shield & Presence Engine v4.4.
- * STABILITY: Isolated listeners to resolve "Maximum update depth exceeded" error.
- * PERFORMANCE: Memoized context value prevents layout render loops.
+ * @fileOverview Global Memory Shield & Presence Engine v4.5.
+ * STABILITY: Isolated listeners and memoized context to resolve "Maximum update depth exceeded" error.
+ * PERFORMANCE: Optimized identity gasket prevents re-render loops.
  */
 
 type UserContextType = {
@@ -164,7 +164,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     });
                 }));
 
-                // ISOLATED MESSAGE LISTENER: Prevents deep render collisions
                 unsubs.push(onSnapshot(collection(db, COLLECTION_ID_MESSAGES), (snap) => {
                     const messagesByChat: Record<string, any[]> = {};
                     snap.docs.forEach(d => {

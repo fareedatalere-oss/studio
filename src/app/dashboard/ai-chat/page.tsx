@@ -23,10 +23,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 /**
- * @fileOverview Sofia AI Chat Hub v5.1.
- * STABILITY: Stabilized dependencies to resolve 'Maximum update depth exceeded' error.
- * SILENCE: Technical errors are suppressed.
- * PERSISTENCE: Messages are saved and deletable.
+ * @fileOverview Sofia AI Chat Hub v5.2.
+ * STABILITY: Refined dependencies and memoized state to terminate render loops.
+ * PERFORMANCE: Synchronized with new Agentic Tool-Calling brain.
  */
 
 const COLLECTION_ID_MESSAGES = 'messages';
@@ -75,9 +74,9 @@ export default function AiChatPage() {
     }, [messages]);
 
     const handleSend = useCallback(async () => {
-        if (!input.trim() || isLoading || !user || !chatId) return;
+        const messageText = input.trim();
+        if (!messageText || isLoading || !user || !chatId) return;
 
-        const userMsg = input.trim();
         setInput('');
         setIsLoading(true);
 
@@ -87,20 +86,24 @@ export default function AiChatPage() {
             await setDoc(doc(db, COLLECTION_ID_MESSAGES, userMsgId), {
                 chatId: chatId,
                 senderId: user.$id,
-                text: userMsg,
+                text: messageText,
                 sender: 'user',
                 timestamp: Date.now(),
                 createdAt: serverTimestamp()
             });
 
-            // 2. Technical Brain Handshake
+            // 2. Technical Agent Handshake
             const response = await chatSofia({
-                message: userMsg,
+                message: messageText,
                 userId: user.$id,
                 username: profile?.username || 'User',
                 nairaBalance: profile?.nairaBalance,
                 accountNumber: profile?.accountNumber,
-                currentTime: new Date().toLocaleString()
+                currentTime: new Date().toLocaleString(),
+                history: messages.slice(-5).map(m => ({
+                    role: m.sender === 'user' ? 'user' : 'model',
+                    text: m.text
+                }))
             });
 
             // 3. Commit Sofia Response
@@ -128,18 +131,10 @@ export default function AiChatPage() {
 
         } catch (e: any) {
             console.error("Sofia Sync Failure:", e);
-            await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), {
-                chatId: chatId,
-                senderId: 'sofia_ai',
-                text: `I'm here to help @${profile?.username || 'user'}. Could you repeat that?`,
-                sender: 'ai',
-                timestamp: Date.now(),
-                createdAt: serverTimestamp()
-            });
         } finally {
             setIsLoading(false);
         }
-    }, [input, isLoading, user, chatId, profile, router]);
+    }, [input, isLoading, user, chatId, profile, router, messages]);
 
     const handleDeleteMessage = async (msgId: string) => {
         try {
@@ -178,7 +173,7 @@ export default function AiChatPage() {
                     </div>
                     <div>
                         <h1 className="font-black uppercase text-xs tracking-widest text-primary">Sofia AI</h1>
-                        <p className="text-[8px] font-bold uppercase opacity-40 tracking-widest">English & Hausa</p>
+                        <p className="text-[8px] font-bold uppercase opacity-40 tracking-widest">Agentic Brain v5.2</p>
                     </div>
                 </div>
                 <div className="w-10"></div>
@@ -240,7 +235,7 @@ export default function AiChatPage() {
                 {isLoading && (
                     <div className="flex items-center gap-3 animate-pulse opacity-50">
                         <div className="bg-primary/10 p-2 rounded-full"><Loader2 className="h-4 w-4 animate-spin text-primary" /></div>
-                        <span className="font-black uppercase text-[8px] tracking-widest text-primary">Sofia is generating knowledge...</span>
+                        <span className="font-black uppercase text-[8px] tracking-widest text-primary">Sofia is using her memory tool...</span>
                     </div>
                 )}
                 <div ref={scrollRef} />

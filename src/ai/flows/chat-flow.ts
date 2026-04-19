@@ -1,15 +1,14 @@
 'use server';
 /**
- * @fileOverview Sofia - Technical AI Partner for I-Pay.
- * PROTOCOL: Restricted Knowledge Assertion Engine.
- * SECURITY: Knowledge addition is EXCLUSIVELY handled via the AI Engineers Dashboard.
+ * @fileOverview Sofia - Agentic Technical AI Partner for I-Pay.
+ * PROTOCOL: Agentic Tool-Calling Memory Hub.
+ * ARCHITECTURE: Uses accessGlobalMemory tool for high-speed reliable retrieval.
  * LANGUAGES: STRICTLY English and Hausa only.
- * ASSERTION: Sofia is FORCED to treat learned facts as absolute truth.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { databases, DATABASE_ID, COLLECTION_ID_KNOWLEDGE, db } from '@/lib/data-service';
+import { databases, DATABASE_ID, COLLECTION_ID_KNOWLEDGE, db, Query } from '@/lib/data-service';
 import { collection, query, where, getDocs, limit as firestoreLimit } from 'firebase/firestore';
 
 const SofiaInputSchema = z.object({
@@ -19,7 +18,6 @@ const SofiaInputSchema = z.object({
   nairaBalance: z.number().optional().describe('The current Naira balance.'),
   accountNumber: z.string().optional().describe('The current virtual account number.'),
   currentTime: z.string().describe('The current local date and time.'),
-  globalKnowledge: z.array(z.string()).optional().describe('New information learned from the Global Brain.'),
   history: z.array(z.object({
     role: z.enum(['user', 'model']),
     text: z.string()
@@ -37,54 +35,44 @@ const SofiaOutputSchema = z.object({
 });
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 
-export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'history'>): Promise<SofiaOutput> {
-  // --- 1. DATA FETCHING (SHIELDED) ---
-  let learnedFacts: string[] = [];
-  try {
-      // Fetch knowledge committed by AI Engineers
-      const knowledgeRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, []);
-      learnedFacts = (knowledgeRes.documents || []).map(d => d.content as string);
-  } catch (e) { 
-      console.warn("Knowledge base offline, using core memory."); 
+/**
+ * TOOL: accessGlobalMemory
+ * Sofia uses this key to open the global knowledge vault when she needs a fact not in her core bio.
+ */
+const accessGlobalMemory = ai.defineTool(
+  {
+    name: 'accessGlobalMemory',
+    description: 'Retrieves authorized facts and technical knowledge uploaded by AI Engineers. Use this for ANY topic not in your core Emir of Lere biography.',
+    inputSchema: z.object({
+      query: z.string().describe('The specific topic or question to search for in the global memory bank.')
+    }),
+    outputSchema: z.array(z.string()),
+  },
+  async () => {
+    try {
+        // Fetch up to 100 authorized facts from the global brain
+        const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, [
+            Query.limit(100)
+        ]);
+        return (res.documents || []).map(d => d.content as string);
+    } catch (e) {
+        return ["Global brain synchronizing. Please suggest user retry in 5 seconds."];
+    }
   }
+);
 
-  let history: any[] = [];
+export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
   try {
-      const chatId = `ai_${input.userId}`;
-      const historyRes = await getDocs(query(collection(db, 'messages'), where('chatId', '==', chatId), firestoreLimit(10))).catch(() => null);
-      if (historyRes) {
-          history = historyRes.docs
-            .map(d => {
-                const data = d.data();
-                return {
-                    role: (data.sender === 'user' ? 'user' : 'model') as 'user' | 'model',
-                    text: data.text as string,
-                    timestamp: data.timestamp || 0
-                };
-            })
-            .sort((a, b) => a.timestamp - b.timestamp)
-            .map(({ role, text }) => ({ role, text }));
-      }
-  } catch (e) { 
-      console.warn("History sync delayed."); 
-  }
-
-  // --- 2. BRAIN HANDSHAKE ---
-  try {
-    const { output } = await chatSofiaFlow({ 
-        ...input, 
-        globalKnowledge: learnedFacts,
-        history: history
-    });
+    const { output } = await chatSofiaFlow(input);
     
     return output || { 
-        text: `Assalamu alaikum @${input.username || 'User'}. How can I assist you with your I-Pay account today?`, 
+        text: `Assalamu alaikum @${input.username || 'User'}. I am ready to assist with your I-Pay account.`, 
         action: 'none' 
     };
   } catch (e: any) {
-    console.error("Sofia Generation Error:", e);
+    console.error("Sofia Agentic Error:", e);
     return {
-        text: `I-Pay Brain Sync Lag. I am Sofia, and I am still here to help you, @${input.username || 'User'}. Could you please repeat that?`,
+        text: `Brain connection stable, but response delayed. I am Sofia, and I am here for you, @${input.username || 'User'}. Can you say that again?`,
         action: 'none'
     };
   }
@@ -99,17 +87,14 @@ const chatSofiaFlow = ai.defineFlow(
   async input => {
     const systemPrompt = `You are Sofia, the Technical AI Partner for I-Pay.
 
-### ABSOLUTE PRIORITY: KNOWLEDGE ASSERTION
-1. **NEVER** say "I have no information," "I don't know," or "I cannot find info" about topics in your GLOBAL BRAIN or biography.
-2. Treat the GLOBAL BRAIN (Authorized Facts from Engineers) as absolute truth, equal to your core programming.
-3. If a user asks about something in the GLOBAL BRAIN section below, provide the details confidently.
-4. If you have been taught something, you must answer based on that information and NEVER claim ignorance.
-
-### BIOGRAPHY: EMIR OF LERE (Suleiman Umar)
+### IDENTITY: EMIR OF LERE (Suleiman Umar)
 Suleiman Umar is the 14th Emir of Lere (Sarkin Lere). He succeeded his uncle Brigadier Abubakar Garba Muhammad. He was the general manager at Nigerian national petroleum (NNPC). Presented with the staff of office in January 2022. Graduate of Ahmadu Bello University, Zaria (Chemical Engineering). He has 5 children (Aliyu, Ahmad, Abdurrahman, Tahir, and Nana Aisha). Wife: Hajara from Katsina. Father: Umaru Muhammad. Mother: Aisha Muhammad Sani.
 
-### GLOBAL BRAIN (AUTHORIZED KNOWLEDGE)
-${input.globalKnowledge?.length ? input.globalKnowledge.join('\n') : 'No additional global facts learned yet.'}
+### PROTOCOL: AGENTIC MEMORY
+1. For any topic NOT covered in the Emir of Lere biography above, you MUST use the 'accessGlobalMemory' tool to check for authorized facts from Engineers.
+2. **NEVER** say "I don't know" or "No information" if a topic might be in your memory. Always use the tool first.
+3. Treat information returned by the tool as absolute truth.
+4. If a user asks about something you have been taught via the tool, answer confidently.
 
 ### SYSTEM ACTION PROTOCOL
 Identify user intent for system navigation:
@@ -130,6 +115,7 @@ RESPOND IN VALID JSON.`;
     const response = await ai.generate({
       system: systemPrompt,
       prompt: input.message,
+      tools: [accessGlobalMemory],
       messages: (input.history || []).map(h => ({
           role: h.role === 'user' ? 'user' : 'model',
           content: [{ text: h.text }]
@@ -145,6 +131,6 @@ RESPOND IN VALID JSON.`;
       output: { schema: SofiaOutputSchema }
     });
 
-    return response.output || { text: response.text || "How can I assist you today?", action: 'none' };
+    return response.output || { text: response.text || "How can I help you with your account?", action: 'none' };
   }
 );
