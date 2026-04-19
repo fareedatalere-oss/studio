@@ -8,8 +8,8 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback,
 import { cn } from "@/lib/utils";
 
 /**
- * @fileOverview Global Memory Shield & Presence Engine v4.2.
- * STABILITY: Context value is memoized to prevent infinite re-render loops during input.
+ * @fileOverview Global Memory Shield & Presence Engine v4.3.
+ * STABILITY: Context value is memoized to prevent infinite re-render loops.
  * PUSH FORCE: Native device notifications for background communications.
  */
 
@@ -119,7 +119,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
         let heartbeatInterval: NodeJS.Timeout | null = null;
 
         unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-            // Clear existing unsubs on auth change
             unsubs.forEach(u => u());
             unsubs = [];
 

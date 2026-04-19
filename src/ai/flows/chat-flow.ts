@@ -85,6 +85,7 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
   }
 
   // STEP 3: Memorization Gate Check
+  // If the last thing Sofia said was "Password accepted", this user message is a new fact.
   const isLearningPhase = lastSofiaMsg?.role === 'model' && lastSofiaMsg.text.includes("Password accepted");
 
   // --- 3. BRAIN HANDSHAKE (RESILIENT) ---
