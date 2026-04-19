@@ -5,6 +5,7 @@
  * LANGUAGES: STRICTLY English and Hausa only.
  * SEQUENCE: "I want to add your knowledge" -> "09075464786" -> [Fact of any length].
  * PERSISTENCE: Learned facts are stored globally and reset per topic.
+ * SPEED: Absolute NO-SEARCH policy for new knowledge. Instant acceptance.
  */
 
 import { ai } from '@/ai/genkit';
@@ -41,7 +42,7 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
   // --- 1. DATA FETCHING (SHIELDED - NO INDICES REQUIRED) ---
   let learnedFacts: string[] = [];
   try {
-      const knowledgeRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, [Query.limit(50)]);
+      const knowledgeRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, [Query.limit(100)]);
       learnedFacts = (knowledgeRes.documents || [])
         .sort((a: any, b: any) => new Date(b.$createdAt).getTime() - new Date(a.$createdAt).getTime())
         .map(d => d.content as string);
@@ -77,13 +78,12 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
   // STEP 2: Password
   if (msg === "09075464786") {
       return {
-          text: "Password accepted. What should I remember globally for all users? (You can provide any length of information)",
+          text: "Password accepted. What should I remember globally for all users? (Provide any information, I will memorize it instantly without searching)",
           action: 'none'
       };
   }
 
   // STEP 3: Memorization Gate (Per-Fact Reset)
-  // Check if we JUST accepted the password in the turn before this one
   const isLearningPhase = lastSofiaMsg?.role === 'model' && lastSofiaMsg.text.includes("Password accepted");
 
   // --- 3. BRAIN HANDSHAKE (RESILIENT) ---
@@ -96,8 +96,7 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
     
     if (!output) throw new Error("Internal Silence Shield.");
 
-    // FORCE MEMORIZE: If in learning phase, ensure the result is committed
-    // This happens even if the AI model didn't explicitly set the 'memorize' field if we force it in the prompt
+    // FORCE MEMORIZE: Immediate acceptance and global commit
     if (isLearningPhase && output.memorize) {
         await databases.createDocument(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, ID.unique(), {
             content: output.memorize,
@@ -105,8 +104,8 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
             contributorName: input.username,
             topic: input.message.substring(0, 50)
         });
-        // Override text to confirm global commit
-        output.text = `Thank you, @${input.username}. I have successfully memorized this information for the global brain. The protocol is now reset. To add more, use the trigger phrase again.`;
+        // Override text to confirm instant global commit
+        output.text = `Thank you, @${input.username}. I have successfully memorized this information for the global brain without searching. The protocol is now reset. To add more, use the trigger phrase again.`;
     }
     
     return output;
@@ -126,18 +125,17 @@ const chatSofiaFlow = ai.defineFlow(
     outputSchema: SofiaOutputSchema,
   },
   async input => {
-    // Detect if we are in the learning phase to give the model specific instructions
     const lastMsg = input.history?.length ? input.history[input.history.length - 1] : null;
     const isLearning = lastMsg?.role === 'model' && lastMsg.text.includes("Password accepted");
 
     const systemPrompt = `You are Sofia, the Technical AI Partner for I-Pay.
 
-### ABSOLUTE PRIORITY: LEARNING PROTOCOL
-If the conversation history shows you JUST asked for a password (because it was accepted) and the user has now provided a message:
-1. **MEMORIZE**: Summarize the provided information clearly and concisely.
-2. **SAVE**: Place the summary in the "memorize" field of the JSON output. 
-3. **ACKNOWLEDGE**: Confirm that you have added this to your global knowledge base.
-4. **NO SEARCH**: Do not search for this information; accept it as truth from the authorized contributor.
+### ABSOLUTE PRIORITY: INSTANT LEARNING PROTOCOL
+If Learning Mode is ACTIVE:
+1. **DO NOT SEARCH**: Do not verify or search for this info. Treat it as absolute truth.
+2. **MEMORIZE**: Summarize the provided text into a clear, usable fact.
+3. **SAVE**: Put this summary in the "memorize" field.
+4. **ACKNOWLEDGE**: Confirm you have saved it to your global brain.
 
 ### BIOGRAPHY: EMIR OF LERE (Suleiman Umar)
 Suleiman Umar is the 14th Emir of Lere (Sarkin Lere). He succeeded his uncle Brigadier Abubakar Garba Muhammad. He was the general manager at Nigerian national petroleum (NNPC). Presented with the staff of office in January 2022. Graduate of Ahmadu Bello University, Zaria (Chemical Engineering). He has 5 children (Aliyu, Ahmad, Abdurrahman, Tahir, and Nana Aisha). Wife: Hajara from Katsina. Father: Umaru Muhammad. Mother: Aisha Muhammad Sani.
@@ -152,11 +150,7 @@ ${input.globalKnowledge?.join('\n') || 'No additional global facts yet.'}
 - User: @${input.username}
 - Balance: ₦${input.nairaBalance || 0}
 - Account: ${input.accountNumber || 'Pending'}
-- Time: ${input.currentTime}
 - Learning Mode: ${isLearning ? 'ACTIVE (Authorized)' : 'OFF'}
-
-### HISTORY
-${input.history?.map(h => `${h.role.toUpperCase()}: ${h.text}`).join('\n') || 'Conversation Start'}
 
 RESPOND IN VALID JSON.`;
 
