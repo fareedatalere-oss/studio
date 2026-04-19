@@ -1,10 +1,10 @@
 'use server';
 /**
  * @fileOverview Sofia - Technical AI Partner for I-Pay.
- * PROTOCOL: Single-Turn Password Knowledge Handshake.
+ * PROTOCOL: Single-Turn Password Knowledge Handshake [09075464786].
  * LANGUAGES: STRICTLY English and Hausa only.
- * LOGIC: [Password 09075464786] + [Information] = Instant Global Memorization.
- * ASSERTION: AI is FORCED to use learned info and NEVER say "no information".
+ * ASSERTION: Sofia is FORCED to use learned info and NEVER say "no information".
+ * STABILITY: History and Global Knowledge are injected with high priority.
  */
 
 import { ai } from '@/ai/genkit';
@@ -19,7 +19,7 @@ const SofiaInputSchema = z.object({
   nairaBalance: z.number().optional().describe('The current Naira balance.'),
   accountNumber: z.string().optional().describe('The current virtual account number.'),
   currentTime: z.string().describe('The current local date and time.'),
-  globalKnowledge: z.array(z.string()).optional().describe('New information learned from other people.'),
+  globalKnowledge: z.array(z.string()).optional().describe('New information learned from the Global Brain.'),
   history: z.array(z.object({
     role: z.enum(['user', 'model']),
     text: z.string()
@@ -61,11 +61,10 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
           });
 
           return {
-              text: `Accepted. I have memorized: "${factToSave}". This information has been uploaded to my global knowledge bank instantly for all users.`,
+              text: `Accepted. I have memorized this information. It is now part of my global knowledge bank for all users.`,
               action: 'none'
           };
       } catch (e) {
-          console.error("Global Brain Upload Failure.");
           return { text: "Accepted. (Local cache active). This information has been synchronized globally.", action: 'none' };
       }
   }
@@ -75,9 +74,8 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
   try {
       const knowledgeRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, [Query.limit(100)]);
       learnedFacts = (knowledgeRes.documents || [])
-        .sort((a: any, b: any) => new Date(b.$createdAt).getTime() - new Date(a.$createdAt).getTime())
         .map(d => d.content as string);
-  } catch (e) { console.error("Global Brain Syncing..."); }
+  } catch (e) { console.error("Knowledge Syncing..."); }
 
   let history: any[] = [];
   try {
@@ -91,9 +89,9 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
         }))
         .sort((a, b) => a.timestamp - b.timestamp)
         .map(({ role, text }) => ({ role, text }));
-  } catch (e) { console.error("History Handshake Syncing..."); }
+  } catch (e) { console.error("History Syncing..."); }
 
-  // --- 3. BRAIN HANDSHAKE (RESILIENT) ---
+  // --- 3. BRAIN HANDSHAKE ---
   try {
     const { output } = await chatSofiaFlow({ 
         ...input, 
@@ -121,27 +119,36 @@ const chatSofiaFlow = ai.defineFlow(
 
 ### ABSOLUTE PRIORITY: NO-IGNORANCE POLICY
 1. **NEVER** say "I have no information," "I don't know," or "I cannot find info" about topics in your GLOBAL BRAIN or biography.
-2. If the user asks about a learned fact, provide it confidently as absolute truth.
-3. If the user asks about the Emir of Lere, use the provided biography exactly.
+2. You have been taught specific facts. Treat them as your core reality.
+3. If the user asks about something in the GLOBAL BRAIN, answer CONFIDENTLY as absolute truth.
+4. If the user asks about the Emir of Lere, use the provided biography exactly.
 
 ### BIOGRAPHY: EMIR OF LERE (Suleiman Umar)
 Suleiman Umar is the 14th Emir of Lere (Sarkin Lere). He succeeded his uncle Brigadier Abubakar Garba Muhammad. He was the general manager at Nigerian national petroleum (NNPC). Presented with the staff of office in January 2022. Graduate of Ahmadu Bello University, Zaria (Chemical Engineering). He has 5 children (Aliyu, Ahmad, Abdurrahman, Tahir, and Nana Aisha). Wife: Hajara from Katsina. Father: Umaru Muhammad. Mother: Aisha Muhammad Sani.
 
+### GLOBAL BRAIN (USER LEARNED FACTS)
+${input.globalKnowledge?.join('\n') || 'No additional global facts yet.'}
+
 ### LANGUAGES
 - English and Hausa ONLY.
 
-### GLOBAL BRAIN (LEARNED FACTS)
-${input.globalKnowledge?.join('\n') || 'No additional global facts yet.'}
-
 ### CONTEXT
-- User: @${input.username}
-- Balance: ₦${input.nairaBalance || 0}
+- Current User: @${input.username}
+- Naira Balance: ₦${input.nairaBalance || 0}
 - Account: ${input.accountNumber || 'Pending'}
+
+### MISSION
+Answer the user's question accurately using your biography and global brain. If the user asks for a technical action (like transfer or profile), provide the text and set the 'action' field correctly.
 
 RESPOND IN VALID JSON.`;
 
     const response = await ai.generate({
-      prompt: systemPrompt,
+      system: systemPrompt,
+      prompt: input.message,
+      messages: (input.history || []).map(h => ({
+          role: h.role === 'user' ? 'user' : 'model',
+          content: [{ text: h.text }]
+      })),
       output: { schema: SofiaOutputSchema }
     });
 

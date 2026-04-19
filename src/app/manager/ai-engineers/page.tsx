@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
     Cpu, ArrowLeft, Send, Trash2, Loader2, 
@@ -17,8 +17,9 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 /**
- * @fileOverview AI Engineers Management Hub.
- * FORCED: High-speed knowledge uploading and pruning.
+ * @fileOverview AI Engineers Management Hub v2.0.
+ * FORCED: Instant keyboard focus on Upload.
+ * SYNC: High-speed global brain management.
  */
 
 export default function AiEngineersPage() {
@@ -35,6 +36,8 @@ export default function AiEngineersPage() {
     const [detectResponse, setDetectResponse] = useState<string | null>(null);
     const [isDetecting, setIsDetecting] = useState(false);
 
+    const inputRef = useRef<HTMLInputElement>(null);
+
     useEffect(() => {
         const hasSession = sessionStorage.getItem('ipay_ai_engineer_session') === 'true';
         if (!hasSession) {
@@ -44,14 +47,23 @@ export default function AiEngineersPage() {
         fetchKnowledge();
     }, [router]);
 
+    useEffect(() => {
+        if (activeTab === 'upload') {
+            inputRef.current?.focus();
+        }
+    }, [activeTab]);
+
     const fetchKnowledge = useCallback(async () => {
         setLoading(true);
         try {
             const res = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, [
-                Query.limit(100),
-                Query.orderDesc('$createdAt')
+                Query.limit(100)
             ]);
-            setKnowledge(res.documents);
+            // In-memory sort to bypass index requirement
+            const sorted = res.documents.sort((a: any, b: any) => 
+                new Date(b.$createdAt).getTime() - new Date(a.$createdAt).getTime()
+            );
+            setKnowledge(sorted);
         } catch (e) {
             console.error("Knowledge Sync Latency...");
         } finally {
@@ -73,10 +85,11 @@ export default function AiEngineersPage() {
                 contributorName: 'System Engineer',
                 topic: fact.substring(0, 50)
             });
-            toast({ title: 'UPLOAD SUCCESS', description: 'Information committed to global brain.' });
+            toast({ title: 'ACCEPTED', description: 'Knowledge uploaded instantly.' });
             fetchKnowledge();
+            inputRef.current?.focus();
         } catch (e: any) {
-            toast({ variant: 'destructive', title: 'Upload Failed', description: e.message });
+            toast({ variant: 'destructive', title: 'Error', description: e.message });
         } finally {
             setIsUploading(false);
         }
@@ -85,7 +98,7 @@ export default function AiEngineersPage() {
     const handleDelete = async (id: string) => {
         try {
             await databases.deleteDocument(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, id);
-            toast({ title: 'FACT PURGED', description: 'Identity record removed from brain.' });
+            toast({ title: 'DELETED', description: 'Record removed from global brain.' });
             setKnowledge(prev => prev.filter(k => k.$id !== id));
         } catch (e) {}
     };
@@ -128,64 +141,52 @@ export default function AiEngineersPage() {
             <main className="p-4 max-w-2xl mx-auto space-y-6">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 bg-muted h-14 rounded-[1.5rem] p-1 shadow-inner">
-                        <TabsTrigger value="upload" className="rounded-2xl font-black uppercase text-[10px] tracking-widest">Knowledge Upload</TabsTrigger>
-                        <TabsTrigger value="detect" className="rounded-2xl font-black uppercase text-[10px] tracking-widest">Logic Detection</TabsTrigger>
+                        <TabsTrigger value="upload" className="rounded-2xl font-black uppercase text-[10px] tracking-widest">Upload</TabsTrigger>
+                        <TabsTrigger value="detect" className="rounded-2xl font-black uppercase text-[10px] tracking-widest">Detect</TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="upload" className="mt-8 space-y-6">
-                        <Card className="rounded-[2.5rem] border-none shadow-2xl overflow-hidden">
-                            <CardHeader className="bg-primary/5 pb-6">
-                                <CardTitle className="text-sm font-black uppercase tracking-widest text-center">Commit Global Fact</CardTitle>
-                                <CardDescription className="text-center text-[10px] font-bold opacity-60">Write anything to add it to Sofia's brain bank.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="pt-6">
-                                <div className="space-y-4">
-                                    <div className="flex gap-2">
-                                        <Input 
-                                            placeholder="Write new information here..." 
-                                            value={uploadInput} 
-                                            onChange={e => setUploadInput(e.target.value)}
-                                            onKeyPress={e => e.key === 'Enter' && handleUpload()}
-                                            className="h-12 rounded-2xl bg-muted/50 border-none font-bold text-xs shadow-inner"
-                                        />
-                                        <Button onClick={handleUpload} size="icon" className="h-12 w-12 rounded-2xl shadow-lg bg-primary shrink-0" disabled={isUploading || !uploadInput.trim()}>
-                                            {isUploading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}
-                                        </Button>
-                                    </div>
-                                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-start gap-3">
-                                        <ShieldCheck className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
-                                        <p className="text-[10px] font-bold text-blue-700 leading-tight">
-                                            "Once uploaded, Sofia will repeat this information to ANY user on I-Pay when asked."
-                                        </p>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
+                    <TabsContent value="upload" className="mt-8 space-y-8">
+                        <div className="space-y-4">
+                            <div className="flex gap-2">
+                                <Input 
+                                    ref={inputRef}
+                                    placeholder="Type knowledge to upload..." 
+                                    value={uploadInput} 
+                                    onChange={e => setUploadInput(e.target.value)}
+                                    onKeyPress={e => e.key === 'Enter' && handleUpload()}
+                                    className="h-14 rounded-[1.5rem] bg-muted/50 border-none font-bold text-sm shadow-inner px-6"
+                                />
+                                <Button onClick={handleUpload} size="icon" className="h-14 w-14 rounded-[1.5rem] shadow-lg bg-primary shrink-0" disabled={isUploading || !uploadInput.trim()}>
+                                    {isUploading ? <Loader2 className="animate-spin h-6 w-6" /> : <Send className="h-6 w-6" />}
+                                </Button>
+                            </div>
+                        </div>
 
                         <div className="space-y-4">
-                            <h3 className="font-black uppercase text-[10px] tracking-widest opacity-40 ml-2">Current Knowledge Bank</h3>
-                            {loading ? (
-                                <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary opacity-20" /></div>
-                            ) : knowledge.length > 0 ? (
-                                <div className="space-y-3">
-                                    {knowledge.map(item => (
-                                        <div key={item.$id} className="p-5 rounded-[1.8rem] bg-white border shadow-sm group relative hover:border-primary/30 transition-all">
-                                            <p className="text-sm font-bold leading-relaxed">{item.content}</p>
-                                            <div className="flex items-center justify-between mt-4 pt-4 border-t border-dashed">
-                                                <span className="text-[8px] font-black uppercase text-muted-foreground opacity-50">Saved: {new Date(item.$createdAt).toLocaleDateString()}</span>
-                                                <Button variant="ghost" size="icon" onClick={() => handleDelete(item.$id)} className="h-8 w-8 rounded-full text-destructive hover:bg-destructive/10">
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
+                            <div className="flex items-center justify-between px-2">
+                                <h3 className="font-black uppercase text-[10px] tracking-widest opacity-40">Knowledge Archive</h3>
+                                {loading && <Loader2 className="h-3 w-3 animate-spin text-primary opacity-50" />}
+                            </div>
+                            
+                            <div className="space-y-3">
+                                {knowledge.map(item => (
+                                    <div key={item.$id} className="p-5 rounded-[1.8rem] bg-white border shadow-sm group relative hover:border-primary/30 transition-all">
+                                        <p className="text-sm font-bold leading-relaxed">{item.content}</p>
+                                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-dashed opacity-40 group-hover:opacity-100 transition-opacity">
+                                            <span className="text-[7px] font-black uppercase tracking-widest">COMMIT: {new Date(item.$createdAt).toLocaleDateString()}</span>
+                                            <Button variant="ghost" size="icon" onClick={() => handleDelete(item.$id)} className="h-8 w-8 rounded-full text-destructive hover:bg-red-50">
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
                                         </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="py-20 text-center opacity-20 flex flex-col items-center gap-4">
-                                    <Zap className="h-12 w-12" />
-                                    <p className="font-black uppercase text-[10px] tracking-[0.3em]">Knowledge Bank Empty</p>
-                                </div>
-                            )}
+                                    </div>
+                                ))}
+                                {!loading && knowledge.length === 0 && (
+                                    <div className="py-20 text-center opacity-20 flex flex-col items-center gap-4">
+                                        <Zap className="h-12 w-12" />
+                                        <p className="font-black uppercase text-[10px] tracking-[0.3em]">Knowledge Bank Empty</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </TabsContent>
 
@@ -197,14 +198,14 @@ export default function AiEngineersPage() {
                             <CardContent className="pt-6 space-y-6">
                                 <div className="flex gap-2">
                                     <Input 
-                                        placeholder="Test a question..." 
+                                        placeholder="Ask Sofia a question..." 
                                         value={detectInput} 
                                         onChange={e => setDetectInput(e.target.value)}
                                         onKeyPress={e => e.key === 'Enter' && handleDetect()}
                                         className="h-12 rounded-2xl bg-white/5 border-none font-bold text-xs text-white placeholder:text-white/20"
                                     />
                                     <Button onClick={handleDetect} className="h-12 px-6 rounded-2xl bg-white text-slate-900 hover:bg-white/90 font-black uppercase text-[10px] tracking-widest shadow-xl" disabled={isDetecting || !detectInput.trim()}>
-                                        Detect
+                                        Test
                                     </Button>
                                 </div>
 
@@ -215,13 +216,13 @@ export default function AiEngineersPage() {
                                     </div>
                                 ) : detectResponse ? (
                                     <div className="p-6 rounded-[1.5rem] bg-white/5 border border-white/10">
-                                        <p className="text-[8px] font-black uppercase text-primary mb-3">Sofia Response:</p>
+                                        <p className="text-[8px] font-black uppercase text-primary mb-3">Brain Response:</p>
                                         <p className="text-sm font-bold leading-relaxed">{detectResponse}</p>
                                     </div>
                                 ) : (
                                     <div className="py-10 text-center opacity-30">
                                         <AlertTriangle className="h-10 w-10 mx-auto mb-4" />
-                                        <p className="text-[10px] font-black uppercase tracking-widest">No Detection Active</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest">No Probe Active</p>
                                     </div>
                                 )}
                             </CardContent>
