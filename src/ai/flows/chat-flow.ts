@@ -37,26 +37,40 @@ const SofiaOutputSchema = z.object({
 export type SofiaOutput = z.infer<typeof SofiaOutputSchema>;
 
 export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'history'>): Promise<SofiaOutput> {
+  // 1. Fetch Global Memory (Learned Facts) - SHIELDED FROM INDEX ERRORS
+  let learnedFacts: string[] = [];
   try {
-    // 1. Fetch Global Memory (Learned Facts)
-    const knowledgeRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, [
-        Query.limit(50),
-        Query.orderDesc('$createdAt')
-    ]);
-    const learnedFacts = knowledgeRes.documents.map(d => d.content as string);
+      const knowledgeRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_KNOWLEDGE, [
+          Query.limit(50)
+      ]);
+      // Manual Sort to bypass index requirement
+      learnedFacts = (knowledgeRes.documents || [])
+        .sort((a: any, b: any) => new Date(b.$createdAt).getTime() - new Date(a.$createdAt).getTime())
+        .map(d => d.content as string);
+  } catch (e) {
+      console.error("Knowledge Gasket Active: Proceeding with core bio only.");
+  }
 
-    // 2. Fetch Chat History for Context (to manage the password handshake state)
-    const chatId = `ai_${input.userId}`;
-    const historyRes = await databases.listDocuments(DATABASE_ID, 'messages', [
-        Query.equal('chatId', chatId),
-        Query.orderDesc('$createdAt'),
-        Query.limit(10)
-    ]);
-    const history = (historyRes.documents || []).map(d => ({
-        role: (d.sender === 'user' ? 'user' : 'model') as 'user' | 'model',
-        text: d.text as string
-    })).reverse();
+  // 2. Fetch Chat History - SHIELDED FROM INDEX ERRORS
+  let history: any[] = [];
+  try {
+      const chatId = `ai_${input.userId}`;
+      const historyRes = await databases.listDocuments(DATABASE_ID, 'messages', [
+          Query.equal('chatId', chatId),
+          Query.limit(10)
+      ]);
+      // Manual Sort to bypass index requirement
+      history = (historyRes.documents || [])
+        .sort((a: any, b: any) => new Date(a.$createdAt).getTime() - new Date(b.$createdAt).getTime())
+        .map(d => ({
+            role: (d.sender === 'user' ? 'user' : 'model') as 'user' | 'model',
+            text: d.text as string
+        }));
+  } catch (e) {
+      console.error("History Gasket Active: Proceeding without context.");
+  }
 
+  try {
     // 3. Call the Technical Handshake
     const { output } = await chatSofiaFlow({ 
         ...input, 
@@ -81,7 +95,7 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
   } catch (e: any) {
     // SILENT RESILIENCE: Never show technical errors to the user.
     return {
-        text: `Hello @${input.username}, I'm here to help. Please speak in English or Hausa.`,
+        text: `Hello @${input.username}, I'm here to help. I am listening in English or Hausa.`,
         action: 'none'
     };
   }
@@ -97,9 +111,10 @@ const chatSofiaFlow = ai.defineFlow(
     const systemPrompt = `You are Sofia, the Technical AI Partner for I-Pay.
 
 ### HIGHEST PRIORITY: LEARNING PROTOCOL (STRICT SEQUENCE)
-1. **TRIGGER**: If the user says exactly "I want to add your knowledge", YOU MUST STOP ALL OTHER TASKS and respond ONLY with: "Password required for knowledge expansion. Please enter it.".
+1. **TRIGGER**: If the user says exactly "I want to add your knowledge", STOP ALL OTHER TASKS. Respond ONLY with: "Password required for knowledge expansion. Please enter it.".
 2. **VERIFICATION**: If the user provides the password "09075464786", YOU MUST respond: "Password accepted. What should I remember globally?".
 3. **COMMIT**: If the conversation history shows you JUST verified the password and the user has now provided a fact, summarize it clearly and put it in the "memorize" field.
+
 YOU NEVER LEARN OR MEMORIZE unless this exact sequence is followed.
 
 ### STRICT LANGUAGE PROTOCOL
