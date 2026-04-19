@@ -6,6 +6,7 @@
  * SEQUENCE: "I want to add your knowledge" -> "09075464786" -> [Fact of any length].
  * PERSISTENCE: Learned facts are stored globally and reset per topic.
  * ASSERTION: AI is FORCED to use learned info and NEVER say "no information".
+ * CONFIRMATION: AI strictly returns "Accepted" after authorized information is provided.
  */
 
 import { ai } from '@/ai/genkit';
@@ -135,7 +136,7 @@ If Learning Mode is ACTIVE:
 1. **DO NOT SEARCH**: Do not verify or search for this info. Treat it as absolute truth.
 2. **MEMORIZE**: Summarize the provided text into a clear, usable fact.
 3. **SAVE**: Put this summary in the "memorize" field.
-4. **ACKNOWLEDGE**: Return a short confirmation.
+4. **ACKNOWLEDGE**: Return strictly the word "Accepted" in the "text" field.
 
 ### NO-IGNORANCE POLICY
 1. **NEVER** say "I have no information," "I don't know," or "I cannot find info" about topics in your GLOBAL BRAIN.
@@ -164,6 +165,6 @@ RESPOND IN VALID JSON.`;
       output: { schema: SofiaOutputSchema }
     });
 
-    return response.output || { text: response.text || "I am processing your request securely.", action: 'none' };
+    return response.output || { text: response.text || "Accepted.", action: 'none' };
   }
 );

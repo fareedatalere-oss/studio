@@ -8,8 +8,8 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback,
 import { cn } from "@/lib/utils";
 
 /**
- * @fileOverview Global Memory Shield & Presence Engine v4.1.
- * STABILITY: Context value is memoized to prevent infinite re-render loops.
+ * @fileOverview Global Memory Shield & Presence Engine v4.2.
+ * STABILITY: Context value is memoized to prevent infinite re-render loops during input.
  * PUSH FORCE: Native device notifications for background communications.
  */
 
@@ -114,10 +114,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setIsMounted(true);
         fetchConfig();
         
-        let unsubs: any[] = [];
+        let unsubAuth: () => void;
+        let unsubs: (() => void)[] = [];
         let heartbeatInterval: NodeJS.Timeout | null = null;
 
-        const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+        unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+            // Clear existing unsubs on auth change
+            unsubs.forEach(u => u());
+            unsubs = [];
+
             if (firebaseUser) {
                 const uid = firebaseUser.uid;
                 setUser({ $id: uid, uid, email: firebaseUser.email });
@@ -201,6 +206,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
         };
     }, [fetchConfig, updatePresence, showNativeNotification]);
 
+    const recheckUser = useCallback(async () => {
+        await fetchConfig();
+    }, [fetchConfig]);
+
     const contextValue = useMemo(() => ({
         user, 
         profile, 
@@ -212,9 +221,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
         unreadNotifications, 
         unreadMessages, 
         globalMessages, 
-        recheckUser: async () => { await fetchConfig(); },
+        recheckUser,
         isUserActuallyOnline
-    }), [user, profile, config, proof, isLoading, allUsers, recentChats, unreadNotifications, unreadMessages, globalMessages, fetchConfig, isUserActuallyOnline]);
+    }), [user, profile, config, proof, isLoading, allUsers, recentChats, unreadNotifications, unreadMessages, globalMessages, recheckUser, isUserActuallyOnline]);
 
     return (
         <UserContext.Provider value={contextValue}>
