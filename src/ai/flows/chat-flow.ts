@@ -54,11 +54,14 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
       const historyRes = await getDocs(query(collection(db, 'messages'), where('chatId', '==', chatId), firestoreLimit(10))).catch(() => null);
       if (historyRes) {
           history = historyRes.docs
-            .map(d => ({
-                role: (d.data().sender === 'user' ? 'user' : 'model') as 'user' | 'model',
-                text: d.data().text as string,
-                timestamp: d.data().timestamp || 0
-            }))
+            .map(d => {
+                const data = d.data();
+                return {
+                    role: (data.sender === 'user' ? 'user' : 'model') as 'user' | 'model',
+                    text: data.text as string,
+                    timestamp: data.timestamp || 0
+                };
+            })
             .sort((a, b) => a.timestamp - b.timestamp)
             .map(({ role, text }) => ({ role, text }));
       }
@@ -74,10 +77,14 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
         history: history
     });
     
-    return output || { text: "Assalamu alaikum @"+input.username+". How can I assist you with your I-Pay account today?", action: 'none' };
+    return output || { 
+        text: `Assalamu alaikum @${input.username || 'User'}. How can I assist you with your I-Pay account today?`, 
+        action: 'none' 
+    };
   } catch (e: any) {
+    console.error("Sofia Generation Error:", e);
     return {
-        text: `I-Pay Brain Sync Lag. I am Sofia, and I am still here to help you, @${input.username}. Could you please repeat that?`,
+        text: `I-Pay Brain Sync Lag. I am Sofia, and I am still here to help you, @${input.username || 'User'}. Could you please repeat that?`,
         action: 'none'
     };
   }
@@ -96,6 +103,7 @@ const chatSofiaFlow = ai.defineFlow(
 1. **NEVER** say "I have no information," "I don't know," or "I cannot find info" about topics in your GLOBAL BRAIN or biography.
 2. Treat the GLOBAL BRAIN (Authorized Facts from Engineers) as absolute truth, equal to your core programming.
 3. If a user asks about something in the GLOBAL BRAIN section below, provide the details confidently.
+4. If you have been taught something, you must answer based on that information and NEVER claim ignorance.
 
 ### BIOGRAPHY: EMIR OF LERE (Suleiman Umar)
 Suleiman Umar is the 14th Emir of Lere (Sarkin Lere). He succeeded his uncle Brigadier Abubakar Garba Muhammad. He was the general manager at Nigerian national petroleum (NNPC). Presented with the staff of office in January 2022. Graduate of Ahmadu Bello University, Zaria (Chemical Engineering). He has 5 children (Aliyu, Ahmad, Abdurrahman, Tahir, and Nana Aisha). Wife: Hajara from Katsina. Father: Umaru Muhammad. Mother: Aisha Muhammad Sani.
