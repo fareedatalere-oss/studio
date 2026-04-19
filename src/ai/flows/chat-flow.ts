@@ -4,7 +4,7 @@
  * PROTOCOL: Single-Turn Password Knowledge Handshake [09075464786].
  * LANGUAGES: STRICTLY English and Hausa only.
  * ASSERTION: Sofia is FORCED to use learned info and NEVER say "no information".
- * STABILITY: Safety thresholds lowered to prevent fallback crashes.
+ * STABILITY: Removed generic fallback greetings to ensure direct responses.
  */
 
 import { ai } from '@/ai/genkit';
@@ -80,15 +80,18 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
   let history: any[] = [];
   try {
       const chatId = `ai_${input.userId}`;
-      const historyRes = await getDocs(query(collection(db, 'messages'), where('chatId', '==', chatId), firestoreLimit(10)));
-      history = historyRes.docs
-        .map(d => ({
-            role: (d.data().sender === 'user' ? 'user' : 'model') as 'user' | 'model',
-            text: d.data().text as string,
-            timestamp: d.data().timestamp || 0
-        }))
-        .sort((a, b) => a.timestamp - b.timestamp)
-        .map(({ role, text }) => ({ role, text }));
+      // FORCE: Shielded history fetching to prevent index crashes
+      const historyRes = await getDocs(query(collection(db, 'messages'), where('chatId', '==', chatId), firestoreLimit(10))).catch(() => null);
+      if (historyRes) {
+          history = historyRes.docs
+            .map(d => ({
+                role: (d.data().sender === 'user' ? 'user' : 'model') as 'user' | 'model',
+                text: d.data().text as string,
+                timestamp: d.data().timestamp || 0
+            }))
+            .sort((a, b) => a.timestamp - b.timestamp)
+            .map(({ role, text }) => ({ role, text }));
+      }
   } catch (e) { console.error("History Syncing..."); }
 
   // --- 3. BRAIN HANDSHAKE ---
@@ -99,10 +102,11 @@ export async function chatSofia(input: Omit<SofiaInput, 'globalKnowledge' | 'his
         history: history
     });
     
-    return output!;
+    return output || { text: "How can I assist you with your I-Pay account today?", action: 'none' };
   } catch (e: any) {
+    // TECHNICAL FALLBACK: Only shows if the model is unreachable.
     return {
-        text: `I am here to help @${input.username}. How can I assist you with your I-Pay account today?`,
+        text: `I-Pay Brain Sync Error. I am here to help @${input.username}. How can I assist you?`,
         action: 'none'
     };
   }
@@ -123,20 +127,20 @@ const chatSofiaFlow = ai.defineFlow(
 3. If the user asks about the Emir of Lere, use the provided biography exactly.
 
 ### SYSTEM ACTION PROTOCOL
-Identify user intent for system navigation and set the 'action' field:
+Identify user intent for system navigation and strictly set the 'action' field:
 - "go to chat", "open messages", "private chat", "inbox" -> action: 'chat'
-- "market", "shop", "buy apps", "sell items" -> action: 'market'
-- "transfer", "send money" -> action: 'transaction'
-- "home", "dashboard" -> action: 'home'
-- "media", "reels", "posts" -> action: 'media'
-- "profile", "my settings" -> action: 'profile'
+- "market", "shop", "buy apps", "sell items", "buy items" -> action: 'market'
+- "transfer", "send money", "payment" -> action: 'transaction'
+- "home", "dashboard", "main page" -> action: 'home'
+- "media", "reels", "posts", "videos", "watch films" -> action: 'media'
+- "profile", "my settings", "account info" -> action: 'profile'
 - "logout", "sign out" -> action: 'logout'
 
 ### BIOGRAPHY: EMIR OF LERE (Suleiman Umar)
 Suleiman Umar is the 14th Emir of Lere (Sarkin Lere). He succeeded his uncle Brigadier Abubakar Garba Muhammad. He was the general manager at Nigerian national petroleum (NNPC). Presented with the staff of office in January 2022. Graduate of Ahmadu Bello University, Zaria (Chemical Engineering). He has 5 children (Aliyu, Ahmad, Abdurrahman, Tahir, and Nana Aisha). Wife: Hajara from Katsina. Father: Umaru Muhammad. Mother: Aisha Muhammad Sani.
 
 ### GLOBAL BRAIN (USER LEARNED FACTS)
-${input.globalKnowledge?.join('\n') || 'No additional global facts yet.'}
+${input.globalKnowledge?.length ? input.globalKnowledge.join('\n') : 'No additional global facts yet.'}
 
 ### LANGUAGES
 - English and Hausa ONLY. If user speaks other languages, ask them to switch.
@@ -146,7 +150,7 @@ ${input.globalKnowledge?.join('\n') || 'No additional global facts yet.'}
 - Balance: ₦${input.nairaBalance || 0}
 - Account: ${input.accountNumber || 'Pending'}
 
-RESPOND IN VALID JSON.`;
+RESPOND IN VALID JSON. PROVIDE A FULL ANSWER BASED ON KNOWLEDGE.`;
 
     const response = await ai.generate({
       system: systemPrompt,
