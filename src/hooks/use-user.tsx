@@ -4,13 +4,13 @@ import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFI
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, serverTimestamp, onSnapshot, collection, updateDoc } from 'firebase/firestore';
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef, useMemo } from 'react';
 import { cn } from "@/lib/utils";
 
 /**
- * @fileOverview Global Memory Shield & Presence Engine v4.0.
+ * @fileOverview Global Memory Shield & Presence Engine v4.1.
+ * STABILITY: Context value is memoized to prevent infinite re-render loops.
  * PUSH FORCE: Native device notifications for background communications.
- * BADGE SYNC: Cumulative atomic counters for real-time visibility.
  */
 
 type UserContextType = {
@@ -201,13 +201,23 @@ export function UserProvider({ children }: { children: ReactNode }) {
         };
     }, [fetchConfig, updatePresence, showNativeNotification]);
 
+    const contextValue = useMemo(() => ({
+        user, 
+        profile, 
+        config, 
+        proof, 
+        loading: isLoading, 
+        allUsers, 
+        recentChats, 
+        unreadNotifications, 
+        unreadMessages, 
+        globalMessages, 
+        recheckUser: async () => { await fetchConfig(); },
+        isUserActuallyOnline
+    }), [user, profile, config, proof, isLoading, allUsers, recentChats, unreadNotifications, unreadMessages, globalMessages, fetchConfig, isUserActuallyOnline]);
+
     return (
-        <UserContext.Provider value={{ 
-            user, profile, config, proof, loading: isLoading, 
-            allUsers, recentChats, unreadNotifications, unreadMessages, globalMessages, 
-            recheckUser: async () => { await fetchConfig(); },
-            isUserActuallyOnline
-        }}>
+        <UserContext.Provider value={contextValue}>
             <div className={cn("min-h-screen transition-opacity duration-300", isMounted ? "opacity-100" : "opacity-0")}>
                 {children}
             </div>

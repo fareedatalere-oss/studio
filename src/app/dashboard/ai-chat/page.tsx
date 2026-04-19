@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
     ArrowLeft, Send, Loader2, Bot, ShieldCheck, 
@@ -23,10 +23,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 /**
- * @fileOverview Sofia AI Chat Hub - Persistence & Control.
+ * @fileOverview Sofia AI Chat Hub v5.1.
+ * STABILITY: Stabilized dependencies to resolve 'Maximum update depth exceeded' error.
  * SILENCE: Technical errors are suppressed.
  * PERSISTENCE: Messages are saved and deletable.
  */
+
+const COLLECTION_ID_MESSAGES = 'messages';
 
 export default function AiChatPage() {
     const router = useRouter();
@@ -39,7 +42,6 @@ export default function AiChatPage() {
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const chatId = user ? `ai_${user.$id}` : null;
-    const COLLECTION_ID_MESSAGES = 'messages';
 
     useEffect(() => {
         setIsMounted(true);
@@ -67,10 +69,12 @@ export default function AiChatPage() {
     }, [chatId, isMounted]);
 
     useEffect(() => {
-        scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (messages.length > 0) {
+            scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
     }, [messages]);
 
-    const handleSend = async () => {
+    const handleSend = useCallback(async () => {
         if (!input.trim() || isLoading || !user || !chatId) return;
 
         const userMsg = input.trim();
@@ -96,9 +100,7 @@ export default function AiChatPage() {
                 username: profile?.username || 'User',
                 nairaBalance: profile?.nairaBalance,
                 accountNumber: profile?.accountNumber,
-                currentTime: new Date().toLocaleString(),
-                location: 'Nigeria',
-                weather: '32°C, Sunny'
+                currentTime: new Date().toLocaleString()
             });
 
             // 3. Commit Sofia Response
@@ -137,7 +139,7 @@ export default function AiChatPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [input, isLoading, user, chatId, profile, router]);
 
     const handleDeleteMessage = async (msgId: string) => {
         try {
