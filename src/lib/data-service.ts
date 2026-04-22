@@ -1,3 +1,4 @@
+
 import { auth, db } from './firebase';
 import { 
   signInWithEmailAndPassword, 
@@ -27,9 +28,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Master Firebase Data Service.
- * Consolidated for high performance and total null-safety.
- * SHIELDED: Robust timestamp mapping to prevent Vercel crashes.
- * FORCE: Added setDocument for Admin configuration stability.
+ * CLEANUP: Removed AI knowledge collection IDs.
  */
 
 export const DATABASE_ID = 'default';
@@ -47,7 +46,6 @@ export const COLLECTION_ID_UPWORK_PROFILES = 'upworkProfiles';
 export const COLLECTION_ID_POST_COMMENTS = 'postComments';
 export const COLLECTION_ID_MEETINGS = 'meetings';
 export const COLLECTION_ID_ATTENDEES = 'meetingAttendees';
-export const COLLECTION_ID_KNOWLEDGE = 'global_knowledge';
 export const BUCKET_ID_UPLOADS = 'uploads';
 
 const sanitize = (data: any) => {

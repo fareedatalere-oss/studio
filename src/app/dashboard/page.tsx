@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -21,7 +22,6 @@ import {
   Lightbulb,
   Eye,
   EyeOff,
-  Bot,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Master Dashboard.
- * Sofia AI placed beside Refund button as requested.
+ * UPDATED: Removed Sofia AI action button.
  */
 
 export default function DashboardPage() {
@@ -76,7 +76,6 @@ export default function DashboardPage() {
     { key: 'feat_electric', label: 'Electricity', icon: Lightbulb, href: '/dashboard/electric-bill' },
     { key: 'feat_multipurpose', label: 'Multi-pay', icon: CreditCard, href: '/dashboard/multi-purpose' },
     { key: 'feat_refund', label: 'Refund', icon: Undo2, href: '/dashboard/deposit' },
-    { key: 'feat_ai', label: 'Sofia AI', icon: Bot, href: '/dashboard/ai-chat', color: 'bg-primary text-white shadow-xl' },
   ];
 
   return (
@@ -162,7 +161,7 @@ export default function DashboardPage() {
                   className={cn(
                       "h-11 w-11 rounded-xl mx-auto flex items-center justify-center transition-all active:scale-90 shadow-sm border border-border/50 group-hover:border-emerald-500/20",
                       !isFeatOn(action.key) && "opacity-50 grayscale",
-                      action.color || "bg-emerald-50 text-emerald-700 border-emerald-100"
+                      "bg-emerald-50 text-emerald-700 border-emerald-100"
                   )}
               >
                   {isProcessing && action.label === 'Refresh' ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <action.icon className="h-5 w-5" />}

