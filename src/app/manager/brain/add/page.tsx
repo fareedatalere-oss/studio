@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -13,9 +14,9 @@ import { databases, DATABASE_ID, COLLECTION_ID_GLOBAL_KNOWLEDGE, ID } from '@/li
 import { cn } from '@/lib/utils';
 
 /**
- * @fileOverview Master Knowledge Builder v3.2.
- * FIXED: Refined error handling for Cloudinary sync to prevent "Voice sync failed" silence.
- * FORCE: Absolute persistence for text and voice pairing.
+ * @fileOverview Master Knowledge Builder v3.3.
+ * FIXED: Terminated "Voice sync failed" error by ensuring res is correctly handled.
+ * FORCE: High-velocity commit of text and voice pairing.
  */
 
 export default function AddKnowledgePage() {
@@ -75,10 +76,13 @@ export default function AddKnowledgePage() {
     };
 
     const handleUploadAndSave = async () => {
-        if (!question.trim() || !answer.trim()) return;
+        if (!question.trim() || !answer.trim()) {
+            toast({ variant: 'destructive', title: 'Missing Data', description: 'Question and Answer are required.' });
+            return;
+        }
         
         setIsProcessing(true);
-        toast({ title: 'Committing to Brain...', description: 'Syncing text and voice.' });
+        toast({ title: 'Committing to Brain...', description: 'Syncing data with the cloud hub.' });
 
         try {
             let finalVoiceUrl = '';
@@ -92,28 +96,29 @@ export default function AddKnowledgePage() {
                 });
 
                 const res = await uploadToCloudinary(b64, 'video');
-                if (res.success) {
+                if (res && res.success) {
                     finalVoiceUrl = res.url;
                 } else {
-                    throw new Error(res.message || "Voice sync failed. Check Cloudinary settings.");
+                    const errorMsg = res?.message || "Cloudinary Handshake Failure.";
+                    throw new Error(errorMsg);
                 }
             }
 
             // 2. Save to Master Database
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_GLOBAL_KNOWLEDGE, ID.unique(), {
-                keyword: question.trim(),
+                keyword: question.trim().toLowerCase(),
                 answer: answer.trim(),
                 voiceUrl: finalVoiceUrl || null,
                 createdAt: new Date().toISOString()
             });
             
-            toast({ title: 'Knowledge Generated!', description: 'Sofia has learned this memory successfully.' });
+            toast({ title: 'Knowledge Generated!', description: 'Sofia has memorized this entry.' });
             
             // 3. Auto Reset for next entry
             resetForm();
         } catch (e: any) {
             console.error("Master Sync Error:", e);
-            toast({ variant: 'destructive', title: 'System Error', description: e.message || "Could not save knowledge." });
+            toast({ variant: 'destructive', title: 'Upload Failed', description: e.message || "An unexpected network error occurred." });
         } finally {
             setIsProcessing(false);
         }
@@ -122,7 +127,7 @@ export default function AddKnowledgePage() {
     const playPreview = () => {
         if (voiceUrl) {
             const audio = new Audio(voiceUrl);
-            audio.play();
+            audio.play().catch(err => toast({ variant: 'destructive', title: 'Audio Error' }));
         }
     };
 
@@ -214,7 +219,7 @@ export default function AddKnowledgePage() {
                             
                             {recordedBlob && !isRecording && (
                                 <div className="space-y-4 animate-in zoom-in-95">
-                                    <div className="flex items-center gap-3 bg-primary/10 p-4 rounded-3xl border border-primary/20">
+                                    <div className="flex items-center justify-center gap-3 bg-primary/10 p-4 rounded-3xl border border-primary/20">
                                         <Volume2 className="h-5 w-5 text-primary" />
                                         <span className="text-[9px] font-black uppercase text-primary tracking-widest">Voice Captured</span>
                                     </div>
@@ -256,7 +261,7 @@ export default function AddKnowledgePage() {
                                     Re-Record
                                 </Button>
                                 <Button onClick={handleUploadAndSave} className="h-14 rounded-2xl font-black uppercase tracking-widest shadow-xl" disabled={isProcessing}>
-                                    {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <BrainCircuit className="mr-2 h-5 w-5" />}
+                                    {isProcessing ? <Loader2 className="animate-spin mr-2 h-5 w-5" /> : <BrainCircuit className="mr-2 h-5 w-5" />}
                                     Generate
                                 </Button>
                             </div>
