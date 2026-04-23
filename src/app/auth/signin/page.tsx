@@ -9,17 +9,19 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
-import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/data-service';
+import { account } from '@/lib/data-service';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useUser } from '@/hooks/use-user';
 
 /**
- * @fileOverview Sign In Page v4.0.
- * REVERTED: Email verification check removed. High-speed entry restored.
+ * @fileOverview Sign In Page v5.0.
+ * UPDATED: Integrated AI Brain Administrative detection.
  */
 
 const ADMIN_EMAIL = 'ipatmanager17@gmail.com';
 const ADMIN_PASS = 'Abdussalam@100';
+const AI_BRAIN_EMAIL = 'aiknowlegde@gmail.com';
+const AI_BRAIN_PASS = '09075464786';
 
 export default function SignInPage() {
   const router = useRouter();
@@ -44,7 +46,14 @@ export default function SignInPage() {
     const trimmedEmail = email.trim().toLowerCase();
 
     try {
-      // 1. MASTER ADMIN BYPASS
+      // 1. AI BRAIN ADMIN BYPASS
+      if (trimmedEmail === AI_BRAIN_EMAIL && password === AI_BRAIN_PASS) {
+          sessionStorage.setItem('ipay_ai_auth_step1', 'true');
+          router.push('/auth/ai-bypass');
+          return;
+      }
+
+      // 2. MASTER ADMIN BYPASS
       if (trimmedEmail === ADMIN_EMAIL && password === ADMIN_PASS) {
           await account.createEmailPasswordSession(email, password); 
           sessionStorage.setItem('ipay_admin_session', 'true');
@@ -53,16 +62,10 @@ export default function SignInPage() {
       }
 
       await account.createEmailPasswordSession(email, password);
-      
-      // Verification check removed here as per user request
-
       router.push('/dashboard');
 
     } catch (error: any) {
         let message = "Invalid credentials. Please try again.";
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-            message = "Account not found or wrong details.";
-        }
         toast({ title: 'Sign In Failed', description: message, variant: 'destructive' });
         setIsLoading(false);
     }
