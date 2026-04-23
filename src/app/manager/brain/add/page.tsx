@@ -1,6 +1,3 @@
-
-'use server';
-
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -16,9 +13,9 @@ import { databases, DATABASE_ID, COLLECTION_ID_GLOBAL_KNOWLEDGE, ID } from '@/li
 import { cn } from '@/lib/utils';
 
 /**
- * @fileOverview Master Knowledge Builder v3.0.
- * FORCE: Zero-failure recording and persistent visibility.
- * SYNC: Direct Cloudinary integration with recursive form reset.
+ * @fileOverview Master Knowledge Builder v3.1.
+ * FIXED: Removed conflicting 'use server' directive causing build failure.
+ * FORCE: Zero-failure recording and recursive form reset for high-speed teaching.
  */
 
 export default function AddKnowledgePage() {
