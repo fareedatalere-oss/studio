@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send, Loader2, Bot, Trash2, Mic, Paperclip, X, Image as ImageIcon, Film, Music, ArrowLeft, MoreVertical } from 'lucide-react';
+import { Send, Loader2, Bot, Trash2, Mic, Paperclip, X, Image as ImageIcon, Film, Music, ArrowLeft, MoreVertical, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -17,9 +17,8 @@ import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 /**
- * @fileOverview Sofia AI Chat Hub v8.0.
- * UPDATED: Optimized for Local Intelligence and high-speed local brain search.
- * AI: No external API calls. Everything is local or Context-driven.
+ * @fileOverview Sofia AI Chat Hub v9.0.
+ * UPDATED: Integrated local voice playback and zero-latency logic.
  */
 
 export default function SofiaChatPage() {
@@ -111,7 +110,7 @@ export default function SofiaChatPage() {
             setMediaPreview(null);
             setMediaFile(null);
 
-            // 2. Call Sofia Local Brain (High Speed, No External API)
+            // 2. Call Sofia Local Brain (Instant)
             const res = await chatSofia({
                 message: userMsg || "Shared media.",
                 userId: user.$id,
@@ -122,20 +121,19 @@ export default function SofiaChatPage() {
                     followers: profile?.followers?.length,
                     following: profile?.following?.length,
                     clickCount: profile?.clickCount
-                },
-                mediaUrl: finalMediaUrl,
-                mediaType: finalMediaType as any
+                }
             });
 
-            // 3. Save Sofia Response
+            // 3. Save Sofia Response with Voice URL
             await addDoc(collection(db, 'sofiaChats'), {
                 userId: user.$id,
                 text: res.text,
+                voiceUrl: res.voiceUrl,
                 role: 'assistant',
                 createdAt: serverTimestamp()
             });
 
-            // 4. Handle Actions (Android Navigation Force)
+            // 4. Handle Actions
             if (res.action && res.action !== 'none') {
                 setTimeout(() => {
                     if (res.action === 'nav_chat') router.push('/dashboard/chat');
@@ -152,26 +150,15 @@ export default function SofiaChatPage() {
             }
 
         } catch (e: any) {
-            toast({ variant: 'destructive', title: 'Brain Sync Error', description: e.message });
+            toast({ variant: 'destructive', title: 'Brain Error', description: e.message });
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        if (file.type.startsWith('video') && file.size > 200 * 1024 * 1024) {
-            toast({ variant: 'destructive', title: 'Video too large', description: 'Maximum size exceeded.' });
-            return;
-        }
-
-        setMediaFile(file);
-        setMediaPreview({
-            url: URL.createObjectURL(file),
-            type: file.type.startsWith('image') ? 'image' : (file.type.startsWith('video') ? 'video' : 'audio')
-        });
+    const playVoice = (url: string) => {
+        const audio = new Audio(url);
+        audio.play().catch(() => toast({ variant: 'destructive', title: 'Audio Error' }));
     };
 
     const deleteMessage = async (id: string) => {
@@ -183,7 +170,7 @@ export default function SofiaChatPage() {
         const snap = await getDocs(q);
         const batch = snap.docs.map(d => deleteDoc(d.ref));
         await Promise.all(batch);
-        toast({ title: 'Local History Cleared' });
+        toast({ title: 'Chat Cleared' });
     };
 
     return (
@@ -193,14 +180,14 @@ export default function SofiaChatPage() {
                     <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')} className="rounded-full"><ArrowLeft className="h-4 w-4"/></Button>
                     <div className="bg-primary/10 p-2 rounded-2xl"><Bot className="h-5 w-5 text-primary" /></div>
                     <div>
-                        <h1 className="font-black uppercase text-sm tracking-tighter">Sofia</h1>
-                        <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Local Intelligence Hub</p>
+                        <h1 className="font-black uppercase text-sm tracking-tighter text-primary">Sofia</h1>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Local Intelligence</p>
                     </div>
                 </div>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="rounded-full"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48 font-black uppercase text-[10px] rounded-2xl">
-                        <DropdownMenuItem onClick={clearHistory} className="text-destructive gap-2"><Trash2 className="h-3 w-3" /> Delete History</DropdownMenuItem>
+                        <DropdownMenuItem onClick={clearHistory} className="text-destructive gap-2"><Trash2 className="h-3 w-3" /> Clear Chat</DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </header>
@@ -211,7 +198,7 @@ export default function SofiaChatPage() {
                         <div key={m.id} className={cn("flex flex-col gap-2", m.role === 'user' ? "items-end" : "items-start")}>
                             <div className={cn(
                                 "p-4 rounded-3xl shadow-sm text-sm font-bold relative group max-w-[90%] leading-relaxed",
-                                m.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted rounded-tl-none"
+                                m.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none"
                             )}>
                                 {m.mediaUrl && (
                                     <div className="mb-4 rounded-2xl overflow-hidden border border-white/10 shadow-lg">
@@ -221,6 +208,18 @@ export default function SofiaChatPage() {
                                     </div>
                                 )}
                                 <p className="whitespace-pre-wrap">{m.text}</p>
+                                
+                                {m.voiceUrl && (
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="mt-3 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                                        onClick={() => playVoice(m.voiceUrl)}
+                                    >
+                                        <Volume2 className="h-4 w-4" />
+                                    </Button>
+                                )}
+
                                 <button 
                                     onClick={() => deleteMessage(m.id)} 
                                     className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
@@ -233,7 +232,7 @@ export default function SofiaChatPage() {
                     {isLoading && (
                         <div className="flex items-center gap-3 text-primary animate-pulse">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-[9px] font-black uppercase tracking-[0.2em]">Searching Local Brain...</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest">Sofia thinking...</span>
                         </div>
                     ) }
                     <div ref={scrollRef} />
@@ -242,34 +241,27 @@ export default function SofiaChatPage() {
 
             <footer className="p-4 border-t bg-background pb-10">
                 <div className="max-w-2xl mx-auto space-y-4">
-                    {mediaPreview && (
-                        <div className="relative inline-block">
-                            <div className="h-20 w-20 rounded-[1.5rem] overflow-hidden border-4 border-primary/10 bg-muted flex items-center justify-center shadow-xl">
-                                {mediaPreview.type === 'image' && <img src={mediaPreview.url} className="object-cover h-full w-full"/>}
-                                {mediaPreview.type === 'video' && <Film className="h-8 w-8 text-primary"/>}
-                                {mediaPreview.type === 'audio' && <Music className="h-8 w-8 text-primary"/>}
-                            </div>
-                            <Button size="icon" variant="destructive" className="h-6 w-6 rounded-full absolute -top-2 -right-2 shadow-lg" onClick={() => { setMediaPreview(null); setMediaFile(null); }}>
-                                <X className="h-3 w-3"/>
-                            </Button>
-                        </div>
-                    )}
                     <div className="flex items-center gap-2">
                         <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-2xl bg-muted/50 transition-all active:scale-90"><Paperclip className="h-5 w-5"/></Button>
                         <Input 
-                            placeholder="Ask Sofia (Local Brain)..." 
+                            placeholder="Type a message..." 
                             value={input} 
                             onChange={e => setInput(e.target.value)}
                             onKeyPress={e => e.key === 'Enter' && handleSend()}
                             className="flex-1 h-12 rounded-2xl bg-muted border-none px-6 font-bold shadow-inner focus-visible:ring-1 focus-visible:ring-primary"
                         />
-                        <Button variant="ghost" size="icon" className="h-12 w-12 rounded-2xl bg-muted/50"><Mic className="h-5 w-5 text-primary"/></Button>
                         <Button onClick={handleSend} disabled={isLoading || isUploading} size="icon" className="h-12 w-12 rounded-2xl shadow-xl transition-all active:scale-95 bg-primary text-white">
                             {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5"/>}
                         </Button>
                     </div>
                 </div>
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,audio/*" onChange={handleFileSelect} />
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,audio/*" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                        setMediaFile(file);
+                        setMediaPreview({ url: URL.createObjectURL(file), type: file.type.split('/')[0] });
+                    }
+                }} />
             </footer>
         </div>
     );
