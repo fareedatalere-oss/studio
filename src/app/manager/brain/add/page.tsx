@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -14,9 +13,9 @@ import { databases, DATABASE_ID, COLLECTION_ID_GLOBAL_KNOWLEDGE, ID } from '@/li
 import { cn } from '@/lib/utils';
 
 /**
- * @fileOverview Master Knowledge Builder v3.5.
- * FIXED: Removed conflicting 'use server' directive.
- * SYNC: Hardened Cloudinary handshake for voice synchronization.
+ * @fileOverview Master Knowledge Builder v4.0.
+ * RESILIENT: Saves text question and answer even if voice upload fails.
+ * SYNC: Absolute data persistence for Sofia's local memory.
  */
 
 export default function AddKnowledgePage() {
@@ -84,27 +83,32 @@ export default function AddKnowledgePage() {
         setIsProcessing(true);
         toast({ title: 'Committing to Brain...', description: 'Syncing data with the cloud hub.' });
 
+        let finalVoiceUrl = '';
+
         try {
-            let finalVoiceUrl = '';
-
-            // 1. Upload Voice if exists
+            // 1. Attempt Voice Upload (Resilient Logic)
             if (recordedBlob) {
-                const reader = new FileReader();
-                const b64 = await new Promise<string>((resolve) => {
-                    reader.onloadend = () => resolve(reader.result as string);
-                    reader.readAsDataURL(recordedBlob);
-                });
+                try {
+                    const reader = new FileReader();
+                    const b64 = await new Promise<string>((resolve) => {
+                        reader.onloadend = () => resolve(reader.result as string);
+                        reader.readAsDataURL(recordedBlob);
+                    });
 
-                const res = await uploadToCloudinary(b64, 'video');
-                if (res && res.success) {
-                    finalVoiceUrl = res.url;
-                } else {
-                    const errorMsg = res?.message || "Cloudinary Handshake Failure.";
-                    throw new Error(errorMsg);
+                    const res = await uploadToCloudinary(b64, 'video');
+                    if (res && res.success) {
+                        finalVoiceUrl = res.url;
+                    } else {
+                        console.warn("Cloudinary upload rejected, proceeding with text only.");
+                        toast({ title: 'Voice Sync Skipped', description: 'Cloud upload failed. Text will be saved.' });
+                    }
+                } catch (audioError) {
+                    console.error("Audio processing error:", audioError);
+                    toast({ title: 'Voice Sync Skipped', description: 'Processing failed. Text will be saved.' });
                 }
             }
 
-            // 2. Save to Master Database
+            // 2. Save to Master Database (Text is prioritized)
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_GLOBAL_KNOWLEDGE, ID.unique(), {
                 keyword: question.trim().toLowerCase(),
                 answer: answer.trim(),
@@ -118,7 +122,7 @@ export default function AddKnowledgePage() {
             resetForm();
         } catch (e: any) {
             console.error("Master Sync Error:", e);
-            toast({ variant: 'destructive', title: 'Upload Failed', description: e.message || "An unexpected network error occurred." });
+            toast({ variant: 'destructive', title: 'Critical Error', description: e.message || "Could not save to database." });
         } finally {
             setIsProcessing(false);
         }
@@ -227,6 +231,12 @@ export default function AddKnowledgePage() {
                                     </Button>
                                 </div>
                             )}
+                            
+                            {!recordedBlob && !isRecording && (
+                                <Button variant="ghost" onClick={() => setStep(4)} className="text-[10px] font-black uppercase tracking-widest opacity-50">
+                                    Skip Voice Attachment
+                                </Button>
+                            )}
                         </div>
                     )}
 
@@ -235,12 +245,18 @@ export default function AddKnowledgePage() {
                             <div className="p-8 bg-primary/5 rounded-[2.5rem] border-2 border-dashed border-primary/20 space-y-8">
                                 <div className="text-center">
                                     <h3 className="font-black uppercase text-[10px] tracking-[0.3em] text-primary mb-6">Review Handshake</h3>
-                                    <div className="bg-white p-4 rounded-full shadow-xl inline-block border-4 border-primary/10">
-                                        <Button onClick={playPreview} size="icon" className="h-20 w-20 rounded-full bg-primary shadow-lg active:scale-90 transition-transform">
-                                            <Volume2 className="h-10 w-10 text-white" />
-                                        </Button>
-                                    </div>
-                                    <p className="text-[8px] font-bold uppercase opacity-40 mt-3">Click to verify voice</p>
+                                    {voiceUrl ? (
+                                        <div className="bg-white p-4 rounded-full shadow-xl inline-block border-4 border-primary/10">
+                                            <Button onClick={playPreview} size="icon" className="h-20 w-20 rounded-full bg-primary shadow-lg active:scale-90 transition-transform">
+                                                <Volume2 className="h-10 w-10 text-white" />
+                                            </Button>
+                                            <p className="text-[8px] font-bold uppercase opacity-40 mt-3">Click to verify voice</p>
+                                        </div>
+                                    ) : (
+                                        <div className="p-4 rounded-2xl bg-muted/50 border border-dashed">
+                                            <p className="text-[9px] font-black uppercase opacity-40">No Voice Attachment</p>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-6 text-left">
