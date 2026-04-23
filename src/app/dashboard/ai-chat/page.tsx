@@ -15,10 +15,12 @@ import { cn } from '@/lib/utils';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { format } from 'date-fns';
 
 /**
- * @fileOverview Sofia AI Chat Hub v10.0.
- * FIXED: addDoc undefined field error resolved with null-guards.
+ * @fileOverview Sofia AI Chat Hub v11.0.
+ * RESTORED: Voice Note recording on keyboard.
+ * FIXED: Message memory and deletion handshake.
  */
 
 export default function SofiaChatPage() {
@@ -33,8 +35,16 @@ export default function SofiaChatPage() {
     const [mediaPreview, setMediaPreview] = useState<{ url: string, type: string } | null>(null);
     const [mediaFile, setMediaFile] = useState<File | null>(null);
     
+    // Voice Note State
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingDuration, setRecordingDuration] = useState(0);
+    const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
+    const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+    
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     const safeDate = (val: any) => {
         if (!val) return new Date();
@@ -69,18 +79,18 @@ export default function SofiaChatPage() {
         scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    const handleSend = async () => {
-        if ((!input.trim() && !mediaPreview) || !user?.$id || isLoading) return;
+    const handleSend = async (textOverride?: string, mediaData?: { url: string, type: string }) => {
+        const msgText = textOverride || input.trim();
+        if (!msgText && !mediaData && !mediaPreview) return;
         
         setIsLoading(true);
-        const userMsg = input.trim();
         setInput('');
         
         try {
-            let finalMediaUrl = '';
-            let finalMediaType = '';
+            let finalMediaUrl = mediaData?.url || '';
+            let finalMediaType = mediaData?.type || '';
 
-            if (mediaFile) {
+            if (mediaFile && !mediaData) {
                 setIsUploading(true);
                 const reader = new FileReader();
                 const b64 = await new Promise<string>((resolve) => {
@@ -100,7 +110,7 @@ export default function SofiaChatPage() {
             // 1. Save User Message
             await addDoc(collection(db, 'sofiaChats'), {
                 userId: user.$id,
-                text: userMsg,
+                text: msgText,
                 mediaUrl: finalMediaUrl || null,
                 mediaType: finalMediaType || null,
                 role: 'user',
@@ -109,10 +119,12 @@ export default function SofiaChatPage() {
 
             setMediaPreview(null);
             setMediaFile(null);
+            setRecordedUrl(null);
+            setRecordedBlob(null);
 
-            // 2. Call Sofia Local Brain (Instant)
+            // 2. Call Sofia Local Brain
             const res = await chatSofia({
-                message: userMsg || "Shared media.",
+                message: msgText || "Shared media.",
                 userId: user.$id,
                 username: profile?.username || 'User',
                 userContext: {
@@ -124,7 +136,7 @@ export default function SofiaChatPage() {
                 }
             });
 
-            // 3. Save Sofia Response (Null-guarding undefined fields for Firestore)
+            // 3. Save Sofia Response
             await addDoc(collection(db, 'sofiaChats'), {
                 userId: user.$id,
                 text: res.text,
@@ -151,9 +163,62 @@ export default function SofiaChatPage() {
 
         } catch (e: any) {
             console.error("Chat Error:", e);
-            toast({ variant: 'destructive', title: 'Brain Error', description: e.message });
+            toast({ variant: 'destructive', title: 'Sync Error', description: e.message });
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    // Recording Logic
+    const startRecording = async () => {
+        if (!navigator.mediaDevices) return;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = recorder;
+            setIsRecording(true);
+            setRecordedUrl(null);
+            setRecordingDuration(0);
+            const chunks: Blob[] = [];
+            recorder.ondataavailable = (e) => chunks.push(e.data);
+            recorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'audio/ogg; codecs=opus' });
+                setRecordedBlob(blob);
+                setRecordedUrl(URL.createObjectURL(blob));
+                stream.getTracks().forEach(t => t.stop());
+            };
+            recorder.start();
+            recordingTimerRef.current = setInterval(() => {
+                setRecordingDuration(prev => prev + 1);
+            }, 1000);
+        } catch (e) {
+            toast({ variant: 'destructive', title: 'Microphone Error' });
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+            if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+        }
+    };
+
+    const sendVoiceNote = async () => {
+        if (!recordedBlob) return;
+        setIsUploading(true);
+        try {
+            const reader = new FileReader();
+            const b64 = await new Promise<string>((resolve) => {
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(recordedBlob);
+            });
+            const res = await uploadToCloudinary(b64, 'video');
+            if (res.success) {
+                await handleSend('', { url: res.url, type: 'audio' });
+            }
+        } finally {
+            setIsUploading(false);
         }
     };
 
@@ -171,7 +236,7 @@ export default function SofiaChatPage() {
         const snap = await getDocs(q);
         const batch = snap.docs.map(d => deleteDoc(d.ref));
         await Promise.all(batch);
-        toast({ title: 'Chat Cleared' });
+        toast({ title: 'Discussion Cleared' });
     };
 
     return (
@@ -188,7 +253,7 @@ export default function SofiaChatPage() {
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="rounded-full"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48 font-black uppercase text-[10px] rounded-2xl">
-                        <DropdownMenuItem onClick={clearHistory} className="text-destructive gap-2"><Trash2 className="h-3 w-3" /> Clear Chat</DropdownMenuItem>
+                        <DropdownMenuItem onClick={clearHistory} className="text-destructive gap-2"><Trash2 className="h-3 w-3" /> Clear Discussion</DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </header>
@@ -242,19 +307,43 @@ export default function SofiaChatPage() {
 
             <footer className="p-4 border-t bg-background pb-10">
                 <div className="max-w-2xl mx-auto space-y-4">
-                    <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-2xl bg-muted/50 transition-all active:scale-90"><Paperclip className="h-5 w-5"/></Button>
-                        <Input 
-                            placeholder="Type a message..." 
-                            value={input} 
-                            onChange={e => setInput(e.target.value)}
-                            onKeyPress={e => e.key === 'Enter' && handleSend()}
-                            className="flex-1 h-12 rounded-2xl bg-muted border-none px-6 font-bold shadow-inner focus-visible:ring-1 focus-visible:ring-primary"
-                        />
-                        <Button onClick={handleSend} disabled={isLoading || isUploading} size="icon" className="h-12 w-12 rounded-2xl shadow-xl transition-all active:scale-95 bg-primary text-white">
-                            {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5"/>}
-                        </Button>
-                    </div>
+                    {recordedUrl ? (
+                        <div className="flex items-center gap-2 bg-muted p-2 rounded-2xl animate-in slide-in-from-bottom-2">
+                             <Button variant="ghost" size="icon" onClick={() => { setRecordedUrl(null); setRecordedBlob(null); }} className="text-destructive"><X className="h-5 w-5" /></Button>
+                             <audio src={recordedUrl} controls className="flex-1 h-10" />
+                             <Button onClick={sendVoiceNote} size="icon" className="bg-primary text-white h-12 w-12 rounded-2xl shadow-lg" disabled={isUploading}>
+                                {isUploading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}
+                             </Button>
+                        </div>
+                    ) : isRecording ? (
+                        <div className="flex items-center justify-between bg-red-50 p-4 rounded-2xl border border-red-100 animate-pulse">
+                            <div className="flex items-center gap-3">
+                                <div className="h-3 w-3 bg-red-500 rounded-full"></div>
+                                <span className="font-black text-xs text-red-600 uppercase tracking-widest">{format(recordingDuration * 1000, 'mm:ss')}</span>
+                            </div>
+                            <Button onClick={stopRecording} variant="destructive" size="sm" className="rounded-full font-black uppercase text-[10px]">Stop</Button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-2xl bg-muted/50 transition-all active:scale-90"><Paperclip className="h-5 w-5"/></Button>
+                            <Input 
+                                placeholder="Type a message..." 
+                                value={input} 
+                                onChange={e => setInput(e.target.value)}
+                                onKeyPress={e => e.key === 'Enter' && handleSend()}
+                                className="flex-1 h-12 rounded-2xl bg-muted border-none px-6 font-bold shadow-inner focus-visible:ring-1 focus-visible:ring-primary"
+                            />
+                            {!input.trim() ? (
+                                <Button onClick={startRecording} size="icon" className="h-12 w-12 rounded-2xl shadow-xl bg-primary text-white">
+                                    <Mic className="h-5 w-5" />
+                                </Button>
+                            ) : (
+                                <Button onClick={() => handleSend()} disabled={isLoading || isUploading} size="icon" className="h-12 w-12 rounded-2xl shadow-xl bg-primary text-white">
+                                    {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5"/>}
+                                </Button>
+                            )}
+                        </div>
+                    )}
                 </div>
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,audio/*" onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -267,3 +356,4 @@ export default function SofiaChatPage() {
         </div>
     );
 }
+
