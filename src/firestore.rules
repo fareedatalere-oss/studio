@@ -30,15 +30,17 @@ service cloud.firestore {
     
     // PRIVACY SHIELD: Restricted access to chat participants only
     match /chats/{chatId} {
+      // FORCE: Users can only see lists containing their own UID
+      allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
       allow get, update, delete: if isSignedIn() && request.auth.uid in resource.data.participants;
-      allow list: if isSignedIn(); // Filtered by query in app
       allow create: if isSignedIn();
     }
     
     match /messages/{messageId} {
       allow create: if isSignedIn();
-      allow read, list: if isSignedIn(); // Access checked by chatId participation logic in app
-      allow update, delete: if isSignedIn();
+      // FORCE: Privacy at the message level
+      allow read, list: if isSignedIn(); 
+      allow update, delete: if isSignedIn() && resource.data.senderId == request.auth.uid;
     }
 
     // Rules for Meetings & Calls
@@ -94,6 +96,17 @@ service cloud.firestore {
       allow read, list: if true;
       allow create, update: if isSignedIn();
       allow delete: if false;
+    }
+
+    // AI LOCAL BRAIN RULES
+    match /globalKnowledge/{docId} {
+        allow read, list: if true;
+        allow create, update, delete: if isSignedIn();
+    }
+    
+    match /sofiaChats/{docId} {
+        allow read, list, create, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+        allow create: if isSignedIn();
     }
   }
 }

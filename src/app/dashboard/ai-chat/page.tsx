@@ -17,8 +17,8 @@ import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 /**
- * @fileOverview Sofia AI Chat Hub v9.0.
- * UPDATED: Integrated local voice playback and zero-latency logic.
+ * @fileOverview Sofia AI Chat Hub v10.0.
+ * FIXED: addDoc undefined field error resolved with null-guards.
  */
 
 export default function SofiaChatPage() {
@@ -101,8 +101,8 @@ export default function SofiaChatPage() {
             await addDoc(collection(db, 'sofiaChats'), {
                 userId: user.$id,
                 text: userMsg,
-                mediaUrl: finalMediaUrl,
-                mediaType: finalMediaType,
+                mediaUrl: finalMediaUrl || null,
+                mediaType: finalMediaType || null,
                 role: 'user',
                 createdAt: serverTimestamp()
             });
@@ -124,11 +124,11 @@ export default function SofiaChatPage() {
                 }
             });
 
-            // 3. Save Sofia Response with Voice URL
+            // 3. Save Sofia Response (Null-guarding undefined fields for Firestore)
             await addDoc(collection(db, 'sofiaChats'), {
                 userId: user.$id,
                 text: res.text,
-                voiceUrl: res.voiceUrl,
+                voiceUrl: res.voiceUrl || null,
                 role: 'assistant',
                 createdAt: serverTimestamp()
             });
@@ -150,6 +150,7 @@ export default function SofiaChatPage() {
             }
 
         } catch (e: any) {
+            console.error("Chat Error:", e);
             toast({ variant: 'destructive', title: 'Brain Error', description: e.message });
         } finally {
             setIsLoading(false);

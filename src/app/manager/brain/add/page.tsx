@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -14,7 +15,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Recursive AI Knowledge Builder v2.0.
- * WORKFLOW: Question (Visible) -> Answer (Visible Left) -> Voice (Sync) -> Preview -> Generate.
+ * FORCED: Instant DB Commit and Form Reset Protocol.
  */
 
 export default function AddKnowledgePage() {
@@ -79,18 +80,24 @@ export default function AddKnowledgePage() {
     };
 
     const handleGenerate = async () => {
+        if (!question.trim() || !answer.trim()) return;
+        
         setIsProcessing(true);
         try {
+            // FORCE: Commit exactly as requested
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_GLOBAL_KNOWLEDGE, ID.unique(), {
                 keyword: question.trim(),
                 answer: answer.trim(),
-                voiceUrl: voiceUrl,
+                voiceUrl: voiceUrl || null,
                 createdAt: new Date().toISOString()
             });
-            toast({ title: 'Knowledge Saved!', description: 'Brain has been updated.' });
-            // RESET AND GO BACK TO PROMPT START
+            
+            toast({ title: 'Knowledge Saved!', description: 'Sofia has learned this memory.' });
+            
+            // MASTER RESET: Go back to prompt for continuous entry
             resetForm();
         } catch (e: any) {
+            console.error("Save Error:", e);
             toast({ variant: 'destructive', title: 'Database Error', description: e.message });
         } finally {
             setIsProcessing(false);
@@ -121,7 +128,6 @@ export default function AddKnowledgePage() {
                 </CardHeader>
                 <CardContent className="p-10 space-y-10">
                     
-                    {/* VISIBLE PROGRESSION SUMMARY */}
                     {step > 1 && (
                         <div className="space-y-4 border-b border-dashed pb-8">
                             <div className="space-y-1">
@@ -137,7 +143,6 @@ export default function AddKnowledgePage() {
                         </div>
                     )}
 
-                    {/* STEP 1: ADD QUESTION */}
                     {step === 1 && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                             <div className="space-y-2">
@@ -156,7 +161,6 @@ export default function AddKnowledgePage() {
                         </div>
                     )}
 
-                    {/* STEP 2: ADD ANSWER */}
                     {step === 2 && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                             <div className="space-y-2">
@@ -175,11 +179,10 @@ export default function AddKnowledgePage() {
                         </div>
                     )}
 
-                    {/* STEP 3: RECORD VOICE */}
                     {step === 3 && (
                         <div className="flex flex-col items-center gap-8 py-6 animate-in fade-in slide-in-from-bottom-2 text-center">
                             <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
-                                "Speak in the language what you write their"
+                                "Speak the exact answer you wrote above"
                             </p>
                             <Button 
                                 onClick={isRecording ? stopRecording : startRecording} 
@@ -207,7 +210,6 @@ export default function AddKnowledgePage() {
                         </div>
                     )}
 
-                    {/* STEP 4: FINAL PREVIEW & GENERATE */}
                     {step === 4 && (
                         <div className="space-y-8 animate-in fade-in zoom-in-95">
                             <div className="p-8 bg-primary/5 rounded-[2.5rem] border-2 border-dashed border-primary/20 space-y-8">
