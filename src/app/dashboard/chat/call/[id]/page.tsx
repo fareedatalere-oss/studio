@@ -21,8 +21,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 /**
  * @fileOverview Private Synchronized Call Hub v2.0.
  * MODES: Audio, Video, Chat, Display.
- * DISPLAY MODE: Force media sharing (Films/Images/Music) in real-time.
- * SYNC: Status and Mode changes reflect instantly for both users.
+ * SYNC: Mode changes reflect instantly for both users using Firestore state.
+ * DISPLAY: Allows high-speed media sharing (Films/Images/Music).
  */
 
 export default function PrivateCallPage() {
@@ -43,12 +43,10 @@ export default function PrivateCallPage() {
     const mediaInputRef = useRef<HTMLInputElement>(null);
     const chatEndRef = useRef<HTMLDivElement>(null);
 
-    const startAudio = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            localStream.current = stream;
-        } catch (e) {
-            console.error("Audio Denied.");
+    const stopMedia = () => {
+        if (localStream.current) {
+            localStream.current.getTracks().forEach(t => t.stop());
+            localStream.current = null;
         }
     };
 
@@ -57,14 +55,16 @@ export default function PrivateCallPage() {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             localStream.current = stream;
             if (videoRef.current) videoRef.current.srcObject = stream;
-        } catch (e) {}
+        } catch (e) {
+            console.error("Camera access denied");
+        }
     };
 
-    const stopCamera = () => {
-        if (localStream.current) {
-            localStream.current.getTracks().forEach(t => t.stop());
-            localStream.current = null;
-        }
+    const startAudio = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            localStream.current = stream;
+        } catch (e) {}
     };
 
     useEffect(() => {
@@ -81,7 +81,11 @@ export default function PrivateCallPage() {
                 return;
             }
             setCall(data);
-            if (data.activeMode) setMode(data.activeMode);
+            
+            // FORCE SYNC: Update local mode based on cloud state
+            if (data.activeMode && data.activeMode !== mode) {
+                setMode(data.activeMode);
+            }
 
             if (!partner) {
                 const partnerId = data.hostId === user?.$id ? data.invitedUsers[0] : data.hostId;
@@ -92,21 +96,24 @@ export default function PrivateCallPage() {
             }
         });
 
-        const q = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', `call_${callId}`), limit(100));
-        const unsubMessages = onSnapshot(q, (snap) => {
+        // Chat listener for this specific call room
+        const qMessages = query(collection(db, COLLECTION_ID_MESSAGES), where('chatId', '==', `call_${callId}`), limit(100));
+        const unsubMessages = onSnapshot(qMessages, (snap) => {
             const mapped = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
             setMessages(mapped.sort((a: any, b: any) => (a.timestamp || 0) - (b.timestamp || 0)));
         });
 
         startAudio(); 
 
-        return () => { unsubCall(); unsubMessages(); stopCamera(); };
+        return () => { unsubCall(); unsubMessages(); stopMedia(); };
     }, [callId, user?.$id, partner, router]);
 
     useEffect(() => {
-        if (mode === 'video') startCamera();
-        else {
-            if (!localStream.current) startAudio();
+        if (mode === 'video') {
+            startCamera();
+        } else {
+            stopMedia();
+            startAudio();
         }
         if (mode === 'chat') {
             chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -117,12 +124,15 @@ export default function PrivateCallPage() {
         await updateDoc(doc(db, COLLECTION_ID_MEETINGS, callId), { activeMode: newMode });
     };
 
-    const handleSendEmoji = async (emoji: string) => {
+    const handleSendChat = async () => {
+        if (!input.trim() || !user?.$id) return;
+        const txt = input.trim();
+        setInput('');
         const msgId = ID.unique();
         await setDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), {
             chatId: `call_${callId}`,
-            senderId: user?.$id,
-            text: emoji,
+            senderId: user.$id,
+            text: txt,
             timestamp: Date.now(),
             createdAt: serverTimestamp(),
         });
@@ -154,8 +164,6 @@ export default function PrivateCallPage() {
     };
 
     if (!partner || !call) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
-
-    const loveEmojis = ["😍","😘","😊","❤️","😜","♥️","💕","💖","💋","💘","💝","💗","💓","💞","💟","❣️","💔","💌","❤️‍🔥","❤️‍🩹","🤎","💜","🩵","💙","💚","💛","🧡","🩷","🩶","🖤","🤍","👄","🫦","🫀","🧠","🫁"];
 
     return (
         <div className="h-screen w-full bg-background flex flex-col font-body overflow-hidden relative">
@@ -190,7 +198,7 @@ export default function PrivateCallPage() {
                 {mode === 'chat' && (
                     <div className="h-full flex flex-col animate-in slide-in-from-bottom-4">
                         <header className="p-4 border-b flex items-center justify-between bg-muted/20">
-                            <span className="text-[10px] font-black uppercase tracking-widest opacity-50">Private Hub</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest opacity-50">Call Hub Chat</span>
                             <Button onClick={() => handleSwitchMode('audio')} variant="ghost" size="icon" className="h-8 w-8 rounded-full"><X className="h-4 w-4"/></Button>
                         </header>
                         <ScrollArea className="flex-1 p-6">
@@ -203,16 +211,9 @@ export default function PrivateCallPage() {
                                 <div ref={chatEndRef} />
                             </div>
                         </ScrollArea>
-                        <div className="p-4 border-t bg-muted/30 pb-10">
-                            <div className="flex flex-wrap gap-2 justify-center mb-4 max-h-24 overflow-y-auto p-1 scrollbar-hide">
-                                {loveEmojis.map((e, i) => (
-                                    <button key={i} onClick={() => handleSendEmoji(e)} className="text-3xl hover:scale-125 transition-transform">{e}</button>
-                                ))}
-                            </div>
-                            <div className="flex gap-2 max-w-xl mx-auto">
-                                <Input placeholder="Message..." value={input} onChange={e => setInput(e.target.value)} onKeyPress={ev => ev.key === 'Enter' && input && (handleSendEmoji(input), setInput(''))} className="rounded-full h-12 bg-white border-none px-6 font-bold" />
-                                <Button size="icon" onClick={() => { if(input) { handleSendEmoji(input); setInput(''); } }} className="h-12 w-12 rounded-full shadow-lg"><Send className="h-4 w-4"/></Button>
-                            </div>
+                        <div className="p-4 border-t bg-muted/30 pb-10 flex gap-2">
+                            <Input placeholder="Message..." value={input} onChange={e => setInput(e.target.value)} onKeyPress={ev => ev.key === 'Enter' && handleSendChat()} className="rounded-full h-12 bg-white border-none px-6 font-bold" />
+                            <Button size="icon" onClick={handleSendChat} className="h-12 w-12 rounded-full shadow-lg"><Send className="h-4 w-4"/></Button>
                         </div>
                     </div>
                 )}
@@ -225,7 +226,7 @@ export default function PrivateCallPage() {
                                 {call.hostId === user?.$id && (
                                     <Button onClick={() => updateDoc(doc(db, COLLECTION_ID_MEETINGS, callId), { displayUrl: null })} variant="destructive" size="icon" className="absolute top-0 right-0 z-50 rounded-full h-8 w-8"><Trash2 className="h-4 w-4"/></Button>
                                 )}
-                                {call.displayType === 'image' && <img src={call.displayUrl} className="max-h-full max-w-full rounded-2xl shadow-2xl" alt="Display" />}
+                                {call.displayType === 'image' && <img src={call.displayUrl} className="max-h-full max-w-full rounded-2xl shadow-2xl object-contain" alt="Display" />}
                                 {call.displayType === 'video' && <video src={call.displayUrl} controls autoPlay className="max-h-full max-w-full rounded-2xl" />}
                                 {call.displayType === 'audio' && (
                                     <div className="bg-primary/10 p-10 rounded-full border-4 border-primary animate-pulse">

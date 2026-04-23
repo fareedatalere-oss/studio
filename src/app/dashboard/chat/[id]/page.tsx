@@ -29,8 +29,8 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Chat Hub v5.0.
- * FORCE: Instant Voice Drop. Messages land optimistically before cloud processing.
- * UI: Extra-Small Audio footprints. Full text visibility with forced wrapping.
+ * FORCE: Instant Voice Note Drop. Messages land optimistically before cloud processing.
+ * UI: Professional text-sm font weight for all bubbles.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -65,9 +65,7 @@ export default function ChatThreadPage() {
     const otherUser = useMemo(() => allUsers.find(u => u.$id === otherUserId), [allUsers, otherUserId]);
     const chatId = useMemo(() => currentUser?.$id && otherUserId ? getChatId(currentUser.$id, otherUserId) : null, [currentUser?.$id, otherUserId]);
 
-    const isBlockedByMe = useMemo(() => currentProfile?.blockedUsers?.includes(otherUserId), [currentProfile, otherUserId]);
-    const isBlockedByThem = useMemo(() => otherUser?.blockedUsers?.includes(currentUser?.$id), [otherUser, currentUser]);
-    const anyBlockActive = isBlockedByMe || isBlockedByThem;
+    const anyBlockActive = currentProfile?.blockedUsers?.includes(otherUserId) || otherUser?.blockedUsers?.includes(currentUser?.$id);
 
     const messages = useMemo(() => {
         if (!chatId || !globalMessages[chatId]) return [];
@@ -179,7 +177,8 @@ export default function ChatThreadPage() {
     const sendVoiceNote = async () => {
         if (!recordedBlob || !currentUser) return;
         
-        // INSTANT DROP FORCE: Clear the preview instantly so it feels fast
+        // INSTANT DROP FORCE: Clear preview and trigger drop
+        const localBlobUrl = recordedUrl;
         setRecordedUrl(null);
         setRecordedBlob(null);
         setIsUploading(true);
@@ -190,6 +189,8 @@ export default function ChatThreadPage() {
                 reader.onloadend = () => resolve(reader.result as string);
                 reader.readAsDataURL(recordedBlob);
             });
+            
+            // Send optimistically
             const res = await uploadToCloudinary(base64, 'video');
             if (res.success) {
                 await handleSend('', { url: res.url, type: 'audio' });
@@ -237,9 +238,9 @@ export default function ChatThreadPage() {
                 <div className="flex flex-col gap-1 min-w-[120px] p-0.5">
                     <div className="flex items-center gap-1.5 mb-0.5">
                         <Volume2 className="h-3 w-3 text-primary" />
-                        <span className="text-[8px] font-black uppercase text-primary tracking-tighter">Audio Note</span>
+                        <span className="text-[8px] font-black uppercase text-primary tracking-tighter">Voice Note</span>
                     </div>
-                    <audio controls src={url} className="h-6 w-full scale-90 -ml-2" />
+                    <audio controls src={url} className="h-7 w-full scale-90 -ml-2" />
                 </div>
             );
             default: return <div onClick={viewMedia} className="h-10 w-40 rounded-xl bg-muted flex items-center px-4 gap-2 cursor-pointer border"><FileText className="h-4 w-4" /><span className="text-[9px] font-black uppercase truncate">File</span></div>;
@@ -269,15 +270,15 @@ export default function ChatThreadPage() {
                 <div className="flex items-center gap-1">
                     <Button onClick={async () => {
                         if (!currentUser || !otherUserId) return;
-                        const mid = doc(collection(db, COLLECTION_ID_MEETINGS)).id;
+                        const mid = ID.unique();
                         await setDoc(doc(db, COLLECTION_ID_MEETINGS, mid), { 
                             hostId: currentUser.$id, 
                             invitedUsers: [otherUserId], 
                             status: 'pending', 
                             type: 'private_call', 
                             activeMode: 'audio', 
-                            createdAt: serverTimestamp(), 
-                            timestamp: Date.now() 
+                            timestamp: Date.now(),
+                            createdAt: serverTimestamp()
                         });
                         router.push(`/dashboard/chat/call/${mid}`);
                     }} variant="ghost" size="icon" className="text-primary h-9 w-9 rounded-full bg-primary/5"><Phone className="h-4 w-4" /></Button>
@@ -304,7 +305,7 @@ export default function ChatThreadPage() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align={msg.senderId === currentUser?.$id ? 'end' : 'start'} className="font-black uppercase text-[9px] w-32 rounded-xl p-1">
                                     <DropdownMenuItem onClick={() => { setMessageToForward(msg); setForwardDialogOpen(true); }} className="gap-2"><Share2 className="h-3 w-3" /> Forward</DropdownMenuItem>
-                                    <DropdownMenuSeparator /><DropdownMenuItem onClick={() => deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id))} className="gap-2 text-destructive"><Trash2 className="h-3 w-3" /> Delete Permanently</DropdownMenuItem>
+                                    <DropdownMenuSeparator /><DropdownMenuItem onClick={() => deleteDoc(doc(db, COLLECTION_ID_MESSAGES, msg.$id))} className="gap-2 text-destructive"><Trash2 className="h-3 w-3" /> Delete</DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         </div>
@@ -325,12 +326,12 @@ export default function ChatThreadPage() {
                         <div className="flex-1 h-9 bg-red-50 text-red-600 rounded-full flex items-center px-4 gap-3 animate-pulse border border-red-100">
                             <div className="h-2 w-2 bg-red-600 rounded-full"></div>
                             <span className="font-black text-[10px] uppercase">{format(recordingDuration * 1000, 'mm:ss')}</span>
-                            <Button onClick={stopRecording} variant="ghost" size="sm" className="ml-auto font-black uppercase text-[8px] text-red-600 h-7">Stop Preview</Button>
+                            <Button onClick={stopRecording} variant="ghost" size="sm" className="ml-auto font-black uppercase text-[8px] text-red-600 h-7">Stop</Button>
                         </div>
                     ) : (
                         <>
                             <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9 rounded-full bg-muted/50"><Paperclip className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="start" className="w-40 rounded-2xl p-2 font-black uppercase text-[9px] shadow-2xl"><DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><ImageIcon className="h-4 w-4" /> Image</DropdownMenuItem><DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><Film className="h-4 w-4" /> Video</DropdownMenuItem><DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><FileText className="h-4 w-4" /> Document</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
-                            <Input placeholder="Message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} className="flex-1 h-9 rounded-full bg-muted/50 border-none px-4 text-xs font-bold focus-visible:ring-1 focus-visible:ring-primary shadow-inner" />
+                            <Input placeholder="Message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} className="flex-1 h-9 rounded-full bg-muted/50 border-none px-4 text-xs font-bold shadow-inner" />
                             <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
                             {!newMessage.trim() ? (
                                 <Button onClick={startRecording} size="icon" className="h-9 w-9 rounded-full bg-primary shadow-lg"><Mic className="h-4 w-4 text-white" /></Button>
@@ -342,8 +343,7 @@ export default function ChatThreadPage() {
                 </div>
             </footer>
 
-            <Dialog open={forwardDialogOpen} onOpenChange={setForwardDialogOpen}><DialogContent className="max-w-md w-[90%] rounded-[2rem] p-6 border-none shadow-2xl"><DialogHeader><DialogTitle className="text-center font-black uppercase tracking-tighter text-sm">Forward Message</DialogTitle></DialogHeader><div className="space-y-4 pt-4"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" /><Input placeholder="Search..." className="pl-10 h-10 rounded-xl bg-muted border-none" value={forwardSearch} onChange={e => setForwardSearch(e.target.value)} /></div><ScrollArea className="h-64 pr-2"><div className="space-y-2">{filteredForwardUsers.map(u => (<div key={u.$id} className="flex items-center justify-between p-3 rounded-2xl bg-muted/30 hover:bg-primary/5 transition-colors cursor-pointer" onClick={() => handleSend(messageToForward?.text, messageToForward?.mediaUrl ? { url: messageToForward.mediaUrl, type: messageToForward.mediaType } : undefined, u.$id)}><div className="flex items-center gap-3"><Avatar className="h-8 w-8"><AvatarImage src={u.avatar}/><AvatarFallback>{u.username?.charAt(0)}</AvatarFallback></Avatar><p className="font-bold text-xs">@{u.username}</p></div><Share2 className="h-4 w-4 text-primary" /></div>))}</div></ScrollArea></div></DialogContent></Dialog>
+            <Dialog open={forwardDialogOpen} onOpenChange={setForwardDialogOpen}><DialogContent className="max-w-md w-[90%] rounded-[2rem] p-6 border-none shadow-2xl"><DialogHeader><DialogTitle className="text-center font-black uppercase tracking-tighter text-sm">Forward</DialogTitle></DialogHeader><div className="space-y-4 pt-4"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" /><Input placeholder="Search..." className="pl-10 h-10 rounded-xl bg-muted border-none" value={forwardSearch} onChange={e => setForwardSearch(e.target.value)} /></div><ScrollArea className="h-64 pr-2"><div className="space-y-2">{filteredForwardUsers.map(u => (<div key={u.$id} className="flex items-center justify-between p-3 rounded-2xl bg-muted/30 hover:bg-primary/5 transition-colors cursor-pointer" onClick={() => handleSend(messageToForward?.text, messageToForward?.mediaUrl ? { url: messageToForward.mediaUrl, type: messageToForward.mediaType } : undefined, u.$id)}><div className="flex items-center gap-3"><Avatar className="h-8 w-8"><AvatarImage src={u.avatar}/><AvatarFallback>{u.username?.charAt(0)}</AvatarFallback></Avatar><p className="font-bold text-xs">@{u.username}</p></div><Share2 className="h-4 w-4 text-primary" /></div>))}</div></ScrollArea></div></DialogContent></Dialog>
         </div>
     );
 }
-

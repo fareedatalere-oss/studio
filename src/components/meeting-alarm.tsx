@@ -27,7 +27,6 @@ export function MeetingAlarm() {
   const router = useRouter();
   const [activeCall, setActiveCall] = useState<any>(null);
   const [isRinging, setIsRinging] = useState(false);
-  const [sessionStartTime] = useState(Date.now());
   const vibrationInterval = useRef<NodeJS.Timeout | null>(null);
   const ringTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -74,6 +73,7 @@ export function MeetingAlarm() {
     const q = query(
         collection(db, COLLECTION_ID_MEETINGS),
         where('status', '==', 'pending'),
+        where('type', '==', 'private_call'),
         where('invitedUsers', 'array-contains', user.$id)
     );
 
@@ -84,10 +84,11 @@ export function MeetingAlarm() {
                 
                 if (meeting.hostId === user.$id) return;
                 
-                const meetingCreatedTime = meeting.timestamp || (meeting.createdAt?.seconds ? meeting.createdAt.seconds * 1000 : Date.now());
-                const isNewCall = meetingCreatedTime > (Date.now() - 15000); 
+                // EXPIRE CHECK: Use server timestamp or fallback to current
+                const meetingCreatedTime = meeting.timestamp || Date.now();
+                const isNewCall = (Date.now() - meetingCreatedTime) < 15000; 
 
-                if (isNewCall) {
+                if (isNewCall && !isRinging) {
                     const caller = await databases.getDocument(DATABASE_ID, 'profiles', meeting.hostId).catch(() => null);
                     setActiveCall({ 
                         ...meeting, 
@@ -96,6 +97,15 @@ export function MeetingAlarm() {
                     });
                     startRinging(meeting);
                 }
+            }
+        });
+
+        // If call doc is updated/deleted, stop ringing
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            if (activeCall && doc.id === activeCall.$id && data.status !== 'pending') {
+                stopRinging();
+                setActiveCall(null);
             }
         });
 
@@ -109,21 +119,23 @@ export function MeetingAlarm() {
         unsubscribe();
         stopRinging();
     };
-  }, [user?.$id, isRinging]);
+  }, [user?.$id, isRinging, activeCall]);
 
   const startRinging = (meeting: any) => {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
-    // 15 SECOND FORCE EXPIRE
+    // 15 SECOND FORCE AUTO-END
     ringTimeoutRef.current = setTimeout(async () => {
-        try {
-            const meetingRef = doc(db, COLLECTION_ID_MEETINGS, meeting.$id);
-            await updateDoc(meetingRef, { status: 'cancelled' });
-            await logCallEvent(meeting, "📞 Missed Call");
-            stopRinging();
-            setActiveCall(null);
-        } catch (e) {}
+        if (isRinging) {
+            try {
+                const meetingRef = doc(db, COLLECTION_ID_MEETINGS, meeting.$id);
+                await updateDoc(meetingRef, { status: 'cancelled' });
+                await logCallEvent(meeting, "📞 Missed Call");
+                stopRinging();
+                setActiveCall(null);
+            } catch (e) {}
+        }
     }, 15000);
 
     if (navigator.vibrate) {
@@ -197,4 +209,3 @@ export function MeetingAlarm() {
     </div>
   );
 }
-
