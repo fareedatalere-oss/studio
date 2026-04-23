@@ -1,13 +1,15 @@
 
 'use client';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Landmark, Store, PlaySquare, Star, User, Code2, Package } from 'lucide-react';
 import { IPayLogo } from '@/components/icons';
 
 /**
  * @fileOverview Master Manager Layout.
- * UPDATED: Removed "Users" button as per Master instruction.
+ * UPDATED: Implemented Zone-Aware Identity Shield.
+ * HIDES: All admin buttons (Transactions, Market, etc.) when in the AI Brain Core.
  */
 
 export default function ManagerLayout({
@@ -15,6 +17,11 @@ export default function ManagerLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  
+  // Detect if we are in the AI Brain environment
+  const isAiBrainZone = pathname.startsWith('/manager/brain');
+
   const navItems = [
     { href: '/manager/transactions', label: 'Transactions', icon: Landmark },
     { href: '/manager/market/bypass', label: 'Market', icon: Store },
@@ -24,6 +31,17 @@ export default function ManagerLayout({
     { href: '/manager/your-app', label: 'Your App', icon: Package },
     { href: '/manager/profile/bypass', label: 'Profile', icon: User },
   ];
+
+  // IDENTITY SHIELD: If in AI Zone, render children directly without the Admin Header
+  if (isAiBrainZone) {
+      return (
+        <div className="min-h-screen flex flex-col bg-background">
+            <main className="flex-1">
+                {children}
+            </main>
+        </div>
+      );
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
