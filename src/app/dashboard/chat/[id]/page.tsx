@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase';
 import { 
     collection, onSnapshot, doc, 
     serverTimestamp, setDoc, deleteDoc,
-    increment, writeBatch
+    increment, writeBatch, query, where, orderBy
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS, ID } from '@/lib/data-service';
 import { 
@@ -28,8 +28,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Private Chat Hub v6.2.
- * UPDATED: 1-hour recording limit for Mic / 3-minute limit for Uploads.
+ * @fileOverview Private Chat Hub v6.3.
+ * UPDATED: Implemented Local Firestore Listener for 100% message visibility.
  * RENDERING: Media shown as compact icons only. 
  */
 
@@ -42,10 +42,11 @@ const getChatId = (userId1?: string, userId2?: string) => {
 export default function ChatThreadPage() {
     const params = useParams();
     const router = useRouter();
-    const { user: currentUser, profile: currentProfile, allUsers, globalMessages, isUserActuallyOnline } = useUser();
+    const { user: currentUser, profile: currentProfile, allUsers, isUserActuallyOnline } = useUser();
     const { toast } = useToast();
 
     const otherUserId = params.id as string;
+    const [localMessages, setLocalMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [isUploading, setIsUploading] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
@@ -67,20 +68,34 @@ export default function ChatThreadPage() {
 
     const anyBlockActive = currentProfile?.blockedUsers?.includes(otherUserId) || otherUser?.blockedUsers?.includes(currentUser?.$id);
 
+    // 1. Reactive Message Listener
+    useEffect(() => {
+        if (!chatId) return;
+
+        const q = query(
+            collection(db, COLLECTION_ID_MESSAGES),
+            where('chatId', '==', chatId),
+            orderBy('timestamp', 'asc')
+        );
+
+        const unsub = onSnapshot(q, (snap) => {
+            const msgs = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
+            setLocalMessages(msgs);
+        });
+
+        return () => unsub();
+    }, [chatId]);
+
     const messages = useMemo(() => {
-        if (!chatId || !globalMessages[chatId]) return [];
-        return [...globalMessages[chatId]]
-            .filter(m => !m.deleteFor?.includes(currentUser?.$id))
-            .sort((a: any, b: any) => (a.timestamp || 0) - (b.timestamp || 0));
-    }, [chatId, globalMessages, currentUser?.$id]);
+        return localMessages.filter(m => !m.deleteFor?.includes(currentUser?.$id));
+    }, [localMessages, currentUser?.$id]);
 
     useEffect(() => {
         setIsMounted(true);
         if (!chatId || !currentUser) return;
 
         const markAsRead = async () => {
-            const chatMessages = globalMessages[chatId] || [];
-            const unread = chatMessages.filter(m => m.senderId === otherUserId && m.status !== 'read');
+            const unread = localMessages.filter(m => m.senderId === otherUserId && m.status !== 'read');
             
             if (unread.length > 0) {
                 const batch = writeBatch(db);
@@ -93,7 +108,7 @@ export default function ChatThreadPage() {
             }, { merge: true }).catch(() => {});
         };
         markAsRead();
-    }, [chatId, currentUser, otherUserId, globalMessages]);
+    }, [chatId, currentUser, otherUserId, localMessages]);
 
     useEffect(() => { 
         if (isMounted) {

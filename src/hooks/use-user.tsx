@@ -1,3 +1,4 @@
+
 'use client';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, COLLECTION_ID_NOTIFICATIONS } from '@/lib/data-service';
@@ -9,9 +10,9 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback,
 import { cn } from "@/lib/utils";
 
 /**
- * @fileOverview Global Memory Shield & Presence Engine v7.0.
- * PRIVACY: Listeners are strictly scoped to Participant IDs only. User A cannot see User C data.
- * FCM: Registers Service Worker for background pings and calls.
+ * @fileOverview Global Memory Shield & Presence Engine v7.1.
+ * PRIVACY: Listeners are strictly scoped to Participant IDs only.
+ * FCM: Registers Service Worker for background pings and alerts.
  */
 
 type UserContextType = {
@@ -24,7 +25,6 @@ type UserContextType = {
     recentChats: any[];
     unreadNotifications: number;
     unreadMessages: number;
-    globalMessages: Record<string, any[]>;
     recheckUser: () => Promise<void>;
     isUserActuallyOnline: (user: any) => boolean;
 };
@@ -39,7 +39,6 @@ const UserContext = createContext<UserContextType>({
     recentChats: [],
     unreadNotifications: 0,
     unreadMessages: 0,
-    globalMessages: {},
     recheckUser: async () => {},
     isUserActuallyOnline: () => false
 });
@@ -56,7 +55,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const [recentChats, setRecentChats] = useState<any[]>([]);
     const [unreadNotifications, setUnreadNotifications] = useState(0);
     const [unreadMessages, setUnreadMessages] = useState(0);
-    const [globalMessages, setGlobalMessages] = useState<Record<string, any[]>>({});
 
     const lastNotifiedRef = useRef<Set<string>>(new Set());
     const sessionStartTimeRef = useRef(Date.now());
@@ -66,7 +64,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
         try {
             const m = await messaging();
             if (!m) return;
-            // Register SW for background pings
             await navigator.serviceWorker.register('/firebase-messaging-sw.js');
             const token = await getToken(m, { vapidKey: 'BC8Z6n_uWpTzZ6R0S5U6V7X8Y9Z0A1B2C3D4E5F6G7H8I9J0' });
             if (token) {
@@ -139,11 +136,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
             if (firebaseUser) {
                 const uid = firebaseUser.uid;
-                setUser({ 
-                    $id: uid, 
-                    uid, 
-                    email: firebaseUser.email
-                });
+                setUser({ $id: uid, uid, email: firebaseUser.email });
                 
                 if ('Notification' in window && Notification.permission === 'default') {
                     Notification.requestPermission();
@@ -151,18 +144,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
                 registerMessaging(uid);
 
-                // PROFILE LISTENER
                 unsubs.push(onSnapshot(doc(db, COLLECTION_ID_PROFILES, uid), (snap) => {
                     if (snap.exists()) setProfile({ $id: snap.id, ...snap.data() });
                     setIsLoading(false);
                 }));
 
-                // USERS LISTENER
                 unsubs.push(onSnapshot(collection(db, COLLECTION_ID_PROFILES), (snap) => {
                     setAllUsers(snap.docs.map(d => ({ $id: d.id, ...d.data() })));
                 }));
 
-                // PRIVACY FORCE: Scoped listener for chats only involving current user
                 const qRecent = query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', uid));
                 unsubs.push(onSnapshot(qRecent, (snap) => {
                     const chats = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
@@ -175,7 +165,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     setUnreadMessages(totalUnread);
                 }));
 
-                // NOTIFICATIONS LISTENER (Scoped to User)
                 const qNotifs = query(collection(db, COLLECTION_ID_NOTIFICATIONS), where('userId', '==', uid));
                 unsubs.push(onSnapshot(qNotifs, (snap) => {
                     const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -230,10 +219,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
         recentChats, 
         unreadNotifications, 
         unreadMessages, 
-        globalMessages, 
         recheckUser,
         isUserActuallyOnline
-    }), [user, profile, config, proof, isLoading, allUsers, recentChats, unreadNotifications, unreadMessages, globalMessages, recheckUser, isUserActuallyOnline]);
+    }), [user, profile, config, proof, isLoading, allUsers, recentChats, unreadNotifications, unreadMessages, recheckUser, isUserActuallyOnline]);
 
     return (
         <UserContext.Provider value={contextValue}>
