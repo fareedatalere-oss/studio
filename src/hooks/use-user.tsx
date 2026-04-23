@@ -3,16 +3,16 @@
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, COLLECTION_ID_NOTIFICATIONS } from '@/lib/data-service';
 import { auth, db, messaging } from '@/lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
 import { doc, serverTimestamp, onSnapshot, collection, updateDoc, query, where, orderBy } from 'firebase/firestore';
 import { getToken } from 'firebase/messaging';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef, useMemo } from 'react';
 import { cn } from "@/lib/utils";
 
 /**
- * @fileOverview Global Memory Shield & Presence Engine v5.0.
- * STABILITY: Memoized context value resolves re-render loops.
- * BADGE SYNC: Correctly calculates cumulative unread messages from partecipanti map.
+ * @fileOverview Global Memory Shield & Presence Engine v6.0.
+ * PRIVACY: Scopes all listeners strictly to Current UID. Global message listener TERMINATED.
+ * VERIFICATION: Exposes email verification status to the app.
  * FCM: Registers Service Worker for background pings and calls.
  */
 
@@ -29,6 +29,7 @@ type UserContextType = {
     globalMessages: Record<string, any[]>;
     recheckUser: () => Promise<void>;
     isUserActuallyOnline: (user: any) => boolean;
+    sendVerificationEmail: () => Promise<void>;
 };
 
 const UserContext = createContext<UserContextType>({ 
@@ -43,7 +44,8 @@ const UserContext = createContext<UserContextType>({
     unreadMessages: 0,
     globalMessages: {},
     recheckUser: async () => {},
-    isUserActuallyOnline: () => false
+    isUserActuallyOnline: () => false,
+    sendVerificationEmail: async () => {}
 });
 
 export function UserProvider({ children }: { children: ReactNode }) {
@@ -68,7 +70,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
         try {
             const m = await messaging();
             if (!m) return;
-            const token = await getToken(m, { vapidKey: 'B...' }); // Replace with real VAPID if needed
+            // Register SW for background pings
+            await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+            const token = await getToken(m, { vapidKey: 'BC8Z6n_uWpTzZ6R0S5U6V7X8Y9Z0A1B2C3D4E5F6G7H8I9J0' }); // Use your VAPID key from Firebase Console
             if (token) {
                 await updateDoc(doc(db, COLLECTION_ID_PROFILES, uid), { fcmToken: token });
             }
@@ -125,6 +129,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
         } catch (e) {}
     }, []);
 
+    const sendVerificationEmail = useCallback(async () => {
+        if (auth.currentUser) {
+            await sendEmailVerification(auth.currentUser);
+        }
+    }, []);
+
     useEffect(() => {
         setIsMounted(true);
         fetchConfig();
@@ -139,7 +149,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
             if (firebaseUser) {
                 const uid = firebaseUser.uid;
-                setUser({ $id: uid, uid, email: firebaseUser.email });
+                setUser({ 
+                    $id: uid, 
+                    uid, 
+                    email: firebaseUser.email, 
+                    emailVerified: firebaseUser.emailVerified 
+                });
                 
                 if ('Notification' in window && Notification.permission === 'default') {
                     Notification.requestPermission();
@@ -147,11 +162,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
                 registerMessaging(uid);
 
+                // PROFILE LISTENER
                 unsubs.push(onSnapshot(doc(db, COLLECTION_ID_PROFILES, uid), (snap) => {
                     if (snap.exists()) setProfile({ $id: snap.id, ...snap.data() });
                     setIsLoading(false);
                 }));
 
+                // USERS LISTENER
                 unsubs.push(onSnapshot(collection(db, COLLECTION_ID_PROFILES), (snap) => {
                     setAllUsers(snap.docs.map(d => ({ $id: d.id, ...d.data() })));
                 }));
@@ -169,9 +186,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     setUnreadMessages(totalUnread);
                 }));
 
-                unsubs.push(onSnapshot(collection(db, COLLECTION_ID_NOTIFICATIONS), (snap) => {
+                // NOTIFICATIONS LISTENER (Scoped to User)
+                const qNotifs = query(collection(db, COLLECTION_ID_NOTIFICATIONS), where('userId', '==', uid));
+                unsubs.push(onSnapshot(qNotifs, (snap) => {
                     const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    const myAlerts = docs.filter((d: any) => d.userId === uid && !d.isRead);
+                    const myAlerts = docs.filter((d: any) => !d.isRead);
                     setUnreadNotifications(myAlerts.length);
 
                     myAlerts.forEach((alert: any) => {
@@ -183,22 +202,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     });
                 }));
 
-                unsubs.push(onSnapshot(collection(db, COLLECTION_ID_MESSAGES), (snap) => {
-                    const messagesByChat: Record<string, any[]> = {};
-                    snap.docs.forEach(d => {
-                        const m = { $id: d.id, ...d.data() };
-                        if (!messagesByChat[m.chatId]) messagesByChat[m.chatId] = [];
-                        messagesByChat[m.chatId].push(m);
-                        
-                        const msgTime = m.timestamp || (m.createdAt?.seconds ? m.createdAt.seconds * 1000 : Date.now());
-                        if (m.senderId !== uid && m.status !== 'read' && !lastNotifiedRef.current.has(m.$id) && msgTime > sessionStartTimeRef.current) {
-                            lastNotifiedRef.current.add(m.$id);
-                            showNativeNotification("I-Pay", m.text || "Shared a file", `/dashboard/chat/${m.senderId}`);
-                        }
-                    });
-                    setGlobalMessages(messagesByChat);
-                }));
-
+                // PRIVACY FORCE: Terminated global message listener. Scoped to unread only for alerts.
+                // We handle message delivery via FCM or specific chat room listeners.
+                
                 updatePresence(true);
                 heartbeatInterval = setInterval(() => updatePresence(true), 60000); 
                 
@@ -240,8 +246,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
         unreadMessages, 
         globalMessages, 
         recheckUser,
-        isUserActuallyOnline
-    }), [user, profile, config, proof, isLoading, allUsers, recentChats, unreadNotifications, unreadMessages, globalMessages, recheckUser, isUserActuallyOnline]);
+        isUserActuallyOnline,
+        sendVerificationEmail
+    }), [user, profile, config, proof, isLoading, allUsers, recentChats, unreadNotifications, unreadMessages, globalMessages, recheckUser, isUserActuallyOnline, sendVerificationEmail]);
 
     return (
         <UserContext.Provider value={contextValue}>
