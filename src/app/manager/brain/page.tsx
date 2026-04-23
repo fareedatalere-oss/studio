@@ -15,6 +15,7 @@ import {
 /**
  * @fileOverview Master AI Brain Page.
  * IDENTITY: Displays a large black brain with logic expansion controls.
+ * UPDATED: Exit Core now terminates session and redirects to Sign In.
  */
 
 export default function MasterBrainPage() {
@@ -28,12 +29,17 @@ export default function MasterBrainPage() {
         }
     }, [router]);
 
+    const handleExit = () => {
+        sessionStorage.removeItem('ipay_ai_master_access');
+        router.push('/auth/signin');
+    };
+
     if (!isMounted) return null;
 
     return (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 font-body">
             <div className="absolute top-10 left-6">
-                <Button variant="ghost" onClick={() => router.push('/dashboard')} className="font-black uppercase text-[10px] gap-2">
+                <Button variant="ghost" onClick={handleExit} className="font-black uppercase text-[10px] gap-2">
                     <ArrowLeft className="h-4 w-4" /> Exit Core
                 </Button>
             </div>
