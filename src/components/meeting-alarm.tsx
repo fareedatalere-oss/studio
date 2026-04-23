@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -11,9 +12,9 @@ import { collection, query, where, onSnapshot, doc, updateDoc, setDoc, serverTim
 
 /**
  * @fileOverview Master Alarm Engine v9.0.
- * SHIELD: Only rings if call is < 30 seconds old to prevent ghost ringing on app load.
+ * SHIELD: 15-second strict timeout. Prevents old calls from ringing.
  * IDENTITY: Forces Sender Name and Icon with centered Accept/Decline buttons.
- * FORCE: Accept takes users directly to Call Chat Hub.
+ * LOG: Records missed calls in the chat history automatically.
  */
 
 const getChatId = (userId1: string, userId2: string) => {
@@ -45,21 +46,22 @@ export function MeetingAlarm() {
     }
   };
 
-  const logMissedCall = async (meeting: any) => {
+  const logCallEvent = async (meeting: any, text: string) => {
       if (!user?.$id) return;
       const chatId = getChatId(meeting.hostId, user.$id);
       try {
-          await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), {
+          const msgId = ID.unique();
+          await setDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), {
               chatId,
               senderId: meeting.hostId,
-              text: "📞 Missed Call",
+              text: text,
               status: 'sent',
               timestamp: Date.now(),
               createdAt: serverTimestamp()
           });
           await setDoc(doc(db, COLLECTION_ID_CHATS, chatId), {
               participants: [meeting.hostId, user.$id],
-              lastMessage: "📞 Missed Call",
+              lastMessage: text,
               lastMessageAt: serverTimestamp(),
               [`unreadCount.${user.$id}`]: increment(1)
           }, { merge: true });
@@ -80,11 +82,10 @@ export function MeetingAlarm() {
             if (change.type === 'added') {
                 const meeting = { $id: change.doc.id, ...change.doc.data() };
                 
-                // GHOST SHIELD: Prevent old calls or my own calls from ringing
                 if (meeting.hostId === user.$id) return;
                 
                 const meetingCreatedTime = meeting.timestamp || (meeting.createdAt?.seconds ? meeting.createdAt.seconds * 1000 : Date.now());
-                const isNewCall = meetingCreatedTime > (sessionStartTime - 30000); 
+                const isNewCall = meetingCreatedTime > (Date.now() - 15000); 
 
                 if (isNewCall) {
                     const caller = await databases.getDocument(DATABASE_ID, 'profiles', meeting.hostId).catch(() => null);
@@ -108,21 +109,22 @@ export function MeetingAlarm() {
         unsubscribe();
         stopRinging();
     };
-  }, [user?.$id, isRinging, sessionStartTime]);
+  }, [user?.$id, isRinging]);
 
   const startRinging = (meeting: any) => {
     if (typeof window === 'undefined') return;
     setIsRinging(true);
     
+    // 15 SECOND FORCE EXPIRE
     ringTimeoutRef.current = setTimeout(async () => {
         try {
             const meetingRef = doc(db, COLLECTION_ID_MEETINGS, meeting.$id);
             await updateDoc(meetingRef, { status: 'cancelled' });
-            await logMissedCall(meeting);
+            await logCallEvent(meeting, "📞 Missed Call");
             stopRinging();
             setActiveCall(null);
         } catch (e) {}
-    }, 30000);
+    }, 15000);
 
     if (navigator.vibrate) {
         const pattern = [2000, 500, 2000, 500];
@@ -134,7 +136,7 @@ export function MeetingAlarm() {
   const handleDecline = async () => {
     if (activeCall?.$id) {
         await updateDoc(doc(db, COLLECTION_ID_MEETINGS, activeCall.$id), { status: 'cancelled' });
-        await logMissedCall(activeCall);
+        await logCallEvent(activeCall, "📞 Call Declined");
     }
     stopRinging(); 
     setActiveCall(null);
@@ -144,7 +146,7 @@ export function MeetingAlarm() {
     if (activeCall?.$id) {
         await updateDoc(doc(db, COLLECTION_ID_MEETINGS, activeCall.$id), { 
             status: 'connected',
-            activeMode: 'chat'
+            activeMode: 'audio'
         });
         router.push(`/dashboard/chat/call/${activeCall.$id}`);
     }
@@ -160,14 +162,14 @@ export function MeetingAlarm() {
           <p className="text-primary font-black uppercase tracking-[0.4em] text-2xl animate-pulse">Incoming Call</p>
           <div className="flex items-center justify-center gap-2 text-primary/60">
             <Volume2 className="h-4 w-4 animate-bounce" />
-            <p className="text-[10px] font-black uppercase tracking-widest">Secure Handshake</p>
+            <p className="text-[10px] font-black uppercase tracking-widest">Real-time Handshake</p>
           </div>
       </div>
 
       <div className="flex flex-col items-center text-center space-y-8 w-full px-6">
         <div className="relative">
             <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping scale-150"></div>
-            <Avatar className="h-52 w-56 ring-8 ring-primary/5 shadow-2xl relative z-10">
+            <Avatar className="h-52 w-52 ring-8 ring-primary/5 shadow-2xl relative z-10">
                 <AvatarImage src={activeCall.callerAvatar} className="object-cover" />
                 <AvatarFallback className="bg-primary text-white text-6xl font-black">{activeCall.callerName?.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
@@ -195,3 +197,4 @@ export function MeetingAlarm() {
     </div>
   );
 }
+

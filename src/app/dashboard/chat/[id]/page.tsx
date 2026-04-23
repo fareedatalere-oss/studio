@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -9,7 +10,7 @@ import {
     serverTimestamp, setDoc, deleteDoc,
     increment, writeBatch
 } from 'firebase/firestore';
-import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS } from '@/lib/data-service';
+import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS, ID } from '@/lib/data-service';
 import { 
     ArrowLeft, Send, Loader2, Paperclip, Phone, MoreVertical, Trash2, 
     FileText, Image as ImageIcon, Film, Mic, Volume2, Share2, ShieldAlert,
@@ -179,7 +180,6 @@ export default function ChatThreadPage() {
         if (!recordedBlob || !currentUser) return;
         
         // INSTANT DROP FORCE: Clear the preview instantly so it feels fast
-        const tempBlobUrl = recordedUrl;
         setRecordedUrl(null);
         setRecordedBlob(null);
         setIsUploading(true);
@@ -237,7 +237,7 @@ export default function ChatThreadPage() {
                 <div className="flex flex-col gap-1 min-w-[120px] p-0.5">
                     <div className="flex items-center gap-1.5 mb-0.5">
                         <Volume2 className="h-3 w-3 text-primary" />
-                        <span className="text-[8px] font-black uppercase text-primary tracking-tighter">Audio</span>
+                        <span className="text-[8px] font-black uppercase text-primary tracking-tighter">Audio Note</span>
                     </div>
                     <audio controls src={url} className="h-6 w-full scale-90 -ml-2" />
                 </div>
@@ -270,7 +270,15 @@ export default function ChatThreadPage() {
                     <Button onClick={async () => {
                         if (!currentUser || !otherUserId) return;
                         const mid = doc(collection(db, COLLECTION_ID_MEETINGS)).id;
-                        await setDoc(doc(db, COLLECTION_ID_MEETINGS, mid), { hostId: currentUser.$id, invitedUsers: [otherUserId], status: 'pending', type: 'private_call', activeMode: 'audio', createdAt: serverTimestamp(), timestamp: Date.now() });
+                        await setDoc(doc(db, COLLECTION_ID_MEETINGS, mid), { 
+                            hostId: currentUser.$id, 
+                            invitedUsers: [otherUserId], 
+                            status: 'pending', 
+                            type: 'private_call', 
+                            activeMode: 'audio', 
+                            createdAt: serverTimestamp(), 
+                            timestamp: Date.now() 
+                        });
                         router.push(`/dashboard/chat/call/${mid}`);
                     }} variant="ghost" size="icon" className="text-primary h-9 w-9 rounded-full bg-primary/5"><Phone className="h-4 w-4" /></Button>
                     <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9 rounded-full"><MoreVertical className="h-5 w-5" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48 font-black uppercase text-[10px] rounded-2xl p-2 shadow-2xl"><DropdownMenuItem className="gap-2 text-destructive"><Ban className="h-4 w-4" /> Block Account</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
@@ -338,3 +346,4 @@ export default function ChatThreadPage() {
         </div>
     );
 }
+

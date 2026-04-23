@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -5,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { 
     PhoneOff, Loader2, Video, X, Send, 
     Mic, MicOff, MessageSquare, MonitorPlay, Heart, Camera,
-    Smartphone, Globe, Image as ImageIcon, Film, Music, UploadCloud
+    Smartphone, Globe, Image as ImageIcon, Film, Music, UploadCloud, Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-user';
@@ -19,8 +20,9 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Synchronized Call Hub v2.0.
- * FORCE: Accept takes both users directly to 'chat' functionality.
- * SYNC: clicking on 'X' closes visual mode and resets to 'audio' for both users.
+ * MODES: Audio, Video, Chat, Display.
+ * DISPLAY MODE: Force media sharing (Films/Images/Music) in real-time.
+ * SYNC: Status and Mode changes reflect instantly for both users.
  */
 
 export default function PrivateCallPage() {
@@ -46,7 +48,7 @@ export default function PrivateCallPage() {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             localStream.current = stream;
         } catch (e) {
-            console.error("Audio Handshake Denied.");
+            console.error("Audio Denied.");
         }
     };
 
@@ -116,7 +118,8 @@ export default function PrivateCallPage() {
     };
 
     const handleSendEmoji = async (emoji: string) => {
-        await setDoc(doc(collection(db, COLLECTION_ID_MESSAGES)), {
+        const msgId = ID.unique();
+        await setDoc(doc(db, COLLECTION_ID_MESSAGES, msgId), {
             chatId: `call_${callId}`,
             senderId: user?.$id,
             text: emoji,
@@ -152,7 +155,7 @@ export default function PrivateCallPage() {
 
     if (!partner || !call) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
 
-    const loveEmojis = ["😍","😘","😊","😅","❤️","😜","♥️","💕","💖","💋","🤩","💘","💝","💗","💓","💞","💟","❣️","💔","💌","❤️‍🔥","❤️‍🩹","🤎","💜","🩵","💙","💚","💛","🧡","🩷","🩶","🖤","🤍","👄","🫦","🫀","🧠","🫁"];
+    const loveEmojis = ["😍","😘","😊","❤️","😜","♥️","💕","💖","💋","💘","💝","💗","💓","💞","💟","❣️","💔","💌","❤️‍🔥","❤️‍🩹","🤎","💜","🩵","💙","💚","💛","🧡","🩷","🩶","🖤","🤍","👄","🫦","🫀","🧠","🫁"];
 
     return (
         <div className="h-screen w-full bg-background flex flex-col font-body overflow-hidden relative">
@@ -173,7 +176,7 @@ export default function PrivateCallPage() {
                         <div className="h-48 w-48 rounded-full bg-primary/5 flex items-center justify-center animate-pulse border-2 border-dashed border-primary/20">
                             <Mic className="h-12 w-12 text-primary" />
                         </div>
-                        <p className="mt-8 font-black uppercase text-[10px] tracking-[0.3em] opacity-30">Active Handshake</p>
+                        <p className="mt-8 font-black uppercase text-[10px] tracking-[0.3em] opacity-30">Voice Connection Active</p>
                     </div>
                 )}
 
