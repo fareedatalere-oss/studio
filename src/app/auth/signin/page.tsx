@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -11,12 +10,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
 import { account, databases, DATABASE_ID, COLLECTION_ID_PROFILES } from '@/lib/data-service';
-import { Eye, EyeOff, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useUser } from '@/hooks/use-user';
 
 /**
- * @fileOverview Sign In Page v3.0.
- * IDENTITY GATE: Prevents access if email is not verified.
+ * @fileOverview Sign In Page v4.0.
+ * REVERTED: Email verification check removed. High-speed entry restored.
  */
 
 const ADMIN_EMAIL = 'ipatmanager17@gmail.com';
@@ -25,16 +24,15 @@ const ADMIN_PASS = 'Abdussalam@100';
 export default function SignInPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user, loading: userLoading, sendVerificationEmail } = useUser();
+  const { user, loading: userLoading } = useUser();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [needsVerification, setNeedsVerification] = useState(false);
 
   useEffect(() => {
-    if (!userLoading && user && user.emailVerified) {
+    if (!userLoading && user) {
         router.replace('/dashboard');
     }
   }, [user, userLoading, router]);
@@ -42,7 +40,6 @@ export default function SignInPage() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setNeedsVerification(false);
 
     const trimmedEmail = email.trim().toLowerCase();
 
@@ -55,46 +52,11 @@ export default function SignInPage() {
           return;
       }
 
-      const res: any = await account.createEmailPasswordSession(email, password);
-      const firebaseUser = res.user;
+      await account.createEmailPasswordSession(email, password);
+      
+      // Verification check removed here as per user request
 
-      // 2. IDENTITY GATE: Check Verification
-      if (!firebaseUser.emailVerified) {
-          setNeedsVerification(true);
-          setIsLoading(false);
-          toast({ 
-            variant: 'destructive', 
-            title: 'Email Not Verified', 
-            description: 'Check your inbox for the activation link.' 
-          });
-          return;
-      }
-
-      const userId = firebaseUser.uid;
-
-      try {
-        const profile = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILES, userId);
-        
-        if (profile.isBlocked) {
-            await account.deleteSession('current');
-            toast({ 
-                variant: 'destructive', 
-                title: 'Access Denied', 
-                description: 'You are blocked by I-Pay team.',
-            });
-            setIsLoading(false);
-            return;
-        }
-
-        sessionStorage.setItem('ipay_pin_verified', 'true');
-        router.push('/dashboard');
-      } catch (profileError: any) {
-        if (profileError.code === 404) {
-            router.push('/auth/signup/profile');
-        } else {
-            router.push('/dashboard');
-        }
-      }
+      router.push('/dashboard');
 
     } catch (error: any) {
         let message = "Invalid credentials. Please try again.";
@@ -102,18 +64,6 @@ export default function SignInPage() {
             message = "Account not found or wrong details.";
         }
         toast({ title: 'Sign In Failed', description: message, variant: 'destructive' });
-        setIsLoading(false);
-    }
-  };
-
-  const handleResend = async () => {
-    setIsLoading(true);
-    try {
-        await sendVerificationEmail();
-        toast({ title: 'Verification Sent', description: 'Please check your email again.' });
-    } catch (e: any) {
-        toast({ variant: 'destructive', title: 'Error', description: e.message });
-    } finally {
         setIsLoading(false);
     }
   };
@@ -159,20 +109,6 @@ export default function SignInPage() {
               </div>
             </div>
 
-            {needsVerification && (
-                <div className="p-4 rounded-xl bg-amber-50 border border-amber-100 flex flex-col gap-3">
-                    <div className="flex items-start gap-2">
-                        <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                        <p className="text-[10px] font-bold text-amber-800 leading-tight">
-                            Identity not activated. Click the link in your email to proceed.
-                        </p>
-                    </div>
-                    <Button type="button" onClick={handleResend} variant="outline" size="sm" className="h-8 rounded-lg font-black uppercase text-[8px] gap-2 border-amber-200 text-amber-700 hover:bg-amber-100">
-                        <RefreshCw className="h-3 w-3" /> Resend Activation Link
-                    </Button>
-                </div>
-            )}
-
             <div className="flex items-center justify-end">
               <Link href="/auth/forgot-password"  className="text-[9px] font-black uppercase underline opacity-50 hover:opacity-100 transition-opacity">Forgot Password?</Link>
             </div>
@@ -180,7 +116,7 @@ export default function SignInPage() {
                 {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Sign In'}
             </Button>
           </form>
-          <div className="mt-6 text-center text-xs font-medium uppercase tracking-tight">
+          <div className="mt-6 text-center text-sm font-medium">
             Don't have an account? <Link href="/auth/signup" className="underline font-black text-primary">Sign Up</Link>
           </div>
         </CardContent>

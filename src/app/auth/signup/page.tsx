@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -11,29 +10,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { useToast } from '@/hooks/use-toast';
 import { IPayLogo } from '@/components/icons';
 import { account, ID } from '@/lib/data-service';
-import { Eye, EyeOff, ShieldCheck, Loader2, MailCheck } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/use-user';
 
 /**
- * @fileOverview Sign Up Page v2.0.
- * IDENTITY GATE: Automatically triggers email verification on creation.
+ * @fileOverview Sign Up Page v3.0.
+ * REVERTED: Email verification gate removed. Direct access restored.
  */
 
 export default function SignUpPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user, loading: userLoading, sendVerificationEmail } = useUser();
+  const { user, loading: userLoading } = useUser();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isVerificationSent, setIsVerificationSent] = useState(false);
 
   useEffect(() => {
-    if (!userLoading && user && user.emailVerified) {
+    if (!userLoading && user) {
         router.replace('/dashboard');
     }
   }, [user, userLoading, router]);
@@ -54,15 +52,11 @@ export default function SignUpPage() {
       await account.create(ID.unique(), email, password);
       await account.createEmailPasswordSession(email, password);
       
-      // IDENTITY GATE: Send verification link immediately
-      await sendVerificationEmail();
-      
-      setIsVerificationSent(true);
       toast({ 
-        title: 'Check Your Email', 
-        description: "We've sent a verification link. Please click it to activate your account.",
-        duration: 10000
+        title: 'Account Created', 
+        description: "Welcome to I-Pay online world.",
       });
+      router.push('/auth/signup/profile');
       
     } catch (error: any) {
       let msg = error.message || 'An unexpected error occurred.';
@@ -74,27 +68,6 @@ export default function SignUpPage() {
         setIsLoading(false);
     }
   };
-
-  if (isVerificationSent) {
-      return (
-        <div className="flex min-h-screen items-center justify-center bg-background p-4">
-            <Card className="w-full max-w-md shadow-2xl border-t-8 border-t-primary rounded-[2.5rem] overflow-hidden text-center p-10">
-                <div className="bg-primary/10 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-white shadow-lg">
-                    <MailCheck className="h-12 w-12 text-primary" />
-                </div>
-                <CardTitle className="text-3xl font-black uppercase tracking-tighter mb-4">Verify Identity</CardTitle>
-                <CardDescription className="text-sm font-bold leading-relaxed mb-8">
-                    A secure activation link has been sent to <span className="text-primary">{email}</span>. <br/><br/>
-                    Please click the link in your email to enable your I-Pay dashboard.
-                </CardDescription>
-                <Button asChild className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-xl">
-                    <Link href="/auth/signin">Go to Sign In</Link>
-                </Button>
-                <p className="mt-6 text-[10px] font-black uppercase opacity-30 tracking-widest">Powered by I-Pay Security Engine</p>
-            </Card>
-        </div>
-      );
-  }
 
   if (userLoading) {
     return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary opacity-20" /></div>;
@@ -177,7 +150,7 @@ export default function SignUpPage() {
             </div>
 
             <Button type="submit" className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-xl mt-4" disabled={isLoading || !passwordsMatch}>
-              {isLoading ? "Generating Link..." : "Create & Verify Email"}
+              {isLoading ? "Creating..." : "Create Account"}
             </Button>
           </form>
           <div className="mt-6 text-center text-sm font-medium">

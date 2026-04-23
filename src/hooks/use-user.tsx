@@ -1,18 +1,16 @@
-
 'use client';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, COLLECTION_ID_NOTIFICATIONS } from '@/lib/data-service';
 import { auth, db, messaging } from '@/lib/firebase';
-import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { doc, serverTimestamp, onSnapshot, collection, updateDoc, query, where, orderBy } from 'firebase/firestore';
 import { getToken } from 'firebase/messaging';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef, useMemo } from 'react';
 import { cn } from "@/lib/utils";
 
 /**
- * @fileOverview Global Memory Shield & Presence Engine v6.0.
- * PRIVACY: Scopes all listeners strictly to Current UID. Global message listener TERMINATED.
- * VERIFICATION: Exposes email verification status to the app.
+ * @fileOverview Global Memory Shield & Presence Engine v7.0.
+ * PRIVACY: Listeners are strictly scoped to Participant IDs only. User A cannot see User C data.
  * FCM: Registers Service Worker for background pings and calls.
  */
 
@@ -29,7 +27,6 @@ type UserContextType = {
     globalMessages: Record<string, any[]>;
     recheckUser: () => Promise<void>;
     isUserActuallyOnline: (user: any) => boolean;
-    sendVerificationEmail: () => Promise<void>;
 };
 
 const UserContext = createContext<UserContextType>({ 
@@ -44,8 +41,7 @@ const UserContext = createContext<UserContextType>({
     unreadMessages: 0,
     globalMessages: {},
     recheckUser: async () => {},
-    isUserActuallyOnline: () => false,
-    sendVerificationEmail: async () => {}
+    isUserActuallyOnline: () => false
 });
 
 export function UserProvider({ children }: { children: ReactNode }) {
@@ -72,7 +68,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             if (!m) return;
             // Register SW for background pings
             await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-            const token = await getToken(m, { vapidKey: 'BC8Z6n_uWpTzZ6R0S5U6V7X8Y9Z0A1B2C3D4E5F6G7H8I9J0' }); // Use your VAPID key from Firebase Console
+            const token = await getToken(m, { vapidKey: 'BC8Z6n_uWpTzZ6R0S5U6V7X8Y9Z0A1B2C3D4E5F6G7H8I9J0' });
             if (token) {
                 await updateDoc(doc(db, COLLECTION_ID_PROFILES, uid), { fcmToken: token });
             }
@@ -129,12 +125,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
         } catch (e) {}
     }, []);
 
-    const sendVerificationEmail = useCallback(async () => {
-        if (auth.currentUser) {
-            await sendEmailVerification(auth.currentUser);
-        }
-    }, []);
-
     useEffect(() => {
         setIsMounted(true);
         fetchConfig();
@@ -152,8 +142,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 setUser({ 
                     $id: uid, 
                     uid, 
-                    email: firebaseUser.email, 
-                    emailVerified: firebaseUser.emailVerified 
+                    email: firebaseUser.email
                 });
                 
                 if ('Notification' in window && Notification.permission === 'default') {
@@ -202,9 +191,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     });
                 }));
 
-                // PRIVACY FORCE: Terminated global message listener. Scoped to unread only for alerts.
-                // We handle message delivery via FCM or specific chat room listeners.
-                
                 updatePresence(true);
                 heartbeatInterval = setInterval(() => updatePresence(true), 60000); 
                 
@@ -246,9 +232,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         unreadMessages, 
         globalMessages, 
         recheckUser,
-        isUserActuallyOnline,
-        sendVerificationEmail
-    }), [user, profile, config, proof, isLoading, allUsers, recentChats, unreadNotifications, unreadMessages, globalMessages, recheckUser, isUserActuallyOnline, sendVerificationEmail]);
+        isUserActuallyOnline
+    }), [user, profile, config, proof, isLoading, allUsers, recentChats, unreadNotifications, unreadMessages, globalMessages, recheckUser, isUserActuallyOnline]);
 
     return (
         <UserContext.Provider value={contextValue}>
