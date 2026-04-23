@@ -28,8 +28,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Private Chat Hub v6.1.
- * UPDATED: 3-minute recording limit for audio/video.
+ * @fileOverview Private Chat Hub v6.2.
+ * UPDATED: 1-hour recording limit for Mic / 3-minute limit for Uploads.
  * RENDERING: Media shown as compact icons only. 
  */
 
@@ -159,9 +159,9 @@ export default function ChatThreadPage() {
             recorder.start();
             recordingTimerRef.current = setInterval(() => {
                 setRecordingDuration(prev => {
-                    if (prev >= 180) { // 3 Minute Limit
+                    if (prev >= 3600) { // 1 Hour Limit for LIVE Recording
                         stopRecording(); 
-                        return 180; 
+                        return 3600; 
                     }
                     return prev + 1;
                 });
@@ -204,7 +204,7 @@ export default function ChatThreadPage() {
         if (!file || !currentUser) return;
 
         if (file.type.startsWith('audio') || file.type.startsWith('video')) {
-            toast({ title: "Media Limit", description: "Uploaded audio and video must be up to 3 minutes." });
+            toast({ title: "Upload Limit", description: "Uploaded audio and video files must be up to 3 minutes." });
         }
 
         setIsUploading(true);

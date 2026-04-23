@@ -18,8 +18,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { format } from 'date-fns';
 
 /**
- * @fileOverview Sofia AI Chat Hub v12.1.
- * UPDATED: 3-minute recording limit for audio/video.
+ * @fileOverview Sofia AI Chat Hub v12.2.
+ * UPDATED: 1-hour recording limit for Mic / 3-minute limit for Uploads.
  * RENDERING: Medium-sized media for direct visibility.
  */
 
@@ -153,7 +153,7 @@ export default function SofiaChatPage() {
         if (!file) return;
 
         if (file.type.startsWith('audio') || file.type.startsWith('video')) {
-            toast({ title: "Media Protocol", description: "Audio and video files should be up to 3 minutes." });
+            toast({ title: "Upload Protocol", description: "Audio and video files are limited to 3 minutes." });
         }
 
         setIsUploading(true);
@@ -197,9 +197,9 @@ export default function SofiaChatPage() {
             recorder.start();
             recordingTimerRef.current = setInterval(() => {
                 setRecordingDuration(prev => {
-                    if (prev >= 180) { // 3 Minute Limit
+                    if (prev >= 3600) { // 1 Hour Limit for LIVE Recording
                         stopRecording();
-                        return 180;
+                        return 3600;
                     }
                     return prev + 1;
                 });
