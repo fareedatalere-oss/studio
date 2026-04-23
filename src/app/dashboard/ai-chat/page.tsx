@@ -18,9 +18,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { format } from 'date-fns';
 
 /**
- * @fileOverview Sofia AI Chat Hub v11.0.
- * RESTORED: Voice Note recording on keyboard.
- * FIXED: Message memory and deletion handshake.
+ * @fileOverview Sofia AI Chat Hub v12.0.
+ * UPDATED: Multi-option Paperclip (Image, Video, Audio).
+ * RENDERING: Medium-sized media for direct visibility.
  */
 
 export default function SofiaChatPage() {
@@ -32,7 +32,6 @@ export default function SofiaChatPage() {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
-    const [mediaPreview, setMediaPreview] = useState<{ url: string, type: string } | null>(null);
     const [mediaFile, setMediaFile] = useState<File | null>(null);
     
     // Voice Note State
@@ -81,7 +80,7 @@ export default function SofiaChatPage() {
 
     const handleSend = async (textOverride?: string, mediaData?: { url: string, type: string }) => {
         const msgText = textOverride || input.trim();
-        if (!msgText && !mediaData && !mediaPreview) return;
+        if (!msgText && !mediaData) return;
         
         setIsLoading(true);
         setInput('');
@@ -89,23 +88,6 @@ export default function SofiaChatPage() {
         try {
             let finalMediaUrl = mediaData?.url || '';
             let finalMediaType = mediaData?.type || '';
-
-            if (mediaFile && !mediaData) {
-                setIsUploading(true);
-                const reader = new FileReader();
-                const b64 = await new Promise<string>((resolve) => {
-                    reader.onloadend = () => resolve(reader.result as string);
-                    reader.readAsDataURL(mediaFile);
-                });
-                
-                const type = mediaFile.type.startsWith('video') ? 'video' : (mediaFile.type.startsWith('audio') ? 'audio' : 'image');
-                const res = await uploadToCloudinary(b64, type === 'image' ? 'image' : 'video');
-                if (res.success) {
-                    finalMediaUrl = res.url;
-                    finalMediaType = type;
-                }
-                setIsUploading(false);
-            }
 
             // 1. Save User Message
             await addDoc(collection(db, 'sofiaChats'), {
@@ -117,7 +99,6 @@ export default function SofiaChatPage() {
                 createdAt: serverTimestamp()
             });
 
-            setMediaPreview(null);
             setMediaFile(null);
             setRecordedUrl(null);
             setRecordedBlob(null);
@@ -156,8 +137,6 @@ export default function SofiaChatPage() {
                     if (res.action === 'nav_history') router.push('/dashboard/history');
                     if (res.action === 'nav_rewards') router.push('/dashboard/rewards');
                     if (res.action === 'nav_settings') router.push('/dashboard/profile/settings');
-                    if (res.action === 'open_tiktok') window.open('https://www.tiktok.com', '_blank');
-                    if (res.action === 'open_external' && res.externalUrl) window.open(res.externalUrl, '_blank');
                 }, 1500);
             }
 
@@ -166,6 +145,30 @@ export default function SofiaChatPage() {
             toast({ variant: 'destructive', title: 'Sync Error', description: e.message });
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+            const reader = new FileReader();
+            const b64 = await new Promise<string>((resolve) => {
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(file);
+            });
+            
+            const type = file.type.startsWith('video') ? 'video' : (file.type.startsWith('audio') ? 'audio' : 'image');
+            const res = await uploadToCloudinary(b64, type === 'image' ? 'image' : 'video');
+            if (res.success) {
+                await handleSend('', { url: res.url, type: type });
+            }
+        } catch (err) {
+            toast({ variant: 'destructive', title: 'Upload Failed' });
+        } finally {
+            setIsUploading(false);
         }
     };
 
@@ -267,10 +270,10 @@ export default function SofiaChatPage() {
                                 m.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none"
                             )}>
                                 {m.mediaUrl && (
-                                    <div className="mb-4 rounded-2xl overflow-hidden border border-white/10 shadow-lg">
-                                        {m.mediaType === 'image' && <img src={m.mediaUrl} className="w-full h-auto" alt="Context"/>}
+                                    <div className="mb-4 rounded-2xl overflow-hidden border border-white/10 shadow-lg bg-black/5 max-w-[280px]">
+                                        {m.mediaType === 'image' && <img src={m.mediaUrl} className="w-full h-auto object-cover" alt="Identity"/>}
                                         {m.mediaType === 'video' && <video src={m.mediaUrl} controls className="w-full h-auto"/>}
-                                        {m.mediaType === 'audio' && <audio src={m.mediaUrl} controls className="w-full h-8"/>}
+                                        {m.mediaType === 'audio' && <audio src={m.mediaUrl} controls className="w-full h-10 p-2"/>}
                                     </div>
                                 )}
                                 <p className="whitespace-pre-wrap">{m.text}</p>
@@ -295,10 +298,10 @@ export default function SofiaChatPage() {
                             </div>
                         </div>
                     ))}
-                    {isLoading && (
+                    {(isLoading || isUploading) && (
                         <div className="flex items-center gap-3 text-primary animate-pulse">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-[9px] font-black uppercase tracking-widest">Sofia thinking...</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest">{isUploading ? 'Uploading Media...' : 'Sofia thinking...'}</span>
                         </div>
                     ) }
                     <div ref={scrollRef} />
@@ -325,13 +328,24 @@ export default function SofiaChatPage() {
                         </div>
                     ) : (
                         <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-2xl bg-muted/50 transition-all active:scale-90"><Paperclip className="h-5 w-5"/></Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-12 w-12 rounded-2xl bg-muted/50 transition-all active:scale-90"><Paperclip className="h-5 w-5"/></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-40 rounded-2xl p-2 font-black uppercase text-[9px] shadow-2xl">
+                                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2"><ImageIcon className="h-4 w-4" /> Image</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2"><Film className="h-4 w-4" /> Video</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2"><Music className="h-4 w-4" /> Audio</DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+
                             <Input 
                                 placeholder="Type a message..." 
                                 value={input} 
                                 onChange={e => setInput(e.target.value)}
                                 onKeyPress={e => e.key === 'Enter' && handleSend()}
                                 className="flex-1 h-12 rounded-2xl bg-muted border-none px-6 font-bold shadow-inner focus-visible:ring-1 focus-visible:ring-primary"
+                                disabled={isLoading || isUploading}
                             />
                             {!input.trim() ? (
                                 <Button onClick={startRecording} size="icon" className="h-12 w-12 rounded-2xl shadow-xl bg-primary text-white">
@@ -345,15 +359,8 @@ export default function SofiaChatPage() {
                         </div>
                     )}
                 </div>
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,audio/*" onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                        setMediaFile(file);
-                        setMediaPreview({ url: URL.createObjectURL(file), type: file.type.split('/')[0] });
-                    }
-                }} />
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,audio/*" onChange={handleFileSelect} />
             </footer>
         </div>
     );
 }
-

@@ -14,7 +14,7 @@ import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, CO
 import { 
     ArrowLeft, Send, Loader2, Paperclip, MoreVertical, Trash2, 
     FileText, Image as ImageIcon, Film, Mic, Volume2, Share2, ShieldAlert,
-    Ban, Unlock, Search, X
+    Ban, Unlock, Search, X, Music
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -28,8 +28,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Private Chat Hub v5.0.
- * UPDATED: Calling button removed. Focus on messaging.
+ * @fileOverview Private Chat Hub v6.0.
+ * RENDERING: Media shown as compact icons only. 
+ * INTERACTION: Click icons to open full-screen media viewer.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -175,7 +176,6 @@ export default function ChatThreadPage() {
 
     const sendVoiceNote = async () => {
         if (!recordedBlob || !currentUser) return;
-        const localBlobUrl = recordedUrl;
         setRecordedUrl(null);
         setRecordedBlob(null);
         setIsUploading(true);
@@ -227,19 +227,36 @@ export default function ChatThreadPage() {
 
     const MediaIcon = ({ type, url }: { type: string, url: string }) => {
         const viewMedia = () => router.push(`/dashboard/chat/view-media?url=${encodeURIComponent(url)}&type=${type}`);
+        
         switch (type) {
-            case 'image': return <div onClick={viewMedia} className="relative h-24 w-24 rounded-xl overflow-hidden border cursor-pointer shadow-sm"><img src={url} className="object-cover h-full w-full" alt="img"/></div>;
-            case 'video': return <div onClick={viewMedia} className="relative h-24 w-24 rounded-xl overflow-hidden border bg-black flex items-center justify-center cursor-pointer shadow-sm"><Film className="text-white h-6 w-6" /></div>;
-            case 'audio': return (
-                <div className="flex flex-col gap-1 min-w-[120px] p-0.5">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                        <Volume2 className="h-3 w-3 text-primary" />
-                        <span className="text-[8px] font-black uppercase text-primary tracking-tighter">Voice Note</span>
+            case 'image': 
+                return (
+                    <div onClick={viewMedia} className="flex items-center gap-2 p-2 bg-white/10 rounded-xl cursor-pointer hover:bg-white/20 transition-colors">
+                        <ImageIcon className="h-5 w-5 text-white" />
+                        <span className="text-[10px] font-black uppercase tracking-tighter">View Image</span>
                     </div>
-                    <audio controls src={url} className="h-7 w-full scale-90 -ml-2" />
-                </div>
-            );
-            default: return <div onClick={viewMedia} className="h-10 w-40 rounded-xl bg-muted flex items-center px-4 gap-2 cursor-pointer border"><FileText className="h-4 w-4" /><span className="text-[9px] font-black uppercase truncate">File</span></div>;
+                );
+            case 'video': 
+                return (
+                    <div onClick={viewMedia} className="flex items-center gap-2 p-2 bg-white/10 rounded-xl cursor-pointer hover:bg-white/20 transition-colors">
+                        <Film className="h-5 w-5 text-white" />
+                        <span className="text-[10px] font-black uppercase tracking-tighter">View Video</span>
+                    </div>
+                );
+            case 'audio': 
+                return (
+                    <div onClick={viewMedia} className="flex items-center gap-2 p-2 bg-white/10 rounded-xl cursor-pointer hover:bg-white/20 transition-colors">
+                        <Music className="h-5 w-5 text-white" />
+                        <span className="text-[10px] font-black uppercase tracking-tighter">Play Audio</span>
+                    </div>
+                );
+            default: 
+                return (
+                    <div onClick={viewMedia} className="flex items-center gap-2 p-2 bg-white/10 rounded-xl cursor-pointer hover:bg-white/20 transition-colors">
+                        <FileText className="h-5 w-5 text-white" />
+                        <span className="text-[10px] font-black uppercase tracking-tighter">Open File</span>
+                    </div>
+                );
         }
     };
 
@@ -312,9 +329,19 @@ export default function ChatThreadPage() {
                         </div>
                     ) : (
                         <>
-                            <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9 rounded-full bg-muted/50"><Paperclip className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="start" className="w-40 rounded-2xl p-2 font-black uppercase text-[9px] shadow-2xl"><DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><ImageIcon className="h-4 w-4" /> Image</DropdownMenuItem><DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><Film className="h-4 w-4" /> Video</DropdownMenuItem><DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><FileText className="h-4 w-4" /> Document</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full bg-muted/50"><Paperclip className="h-4 w-4" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-40 rounded-2xl p-2 font-black uppercase text-[9px] shadow-2xl">
+                                    <DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><ImageIcon className="h-4 w-4" /> Image</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><Film className="h-4 w-4" /> Video</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><Music className="h-4 w-4" /> Audio</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => { fileInputRef.current?.click(); }} className="gap-2"><FileText className="h-4 w-4" /> Document</DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                             <Input placeholder="Message..." value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} className="flex-1 h-9 rounded-full bg-muted/50 border-none px-4 text-xs font-bold shadow-inner" />
-                            <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+                            <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileUpload} accept="image/*,video/*,audio/*,application/pdf" />
                             {!newMessage.trim() ? (
                                 <Button onClick={startRecording} size="icon" className="h-9 w-9 rounded-full bg-primary shadow-lg"><Mic className="h-4 w-4 text-white" /></Button>
                             ) : (
@@ -325,7 +352,7 @@ export default function ChatThreadPage() {
                 </div>
             </footer>
 
-            <Dialog open={forwardDialogOpen} onOpenChange={setForwardDialogOpen}><DialogContent className="max-w-md w-[90%] rounded-[2rem] p-6 border-none shadow-2xl"><DialogHeader><DialogTitle className="text-center font-black uppercase tracking-tighter text-sm">Forward</DialogTitle></DialogHeader><div className="space-y-4 pt-4"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" /><Input placeholder="Search..." className="pl-10 h-10 rounded-xl bg-muted border-none" value={forwardSearch} onChange={e => setForwardSearch(e.target.value)} /></div><ScrollArea className="h-64 pr-2"><div className="space-y-2">{filteredForwardUsers.map(u => (<div key={u.$id} className="flex items-center justify-between p-3 rounded-2xl bg-muted/30 hover:bg-primary/5 transition-colors cursor-pointer" onClick={() => handleSend(messageToForward?.text, messageToForward?.mediaUrl ? { url: messageToForward.mediaUrl, type: messageToForward.mediaType } : undefined, u.$id)}><div className="flex items-center gap-3"><Avatar className="h-8 w-8"><AvatarImage src={u.avatar}/><AvatarFallback>{u.username?.charAt(0)}</AvatarFallback></Avatar><p className="font-bold text-xs">@{u.username}</p></div><Share2 className="h-4 w-4 text-primary" /></div>))}</div></ScrollArea></div></DialogContent></Dialog>
+            <Dialog open={forwardDialogOpen} onOpenChange={setForwardDialogOpen}><DialogContent className="max-w-md w-[90%] rounded-[2rem] p-6 border-none shadow-2xl"><DialogHeader><DialogTitle className="text-center font-black uppercase tracking-tighter text-sm">Forward</DialogTitle></DialogHeader><div className="space-y-4 pt-4"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-50" /><Input placeholder="Search..." className="pl-10 h-10 rounded-xl bg-muted border-none" value={forwardSearch} onChange={e => setForwardSearch(e.target.value)} /></div><ScrollArea className="h-64 pr-2"><div className="space-y-2">{filteredForwardUsers.map(u => (<div key={u.$id} className="flex items-center justify-between p-3 rounded-2xl bg-muted/30 hover:bg-primary/5 transition-colors cursor-pointer" onClick={() => handleSend(messageToForward?.text, messageToForward?.mediaUrl ? { url: messageToForward.url, type: messageToForward.type } : undefined, u.$id)}><div className="flex items-center gap-3"><Avatar className="h-8 w-8"><AvatarImage src={u.avatar}/><AvatarFallback>{u.username?.charAt(0)}</AvatarFallback></Avatar><p className="font-bold text-xs">@{u.username}</p></div><Share2 className="h-4 w-4 text-primary" /></div>))}</div></ScrollArea></div></DialogContent></Dialog>
         </div>
     );
 }
