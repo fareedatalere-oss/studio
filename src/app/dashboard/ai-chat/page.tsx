@@ -18,9 +18,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { format } from 'date-fns';
 
 /**
- * @fileOverview Sofia AI Chat Hub v12.2.
- * UPDATED: 1-hour recording limit for Mic / 3-minute limit for Uploads.
- * RENDERING: Medium-sized media for direct visibility.
+ * @fileOverview Sofia AI Chat Hub v12.3.
+ * UPDATED: Optimized for 1-hour recording / 3-minute uploads.
+ * VOICE: Interactive playback icon rendered clearly under messages.
  */
 
 export default function SofiaChatPage() {
@@ -153,7 +153,7 @@ export default function SofiaChatPage() {
         if (!file) return;
 
         if (file.type.startsWith('audio') || file.type.startsWith('video')) {
-            toast({ title: "Upload Protocol", description: "Audio and video files are limited to 3 minutes." });
+            toast({ title: "Upload Protocol", description: "External media files are limited to 3 minutes." });
         }
 
         setIsUploading(true);
@@ -176,7 +176,7 @@ export default function SofiaChatPage() {
         }
     };
 
-    // Recording Logic
+    // Recording Logic (1 Hour Limit)
     const startRecording = async () => {
         if (!navigator.mediaDevices) return;
         try {
@@ -197,7 +197,7 @@ export default function SofiaChatPage() {
             recorder.start();
             recordingTimerRef.current = setInterval(() => {
                 setRecordingDuration(prev => {
-                    if (prev >= 3600) { // 1 Hour Limit for LIVE Recording
+                    if (prev >= 3600) { // 1 Hour Limit
                         stopRecording();
                         return 3600;
                     }
@@ -281,7 +281,7 @@ export default function SofiaChatPage() {
                             )}>
                                 {m.mediaUrl && (
                                     <div className="mb-4 rounded-2xl overflow-hidden border border-white/10 shadow-lg bg-black/5 max-w-[280px]">
-                                        {m.mediaType === 'image' && <img src={m.mediaUrl} className="w-full h-auto object-cover" alt="Identity"/>}
+                                        {m.mediaType === 'image' && <img src={m.mediaUrl} className="w-full h-auto object-cover" alt="Media"/>}
                                         {m.mediaType === 'video' && <video src={m.mediaUrl} controls className="w-full h-auto"/>}
                                         {m.mediaType === 'audio' && <audio src={m.mediaUrl} controls className="w-full h-10 p-2"/>}
                                     </div>
@@ -292,7 +292,7 @@ export default function SofiaChatPage() {
                                     <Button 
                                         variant="ghost" 
                                         size="icon" 
-                                        className="mt-3 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                                        className="mt-3 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20 border-2 border-primary/20"
                                         onClick={() => playVoice(m.voiceUrl)}
                                     >
                                         <Volume2 className="h-4 w-4" />
@@ -311,7 +311,7 @@ export default function SofiaChatPage() {
                     {(isLoading || isUploading) && (
                         <div className="flex items-center gap-3 text-primary animate-pulse">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-[9px] font-black uppercase tracking-widest">{isUploading ? 'Uploading Media...' : 'Sofia thinking...'}</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest">{isUploading ? 'Syncing...' : 'Sofia thinking...'}</span>
                         </div>
                     ) }
                     <div ref={scrollRef} />

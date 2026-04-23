@@ -2,10 +2,10 @@
 'use server';
 
 /**
- * @fileOverview Sofia Local Intelligence v9.0.
+ * @fileOverview Sofia Local Intelligence v10.0.
  * ROLE: Absolute Master Intelligence for I-Pay Online World.
- * AUTHORITY: Checks User Context -> Greetings -> Local Brain (Firestore).
- * NO API: All external cloud calls have been terminated.
+ * AUTHORITY: Precise Brain Bank Matching with Voice Support.
+ * NO API: 100% local database retrieval.
  */
 
 import { databases, DATABASE_ID, COLLECTION_ID_GLOBAL_KNOWLEDGE, Query } from '@/lib/data-service';
@@ -39,11 +39,10 @@ export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
   const msg = input.message.toLowerCase().trim();
   const now = new Date();
   
-  // 1. GREETING PROTOCOL (Immediate - No Brain Search)
+  // 1. GREETING PROTOCOL (Identity Priority)
   if (msg === 'hi' || msg === 'hello' || msg === 'hey') {
     const timeStr = format(now, 'HH:mm');
     const dateStr = format(now, 'PPPP');
-    // Mock weather as requested for internal logic
     const weather = "Clear skies and Sunny"; 
     
     return {
@@ -52,7 +51,7 @@ export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
     };
   }
   
-  // 2. ACCOUNT & NAVIGATION CHECK (Immediate - No Brain Search)
+  // 2. ACCOUNT & NAVIGATION CHECK
   if (msg.includes('balance') || msg.includes('money') || msg.includes('naira')) {
     return {
         text: `Hello @${input.username}, your current I-Pay Wallet balance is ₦${input.userContext?.nairaBalance?.toLocaleString() || '0.00'}.`,
@@ -67,40 +66,20 @@ export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
     };
   }
 
-  if (msg.includes('reward') || msg.includes('point')) {
-    return {
-        text: `Your current Reward Points balance is ${input.userContext?.rewardBalance?.toLocaleString() || '0'}. Keep interacting to earn more!`,
-        action: 'nav_rewards'
-    };
-  }
+  // Navigation Intents
+  if (msg.includes('go to chat') || msg.includes('open chat')) return { text: "Opening your private chat hub.", action: 'nav_chat' };
+  if (msg.includes('market') || msg.includes('buy') || msg.includes('sell')) return { text: "Navigating to the I-Pay Marketplace.", action: 'nav_market' };
+  if (msg.includes('deposit') || msg.includes('fund')) return { text: "Opening the secure deposit vault.", action: 'nav_deposit' };
+  if (msg.includes('history') || msg.includes('transactions')) return { text: "Opening your transaction ledger.", action: 'nav_history' };
+  if (msg.includes('setting') || msg.includes('edit profile')) return { text: "Taking you to account settings.", action: 'nav_settings' };
 
-  // Automated Navigation Intents
-  if (msg.includes('go to chat') || msg.includes('open chat') || msg.includes('message someone')) {
-      return { text: "Opening your private chat hub now.", action: 'nav_chat' };
-  }
-  if (msg.includes('market') || msg.includes('buy') || msg.includes('sell') || msg.includes('store')) {
-      return { text: "Navigating to the I-Pay Marketplace. Browse apps, items, and books.", action: 'nav_market' };
-  }
-  if (msg.includes('deposit') || msg.includes('fund') || msg.includes('add money')) {
-      return { text: "Opening the secure deposit vault.", action: 'nav_deposit' };
-  }
-  if (msg.includes('history') || msg.includes('transactions') || msg.includes('receipt')) {
-      return { text: "Opening your master transaction ledger.", action: 'nav_history' };
-  }
-  if (msg.includes('setting') || msg.includes('change pin') || msg.includes('edit profile')) {
-      return { text: "Taking you to your security and account settings.", action: 'nav_settings' };
-  }
-  if (msg.includes('take me to') || msg.includes('other side')) {
-      return { text: "Pivoting your application view now.", action: 'nav_market' };
-  }
-
-  // 3. LOCAL BRAIN BANK CHECK (Firestore globalKnowledge)
+  // 3. BRAIN BANK SEARCH (Force precise matching)
   try {
       const knowledgeRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_GLOBAL_KNOWLEDGE, [
           Query.limit(100)
       ]);
       
-      // Search for keyword matches in your team's bank
+      // Attempt exact or keyword keyword match
       const match = knowledgeRes.documents.find(doc => 
           msg.includes(doc.keyword?.toLowerCase()) || 
           doc.keyword?.toLowerCase().includes(msg)
@@ -110,14 +89,14 @@ export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
           return {
               text: match.answer,
               action: match.action || 'none',
-              voiceUrl: match.voiceUrl
+              voiceUrl: match.voiceUrl || undefined
           };
       }
   } catch (e) {
-      console.error("Local Brain Search Error:", e);
+      console.error("Local Brain Bank Failure:", e);
   }
 
-  // 4. ZERO ANSWER FALLBACK (Strict Instruction)
+  // 4. ZERO ANSWER FALLBACK
   return {
     text: "I can't answer. Please ask a different question or ask about your account.",
     action: 'none'

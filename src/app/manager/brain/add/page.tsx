@@ -1,4 +1,6 @@
 
+'use server';
+
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -7,15 +9,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { ArrowLeft, Mic, Send, Volume2, Save, Loader2, BrainCircuit, CheckCircle2, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Mic, Send, Volume2, Save, Loader2, BrainCircuit, CheckCircle2, ChevronRight, Square } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 import { databases, DATABASE_ID, COLLECTION_ID_GLOBAL_KNOWLEDGE, ID } from '@/lib/data-service';
 import { cn } from '@/lib/utils';
 
 /**
- * @fileOverview Recursive AI Knowledge Builder v2.0.
- * FORCED: Instant DB Commit and Form Reset Protocol.
+ * @fileOverview Master Knowledge Builder v3.0.
+ * FORCE: Zero-failure recording and persistent visibility.
+ * SYNC: Direct Cloudinary integration with recursive form reset.
  */
 
 export default function AddKnowledgePage() {
@@ -28,6 +31,7 @@ export default function AddKnowledgePage() {
     const [voiceUrl, setVoiceUrl] = useState('');
     const [isRecording, setIsRecording] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
     
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
@@ -36,6 +40,7 @@ export default function AddKnowledgePage() {
         setQuestion('');
         setAnswer('');
         setVoiceUrl('');
+        setRecordedBlob(null);
         setIsRecording(false);
         setIsProcessing(false);
     };
@@ -46,65 +51,78 @@ export default function AddKnowledgePage() {
             const recorder = new MediaRecorder(stream);
             mediaRecorderRef.current = recorder;
             const chunks: Blob[] = [];
-            recorder.ondataavailable = (e) => chunks.push(e.data);
+            
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+
             recorder.onstop = async () => {
                 const blob = new Blob(chunks, { type: 'audio/ogg; codecs=opus' });
-                setIsProcessing(true);
-                
-                const reader = new FileReader();
-                const b64 = await new Promise<string>((resolve) => {
-                    reader.onloadend = () => resolve(reader.result as string);
-                    reader.readAsDataURL(blob);
-                });
-
-                const res = await uploadToCloudinary(b64, 'video');
-                if (res.success) {
-                    setVoiceUrl(res.url);
-                    toast({ title: 'Voice Captured' });
-                } else {
-                    toast({ variant: 'destructive', title: 'Upload Failed' });
-                }
-                setIsProcessing(false);
+                setRecordedBlob(blob);
+                setVoiceUrl(URL.createObjectURL(blob));
                 stream.getTracks().forEach(t => t.stop());
             };
+
             recorder.start();
             setIsRecording(true);
         } catch (e) {
-            toast({ variant: 'destructive', title: 'Microphone Error' });
+            toast({ variant: 'destructive', title: 'Mic Access Denied' });
         }
     };
 
     const stopRecording = () => {
-        mediaRecorderRef.current?.stop();
-        setIsRecording(false);
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+        }
     };
 
-    const handleGenerate = async () => {
+    const handleUploadAndSave = async () => {
         if (!question.trim() || !answer.trim()) return;
         
         setIsProcessing(true);
+        toast({ title: 'Committing to Brain...', description: 'Syncing text and voice.' });
+
         try {
-            // FORCE: Commit exactly as requested
+            let finalVoiceUrl = '';
+
+            // 1. Upload Voice if exists
+            if (recordedBlob) {
+                const reader = new FileReader();
+                const b64 = await new Promise<string>((resolve) => {
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.readAsDataURL(recordedBlob);
+                });
+
+                const res = await uploadToCloudinary(b64, 'video');
+                if (res.success) {
+                    finalVoiceUrl = res.url;
+                } else {
+                    throw new Error("Voice sync failed.");
+                }
+            }
+
+            // 2. Save to Master Database
             await databases.createDocument(DATABASE_ID, COLLECTION_ID_GLOBAL_KNOWLEDGE, ID.unique(), {
                 keyword: question.trim(),
                 answer: answer.trim(),
-                voiceUrl: voiceUrl || null,
+                voiceUrl: finalVoiceUrl || null,
                 createdAt: new Date().toISOString()
             });
             
-            toast({ title: 'Knowledge Saved!', description: 'Sofia has learned this memory.' });
+            toast({ title: 'Knowledge Generated!', description: 'Sofia has learned this memory successfully.' });
             
-            // MASTER RESET: Go back to prompt for continuous entry
+            // 3. Auto Reset for next entry
             resetForm();
         } catch (e: any) {
-            console.error("Save Error:", e);
-            toast({ variant: 'destructive', title: 'Database Error', description: e.message });
+            console.error("Master Sync Error:", e);
+            toast({ variant: 'destructive', title: 'System Error', description: e.message || "Could not save knowledge." });
         } finally {
             setIsProcessing(false);
         }
     };
 
-    const playVoice = () => {
+    const playPreview = () => {
         if (voiceUrl) {
             const audio = new Audio(voiceUrl);
             audio.play();
@@ -115,28 +133,29 @@ export default function AddKnowledgePage() {
         <div className="min-h-screen bg-background p-6 pt-20 max-w-2xl mx-auto font-body">
             <header className="mb-10 flex items-center justify-between">
                 <Button variant="ghost" onClick={() => router.push('/manager/brain')} className="font-black uppercase text-[10px] gap-2">
-                    <ArrowLeft className="h-4 w-4" /> Exit Builder
+                    <ArrowLeft className="h-4 w-4" /> Exit Hub
                 </Button>
                 <div className="bg-primary/10 px-4 py-2 rounded-full">
                     <p className="text-[9px] font-black uppercase text-primary tracking-widest">Step {step} of 4</p>
                 </div>
             </header>
 
-            <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden">
-                <CardHeader className="bg-muted/50 p-10 text-center">
-                    <CardTitle className="text-2xl font-black uppercase tracking-tighter">AI Knowledge Builder</CardTitle>
+            <Card className="rounded-[2.5rem] shadow-2xl border-none overflow-hidden bg-card">
+                <CardHeader className="bg-muted/50 p-10 text-center border-b">
+                    <CardTitle className="text-2xl font-black uppercase tracking-tighter">Teaching Sofia</CardTitle>
                 </CardHeader>
                 <CardContent className="p-10 space-y-10">
                     
+                    {/* PERSISTENT CONTEXT VIEW */}
                     {step > 1 && (
-                        <div className="space-y-4 border-b border-dashed pb-8">
+                        <div className="space-y-4 border-b border-dashed pb-8 animate-in fade-in slide-in-from-top-4">
                             <div className="space-y-1">
-                                <p className="text-[9px] font-black uppercase text-primary tracking-widest opacity-50">Question</p>
-                                <p className="text-lg font-black leading-tight text-foreground">"{question}"</p>
+                                <p className="text-[9px] font-black uppercase text-primary tracking-widest opacity-50">Trigger Question</p>
+                                <p className="text-xl font-black leading-tight text-foreground">"{question}"</p>
                             </div>
                             {step > 2 && (
                                 <div className="space-y-1 text-left">
-                                    <p className="text-[9px] font-black uppercase text-primary tracking-widest opacity-50">Answer</p>
+                                    <p className="text-[9px] font-black uppercase text-primary tracking-widest opacity-50 text-left">Sofia's Answer</p>
                                     <p className="text-sm font-bold leading-relaxed opacity-80">{answer}</p>
                                 </div>
                             )}
@@ -146,9 +165,9 @@ export default function AddKnowledgePage() {
                     {step === 1 && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                             <div className="space-y-2">
-                                <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest ml-1 text-primary">add question</Label>
+                                <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest ml-1 text-primary">Question</Label>
                                 <Input 
-                                    placeholder="Enter question here..." 
+                                    placeholder="What will users ask?" 
                                     className="h-16 rounded-2xl bg-muted border-none px-6 font-bold text-lg focus-visible:ring-1 focus-visible:ring-primary shadow-inner" 
                                     value={question}
                                     onChange={e => setQuestion(e.target.value)}
@@ -156,7 +175,7 @@ export default function AddKnowledgePage() {
                                 />
                             </div>
                             <Button onClick={() => setStep(2)} className="w-full h-14 rounded-2xl font-black uppercase tracking-widest" disabled={!question.trim()}>
-                                Add Knowledge <ChevronRight className="ml-2 h-4 w-4" />
+                                Save Question <ChevronRight className="ml-2 h-4 w-4" />
                             </Button>
                         </div>
                     )}
@@ -164,9 +183,9 @@ export default function AddKnowledgePage() {
                     {step === 2 && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                             <div className="space-y-2">
-                                <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest ml-1 text-primary">add answer</Label>
+                                <Label className="font-black uppercase text-[10px] opacity-50 tracking-widest ml-1 text-primary">Answer</Label>
                                 <Input 
-                                    placeholder="Type the answer Sofia will give..." 
+                                    placeholder="What should Sofia say?" 
                                     className="h-16 rounded-2xl bg-muted border-none px-6 font-bold text-lg focus-visible:ring-1 focus-visible:ring-primary shadow-inner" 
                                     value={answer}
                                     onChange={e => setAnswer(e.target.value)}
@@ -174,7 +193,7 @@ export default function AddKnowledgePage() {
                                 />
                             </div>
                             <Button onClick={() => setStep(3)} className="w-full h-14 rounded-2xl font-black uppercase tracking-widest" disabled={!answer.trim()}>
-                                Next: Voice Sync <ChevronRight className="ml-2 h-4 w-4" />
+                                Save Answer <ChevronRight className="ml-2 h-4 w-4" />
                             </Button>
                         </div>
                     )}
@@ -182,7 +201,7 @@ export default function AddKnowledgePage() {
                     {step === 3 && (
                         <div className="flex flex-col items-center gap-8 py-6 animate-in fade-in slide-in-from-bottom-2 text-center">
                             <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
-                                "Speak the exact answer you wrote above"
+                                "Speak the exact answer clearly"
                             </p>
                             <Button 
                                 onClick={isRecording ? stopRecording : startRecording} 
@@ -193,17 +212,17 @@ export default function AddKnowledgePage() {
                                 )}
                                 disabled={isProcessing}
                             >
-                                {isProcessing ? <Loader2 className="h-12 w-12 animate-spin" /> : <Mic className="h-12 w-12" />}
+                                {isRecording ? <Square className="h-12 w-12" /> : <Mic className="h-12 w-12" />}
                             </Button>
                             
-                            {voiceUrl && !isRecording && (
+                            {recordedBlob && !isRecording && (
                                 <div className="space-y-4 animate-in zoom-in-95">
-                                    <div className="flex items-center gap-3 bg-muted p-4 rounded-3xl border">
+                                    <div className="flex items-center gap-3 bg-primary/10 p-4 rounded-3xl border border-primary/20">
                                         <Volume2 className="h-5 w-5 text-primary" />
-                                        <span className="text-[9px] font-black uppercase text-primary tracking-widest">Voice Synced</span>
+                                        <span className="text-[9px] font-black uppercase text-primary tracking-widest">Voice Captured</span>
                                     </div>
                                     <Button onClick={() => setStep(4)} className="w-full h-14 rounded-2xl font-black uppercase tracking-widest">
-                                        Final Preview <ChevronRight className="ml-2 h-4 w-4" />
+                                        View Master Preview <ChevronRight className="ml-2 h-4 w-4" />
                                     </Button>
                                 </div>
                             )}
@@ -214,32 +233,32 @@ export default function AddKnowledgePage() {
                         <div className="space-y-8 animate-in fade-in zoom-in-95">
                             <div className="p-8 bg-primary/5 rounded-[2.5rem] border-2 border-dashed border-primary/20 space-y-8">
                                 <div className="text-center">
-                                    <h3 className="font-black uppercase text-[10px] tracking-[0.3em] text-primary mb-6">Review Identity</h3>
-                                    <div className="bg-white p-4 rounded-2xl shadow-sm inline-block">
-                                        <Button onClick={playVoice} size="icon" className="h-16 w-16 rounded-full bg-primary shadow-lg animate-bounce">
-                                            <Volume2 className="h-8 w-8 text-white" />
+                                    <h3 className="font-black uppercase text-[10px] tracking-[0.3em] text-primary mb-6">Review Handshake</h3>
+                                    <div className="bg-white p-4 rounded-full shadow-xl inline-block border-4 border-primary/10">
+                                        <Button onClick={playPreview} size="icon" className="h-20 w-20 rounded-full bg-primary shadow-lg active:scale-90 transition-transform">
+                                            <Volume2 className="h-10 w-10 text-white" />
                                         </Button>
                                     </div>
-                                    <p className="text-[8px] font-bold uppercase opacity-40 mt-2">Click to listen</p>
+                                    <p className="text-[8px] font-bold uppercase opacity-40 mt-3">Click to verify voice</p>
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-6 text-left">
-                                    <div className="p-4 bg-background rounded-2xl shadow-sm border border-black/5">
-                                        <p className="text-[8px] font-black uppercase text-primary opacity-50 mb-1">Trigger Question</p>
-                                        <p className="text-sm font-black leading-tight">"{question}"</p>
+                                    <div className="p-5 bg-background rounded-2xl shadow-sm border border-black/5">
+                                        <p className="text-[8px] font-black uppercase text-primary opacity-50 mb-1">User Question</p>
+                                        <p className="text-sm font-black leading-tight text-foreground">"{question}"</p>
                                     </div>
-                                    <div className="p-4 bg-background rounded-2xl shadow-sm border border-black/5">
-                                        <p className="text-[8px] font-black uppercase text-primary opacity-50 mb-1">Sofia's Knowledge</p>
+                                    <div className="p-5 bg-background rounded-2xl shadow-sm border border-black/5">
+                                        <p className="text-[8px] font-black uppercase text-primary opacity-50 mb-1">AI Logic</p>
                                         <p className="text-sm font-bold leading-relaxed">{answer}</p>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
-                                <Button variant="outline" onClick={() => setStep(3)} className="h-14 rounded-2xl font-black uppercase tracking-widest border-2">
+                                <Button variant="outline" onClick={() => setStep(3)} className="h-14 rounded-2xl font-black uppercase tracking-widest border-2" disabled={isProcessing}>
                                     Re-Record
                                 </Button>
-                                <Button onClick={handleGenerate} className="h-14 rounded-2xl font-black uppercase tracking-widest shadow-xl" disabled={isProcessing}>
+                                <Button onClick={handleUploadAndSave} className="h-14 rounded-2xl font-black uppercase tracking-widest shadow-xl" disabled={isProcessing}>
                                     {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <BrainCircuit className="mr-2 h-5 w-5" />}
                                     Generate
                                 </Button>
@@ -249,7 +268,7 @@ export default function AddKnowledgePage() {
                 </CardContent>
                 <CardFooter className="bg-muted p-6 justify-center">
                     <p className="text-[8px] font-black uppercase tracking-[0.4em] opacity-30 text-center">
-                        I-Pay Internal Intelligence Builder Protocol
+                        I-Pay master intelligence builder
                     </p>
                 </CardFooter>
             </Card>
