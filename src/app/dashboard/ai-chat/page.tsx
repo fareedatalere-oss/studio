@@ -18,8 +18,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { format } from 'date-fns';
 
 /**
- * @fileOverview Sofia AI Chat Hub v12.0.
- * UPDATED: Multi-option Paperclip (Image, Video, Audio).
+ * @fileOverview Sofia AI Chat Hub v12.1.
+ * UPDATED: 3-minute recording limit for audio/video.
  * RENDERING: Medium-sized media for direct visibility.
  */
 
@@ -152,6 +152,10 @@ export default function SofiaChatPage() {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        if (file.type.startsWith('audio') || file.type.startsWith('video')) {
+            toast({ title: "Media Protocol", description: "Audio and video files should be up to 3 minutes." });
+        }
+
         setIsUploading(true);
         try {
             const reader = new FileReader();
@@ -192,7 +196,13 @@ export default function SofiaChatPage() {
             };
             recorder.start();
             recordingTimerRef.current = setInterval(() => {
-                setRecordingDuration(prev => prev + 1);
+                setRecordingDuration(prev => {
+                    if (prev >= 180) { // 3 Minute Limit
+                        stopRecording();
+                        return 180;
+                    }
+                    return prev + 1;
+                });
             }, 1000);
         } catch (e) {
             toast({ variant: 'destructive', title: 'Microphone Error' });

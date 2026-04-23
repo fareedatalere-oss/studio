@@ -28,9 +28,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Private Chat Hub v6.0.
+ * @fileOverview Private Chat Hub v6.1.
+ * UPDATED: 3-minute recording limit for audio/video.
  * RENDERING: Media shown as compact icons only. 
- * INTERACTION: Click icons to open full-screen media viewer.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -159,7 +159,10 @@ export default function ChatThreadPage() {
             recorder.start();
             recordingTimerRef.current = setInterval(() => {
                 setRecordingDuration(prev => {
-                    if (prev >= 240) { stopRecording(); return 240; }
+                    if (prev >= 180) { // 3 Minute Limit
+                        stopRecording(); 
+                        return 180; 
+                    }
                     return prev + 1;
                 });
             }, 1000);
@@ -199,6 +202,11 @@ export default function ChatThreadPage() {
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !currentUser) return;
+
+        if (file.type.startsWith('audio') || file.type.startsWith('video')) {
+            toast({ title: "Media Limit", description: "Uploaded audio and video must be up to 3 minutes." });
+        }
+
         setIsUploading(true);
         try {
             const reader = new FileReader();
