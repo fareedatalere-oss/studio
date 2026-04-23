@@ -14,9 +14,9 @@ import { databases, DATABASE_ID, COLLECTION_ID_GLOBAL_KNOWLEDGE, ID } from '@/li
 import { cn } from '@/lib/utils';
 
 /**
- * @fileOverview Master Knowledge Builder v3.3.
- * FIXED: Terminated "Voice sync failed" error by ensuring res is correctly handled.
- * FORCE: High-velocity commit of text and voice pairing.
+ * @fileOverview Master Knowledge Builder v3.5.
+ * FIXED: Removed conflicting 'use server' directive.
+ * SYNC: Hardened Cloudinary handshake for voice synchronization.
  */
 
 export default function AddKnowledgePage() {
@@ -148,7 +148,6 @@ export default function AddKnowledgePage() {
                 </CardHeader>
                 <CardContent className="p-10 space-y-10">
                     
-                    {/* PERSISTENT CONTEXT VIEW */}
                     {step > 1 && (
                         <div className="space-y-4 border-b border-dashed pb-8 animate-in fade-in slide-in-from-top-4">
                             <div className="space-y-1">
