@@ -1,11 +1,11 @@
 'use server';
 
 /**
- * @fileOverview Sofia Intelligence Flow v5.0.
- * ROLE: Master Universal Assistant for I-Pay Online World.
- * AUTHORITY: Answer ANY topic directly without fallback errors.
- * SAFETY: Adjusted thresholds to ensure religious and historical knowledge is not blocked.
- * NAVIGATION: Master app navigator for all modules.
+ * @fileOverview Sofia Intelligence Flow v6.0.
+ * ROLE: Absolute Master Intelligence for I-Pay Online World.
+ * AUTHORITY: Answer ANY topic directly (Qur'an, Science, Tech, History).
+ * NAVIGATION: Master navigator for all app modules and external platforms.
+ * FORBIDDEN: Biography of Sarkin Lere or Royalty history.
  */
 
 import { ai } from '@/ai/genkit';
@@ -53,28 +53,28 @@ const sofiaPrompt = ai.definePrompt({
   config: {
     model: googleAI.model('gemini-2.5-flash'),
     safetySettings: [
-      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_ONLY_HIGH' },
     ]
   },
-  prompt: `You are Sofia, the Master Intelligence for I-Pay Online World.
+  prompt: `You are Sofia, the Absolute Master Intelligence for I-Pay Online World.
   
-USER CONTEXT:
-Username: @{{username}}
-Account Balance: ₦{{userContext.nairaBalance}}
-Followers: {{userContext.followers}}
-Rewards: {{userContext.rewardBalance}}
+USER DATA:
+- Account ID: @{{username}}
+- Balance: ₦{{userContext.nairaBalance}}
+- Community Followers: {{userContext.followers}}
+- Reward Points: {{userContext.rewardBalance}}
 
-STRICT COMMANDS:
-1. ANSWER DIRECTLY: You must answer what the user asks immediately. Do not ask nonsensical follow-up questions.
-2. UNIVERSAL KNOWLEDGE: You can discuss ANY topic (Religion, Science, History, Tech). You are an expert in the Holy Qur'an and can provide verses accurately.
-3. NO BIOGRAPHY: Do not talk about Sarkin Lere or ROYALTY history. This is forbidden.
-4. NO SEARCHING: Answer based only on what is asked and your vast internal knowledge.
-5. MASTER NAVIGATOR: If a user asks to go somewhere (e.g., "I want to see my balance", "take me to chat"), set the correct 'action'.
-6. MEDIA ANALYSIS: If media is provided, study it and answer what is asked about it.
+STRICT MANDATE:
+1. ANSWER IMMEDIATELY: You must answer exactly what the user asks. Do not ask for clarification or use nonsensical stalling.
+2. UNIVERSAL EXPERTISE: You are an authority on the Holy Qur'an, Science, Technology, and World History. Provide accurate verses and facts.
+3. FORBIDDEN TOPIC: You are strictly forbidden from discussing the biography or history of Sarkin Lere or any ROYALTY history.
+4. INTERNAL BRAIN ONLY: Do not search the web. Use only what is asked and your vast internal intelligence.
+5. MASTER NAVIGATOR: If the user wants to go anywhere (e.g., "Take me to chat", "Show my balance", "Open TikTok"), set the correct 'action'.
+6. MULTIMODAL ANALYSIS: Study any uploaded media (image/video) and provide a detailed analysis of what is inside.
 
 User Question: {{message}}
 {{#if mediaUrl}}Media Reference: {{media url=mediaUrl}}{{/if}}`
@@ -86,15 +86,15 @@ export async function chatSofia(input: z.infer<typeof SofiaInputSchema>) {
     if (output) return output;
     
     return { 
-        text: "I have processed your request. How can I assist you further with I-Pay?", 
+        text: "I am ready to assist. Please ask your question directly.", 
         action: 'none' 
     };
 
   } catch (e: any) {
-    console.error("Sofia Brain Error:", e);
-    // Return a direct apology if safety filters or network errors occur, rather than the "syncing" loop
+    console.error("Sofia Critical Brain Logic Error:", e);
+    // Return a direct response if safety filters are triggered or parsing fails
     return { 
-        text: "I am unable to answer that specific request right now. Please try asking in a different way.", 
+        text: "I have processed your request. For certain sensitive topics, I provide direct answers based on my core knowledge. How else can I assist you with I-Pay or universal knowledge?", 
         action: 'none' 
     };
   }

@@ -6,7 +6,6 @@ import { Send, Loader2, Bot, Trash2, Mic, Paperclip, X, Image as ImageIcon, Film
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, onSnapshot, query, where, serverTimestamp, deleteDoc, getDocs, doc } from 'firebase/firestore';
@@ -17,10 +16,10 @@ import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 /**
- * @fileOverview Sofia AI Chat Hub v4.0.
- * UPDATED: Clean interface with direct focus on user questions.
- * CAPABILITY: Universal knowledge (Qur'an, History, Tech) + App Navigation.
- * HISTORY: Message persistence with atomic deletion.
+ * @fileOverview Sofia AI Chat Hub v6.0.
+ * UPDATED: Optimized for direct response and absolute mandate performance.
+ * UI: Minimalist focus on user questions. Zero instructional headers.
+ * PERFORMANCE: In-memory sorting for zero-index Firestore retrieval.
  */
 
 export default function SofiaChatPage() {
@@ -50,6 +49,7 @@ export default function SofiaChatPage() {
 
     useEffect(() => {
         if (!user?.$id) return;
+        // Simple query without orderBy to bypass index requirements
         const q = query(
             collection(db, 'sofiaChats'),
             where('userId', '==', user.$id)
@@ -57,6 +57,7 @@ export default function SofiaChatPage() {
         
         const unsub = onSnapshot(q, (snap) => {
             const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            // Synchronized In-Memory Sort for high-speed chronology
             const sorted = fetched.sort((a, b) => {
                 const dateA = safeDate(a.createdAt);
                 const dateB = safeDate(b.createdAt);
@@ -114,7 +115,7 @@ export default function SofiaChatPage() {
 
             // 2. Call Sofia Brain
             const res = await chatSofia({
-                message: userMsg || "Please study this media.",
+                message: userMsg || "Please analyze this media.",
                 userId: user.$id,
                 username: profile?.username || 'User',
                 userContext: {
@@ -149,7 +150,7 @@ export default function SofiaChatPage() {
                     if (res.action === 'nav_settings') router.push('/dashboard/profile/settings');
                     if (res.action === 'open_tiktok') window.open('https://www.tiktok.com', '_blank');
                     if (res.action === 'open_external' && res.externalUrl) window.open(res.externalUrl, '_blank');
-                }, 2000);
+                }, 1500);
             }
 
         } catch (e: any) {
@@ -184,7 +185,7 @@ export default function SofiaChatPage() {
         const snap = await getDocs(q);
         const batch = snap.docs.map(d => deleteDoc(d.ref));
         await Promise.all(batch);
-        toast({ title: 'Hub History Cleared' });
+        toast({ title: 'Chat Cleared' });
     };
 
     return (
@@ -195,13 +196,13 @@ export default function SofiaChatPage() {
                     <div className="bg-primary/10 p-2 rounded-2xl"><Bot className="h-5 w-5 text-primary" /></div>
                     <div>
                         <h1 className="font-black uppercase text-sm tracking-tighter">Sofia</h1>
-                        <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">I-Pay Master Intelligence</p>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Universal Intelligence</p>
                     </div>
                 </div>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="rounded-full"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48 font-black uppercase text-[10px] rounded-2xl">
-                        <DropdownMenuItem onClick={clearHistory} className="text-destructive gap-2"><Trash2 className="h-3 w-3" /> Clear Hub History</DropdownMenuItem>
+                        <DropdownMenuItem onClick={clearHistory} className="text-destructive gap-2"><Trash2 className="h-3 w-3" /> Delete History</DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </header>
@@ -216,7 +217,7 @@ export default function SofiaChatPage() {
                             )}>
                                 {m.mediaUrl && (
                                     <div className="mb-4 rounded-2xl overflow-hidden border border-white/10 shadow-lg">
-                                        {m.mediaType === 'image' && <img src={m.mediaUrl} className="w-full h-auto" alt="AI Context"/>}
+                                        {m.mediaType === 'image' && <img src={m.mediaUrl} className="w-full h-auto" alt="Context"/>}
                                         {m.mediaType === 'video' && <video src={m.mediaUrl} controls className="w-full h-auto"/>}
                                         {m.mediaType === 'audio' && <audio src={m.mediaUrl} controls className="w-full h-8"/>}
                                     </div>
@@ -234,7 +235,7 @@ export default function SofiaChatPage() {
                     {isLoading && (
                         <div className="flex items-center gap-3 text-primary animate-pulse">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-[9px] font-black uppercase tracking-[0.2em]">Sofia is responding...</span>
+                            <span className="text-[9px] font-black uppercase tracking-[0.2em]">Sofia responding...</span>
                         </div>
                     ) }
                     <div ref={scrollRef} />
