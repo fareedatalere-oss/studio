@@ -2,13 +2,14 @@
 'use server';
 
 /**
- * @fileOverview Sofia Local Intelligence v10.0.
+ * @fileOverview Sofia Master Intelligence v11.0.
  * ROLE: Absolute Master Intelligence for I-Pay Online World.
- * AUTHORITY: Precise Brain Bank Matching with Voice Support.
- * NO API: 100% local database retrieval.
+ * LOGIC: Brain Bank First -> Google Search Fallback.
+ * NO NONSENSE: If the taught brain is empty, she uses live Google data.
  */
 
 import { databases, DATABASE_ID, COLLECTION_ID_GLOBAL_KNOWLEDGE, Query } from '@/lib/data-service';
+import { ai, z } from '@/ai/genkit';
 import { format } from 'date-fns';
 
 export interface SofiaInput {
@@ -33,53 +34,39 @@ export interface SofiaOutput {
 }
 
 /**
- * chatSofia - Master local logic function.
+ * chatSofia - Master hybrid intelligence function.
  */
 export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
   const msg = input.message.toLowerCase().trim();
   const now = new Date();
   
-  // 1. GREETING PROTOCOL (Identity Priority)
+  // 1. GREETING & ACCOUNT PROTOCOL
   if (msg === 'hi' || msg === 'hello' || msg === 'hey') {
-    const timeStr = format(now, 'HH:mm');
     const dateStr = format(now, 'PPPP');
-    const weather = "Clear skies and Sunny"; 
-    
     return {
-        text: `Hello @${input.username}! Today is ${dateStr}. The time is ${timeStr} and the weather is ${weather}. How can I help you today with I-Pay?`,
+        text: `Hello @${input.username}! Today is ${dateStr}. How can I help you today with I-Pay?`,
         action: 'none'
     };
   }
   
-  // 2. ACCOUNT & NAVIGATION CHECK
-  if (msg.includes('balance') || msg.includes('money') || msg.includes('naira')) {
+  if (msg.includes('balance') || msg.includes('naira')) {
     return {
-        text: `Hello @${input.username}, your current I-Pay Wallet balance is ₦${input.userContext?.nairaBalance?.toLocaleString() || '0.00'}.`,
-        action: 'none'
-    };
-  }
-  
-  if (msg.includes('follower') || msg.includes('fans')) {
-    return {
-        text: `You currently have ${input.userContext?.followers?.toLocaleString() || '0'} followers in the I-Pay community.`,
+        text: `Hello @${input.username}, your wallet balance is ₦${input.userContext?.nairaBalance?.toLocaleString() || '0.00'}.`,
         action: 'none'
     };
   }
 
   // Navigation Intents
-  if (msg.includes('go to chat') || msg.includes('open chat')) return { text: "Opening your private chat hub.", action: 'nav_chat' };
-  if (msg.includes('market') || msg.includes('buy') || msg.includes('sell')) return { text: "Navigating to the I-Pay Marketplace.", action: 'nav_market' };
-  if (msg.includes('deposit') || msg.includes('fund')) return { text: "Opening the secure deposit vault.", action: 'nav_deposit' };
-  if (msg.includes('history') || msg.includes('transactions')) return { text: "Opening your transaction ledger.", action: 'nav_history' };
-  if (msg.includes('setting') || msg.includes('edit profile')) return { text: "Taking you to account settings.", action: 'nav_settings' };
+  if (msg.includes('go to chat')) return { text: "Opening your chat hub.", action: 'nav_chat' };
+  if (msg.includes('market')) return { text: "Navigating to the Marketplace.", action: 'nav_market' };
+  if (msg.includes('deposit')) return { text: "Opening the deposit vault.", action: 'nav_deposit' };
 
-  // 3. BRAIN BANK SEARCH (Force precise matching)
+  // 2. BRAIN BANK SEARCH (Priority 1)
   try {
       const knowledgeRes = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_GLOBAL_KNOWLEDGE, [
           Query.limit(100)
       ]);
       
-      // Attempt exact or keyword keyword match
       const match = knowledgeRes.documents.find(doc => 
           msg.includes(doc.keyword?.toLowerCase()) || 
           doc.keyword?.toLowerCase().includes(msg)
@@ -93,12 +80,29 @@ export async function chatSofia(input: SofiaInput): Promise<SofiaOutput> {
           };
       }
   } catch (e) {
-      console.error("Local Brain Bank Failure:", e);
+      console.error("Brain Bank bypass due to local error.");
   }
 
-  // 4. ZERO ANSWER FALLBACK
-  return {
-    text: "I can't answer. Please ask a different question or ask about your account.",
-    action: 'none'
-  };
+  // 3. GOOGLE SEARCH FALLBACK (Priority 2)
+  try {
+      const response = await ai.generate({
+          prompt: `You are Sofia, the I-Pay Online World assistant. User @${input.username} asked: "${input.message}". 
+                   If the question is about I-Pay features not in your context, use Google Search to provide a helpful, concise answer.
+                   Context: I-Pay is a digital banking, social media, and marketplace platform in Nigeria.`,
+          config: {
+              googleSearchRetrieval: true,
+          }
+      });
+
+      return {
+          text: response.text || "I'm having trouble connecting to my knowledge base. Please try again.",
+          action: 'none'
+      };
+  } catch (e: any) {
+      console.error("AI Fallback Error:", e.message);
+      return {
+          text: "I couldn't find an answer in my brain or via search. Please ask something else.",
+          action: 'none'
+      };
+  }
 }

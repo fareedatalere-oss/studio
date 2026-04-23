@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase';
 import { 
     collection, onSnapshot, doc, 
     serverTimestamp, setDoc, deleteDoc,
-    increment, writeBatch, query, where, orderBy
+    increment, writeBatch, query, where
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS, ID } from '@/lib/data-service';
 import { 
@@ -28,9 +28,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Private Chat Hub v6.3.
- * UPDATED: Implemented Local Firestore Listener for 100% message visibility.
- * RENDERING: Media shown as compact icons only. 
+ * @fileOverview Private Chat Hub v7.0.
+ * FIXED: Removed 'orderBy' from query to prevent invisible messages (Missing Index error).
+ * LOGIC: Sorts messages in-memory for 100% visibility.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -68,19 +68,26 @@ export default function ChatThreadPage() {
 
     const anyBlockActive = currentProfile?.blockedUsers?.includes(otherUserId) || otherUser?.blockedUsers?.includes(currentUser?.$id);
 
-    // 1. Reactive Message Listener
+    // 1. Reactive Message Listener (No OrderBy to avoid Index Crash)
     useEffect(() => {
         if (!chatId) return;
 
         const q = query(
             collection(db, COLLECTION_ID_MESSAGES),
-            where('chatId', '==', chatId),
-            orderBy('timestamp', 'asc')
+            where('chatId', '==', chatId)
         );
 
         const unsub = onSnapshot(q, (snap) => {
-            const msgs = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
-            setLocalMessages(msgs);
+            const msgs = snap.docs.map(d => ({ 
+                $id: d.id, 
+                ...d.data(),
+                // Safety: Fallback to Date.now if timestamp is missing
+                sortTime: (d.data().timestamp || (d.data().createdAt?.seconds ? d.data().createdAt.seconds * 1000 : Date.now()))
+            }));
+            
+            // SORT IN MEMORY TO BYPASS MISSING INDEX ERROR
+            const sorted = msgs.sort((a, b) => a.sortTime - b.sortTime);
+            setLocalMessages(sorted);
         });
 
         return () => unsub();
@@ -174,7 +181,7 @@ export default function ChatThreadPage() {
             recorder.start();
             recordingTimerRef.current = setInterval(() => {
                 setRecordingDuration(prev => {
-                    if (prev >= 3600) { // 1 Hour Limit for LIVE Recording
+                    if (prev >= 3600) { // 1 Hour Limit
                         stopRecording(); 
                         return 3600; 
                     }
