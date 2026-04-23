@@ -1,12 +1,13 @@
 'use server';
 
 /**
- * @fileOverview Sofia Intelligence Flow v3.0.
+ * @fileOverview Sofia Intelligence Flow v3.1.
  * ROLE: Master Universal Assistant for I-Pay Online World.
  * IDENTITY: Expert in any topic (Religion, Science, Business, History).
  * AUTHORITY: Deep knowledge of the Holy Qur'an and Islamic guidance.
  * NAVIGATION: Can take the user to ANY part of the app or external social platforms.
  * CONTEXT: Aware of user balance, followers, and account history.
+ * STABILITY: Refined error handling to prevent "calibration" loops.
  */
 
 import { ai } from '@/ai/genkit';
@@ -61,18 +62,29 @@ STRICT COMMANDS:
 RESPOND ONLY IN VALID JSON.`;
 
   try {
+    // Determine content type safely
+    let mediaContentType = 'image/jpeg';
+    if (input.mediaType === 'video') mediaContentType = 'video/mp4';
+    if (input.mediaType === 'audio') mediaContentType = 'audio/mpeg';
+
     const response = await ai.generate({
       system: systemPrompt,
       prompt: [
-        { text: input.message },
-        ...(input.mediaUrl ? [{ media: { url: input.mediaUrl, contentType: input.mediaType === 'image' ? 'image/jpeg' : 'video/mp4' } }] : [])
+        { text: input.message || "Please provide an update." },
+        ...(input.mediaUrl ? [{ media: { url: input.mediaUrl, contentType: mediaContentType } }] : [])
       ],
       output: { schema: SofiaOutputSchema }
     });
 
-    return response.output || { text: "My logic sync is refreshing. Please ask again.", action: 'none' };
+    if (response.output) {
+        return response.output;
+    }
+    
+    // Fallback if structured output is partial
+    return { text: response.text || "My logic is currently optimized. Please repeat your request.", action: 'none' };
+
   } catch (e) {
     console.error("Sofia Brain Error:", e);
-    return { text: "I am having a moment of high-speed technical calibration. Ask me again in 2 seconds.", action: 'none' };
+    return { text: "I am syncing with the cloud core. Please ask me again in a moment.", action: 'none' };
   }
 }

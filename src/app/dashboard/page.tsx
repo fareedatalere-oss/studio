@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -22,6 +21,7 @@ import {
   Lightbulb,
   Eye,
   EyeOff,
+  Bot,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/hooks/use-user';
@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Master Dashboard.
- * UPDATED: Removed Sofia AI action button.
+ * UPDATED: Sofia AI action button added after Transfer button.
  */
 
 export default function DashboardPage() {
@@ -66,6 +66,7 @@ export default function DashboardPage() {
 
   const actions = [
     { key: 'feat_send', label: 'Transfer', icon: Send, href: '/dashboard/transfer' },
+    { key: 'feat_sofia', label: 'Sofia AI', icon: Bot, href: '/dashboard/ai-chat' },
     { key: 'feat_deposit', label: 'Deposit', icon: ArrowDownCircle, href: '/dashboard/deposit' },
     { key: 'feat_refresh', label: 'Refresh', icon: RefreshCw, onClick: handleRefresh },
     { key: 'feat_buy_airtime', label: 'Airtime', icon: Smartphone, href: '/dashboard/buy-airtime' },
