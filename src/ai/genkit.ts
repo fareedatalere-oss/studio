@@ -1,15 +1,9 @@
 
-import { genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/google-genai';
-
 /**
- * @fileOverview Master Sofia AI Configuration.
- * AUTH: Direct API Key Injection for constant reliability.
+ * @fileOverview Sofia AI Configuration.
+ * STATUS: DEACTIVATED.
+ * REASON: Switched to Local Intelligence Hub as per Master instruction.
  */
 
-export const ai = genkit({
-  plugins: [
-    googleAI({ apiKey: 'AIzaSyDg5Pvcz7y7Quy3zezGrJLIkCfunTsZZj8' })
-  ],
-  model: 'googleai/gemini-2.5-flash',
-});
+export const ai = null;
+export const z = null;

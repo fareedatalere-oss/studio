@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -16,10 +17,9 @@ import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 /**
- * @fileOverview Sofia AI Chat Hub v7.0.
- * UPDATED: Optimized for authoritative long-form response and absolute mandate performance.
- * UI: Cleaned header with zero instructional noise.
- * PERFORMANCE: In-memory sorting for zero-index Firestore retrieval.
+ * @fileOverview Sofia AI Chat Hub v8.0.
+ * UPDATED: Optimized for Local Intelligence and high-speed local brain search.
+ * AI: No external API calls. Everything is local or Context-driven.
  */
 
 export default function SofiaChatPage() {
@@ -111,9 +111,9 @@ export default function SofiaChatPage() {
             setMediaPreview(null);
             setMediaFile(null);
 
-            // 2. Call Sofia Brain
+            // 2. Call Sofia Local Brain (High Speed, No External API)
             const res = await chatSofia({
-                message: userMsg || "Please analyze this media.",
+                message: userMsg || "Shared media.",
                 userId: user.$id,
                 username: profile?.username || 'User',
                 userContext: {
@@ -135,8 +135,8 @@ export default function SofiaChatPage() {
                 createdAt: serverTimestamp()
             });
 
-            // 4. Handle Actions
-            if (res.action !== 'none') {
+            // 4. Handle Actions (Android Navigation Force)
+            if (res.action && res.action !== 'none') {
                 setTimeout(() => {
                     if (res.action === 'nav_chat') router.push('/dashboard/chat');
                     if (res.action === 'nav_market') router.push('/dashboard/market');
@@ -152,7 +152,7 @@ export default function SofiaChatPage() {
             }
 
         } catch (e: any) {
-            toast({ variant: 'destructive', title: 'Intelligence Error', description: e.message });
+            toast({ variant: 'destructive', title: 'Brain Sync Error', description: e.message });
         } finally {
             setIsLoading(false);
         }
@@ -163,7 +163,7 @@ export default function SofiaChatPage() {
         if (!file) return;
 
         if (file.type.startsWith('video') && file.size > 200 * 1024 * 1024) {
-            toast({ variant: 'destructive', title: 'Video too large', description: 'Maximum 3 minutes allowed.' });
+            toast({ variant: 'destructive', title: 'Video too large', description: 'Maximum size exceeded.' });
             return;
         }
 
@@ -183,7 +183,7 @@ export default function SofiaChatPage() {
         const snap = await getDocs(q);
         const batch = snap.docs.map(d => deleteDoc(d.ref));
         await Promise.all(batch);
-        toast({ title: 'Chat Cleared' });
+        toast({ title: 'Local History Cleared' });
     };
 
     return (
@@ -194,7 +194,7 @@ export default function SofiaChatPage() {
                     <div className="bg-primary/10 p-2 rounded-2xl"><Bot className="h-5 w-5 text-primary" /></div>
                     <div>
                         <h1 className="font-black uppercase text-sm tracking-tighter">Sofia</h1>
-                        <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Master Intelligence</p>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Local Intelligence Hub</p>
                     </div>
                 </div>
                 <DropdownMenu>
@@ -233,7 +233,7 @@ export default function SofiaChatPage() {
                     {isLoading && (
                         <div className="flex items-center gap-3 text-primary animate-pulse">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-[9px] font-black uppercase tracking-[0.2em]">Sofia responding...</span>
+                            <span className="text-[9px] font-black uppercase tracking-[0.2em]">Searching Local Brain...</span>
                         </div>
                     ) }
                     <div ref={scrollRef} />
@@ -257,7 +257,7 @@ export default function SofiaChatPage() {
                     <div className="flex items-center gap-2">
                         <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-2xl bg-muted/50 transition-all active:scale-90"><Paperclip className="h-5 w-5"/></Button>
                         <Input 
-                            placeholder="Ask Sofia anything..." 
+                            placeholder="Ask Sofia (Local Brain)..." 
                             value={input} 
                             onChange={e => setInput(e.target.value)}
                             onKeyPress={e => e.key === 'Enter' && handleSend()}
