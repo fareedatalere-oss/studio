@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useUser } from '@/hooks/use-user';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, onSnapshot, query, where, orderBy, serverTimestamp, deleteDoc, getDocs, doc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, where, serverTimestamp, deleteDoc, getDocs, doc } from 'firebase/firestore';
 import { chatSofia } from '@/ai/flows/chat-flow';
 import { cn } from '@/lib/utils';
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
@@ -17,9 +17,9 @@ import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 /**
- * @fileOverview Sofia AI Chat Hub v3.0 (Master Intelligence).
+ * @fileOverview Sofia AI Chat Hub v3.1 (Fixed Index Error).
  * CAPABILITY: Universal knowledge (Qur'an, History, Tech) + App Navigation.
- * MEDIA: Image study and Video analysis (3m limit).
+ * FIX: Replaced server-side orderBy with In-Memory sorting to terminate index errors.
  * HISTORY: Message persistence with atomic deletion.
  */
 
@@ -38,15 +38,33 @@ export default function SofiaChatPage() {
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const safeDate = (val: any) => {
+        if (!val) return new Date();
+        try {
+            if (typeof val.toDate === 'function') return val.toDate();
+            if (val.seconds !== undefined) return new Date(val.seconds * 1000);
+            const d = new Date(val);
+            return isNaN(d.getTime()) ? new Date() : d;
+        } catch (e) { return new Date(); }
+    };
+
     useEffect(() => {
         if (!user?.$id) return;
+        // FORCE: Removed orderBy here to bypass the index requirement error.
         const q = query(
             collection(db, 'sofiaChats'),
-            where('userId', '==', user.$id),
-            orderBy('createdAt', 'asc')
+            where('userId', '==', user.$id)
         );
+        
         const unsub = onSnapshot(q, (snap) => {
-            setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            // MASTER SORT: Handle chronology in-memory for zero-error performance
+            const sorted = fetched.sort((a, b) => {
+                const dateA = safeDate(a.createdAt);
+                const dateB = safeDate(b.createdAt);
+                return dateA.getTime() - dateB.getTime();
+            });
+            setMessages(sorted);
         });
         return () => unsub();
     }, [user?.$id]);
