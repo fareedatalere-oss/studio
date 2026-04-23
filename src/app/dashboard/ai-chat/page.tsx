@@ -17,9 +17,9 @@ import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 /**
- * @fileOverview Sofia AI Chat Hub v3.1 (Fixed Index Error).
+ * @fileOverview Sofia AI Chat Hub v4.0.
+ * UPDATED: Clean interface with direct focus on user questions.
  * CAPABILITY: Universal knowledge (Qur'an, History, Tech) + App Navigation.
- * FIX: Replaced server-side orderBy with In-Memory sorting to terminate index errors.
  * HISTORY: Message persistence with atomic deletion.
  */
 
@@ -50,7 +50,6 @@ export default function SofiaChatPage() {
 
     useEffect(() => {
         if (!user?.$id) return;
-        // FORCE: Removed orderBy here to bypass the index requirement error.
         const q = query(
             collection(db, 'sofiaChats'),
             where('userId', '==', user.$id)
@@ -58,7 +57,6 @@ export default function SofiaChatPage() {
         
         const unsub = onSnapshot(q, (snap) => {
             const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            // MASTER SORT: Handle chronology in-memory for zero-error performance
             const sorted = fetched.sort((a, b) => {
                 const dateA = safeDate(a.createdAt);
                 const dateB = safeDate(b.createdAt);
@@ -186,7 +184,7 @@ export default function SofiaChatPage() {
         const snap = await getDocs(q);
         const batch = snap.docs.map(d => deleteDoc(d.ref));
         await Promise.all(batch);
-        toast({ title: 'Logic History Cleared' });
+        toast({ title: 'Hub History Cleared' });
     };
 
     return (
@@ -197,7 +195,7 @@ export default function SofiaChatPage() {
                     <div className="bg-primary/10 p-2 rounded-2xl"><Bot className="h-5 w-5 text-primary" /></div>
                     <div>
                         <h1 className="font-black uppercase text-sm tracking-tighter">Sofia</h1>
-                        <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Master Intelligence</p>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">I-Pay Master Intelligence</p>
                     </div>
                 </div>
                 <DropdownMenu>
@@ -210,11 +208,6 @@ export default function SofiaChatPage() {
 
             <ScrollArea className="flex-1 p-6">
                 <div className="max-w-2xl mx-auto space-y-8 pb-10">
-                    <div className="bg-primary/5 p-6 rounded-[2.5rem] border border-dashed border-primary/20 text-center space-y-2 mb-10">
-                        <p className="font-black uppercase text-[10px] text-primary tracking-widest">Universal Knowledge Protocol Active</p>
-                        <p className="text-xs font-bold opacity-60">"Ask me anything about the Qur'an, Science, or to take you anywhere in the app."</p>
-                    </div>
-
                     {messages.map((m) => (
                         <div key={m.id} className={cn("flex flex-col gap-2", m.role === 'user' ? "items-end" : "items-start")}>
                             <div className={cn(
@@ -241,7 +234,7 @@ export default function SofiaChatPage() {
                     {isLoading && (
                         <div className="flex items-center gap-3 text-primary animate-pulse">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-[9px] font-black uppercase tracking-[0.2em]">Sofia is synthesizing knowledge...</span>
+                            <span className="text-[9px] font-black uppercase tracking-[0.2em]">Sofia is responding...</span>
                         </div>
                     ) }
                     <div ref={scrollRef} />
@@ -265,7 +258,7 @@ export default function SofiaChatPage() {
                     <div className="flex items-center gap-2">
                         <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 rounded-2xl bg-muted/50 transition-all active:scale-90"><Paperclip className="h-5 w-5"/></Button>
                         <Input 
-                            placeholder="Ask me anything..." 
+                            placeholder="Ask Sofia anything..." 
                             value={input} 
                             onChange={e => setInput(e.target.value)}
                             onKeyPress={e => e.key === 'Enter' && handleSend()}
