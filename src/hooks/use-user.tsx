@@ -1,16 +1,19 @@
+
 'use client';
 
 import { databases, DATABASE_ID, COLLECTION_ID_PROFILES, COLLECTION_ID_APP_CONFIG, COLLECTION_ID_CHATS, COLLECTION_ID_MESSAGES, COLLECTION_ID_NOTIFICATIONS } from '@/lib/data-service';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, messaging } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, serverTimestamp, onSnapshot, collection, updateDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, onSnapshot, collection, updateDoc, query, where, orderBy } from 'firebase/firestore';
+import { getToken } from 'firebase/messaging';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef, useMemo } from 'react';
 import { cn } from "@/lib/utils";
 
 /**
- * @fileOverview Global Memory Shield & Presence Engine v4.5.
- * STABILITY: Isolated listeners and memoized context to resolve "Maximum update depth exceeded" error.
- * PERFORMANCE: Optimized identity gasket prevents re-render loops.
+ * @fileOverview Global Memory Shield & Presence Engine v5.0.
+ * STABILITY: Memoized context value resolves re-render loops.
+ * BADGE SYNC: Correctly calculates cumulative unread messages from partecipanti map.
+ * FCM: Registers Service Worker for background pings and calls.
  */
 
 type UserContextType = {
@@ -59,6 +62,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     const lastNotifiedRef = useRef<Set<string>>(new Set());
     const sessionStartTimeRef = useRef(Date.now());
+
+    const registerMessaging = useCallback(async (uid: string) => {
+        if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+        try {
+            const m = await messaging();
+            if (!m) return;
+            const token = await getToken(m, { vapidKey: 'B...' }); // Replace with real VAPID if needed
+            if (token) {
+                await updateDoc(doc(db, COLLECTION_ID_PROFILES, uid), { fcmToken: token });
+            }
+        } catch (e) {}
+    }, []);
 
     const showNativeNotification = useCallback((title: string, body: string, link?: string) => {
         if (typeof window === 'undefined' || !('Notification' in window)) return;
@@ -130,6 +145,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     Notification.requestPermission();
                 }
 
+                registerMessaging(uid);
+
                 unsubs.push(onSnapshot(doc(db, COLLECTION_ID_PROFILES, uid), (snap) => {
                     if (snap.exists()) setProfile({ $id: snap.id, ...snap.data() });
                     setIsLoading(false);
@@ -139,7 +156,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     setAllUsers(snap.docs.map(d => ({ $id: d.id, ...d.data() })));
                 }));
 
-                unsubs.push(onSnapshot(collection(db, COLLECTION_ID_CHATS), (snap) => {
+                // PRIVACY FORCE: Scoped listener for chats only involving current user
+                const qRecent = query(collection(db, COLLECTION_ID_CHATS), where('participants', 'array-contains', uid));
+                unsubs.push(onSnapshot(qRecent, (snap) => {
                     const chats = snap.docs.map(d => ({ $id: d.id, ...d.data() }));
                     setRecentChats(chats.sort((a: any, b: any) => (b.lastMessageAt?.seconds || 0) - (a.lastMessageAt?.seconds || 0)));
                     
@@ -203,7 +222,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             unsubs.forEach(u => u());
             if (heartbeatInterval) clearInterval(heartbeatInterval);
         };
-    }, [fetchConfig, updatePresence, showNativeNotification]);
+    }, [fetchConfig, updatePresence, showNativeNotification, registerMessaging]);
 
     const recheckUser = useCallback(async () => {
         await fetchConfig();

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -14,9 +15,9 @@ import { isYesterday, isToday, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 /**
- * @fileOverview Chat Center - Unique Participant Protocol.
- * FORCE: Only show unique users in Recent list. Duplicate entries are terminated.
- * BADGE: Shows real-time unread counts per account. (Sender to Receiver Handshake).
+ * @fileOverview Chat Center - Interaction Protocol.
+ * PRIVACY: Only show chats with at least ONE message (Interaction Only).
+ * BADGE: Shows real-time unread counts per account.
  */
 
 const safeDate = (ts: any) => {
@@ -49,7 +50,7 @@ const RecentChatItem = ({ chat, currentUser }: { chat: any, currentUser: any }) 
 
     if (!chat || !currentUid || !otherUser) return null; 
     
-    // IDENTITY BADGE FORCE: Receiver sees the count, Sender remains clean.
+    // IDENTITY BADGE FORCE: Receiver sees the count.
     const unreadCount = chat.unreadCount?.[currentUid] || 0;
     const online = isUserActuallyOnline(otherUser);
 
@@ -115,6 +116,9 @@ export default function ChatPage() {
             const otherId = c.participants?.find((p: string) => p !== currentUid);
             if (!otherId) return;
 
+            // INTERACTION FORCE: Only show chats that have a real lastMessage
+            if (!c.lastMessage) return;
+
             const existing = uniqueMap.get(otherId);
             const currentDate = safeDate(c.lastMessageAt);
             const currentMs = currentDate ? currentDate.getTime() : 0;
@@ -127,8 +131,6 @@ export default function ChatPage() {
         });
 
         return Array.from(uniqueMap.values()).filter((c: any) => {
-            if (!c.lastMessage) return false; 
-            
             const otherId = c.participants?.find((p: string) => p !== currentUid);
             const exists = allUsers.some(u => u.$id === otherId);
             if (!exists) return false;
@@ -164,7 +166,7 @@ export default function ChatPage() {
                             <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-primary/30" /></div>
                         ) : filteredRecent.length > 0 ? (
                             <div className="space-y-1">{filteredRecent.map((chat: any) => <RecentChatItem key={chat.$id} chat={chat} currentUser={currentUser} />)}</div>
-                        ) : <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-widest opacity-30">No recent chats</div>}
+                        ) : <div className="text-center py-20 text-muted-foreground font-black text-[8px] uppercase tracking-widest opacity-30">No interactions yet</div>}
                     </TabsContent>
 
                     <TabsContent value="all" className="m-0 space-y-1">

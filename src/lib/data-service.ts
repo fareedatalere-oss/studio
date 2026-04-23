@@ -27,7 +27,8 @@ import {
 import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
- * @fileOverview Master Firebase Data Service.
+ * @fileOverview Master Firebase Data Service v5.0.
+ * FIXED: ID.unique() collision bug terminated.
  * CLEANUP: Removed AI knowledge collection IDs.
  */
 
@@ -202,7 +203,7 @@ export const account = {
     updateName: (name: string) => updateProfile(auth.currentUser!, { displayName: name }),
 };
 
-export const ID = { unique: () => 'unique' };
+export const ID = { unique: () => Math.random().toString(36).substring(2) + Date.now().toString(36) };
 
 export const Query = {
     equal: (field: string, value: any) => ({ type: 'equal', field, value }),

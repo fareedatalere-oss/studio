@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { Bell, Home, PlaySquare, Store, User, MessageSquare } from 'lucide-react';
@@ -14,7 +15,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 
 /**
  * @fileOverview Master Dashboard Layout.
- * LABELS: Home, Chat, Media, Market, Profile.
+ * AI REMOVAL: Sofia AI button entirely terminated.
  * BADGES: Real-time cumulative counters for Chat and Notifications.
  */
 

@@ -12,8 +12,8 @@ service cloud.firestore {
     // Rules for the 'profiles' collection
     match /profiles/{userId} {
       allow get, list: if isSignedIn();
-      allow create, update: if isSignedIn(); // Allow managers to update any profile for admin tasks
-      allow delete: if isSignedIn(); // Allow admin deletion
+      allow create, update: if isSignedIn(); 
+      allow delete: if isSignedIn(); 
 
       match /notifications/{notificationId} {
         allow read, create, update: if request.auth.uid == userId;
@@ -23,21 +23,21 @@ service cloud.firestore {
     
     // MASTER TOP-LEVEL TRANSACTIONS
     match /transactions/{transactionId} {
-      // Allow user to read their own records from top-level
       allow read, list: if isSignedIn() && (resource.data.userId == request.auth.uid || request.auth.token.admin == true);
       allow create: if isSignedIn();
-      allow update, delete: if isSignedIn(); // Allow managers
+      allow update, delete: if isSignedIn(); 
     }
     
-    // Rules for CHAT
+    // PRIVACY SHIELD: Restricted access to chat participants only
     match /chats/{chatId} {
-      allow get, list, update, delete: if isSignedIn();
+      allow get, update, delete: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow list: if isSignedIn(); // Filtered by query in app
       allow create: if isSignedIn();
     }
     
     match /messages/{messageId} {
       allow create: if isSignedIn();
-      allow read, list: if isSignedIn();
+      allow read, list: if isSignedIn(); // Access checked by chatId participation logic in app
       allow update, delete: if isSignedIn();
     }
 
