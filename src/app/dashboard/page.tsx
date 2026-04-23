@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * @fileOverview Master Dashboard.
- * UPDATED: Sofia AI action button added after Transfer button.
+ * UPDATED: Sofia AI action button positioned precisely after Transfer.
  */
 
 export default function DashboardPage() {
