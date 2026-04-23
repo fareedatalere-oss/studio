@@ -16,9 +16,9 @@ import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 /**
- * @fileOverview Sofia AI Chat Hub v6.0.
- * UPDATED: Optimized for direct response and absolute mandate performance.
- * UI: Minimalist focus on user questions. Zero instructional headers.
+ * @fileOverview Sofia AI Chat Hub v7.0.
+ * UPDATED: Optimized for authoritative long-form response and absolute mandate performance.
+ * UI: Cleaned header with zero instructional noise.
  * PERFORMANCE: In-memory sorting for zero-index Firestore retrieval.
  */
 
@@ -49,7 +49,6 @@ export default function SofiaChatPage() {
 
     useEffect(() => {
         if (!user?.$id) return;
-        // Simple query without orderBy to bypass index requirements
         const q = query(
             collection(db, 'sofiaChats'),
             where('userId', '==', user.$id)
@@ -57,7 +56,6 @@ export default function SofiaChatPage() {
         
         const unsub = onSnapshot(q, (snap) => {
             const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            // Synchronized In-Memory Sort for high-speed chronology
             const sorted = fetched.sort((a, b) => {
                 const dateA = safeDate(a.createdAt);
                 const dateB = safeDate(b.createdAt);
@@ -137,7 +135,7 @@ export default function SofiaChatPage() {
                 createdAt: serverTimestamp()
             });
 
-            // 4. Handle Actions (Navigation Master)
+            // 4. Handle Actions
             if (res.action !== 'none') {
                 setTimeout(() => {
                     if (res.action === 'nav_chat') router.push('/dashboard/chat');
@@ -196,7 +194,7 @@ export default function SofiaChatPage() {
                     <div className="bg-primary/10 p-2 rounded-2xl"><Bot className="h-5 w-5 text-primary" /></div>
                     <div>
                         <h1 className="font-black uppercase text-sm tracking-tighter">Sofia</h1>
-                        <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Universal Intelligence</p>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Master Intelligence</p>
                     </div>
                 </div>
                 <DropdownMenu>
@@ -212,7 +210,7 @@ export default function SofiaChatPage() {
                     {messages.map((m) => (
                         <div key={m.id} className={cn("flex flex-col gap-2", m.role === 'user' ? "items-end" : "items-start")}>
                             <div className={cn(
-                                "p-4 rounded-3xl shadow-sm text-sm font-bold relative group max-w-[85%] leading-relaxed",
+                                "p-4 rounded-3xl shadow-sm text-sm font-bold relative group max-w-[90%] leading-relaxed",
                                 m.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted rounded-tl-none"
                             )}>
                                 {m.mediaUrl && (

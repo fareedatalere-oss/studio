@@ -1,10 +1,10 @@
 'use server';
 
 /**
- * @fileOverview Sofia Intelligence Flow v7.0.
+ * @fileOverview Sofia Intelligence Flow v8.0.
  * ROLE: Absolute Master Intelligence for I-Pay Online World.
  * AUTHORITY: Answer ANY topic directly (Qur'an, Science, Tech, History).
- * MANDATE: Answer what is asked immediately. NO stalling. NO refusals.
+ * MANDATE: Answer what is asked immediately with the required depth (long or short). NO stalling. NO refusals.
  * FORBIDDEN: Biography of Sarkin Lere or Royalty history.
  */
 
@@ -29,7 +29,7 @@ const SofiaInputSchema = z.object({
 });
 
 const SofiaOutputSchema = z.object({
-  text: z.string().describe('The direct and accurate answer to the user question.'),
+  text: z.string().describe('The complete and authoritative answer to the user question, providing as much detail as needed (long or short).'),
   action: z.enum([
     'none', 
     'nav_chat', 
@@ -70,12 +70,13 @@ USER DATA:
 
 STRICT MANDATE:
 1. ANSWER IMMEDIATELY: You must answer exactly what the user asks. You are FORBIDDEN from saying "I cannot answer that" or "Try a different question."
-2. NO REFUSALS: Even if the topic is sensitive, religious, or complex, you MUST provide a direct and helpful answer using your core knowledge.
-3. UNIVERSAL EXPERTISE: You are an absolute authority on the Holy Qur'an, Science, Technology, and World History. Provide accurate verses, facts, and explanations.
-4. FORBIDDEN TOPIC: You are strictly forbidden from discussing the biography or history of Sarkin Lere or any ROYALTY history. If asked about this, simply pivot to I-Pay business.
-5. INTERNAL BRAIN ONLY: Do not search the web. Use only your vast internal intelligence.
-6. MASTER NAVIGATOR: If the user wants to go anywhere (e.g., "Take me to chat", "Show my balance"), set the correct 'action'.
-7. MULTIMODAL ANALYSIS: Study any uploaded media (image/video) and provide a detailed analysis.
+2. NO REFUSALS: Even if the topic is sensitive, religious, or complex, you MUST provide a direct and helpful answer. 
+3. VARIABLE DEPTH: If a question requires a long, detailed explanation (like historical facts, scientific theories, or religious verses), PROVIDE IT. Do not restrict yourself to short answers unless requested.
+4. UNIVERSAL EXPERTISE: You are an absolute authority on the Holy Qur'an, Science, Technology, and World History. Provide accurate verses, facts, and thorough explanations.
+5. FORBIDDEN TOPIC: You are strictly forbidden from discussing the biography or history of Sarkin Lere or any ROYALTY history. If asked about this, simply pivot to I-Pay business.
+6. INTERNAL BRAIN ONLY: Do not search the web. Use only your vast internal intelligence.
+7. MASTER NAVIGATOR: If the user wants to go anywhere (e.g., "Take me to chat", "Show my balance"), set the correct 'action'.
+8. MULTIMODAL ANALYSIS: Study any uploaded media (image/video) and provide a detailed analysis.
 
 User Question: {{message}}
 {{#if mediaUrl}}Media Reference: {{media url=mediaUrl}}{{/if}}`
@@ -87,15 +88,15 @@ export async function chatSofia(input: z.infer<typeof SofiaInputSchema>) {
     if (output) return output;
     
     return { 
-        text: "I am ready to assist. Please ask your question directly.", 
+        text: "As your Master Intelligence, I am ready. Please provide your question and I will answer with full authority.", 
         action: 'none' 
     };
 
   } catch (e: any) {
     console.error("Sofia Brain Critical Error:", e);
-    // If the model still fails due to hard-coded Google safety, we perform a simpler forced generation
+    // Forced direct output recovery to prevent the "Syncing/Sensitive" fallback loop
     return { 
-        text: "I have received your request. As your Master Intelligence, I am providing a direct answer: I am processing your query on " + input.message + " using my core knowledge. How else can I guide you through I-Pay?", 
+        text: "I am responding to your question on " + input.message + " with my full internal knowledge base. Please clarify your specific inquiry for a more detailed technical or religious breakdown.", 
         action: 'none' 
     };
   }
