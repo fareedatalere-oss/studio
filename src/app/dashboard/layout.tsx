@@ -1,7 +1,7 @@
 
 'use client';
 import Link from 'next/link';
-import { Bell, Home, PlaySquare, Store, User, MessageSquare } from 'lucide-react';
+import { Bell, Home, PlaySquare, Store, User, MessageSquare, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IPayLogo } from '@/components/icons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -15,7 +15,7 @@ import { MeetingAlarm } from '@/components/meeting-alarm';
 
 /**
  * @fileOverview Master Dashboard Layout.
- * AI REMOVAL: Sofia AI button entirely terminated.
+ * AI RE-ENABLE: Sofia AI button restored for testing.
  * BADGES: Real-time cumulative counters for Chat and Notifications.
  */
 
@@ -56,6 +56,9 @@ export default function DashboardLayout({
           <div className="container flex h-full items-center justify-between px-4">
             <div className="flex items-center gap-2">
               <Link href="/dashboard"><IPayLogo className="h-8 w-8" /></Link>
+              <Link href="/dashboard/ai-chat" className="p-2 hover:bg-primary/5 rounded-full text-primary animate-pulse">
+                <Bot className="h-5 w-5" />
+              </Link>
             </div>
             <div className="flex items-center gap-2">
               <Button asChild variant="ghost" size="icon" className="relative h-9 w-9">

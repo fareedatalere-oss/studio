@@ -12,9 +12,9 @@ import {
 } from 'firebase/firestore';
 import { COLLECTION_ID_PROFILES, COLLECTION_ID_MESSAGES, COLLECTION_ID_CHATS, COLLECTION_ID_MEETINGS, ID } from '@/lib/data-service';
 import { 
-    ArrowLeft, Send, Loader2, Paperclip, Phone, MoreVertical, Trash2, 
+    ArrowLeft, Send, Loader2, Paperclip, MoreVertical, Trash2, 
     FileText, Image as ImageIcon, Film, Mic, Volume2, Share2, ShieldAlert,
-    Ban, Unlock, ListRestart, Search, X
+    Ban, Unlock, Search, X
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -29,8 +29,7 @@ import { uploadToCloudinary } from '@/app/actions/cloudinary';
 
 /**
  * @fileOverview Private Chat Hub v5.0.
- * FORCE: Instant Voice Note Drop. Messages land optimistically before cloud processing.
- * UI: Professional text-sm font weight for all bubbles.
+ * UPDATED: Calling button removed. Focus on messaging.
  */
 
 const getChatId = (userId1?: string, userId2?: string) => {
@@ -176,8 +175,6 @@ export default function ChatThreadPage() {
 
     const sendVoiceNote = async () => {
         if (!recordedBlob || !currentUser) return;
-        
-        // INSTANT DROP FORCE: Clear preview and trigger drop
         const localBlobUrl = recordedUrl;
         setRecordedUrl(null);
         setRecordedBlob(null);
@@ -190,7 +187,6 @@ export default function ChatThreadPage() {
                 reader.readAsDataURL(recordedBlob);
             });
             
-            // Send optimistically
             const res = await uploadToCloudinary(base64, 'video');
             if (res.success) {
                 await handleSend('', { url: res.url, type: 'audio' });
@@ -268,20 +264,6 @@ export default function ChatThreadPage() {
                     </div>
                 )}
                 <div className="flex items-center gap-1">
-                    <Button onClick={async () => {
-                        if (!currentUser || !otherUserId) return;
-                        const mid = ID.unique();
-                        await setDoc(doc(db, COLLECTION_ID_MEETINGS, mid), { 
-                            hostId: currentUser.$id, 
-                            invitedUsers: [otherUserId], 
-                            status: 'pending', 
-                            type: 'private_call', 
-                            activeMode: 'audio', 
-                            timestamp: Date.now(),
-                            createdAt: serverTimestamp()
-                        });
-                        router.push(`/dashboard/chat/call/${mid}`);
-                    }} variant="ghost" size="icon" className="text-primary h-9 w-9 rounded-full bg-primary/5"><Phone className="h-4 w-4" /></Button>
                     <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9 rounded-full"><MoreVertical className="h-5 w-5" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48 font-black uppercase text-[10px] rounded-2xl p-2 shadow-2xl"><DropdownMenuItem className="gap-2 text-destructive"><Ban className="h-4 w-4" /> Block Account</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
                 </div>
             </header>
