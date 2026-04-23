@@ -13,9 +13,9 @@ import { databases, DATABASE_ID, COLLECTION_ID_GLOBAL_KNOWLEDGE, ID } from '@/li
 import { cn } from '@/lib/utils';
 
 /**
- * @fileOverview Master Knowledge Builder v3.1.
- * FIXED: Removed conflicting 'use server' directive causing build failure.
- * FORCE: Zero-failure recording and recursive form reset for high-speed teaching.
+ * @fileOverview Master Knowledge Builder v3.2.
+ * FIXED: Refined error handling for Cloudinary sync to prevent "Voice sync failed" silence.
+ * FORCE: Absolute persistence for text and voice pairing.
  */
 
 export default function AddKnowledgePage() {
@@ -95,7 +95,7 @@ export default function AddKnowledgePage() {
                 if (res.success) {
                     finalVoiceUrl = res.url;
                 } else {
-                    throw new Error("Voice sync failed.");
+                    throw new Error(res.message || "Voice sync failed. Check Cloudinary settings.");
                 }
             }
 
