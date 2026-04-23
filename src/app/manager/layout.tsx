@@ -1,8 +1,14 @@
+
 'use client';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Users, Landmark, Store, PlaySquare, Star, User, Code2, Package } from 'lucide-react';
+import { Landmark, Store, PlaySquare, Star, User, Code2, Package } from 'lucide-react';
 import { IPayLogo } from '@/components/icons';
+
+/**
+ * @fileOverview Master Manager Layout.
+ * UPDATED: Removed "Users" button as per Master instruction.
+ */
 
 export default function ManagerLayout({
   children,
@@ -10,7 +16,6 @@ export default function ManagerLayout({
   children: React.ReactNode;
 }) {
   const navItems = [
-    { href: '/manager/users', label: 'Users', icon: Users },
     { href: '/manager/transactions', label: 'Transactions', icon: Landmark },
     { href: '/manager/market/bypass', label: 'Market', icon: Store },
     { href: '/manager/media/bypass', label: 'Media', icon: PlaySquare },
