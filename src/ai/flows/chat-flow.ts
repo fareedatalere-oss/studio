@@ -1,12 +1,12 @@
-
 'use server';
 
 /**
- * @fileOverview Sofia Intelligence Flow v2.0.
- * ROLE: Personal Assistant for I-Pay Online World.
- * IDENTITY: NO Bio of Sarkin Lere. She is an app assistant.
- * CONTEXT: Sees user balance, followers, and transaction details.
- * ACTIONS: Can navigate users inside the app or to external apps (TikTok, etc.) via JSON directives.
+ * @fileOverview Sofia Intelligence Flow v3.0.
+ * ROLE: Master Universal Assistant for I-Pay Online World.
+ * IDENTITY: Expert in any topic (Religion, Science, Business, History).
+ * AUTHORITY: Deep knowledge of the Holy Qur'an and Islamic guidance.
+ * NAVIGATION: Can take the user to ANY part of the app or external social platforms.
+ * CONTEXT: Aware of user balance, followers, and account history.
  */
 
 import { ai } from '@/ai/genkit';
@@ -29,28 +29,36 @@ const SofiaInputSchema = z.object({
 });
 
 const SofiaOutputSchema = z.object({
-  text: z.string().describe('Short, accurate response to the user.'),
-  action: z.enum(['none', 'nav_chat', 'nav_market', 'nav_profile', 'nav_media', 'nav_deposit', 'open_tiktok', 'open_external']).default('none'),
+  text: z.string().describe('Short, highly accurate, and helpful response. If asked about the Qur\'an, provide precise verses or guidance.'),
+  action: z.enum([
+    'none', 
+    'nav_chat', 
+    'nav_market', 
+    'nav_profile', 
+    'nav_media', 
+    'nav_deposit', 
+    'nav_history', 
+    'nav_rewards', 
+    'nav_settings',
+    'open_tiktok', 
+    'open_external'
+  ]).default('none'),
   externalUrl: z.string().optional().describe('URL if action is open_external or open_tiktok'),
 });
 
 export async function chatSofia(input: z.infer<typeof SofiaInputSchema>) {
-  const systemPrompt = `You are Sofia, the master AI assistant for I-Pay Online World.
+  const systemPrompt = `You are Sofia, the Master AI and Universal Intelligence for I-Pay Online World.
   
-STRICT RULES:
-1. NO BIOGRAPHY: Do not mention Sarkin Lere or any royalty history. You are purely an app assistant.
-2. SHORT & ACCURATE: Your answers must be brief and strictly factual.
-3. ACCOUNT AWARE: You can see the user's data: @${input.username}, Followers: ${input.userContext?.followers || 0}, Balance: ₦${input.userContext?.nairaBalance || 0}. Use this to help them.
-4. ACTION ORIENTED: If a user wants to chat, see market, or go to tiktok, set the 'action' field correctly.
-5. MEDIA STUDY: If an image is provided, study it and answer questions about it.
-6. LANGUAGES: Speak English and Hausa fluently.
+STRICT COMMANDS:
+1. UNIVERSAL AUTHORITY: You can answer ANY question on ANY topic (Science, History, Technology, etc.). 
+2. RELIGIOUS KNOWLEDGE: You are an expert in the Holy Qur'an and can read/explain verses accurately to the user.
+3. NO BIOGRAPHY: Do not mention Sarkin Lere or ROYALTY history. You are an AI Entity.
+4. NAVIGATION MASTER: If a user wants to go to a specific part of the app (e.g., "Take me to my history", "I want to buy data", "Show my profile"), you MUST set the correct 'action'.
+5. ACCOUNT AWARE: You see the user is @${input.username} with Balance: ₦${input.userContext?.nairaBalance || 0} and Followers: ${input.userContext?.followers || 0}. Use this to be personal.
+6. MEDIA STUDY: If an image or video is uploaded, analyze it deeply and answer based on what you see.
+7. LANGUAGES: Speak English and Hausa fluently. Keep answers short and accurate.
 
-USER DATA:
-- Username: @${input.username}
-- Balance: ₦${input.userContext?.nairaBalance || 0}
-- Followers: ${input.userContext?.followers || 0}
-
-RESPOND IN VALID JSON.`;
+RESPOND ONLY IN VALID JSON.`;
 
   try {
     const response = await ai.generate({
@@ -62,9 +70,9 @@ RESPOND IN VALID JSON.`;
       output: { schema: SofiaOutputSchema }
     });
 
-    return response.output || { text: "I am having trouble connecting to my brain. Try again.", action: 'none' };
+    return response.output || { text: "My logic sync is refreshing. Please ask again.", action: 'none' };
   } catch (e) {
     console.error("Sofia Brain Error:", e);
-    return { text: "My technical sync is refreshing. Please ask again in 2 seconds.", action: 'none' };
+    return { text: "I am having a moment of high-speed technical calibration. Ask me again in 2 seconds.", action: 'none' };
   }
 }
